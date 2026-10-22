@@ -708,7 +708,7 @@ Planned only, while the code-quality pass runs; build after it, once the questio
 - [ ] Phase 1, in the registry: `built_with:` for every package, and the list of names with titles in the index
 - [ ] Phase 2, advisories: `advisories/` in the registry and the index's field, with CI's checks; matching on the controller; the automation setting; worked out each time and lifting by themselves; **Keep it public anyway**; updating at once; hourly fetching; emails; a line in the report to Cloud
 - [ ] Phase 3: Cloud's nudge; pausing at the relay's edges from Cloud's website (Cloud's repository); the "closed" level (firewall, edge, relay) for problems in Caddy or Roostack
-- [ ] Phase 4: the registry's watcher (KEV, OSV, GitHub's advisories → issues); Syft in the registry's CI, if agreed
+- [ ] Phase 4, the watcher (docs/RED-BUTTON-PLAN.md §10.1; can start alongside phase 2): `roostack registry watch` in the registry's CI reading OSV, GitHub's advisories, both KEV lists, EPSS, oss-security, projects' notices and new CrowdSec patch rules; matching on `built_with:`; draft advisory pull requests, a weekly digest, push notifications for critical exploited matches; Syft bills of materials for exact matches, if agreed; later, if agreed, an AI first pass and publishing the narrowest case with nobody around
 
 ## Single sign-on: what's next (SPEC §5.2)
 

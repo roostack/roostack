@@ -361,13 +361,9 @@ labs. Cloud only shortens the wait (§9).
   - **Turning the registry off** (`registry.disabled`) means no
     advisories. Settings → Public access says so, and the button still
     works.
-- **How the maintainers hear of problems** (later, the registry's
-  tooling):
-  - a scheduled job reads KEV daily, and OSV and GitHub's advisories for
-    each package's `about.source` and `built_with`;
-  - it opens an issue for each match, with what it found.
-  - A person writes the advisory. Nothing auto-publishes an advisory
-    that blocks.
+- **How the maintainers hear of problems:** a watcher in the registry's
+  CI reads the public feeds and drafts advisories for a maintainer to
+  approve (§10.1). Labs never read the feeds themselves.
 - **How soon a lab hears:** today the controller fetches every 4 hours,
   plus up to 30 minutes. An unchanged index costs one small request
   (ETag), so **checking hourly** is cheap. Proposed: hourly for everyone
@@ -580,8 +576,140 @@ it. The report says only "paused since …, N services".
   - the update bot (§8.3.8, not built) then brings the fixed version.
     For a zero-day, a maintainer may publish the fix by hand first.
 - **Later:**
-  - the watcher (KEV, OSV, GitHub's advisories → issues);
-  - Syft in CI for exact versions (§4).
+  - the watcher (§10.1);
+  - Syft in CI for exact versions (§4), which the watcher's exact
+    matches depend on.
+
+### 10.1 Raising advisories without a full-time team: the watcher
+
+Advisories only help if someone writes them within hours of a zero-day.
+The project has no security team, so most of the work has to be done by
+a scheduled job, with a person only approving. **Proposed: a watcher in
+the registry's own GitHub Actions that drafts advisories for a
+maintainer to approve.** Labs never read the feeds, and nothing that
+can pause a service is published without a person (or, much later, the
+narrow exception in §10.1.5).
+
+#### 10.1.1 What it reads
+
+All free. Checking hourly is plenty, and most answer "nothing new" in one
+small request.
+
+| Source | What it gives | How it's read |
+|---|---|---|
+| **OSV.dev** | Advisories from GitHub, npm, PyPI, Go, Maven, Packagist (PHP), RubyGems and more, matched to exact package versions | `POST /v1/querybatch`: up to 1,000 package-and-version queries a request, no key |
+| **GitHub's advisory database** | Reviewed advisories, including each app's own repository's advisories | The REST API, asking for anything published or updated since the last run. A `security_advisory` webhook exists, but polling is what GitHub itself suggests |
+| **CISA's Known Exploited Vulnerabilities (KEV)** | The strongest "being used in attacks" signal | One JSON file, compared with the last copy |
+| **VulnCheck's KEV** | A larger exploited list, often earlier than CISA's | A free account and key |
+| **EPSS** (FIRST) | A daily estimate of how likely each CVE is to be exploited, for ranking | `api.first.org/data/v1/epss`, no key |
+| **oss-security** | Where many open-source problems are first discussed, often before a CVE exists | Its archive, or the RSS mirror at seclists.org (whether that's official is still to check) |
+| **Projects' own security notices** | PHP, Node.js and each app's releases | Their feeds, and the GitHub advisories of each package's `about.source` |
+| **New CrowdSec Hub patch rules** | A new `vpatch-*` rule usually means a public exploit exists | The Hub's index, compared with the last copy |
+
+Considered: NVD's API (rate-limited without a key, and slow to enrich
+new CVEs lately; OSV and GitHub carry the same CVEs with package data);
+paid threat-intelligence feeds (cost, for little gain at this size);
+GreyNoise's tags of exploitation seen in the wild (useful, but its free
+tier is limited; maybe later).
+
+#### 10.1.2 What it matches against
+
+- **Each package's `built_with:`** catches the broad cases ("a problem in
+  PHP"), but loosely: it doesn't say which version or library.
+- **Exact matches need a bill of materials.** For each new image, the
+  registry's CI would run **Syft** once and keep its list of what the
+  image contains (each library with its version, as package URLs), in
+  the registry's published files, not in the index labs fetch. OSV is
+  asked about those exact versions, so a Log4j problem matches the
+  packages whose images carry an affected Log4j, not every Java app.
+  - Syft is a new tool for the registry's CI. It's a question for you
+    (question 10 already asks), and it would never run on labs.
+  - Without Syft, the watcher still works on `built_with:`, the apps'
+    own advisories and KEV, with more drafts to dismiss.
+- **Roostack's own parts** (Caddy and its plugins, CrowdSec, restic,
+  Roostack itself) are watched the same way. Their fix is a Roostack
+  release, so an advisory about them is the "closed" level's case
+  (§2.2).
+
+#### 10.1.3 Ranking and drafting
+
+For each match, the watcher works out:
+
+- **whether it's being used in attacks:** on either KEV list, or a
+  CrowdSec patch rule for it exists;
+- **whether a visitor could use it:** from the CVSS vector, when it has
+  one (network, no privileges, no user action), and from whether the
+  affected part is something the package keeps private (its
+  `private_paths`, an `unsafe` route);
+- **how likely it is to be exploited** (EPSS), to sort the rest;
+- **whether a fix exists:** a fixed version named by the advisory, and
+  whether the update bot (§8.3.8) has already found a release with it.
+
+From that:
+
+- **A strong match** (an exact version, and critical or exploited) is
+  **a pull request in the registry** with the advisory file filled in:
+  - the affected package versions, which the watcher knows from the
+    registry;
+  - the fixed version, if there's one;
+  - the severity it suggests, and why;
+  - the evidence, with links.
+- **A weak match** (by `built_with:` only, high or low, or no version
+  information) goes into **a weekly digest issue**, for a maintainer to
+  look through or close.
+- The same problem is never drafted twice: the watcher keeps what it has
+  seen, by CVE and advisory id, in the registry repository.
+
+#### 10.1.4 Reaching a person quickly
+
+- **A critical match that's being used in attacks** sends a push
+  notification to the maintainers' phones (ntfy or Pushover, *question
+  15*), linking to the pull request.
+- **Approving is one action:** reviewing and merging the pull request,
+  from a phone if needed. Publishing is automatic after that, as it is
+  now: the index is signed and labs fetch it within the hour (minutes
+  with Cloud's nudge, §9).
+- **The fix arrives the same way:** when the update bot finds the fixed
+  release, it links its pull request to the advisory's, so they can be
+  merged together, or the fix soon after.
+
+#### 10.1.5 Optional, later
+
+- **An AI first pass** (*question 16*): for each strong match, Claude
+  reads the advisory and the app's notes. It writes the plain-English
+  summary that the lab will show, and suggests an answer to "can someone
+  on the internet use this without signing in?", with its reasons.
+  - A maintainer still approves the draft.
+  - It saves the most time per alert, at a few cents each.
+  - The project's API key goes in the registry's CI secrets.
+- **Publishing with nobody around** (*question 17*): only for the
+  narrowest case, and only once drafts have proved accurate for a few
+  months. The case is:
+  - an exact version match;
+  - on a KEV list;
+  - usable without signing in;
+  - and no maintainer objection within a few hours.
+
+  Even then, its level is at most "pause public access", it's published
+  as rated by the watcher (the lab says so), and Owners can still keep
+  services public anyway.
+
+#### 10.1.6 What it costs
+
+- GitHub Actions minutes are free for a public repository, and every
+  source above is free (VulnCheck needs an account).
+- The ongoing work is reviewing a handful of drafts a month. The
+  registry has 22 packages, and most problems found won't be reachable
+  from the internet.
+- Building it is mostly one small program in the registry's CI:
+  - fetch the sources;
+  - compare them with the last run;
+  - match against the packages and their bills of materials;
+  - open pull requests or issues.
+
+  It could be a Go command beside `roostack registry index`
+  (`roostack registry watch`), so it shares the index's code, and adds
+  no new dependency beyond Syft if that's agreed.
 
 ## 11. The first version, and what comes later
 
@@ -634,11 +762,15 @@ it. The report says only "paused since …, N services".
 - "closed" (firewall, edge, relay) for advisories about the front door
   (Caddy, Roostack).
 
-**Fourth: the registry's tooling:**
+**Fourth: the registry's tooling** (§10.1); it can start alongside the
+second phase, since advisories need someone to write them:
 
-- the watcher;
-- Syft in CI (if agreed);
-- exact versions on the service page.
+- the watcher's feeds, matching on `built_with:`, draft pull requests,
+  the weekly digest and push notifications;
+- Syft in CI for exact matches (if agreed), and exact versions on the
+  service page;
+- later, if agreed: the AI first pass, then publishing with nobody
+  around.
 
 ## 12. Questions for the Owner
 
@@ -681,3 +813,20 @@ it. The report says only "paused since …, N services".
     container, and its list of names kept by the registry rather than
     in Roostack's code?
 13. **The phases** as in §11: the button first, advisories second?
+14. **The watcher** (§10.1): a scheduled job in the registry's CI that
+    drafts advisory pull requests and a weekly digest, with a maintainer
+    approving every one *(recommended)*? And written as
+    `roostack registry watch` in Go, beside `roostack registry index`
+    *(recommended)*, rather than a separate script?
+15. **Urgent alerts to the maintainers' phones:**
+    - ntfy *(recommended: open source, and could be self-hosted on a
+      lab)*;
+    - Pushover (a small one-off fee per device);
+    - or GitHub's own notifications only.
+16. **An AI first pass** on strong matches (a summary and a suggested
+    "usable without signing in?"), with a maintainer still approving?
+    *(Recommended, once the watcher works without it.)*
+17. **Publishing with nobody around**, for the narrowest case (an exact
+    match, on a KEV list, usable without signing in, no objection within
+    a few hours)? *(Recommended: not now. Revisit once drafts have been
+    accurate for a few months.)*
