@@ -41,9 +41,7 @@ func NewClient(socket string) *Client {
 
 // Health checks the agent is reachable and returns its version.
 func (c *Client) Health(ctx context.Context) (string, error) {
-	var resp struct {
-		Version string `json:"version"`
-	}
+	var resp Health
 	err := c.call(ctx, http.MethodGet, "/v1/health", nil, &resp)
 	return resp.Version, err
 }
@@ -66,7 +64,7 @@ func (c *Client) AllowWireGuardJoin(ctx context.Context) error {
 
 // SetTimezone sets the host's time zone (an IANA name like Europe/Berlin).
 func (c *Client) SetTimezone(ctx context.Context, name string) error {
-	return c.call(ctx, http.MethodPut, "/v1/timezone", map[string]string{"timezone": name}, nil)
+	return c.call(ctx, http.MethodPut, "/v1/timezone", TimezoneRequest{Timezone: name}, nil)
 }
 
 // RunUpdates installs available OS updates, writing their output to w as
@@ -75,7 +73,7 @@ func (c *Client) SetTimezone(ctx context.Context, name string) error {
 func (c *Client) RunUpdates(ctx context.Context, series string, w io.Writer) error {
 	var body io.Reader = http.NoBody
 	if series != "" {
-		data, err := json.Marshal(map[string]string{"series": series})
+		data, err := json.Marshal(UpdatesRequest{Series: series})
 		if err != nil {
 			return err
 		}
@@ -91,19 +89,13 @@ func (c *Client) RunUpdates(ctx context.Context, series string, w io.Writer) err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		var e struct {
-			Error string `json:"error"`
-		}
+		var e Answer
 		json.NewDecoder(resp.Body).Decode(&e)
 		return fmt.Errorf("roostack-agent: %s: %s", resp.Status, e.Error)
 	}
 	dec := json.NewDecoder(resp.Body)
 	for {
-		var msg struct {
-			Line  *string `json:"line"`
-			Done  bool    `json:"done"`
-			Error string  `json:"error"`
-		}
+		var msg UpdatesMessage
 		if err := dec.Decode(&msg); err != nil {
 			return fmt.Errorf("%w: %w", ErrUpdatesCut, err)
 		}
@@ -153,9 +145,7 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		var e struct {
-			Error string `json:"error"`
-		}
+		var e Answer
 		json.NewDecoder(resp.Body).Decode(&e)
 		return fmt.Errorf("roostack-agent %s: %s: %s", path, resp.Status, e.Error)
 	}
@@ -176,9 +166,7 @@ func (c *Client) ApplyWireGuard(ctx context.Context, wg WireGuard) (string, erro
 			}
 		}
 	}
-	var resp struct {
-		PublicKey string `json:"public_key"`
-	}
+	var resp WireGuardApplied
 	err := c.call(ctx, http.MethodPut, "/v1/wireguard", wg, &resp)
 	return resp.PublicKey, err
 }
@@ -211,13 +199,13 @@ func (c *Client) Drives(ctx context.Context) ([]Drive, error) {
 // UseDrive readies a drive for backups (mounting it for good if needed).
 func (c *Client) UseDrive(ctx context.Context, id string) (UsedDrive, error) {
 	var u UsedDrive
-	err := c.call(ctx, http.MethodPost, "/v1/drives/use", map[string]string{"id": id}, &u)
+	err := c.call(ctx, http.MethodPost, "/v1/drives/use", UseDriveRequest{ID: id}, &u)
 	return u, err
 }
 
 // EraseDrive erases a disk and prepares it for backups.
 func (c *Client) EraseDrive(ctx context.Context, disk, label string) error {
-	return c.call(ctx, http.MethodPost, "/v1/drives/erase", map[string]string{"disk": disk, "label": label}, nil)
+	return c.call(ctx, http.MethodPost, "/v1/drives/erase", EraseDriveRequest{Disk: disk, Label: label}, nil)
 }
 
 // Libraries lists the media libraries mounted on this server.
@@ -244,10 +232,8 @@ func (c *Client) MountLibrary(ctx context.Context, l Library) error {
 // read-only (a share's password goes to the agent, which keeps it root's
 // only), and says where (SPEC.md §8.4).
 func (c *Client) MountImport(ctx context.Context, service string, l Library) (string, error) {
-	var out struct {
-		Path string `json:"path"`
-	}
-	err := c.call(ctx, http.MethodPut, "/v1/imports/"+url.PathEscape(service), l, &out)
+	var out Mounted
+	err := c.call(ctx, http.MethodPut, "/v1/imports/"+url.PathEscape(service), ImportRequest{Service: service, Library: l}, &out)
 	return out.Path, err
 }
 
@@ -259,10 +245,8 @@ func (c *Client) UnmountImport(ctx context.Context, service string) error {
 // MountPhotos mounts a person's export for migrating photos into a
 // service, read-only, and says where (SPEC.md §8.5).
 func (c *Client) MountPhotos(ctx context.Context, service, who string, l Library) (string, error) {
-	var out struct {
-		Path string `json:"path"`
-	}
-	err := c.call(ctx, http.MethodPut, "/v1/photos/"+url.PathEscape(service)+"/"+url.PathEscape(who), l, &out)
+	var out Mounted
+	err := c.call(ctx, http.MethodPut, "/v1/photos/"+url.PathEscape(service)+"/"+url.PathEscape(who), PhotosRequest{Service: service, Who: who, Library: l}, &out)
 	return out.Path, err
 }
 
@@ -280,7 +264,7 @@ func (c *Client) UnmountLibrary(ctx context.Context, name string) error {
 // in its second view folder (name → library, SPEC.md §8.4).
 func (c *Client) SetLibraryViews(ctx context.Context, service string, libraries []string, at map[string]string) error {
 	return c.call(ctx, http.MethodPut, "/v1/library-views/"+url.PathEscape(service),
-		map[string]any{"libraries": libraries, "at": at}, nil)
+		ViewsRequest{Service: service, Libraries: libraries, At: at}, nil)
 }
 
 // RemoveLibraryViews removes a service's library views.
@@ -297,16 +281,14 @@ func (c *Client) CheckShare(ctx context.Context, s Share) (FolderList, error) {
 
 // SaveShareLogin keeps an SMB share's login for a library.
 func (c *Client) SaveShareLogin(ctx context.Context, name string, s Share) error {
-	return c.call(ctx, http.MethodPut, "/v1/shares/"+url.PathEscape(name)+"/login", s, nil)
+	return c.call(ctx, http.MethodPut, "/v1/shares/"+url.PathEscape(name)+"/login", ShareLoginRequest{Name: name, Share: s}, nil)
 }
 
 // PrepareBackupFolder makes a roostack folder that Roostack may write to
 // in a backup folder that exists, and returns it.
 func (c *Client) PrepareBackupFolder(ctx context.Context, dir string) (string, error) {
-	var out struct {
-		Dir string `json:"dir"`
-	}
-	err := c.call(ctx, http.MethodPost, "/v1/backup-folder", map[string]string{"dir": dir}, &out)
+	var out BackupFolder
+	err := c.call(ctx, http.MethodPost, "/v1/backup-folder", BackupFolder{Dir: dir}, &out)
 	return out.Dir, err
 }
 
@@ -331,7 +313,7 @@ func (c *Client) SSHStatus(ctx context.Context) (SSHStatus, error) {
 
 // SetSSHKeysOnly turns SSH's keys-only settings on or off.
 func (c *Client) SetSSHKeysOnly(ctx context.Context, on bool) error {
-	return c.call(ctx, http.MethodPut, "/v1/ssh", map[string]bool{"keys_only": on}, nil)
+	return c.call(ctx, http.MethodPut, "/v1/ssh", SSHRequest{KeysOnly: on}, nil)
 }
 
 // SaveWireGuardKeys copies Roostack's WireGuard keys into KeysFile (readable

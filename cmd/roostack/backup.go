@@ -71,7 +71,9 @@ func backupCmd(args []string) error {
 	if *direct {
 		launch = backup.DirectLaunch
 	}
-	repo, err := newRepo(lab, launch)
+	// Only Roostack Cloud backup's keys already kept work here: new ones
+	// come through Roostack while it runs.
+	repo, err := newRepo(lab, launch, nil)
 	if err != nil {
 		return err
 	}
@@ -130,7 +132,7 @@ func backupRun(ctx context.Context, lab config.Lab, repo *backup.Repo, launch ba
 		return err
 	}
 	defer st.Close()
-	deps, err := newBackupDeps(lab, st, repo, launch, diskServices(lab))
+	deps, err := newBackupDeps(lab, st, repo, launch, diskServices(lab), nil)
 	if err != nil {
 		return err
 	}
@@ -146,8 +148,9 @@ func backupRun(ctx context.Context, lab config.Lab, repo *backup.Repo, launch ba
 
 // newRepo returns the configured restic repository, run inside podman
 // unshare so it can read and restore files of container users. In
-// Roostack Cloud backup, its keys are fetched before each command.
-func newRepo(lab config.Lab, launch backupLaunch) (*backup.Repo, error) {
+// Roostack Cloud backup, its keys are fetched before each command, from
+// keys.
+func newRepo(lab config.Lab, launch backupLaunch, keys *cloudBackupKeys) (*backup.Repo, error) {
 	restic, err := exec.LookPath("restic")
 	if err != nil {
 		return nil, errors.New("backup: restic is not installed")
@@ -158,36 +161,43 @@ func newRepo(lab config.Lab, launch backupLaunch) (*backup.Repo, error) {
 		Hints: backup.Hints(lab.Paths),
 	}
 	if lab.Backup.Cloud {
-		r.Credentials = cloudBackupCache(lab).Env
+		r.Credentials = keys.cache(lab).Env
 	}
 	return r, nil
 }
 
-// cloudBackupSource asks for this server's Roostack Cloud backup keys:
-// set when Roostack runs (the controller asks Cloud; another server asks
-// the controller). Unset (the command line), only keys already kept work.
-var (
-	cloudBackupMu     sync.Mutex
-	cloudBackupSource func(ctx context.Context) (cloudapi.StorageKeys, error)
-)
-
-func setCloudBackupKeys(f func(ctx context.Context) (cloudapi.StorageKeys, error)) {
-	cloudBackupMu.Lock()
-	defer cloudBackupMu.Unlock()
-	cloudBackupSource = f
+// cloudBackupKeys is where this server's Roostack Cloud backup keys come
+// from: the controller asks Cloud, and another server asks the controller.
+// Its repositories are made before Roostack knows which (before the link
+// to Cloud, or the lab's membership, is ready), so it's set afterwards.
+// Without one, on the command line, only keys already kept work.
+type cloudBackupKeys struct {
+	mu     sync.Mutex
+	source cloudkeys.Source
 }
 
-// cloudBackupCache keeps this server's keys (state/cloud-backup-keys.json).
-func cloudBackupCache(lab config.Lab) *cloudkeys.Cache {
+// set says where the keys come from.
+func (k *cloudBackupKeys) set(source cloudkeys.Source) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.source = source
+}
+
+// cache keeps this server's keys (state/cloud-backup-keys.json), asking
+// k's source for new ones.
+func (k *cloudBackupKeys) cache(lab config.Lab) *cloudkeys.Cache {
 	return &cloudkeys.Cache{Path: cloudkeys.File(lab.Paths.StateDir, "backup"),
 		Source: func(ctx context.Context) (cloudapi.StorageKeys, error) {
-			cloudBackupMu.Lock()
-			f := cloudBackupSource
-			cloudBackupMu.Unlock()
-			if f == nil {
+			var source cloudkeys.Source
+			if k != nil {
+				k.mu.Lock()
+				source = k.source
+				k.mu.Unlock()
+			}
+			if source == nil {
 				return cloudapi.StorageKeys{}, errors.New("Roostack Cloud backup's keys come through Roostack while it runs")
 			}
-			return f(ctx)
+			return source(ctx)
 		}}
 }
 
@@ -201,7 +211,7 @@ func drivePrecheck(d config.BackupDrive) func() error {
 }
 
 // copyRepos opens this server's extra backup copies (SPEC.md §6.9).
-func copyRepos(lab config.Lab, launch backupLaunch) []backup.Copy {
+func copyRepos(lab config.Lab, launch backupLaunch, keys *cloudBackupKeys) []backup.Copy {
 	restic, err := exec.LookPath("restic")
 	if err != nil {
 		restic = "restic"
@@ -212,15 +222,13 @@ func copyRepos(lab config.Lab, launch backupLaunch) []backup.Copy {
 		r := &backup.Repo{Bin: restic, URL: c.Repository, PasswordFile: keyFile, Env: c.Env,
 			LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch), Hints: backup.Hints(lab.Paths)}
 		if c.Cloud {
-			r.Credentials = cloudBackupCache(lab).Env
+			r.Credentials = keys.cache(lab).Env
 		}
 		out = append(out, backup.Copy{Name: c.Name, Title: c.Title, Precheck: drivePrecheck(c.Drive), Repo: r})
 	}
 	return out
 }
 
-// newBackupDeps wires a backup job to this lab. Used by the CLI and by
-// roostack serve's nightly backups.
 // serverServices returns this server's services and the lab config to
 // generate them with.
 type serverServices func() (config.Lab, []state.Service, error)
@@ -234,7 +242,10 @@ func diskServices(lab config.Lab) serverServices {
 	}
 }
 
-func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch backupLaunch, services serverServices) (*backup.JobDeps, error) {
+// newBackupDeps wires a backup job to this lab. Used by the CLI and by
+// roostack serve's nightly backups.
+func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch backupLaunch, services serverServices,
+	keys *cloudBackupKeys) (*backup.JobDeps, error) {
 	roostackBin, err := os.Executable()
 	if err != nil {
 		return nil, err
@@ -244,7 +255,7 @@ func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch ba
 		Repo:       repo,
 		Preparer:   &backup.Preparer{Launch: launch, RoostackBin: roostackBin, QuadletDir: lab.Paths.QuadletDir()},
 		DumpState:  st.Backup,
-		Copies:     copyRepos(lab, launch),
+		Copies:     copyRepos(lab, launch, keys),
 		Precheck:   drivePrecheck(lab.Backup.Drive),
 		Paths:      lab.Paths,
 		Host:       host,

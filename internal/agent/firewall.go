@@ -4,9 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/trust"
 )
 
@@ -364,4 +369,55 @@ func (f Firewall) notMember() string {
 		return from
 	}
 	return fmt.Sprintf("%sip saddr != { %s } ", from, strings.Join(f.Members, ", "))
+}
+
+// AllowWireGuardJoin adds one rule at the top of Roostack's input chain:
+// UDP to WireGuardPort. The next ApplyFirewall replaces the whole table,
+// so it lasts until then. Without Roostack's table (the Owner hasn't
+// chosen its firewall yet) nothing blocks the port anyway.
+func (h LinuxHost) AllowWireGuardJoin() error {
+	if exec.Command("nft", "list", "table", "inet", "roostack").Run() != nil {
+		return nil
+	}
+	out, err := exec.Command("nft", "insert", "rule", "inet", "roostack", "input", "udp", "dport", strconv.Itoa(WireGuardPort),
+		"accept", "comment", `"roostack: joining a lab"`).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("nft: %w: %s", err, out)
+	}
+	return nil
+}
+
+// ApplyFirewall checks the ruleset with `nft -c`, loads it, then saves it.
+func (h LinuxHost) ApplyFirewall(ruleset string) error {
+	tmp, err := os.CreateTemp("", "roostack-firewall-*.nft")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.WriteString(ruleset); err != nil {
+		tmp.Close()
+		return err
+	}
+	tmp.Close()
+	if out, err := exec.Command("nft", "-c", "-f", tmp.Name()).CombinedOutput(); err != nil {
+		return fmt.Errorf("nft check: %w: %s", err, out)
+	}
+	if out, err := exec.Command("nft", "-f", tmp.Name()).CombinedOutput(); err != nil {
+		return fmt.Errorf("nft apply: %w: %s", err, out)
+	}
+	if err := os.MkdirAll(filepath.Dir(h.FirewallFile), 0o755); err != nil {
+		return err
+	}
+	return fsutil.WriteFile(h.FirewallFile, []byte(ruleset), 0o644)
+}
+
+// RestoreFirewall re-applies the saved ruleset at agent start, if any.
+func (h LinuxHost) RestoreFirewall() error {
+	if _, err := os.Stat(h.FirewallFile); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if out, err := exec.Command("nft", "-f", h.FirewallFile).CombinedOutput(); err != nil {
+		return fmt.Errorf("nft restore: %w: %s", err, out)
+	}
+	return nil
 }

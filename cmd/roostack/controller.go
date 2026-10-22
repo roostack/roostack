@@ -20,8 +20,9 @@ import (
 	"roostack.cloud/roostack/internal/web"
 )
 
-// The controller's parts that serve doesn't need to spell out: its lab
-// API, how it opens backup repositories, and its recurring jobs.
+// The controller's parts that its wiring (serve.go) doesn't need to spell
+// out: its lab API, how it opens backup repositories, and its recurring
+// jobs.
 
 // controllerAPI is the lab API the controller serves to its servers
 // (SPEC.md §10.3): joining, assignments, certificate renewal, guests'
@@ -125,6 +126,9 @@ func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maint
 			}
 		}
 	}()
+	// Direct links between servers that don't connect fall back to the
+	// controller (SPEC.md §10.10).
+	go sleep.Every(ctx, time.Minute, func() { mgr.CheckLinks(ctx) })
 	go maintenance.Every(ctx, func(now time.Time) time.Time { return now.Add(time.Hour) }, func() {
 		// Sessions past their expiry or the idle limit (SPEC.md §5).
 		if err := st.DeleteExpiredSessions(ctx, web.IdleLimit(ctx, st)); err != nil {

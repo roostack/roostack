@@ -19,6 +19,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
+	"roostack.cloud/roostack/internal/podman"
 	"roostack.cloud/roostack/internal/systemd"
 )
 
@@ -150,7 +151,7 @@ func TestPullNoImageForArch(t *testing.T) {
 	e := newEnv(t)
 	e.apply(t, e.desired(t))
 	e.r.Pull = func(_ context.Context, image string, _ io.Writer) error {
-		return &NoImageForArch{Image: image, Arch: "arm64"}
+		return &podman.NoImageForArch{Image: image, Arch: "arm64"}
 	}
 	var failed error
 	e.r.Progress = func(ev Event) {

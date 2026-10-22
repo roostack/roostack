@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"fmt"
 	"path/filepath"
 	"regexp"
 )
@@ -28,30 +27,13 @@ func photoSpot(service, who string) mountSpot {
 		login: filepath.Join(ShareLoginDir, "photos-"+service+"-"+who+".cred")}
 }
 
-// checkPhotoNames refuses a service or person that isn't one.
-func checkPhotoNames(service, who string) error {
-	if !serviceName.MatchString(service) {
-		return fmt.Errorf("%q isn't a service's name", printable(service))
-	}
-	if !whoName.MatchString(who) {
-		return fmt.Errorf("%q isn't an account's name", printable(who))
-	}
-	return nil
-}
-
 // MountPhotos mounts a person's export for migrating photos into a
 // service, read-only, replacing what was there, and says where.
 func (h LinuxHost) MountPhotos(service, who string, l Library) (string, error) {
-	if err := checkPhotoNames(service, who); err != nil {
-		return "", err
-	}
 	return h.mountPlace(photoSpot(service, who), l)
 }
 
 // UnmountPhotos unmounts a person's export and forgets it, with its login.
 func (h LinuxHost) UnmountPhotos(service, who string) error {
-	if err := checkPhotoNames(service, who); err != nil {
-		return err
-	}
 	return unmountPlace(photoSpot(service, who))
 }

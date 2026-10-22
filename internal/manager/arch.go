@@ -62,7 +62,7 @@ func (m *Manager) LabArches() []string {
 // build of every image for, from the index (SPEC.md §8.3.3). Nil when
 // that isn't known: one of the Owner's own packages, or an index that
 // doesn't say. Then nothing is checked here, and a server whose processor
-// an image lacks says so when it pulls it (reconcile.NoImageForArch).
+// an image lacks says so when it pulls it (podman.NoImageForArch).
 func (m *Manager) packageArches(name, version string) []string {
 	if m.RegistryIndex == nil || m.IsLocal(name) {
 		return nil

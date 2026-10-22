@@ -334,7 +334,7 @@ func (h LinuxHost) drive(id string) (Drive, error) {
 			return d, nil
 		}
 	}
-	return Drive{}, errors.New("that drive isn't connected any more")
+	return Drive{}, refuse("that drive isn't connected any more")
 }
 
 // UsedDrive is a drive readied for backups: Dir has a folder named
@@ -366,7 +366,7 @@ func (h LinuxHost) UseDrive(id string) (UsedDrive, error) {
 		return UsedDrive{}, err
 	}
 	if !d.Usable {
-		return UsedDrive{}, errors.New("that drive has no filesystem yet: prepare it first")
+		return UsedDrive{}, refuse("that drive has no filesystem yet: prepare it first")
 	}
 	if d.Mount == "" {
 		if d.Mount, err = h.mountForGood(d); err != nil {
@@ -375,7 +375,7 @@ func (h LinuxHost) UseDrive(id string) (UsedDrive, error) {
 	}
 	if _, err := prepareFolder(d.Mount, []string{d.Mount}, h.UID, h.GID); err != nil {
 		if d.Kind == "network" && errors.Is(err, os.ErrPermission) {
-			return UsedDrive{}, fmt.Errorf("the share at %s doesn't let this server create a folder owned by Roostack: "+
+			return UsedDrive{}, refuse("the share at %s doesn't let this server create a folder owned by Roostack: "+
 				"allow it on the NAS (e.g. no root squashing), or ask for help", d.Mount)
 		}
 		return UsedDrive{}, err
@@ -387,7 +387,7 @@ func (h LinuxHost) UseDrive(id string) (UsedDrive, error) {
 // (nofail: a missing drive doesn't hold up booting).
 func (h LinuxHost) mountForGood(d Drive) (string, error) {
 	if !ValidUUID(d.UUID) {
-		return "", fmt.Errorf("the drive's filesystem has an odd UUID (%q)", printable(d.UUID))
+		return "", refuse("the drive's filesystem has an odd UUID (%q)", printable(d.UUID))
 	}
 	name := strings.Trim(mountName.ReplaceAllString(strings.ToLower(d.Name), "-"), "-")
 	if name == "" || len(name) > 32 {
@@ -469,12 +469,12 @@ func fstabLine(d Drive, mp string, uid, gid int) (string, error) {
 		opts += fmt.Sprintf(",uid=%d,gid=%d,umask=077", uid, gid)
 	}
 	if !ValidUUID(d.UUID) {
-		return "", fmt.Errorf("can't add a drive with the UUID %q to /etc/fstab", printable(d.UUID))
+		return "", refuse("can't add a drive with the UUID %q to /etc/fstab", printable(d.UUID))
 	}
 	fields := []string{"UUID=" + d.UUID, mp, fs, opts, "0", "2"}
 	for _, f := range fields {
 		if f == "" || strings.ContainsFunc(f, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) || r == '#' }) {
-			return "", fmt.Errorf("can't add %q to /etc/fstab", printable(f))
+			return "", refuse("can't add %q to /etc/fstab", printable(f))
 		}
 	}
 	return strings.Join(fields, " "), nil
@@ -495,7 +495,7 @@ func (h LinuxHost) EraseDrive(disk, label string) error {
 		}
 	}
 	if !ok {
-		return errors.New("that disk can't be erased: Roostack only prepares a disk with nothing on it it could use, " +
+		return refuse("that disk can't be erased: Roostack only prepares a disk with nothing on it it could use, " +
 			"that isn't mounted or in /etc/fstab")
 	}
 	label = strings.ToUpper(mountName.ReplaceAllString(label, ""))

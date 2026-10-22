@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"unicode"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/words"
 )
@@ -130,4 +132,34 @@ func (s *Server) setupJoinSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, "setup-joined", map[string]any{"Lab": c.LabName, "UI": c.UI, "Endpoint": c.Endpoint, "Addr": addr, "Name": name})
+}
+
+// SetupToken returns the first-run setup code, or "" once an account
+// exists (deleting the code's file, as in a lab restored from its
+// backups). The code is kept at path, readable only by roostack (and
+// root), so it survives restarts until setup is finished.
+func SetupToken(ctx context.Context, users interface {
+	CountUsers(ctx context.Context) (int, error)
+}, path string, log *slog.Logger) (string, error) {
+	n, err := users.CountUsers(ctx)
+	if err != nil || n > 0 {
+		if n > 0 {
+			os.Remove(path)
+		}
+		return "", err
+	}
+	if data, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(data))) > 0 {
+		token := strings.TrimSpace(string(data))
+		log.Info("waiting for first-run setup", "setup_code", token, "file", path)
+		return token, nil
+	}
+	token, err := authkit.NewToken()
+	if err != nil {
+		return "", err
+	}
+	if err := fsutil.WritePrivate(path, []byte(token+"\n")); err != nil {
+		return "", err
+	}
+	log.Info("waiting for first-run setup", "setup_code", token, "file", path)
+	return token, nil
 }

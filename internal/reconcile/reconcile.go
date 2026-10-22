@@ -29,6 +29,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/podman"
 	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/systemd"
 )
@@ -58,18 +59,6 @@ type Secrets interface {
 	Read(ctx context.Context, name string) ([]byte, error)
 }
 
-// NoImageForArch is a Pull that failed because the image has no build for
-// this server's kind of processor (ARM64-PLAN.md 1.3). Its message is for
-// the Owner, in place of Podman's "no image found in image index".
-type NoImageForArch struct {
-	Image string
-	Arch  string // Go's name for the processor, e.g. arm64
-}
-
-func (e *NoImageForArch) Error() string {
-	return fmt.Sprintf("This service has no version for this server's kind of processor (%s), so it can't run here. (Image: %s)", e.Arch, e.Image)
-}
-
 // Reconciler applies desired state.
 type Reconciler struct {
 	Paths   config.Paths
@@ -83,7 +72,7 @@ type Reconciler struct {
 	// Pull downloads an image before a new container's first start, writing
 	// its output to w, so a download is its own step with its own log
 	// (optional: without it, starting the unit pulls the image). An image
-	// with no build for this server's processor is a *NoImageForArch.
+	// with no build for this server's processor is a *podman.NoImageForArch.
 	Pull func(ctx context.Context, image string, w io.Writer) error
 	// Progress hears each step of starting new containers, for showing a
 	// service's install step by step (optional).
@@ -573,7 +562,7 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 			r.progress(StageDownload, u, true, err)
 			if err != nil {
 				// Already a sentence for the Owner.
-				var noArch *NoImageForArch
+				var noArch *podman.NoImageForArch
 				if errors.As(err, &noArch) {
 					return err
 				}

@@ -11,20 +11,16 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
-	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
-	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
-	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
@@ -35,15 +31,12 @@ import (
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
-	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/podman"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/setup"
-	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/systemd"
 	"roostack.cloud/roostack/internal/web"
 )
 
@@ -81,46 +74,13 @@ func serve(args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	// New settings reach every part of Roostack by restarting it; systemd
-	// starts it again (Restart=always).
-	// A running job (e.g. OS updates) finishes first, and no new one
-	// starts; the restart then happens by itself.
-	var coord *maintenance.Coordinator
-	restartNow := func() {
-		go func() {
-			time.Sleep(time.Second) // let the response reach the browser
-			if coord != nil {
-				coord.Hold()
-				for st := coord.Status(); st.Running != nil; st = coord.Status() {
-					log.Info("restart waits for a job to finish", "job", st.Running.Name)
-					time.Sleep(5 * time.Second)
-				}
-			}
-			log.Info("restarting to apply new settings")
-			stop()
-		}()
-	}
-	// During the setup wizard, settings wait for one restart at its end
-	// (the Owner shouldn't watch Roostack restart after every step).
-	// It's set further down, but restart is handed to goroutines (the
-	// hub, the node) before that, hence the atomic.
-	var wizard atomic.Pointer[setup.Setup]
-	var restartPending atomic.Bool
-	restart := func() {
-		if w := wizard.Load(); w != nil {
-			if p, err := w.Progress(context.Background()); err == nil && p.Next() != "" {
-				if !restartPending.Swap(true) {
-					log.Info("restart postponed until setup is finished")
-				}
-				return
-			}
-		}
-		restartNow()
-	}
-	local, agentClient, coord, err := newLocal(ctx, lab, *labPath, id, st, log, restart)
+	restarts := &restarter{log: log, stop: stop}
+	cloudKeys := &cloudBackupKeys{}
+	local, agentClient, coord, err := newLocal(ctx, lab, *labPath, id, st, log, restarts.restart, cloudKeys)
 	if err != nil {
 		return err
 	}
+	restarts.coord.Store(coord)
 	if lab.IsNode() {
 		// Run by another server (the controller): no UI of its own, so no
 		// setup pages either (one that joined from them leaves their
@@ -128,21 +88,159 @@ func serve(args []string) error {
 		if err := web.RemoveSetupCert(lab.Paths); err != nil {
 			log.Error("deleting the setup pages' certificate", "err", err)
 		}
-		return serveNode(ctx, lab, local, agentClient, restart, log)
+		return serveNode(ctx, lab, local, agentClient, restarts.restart, cloudKeys, log)
 	}
+	c := &controller{ctx: ctx, lab: lab, labPath: *labPath, id: id, st: st, log: log, local: local, agent: agentClient,
+		coord: coord, restarts: restarts, cloudKeys: cloudKeys}
+	return c.run(*listen)
+}
 
-	token, err := setupToken(ctx, lab, st, log)
-	if err != nil {
+// restarter restarts Roostack, which is how new settings reach every part
+// of it: systemd starts it again (Restart=always).
+type restarter struct {
+	log *slog.Logger
+	// stop ends serve.
+	stop func()
+	// coord is this server's maintenance coordinator, once it's made: a
+	// running job (e.g. OS updates) finishes first, and no new one
+	// starts; the restart then happens by itself.
+	coord atomic.Pointer[maintenance.Coordinator]
+	// wizard is the setup wizard, once it's ready. During it, settings wait
+	// for one restart at its end (pending): the Owner shouldn't watch
+	// Roostack restart after every step. restart is handed to goroutines
+	// (the hub, the node) before the wizard is ready, hence the atomics.
+	wizard  atomic.Pointer[setup.Setup]
+	pending atomic.Bool
+}
+
+// now restarts Roostack in a moment, once a running job has finished.
+func (r *restarter) now() {
+	go func() {
+		time.Sleep(time.Second) // let the response reach the browser
+		if coord := r.coord.Load(); coord != nil {
+			coord.Hold()
+			for st := coord.Status(); st.Running != nil; st = coord.Status() {
+				r.log.Info("restart waits for a job to finish", "job", st.Running.Name)
+				time.Sleep(5 * time.Second)
+			}
+		}
+		r.log.Info("restarting to apply new settings")
+		r.stop()
+	}()
+}
+
+// restart restarts Roostack now, or at the end of the setup wizard while
+// it lasts.
+func (r *restarter) restart() {
+	if w := r.wizard.Load(); w != nil {
+		if p, err := w.Progress(context.Background()); err == nil && p.Next() != "" {
+			if !r.pending.Swap(true) {
+				r.log.Info("restart postponed until setup is finished")
+			}
+			return
+		}
+	}
+	r.now()
+}
+
+// controller is the lab's controller as serve wires it together: the web
+// UI, the lab's other servers, Roostack Cloud and the rest. run takes it
+// a step at a time, each wiring one part from those before it; the
+// fields below the line are what the steps make.
+type controller struct {
+	ctx       context.Context
+	lab       config.Lab
+	labPath   string
+	id        nodeid.Identity
+	st        *store.Store
+	log       *slog.Logger
+	local     *node.Local
+	agent     *agent.Client
+	coord     *maintenance.Coordinator
+	restarts  *restarter
+	cloudKeys *cloudBackupKeys
+
+	// token is the first-run setup code ("" once an account exists), and
+	// pages the setup pages on the home network (nil once setup is done).
+	token string
+	pages *web.SetupListener
+	mgr   *manager.Manager
+	wiz   *setup.Setup
+	srv   *web.Server
+	// labName is the lab's name as it is now: the setup wizard names it
+	// without a restart (it waits for the wizard's end, if anything asks
+	// for one), so Cloud, the network's join codes and other labs' guests
+	// would otherwise hear "My lab".
+	labName func() string
+	// link is Roostack Cloud (nil when it's turned off), and storageKeys
+	// asks it for a server's Roostack Cloud backup keys.
+	link        *cloud.Service
+	storageKeys func(ctx context.Context, server string) (cloudapi.StorageKeys, error)
+	// crowdSecUp says whether CrowdSec is up, which public addresses'
+	// records wait for.
+	crowdSecUp func(ctx context.Context) bool
+	hub        *labnet.Hub
+	guestHub   *labnet.GuestHub
+}
+
+// run wires the controller, then serves the web UI until ctx ends. The
+// order matters: each step uses what the steps before it made, and some
+// start work that the later ones mustn't miss.
+func (c *controller) run(listen string) error {
+	// The setup code and the setup pages come before the first apply,
+	// whose firewall opens their port.
+	if err := c.wireSetupPages(); err != nil {
 		return err
 	}
-	// The setup pages on the home network (SPEC.md §6.3.2), decided before
-	// the first apply, whose firewall opens their port.
-	pages := setupPages(ctx, lab, st, token, local, log)
+	c.wireManager()
+	c.wireWizard()
+	if err := c.wireWeb(); err != nil {
+		return err
+	}
+	if err := c.wireCloud(); err != nil {
+		return err
+	}
+	c.wirePublic()
+	c.wireNetwork()
+	c.wireBackups()
+	// The lab API needs the manager's backups and the guests' hub.
+	c.serveLabAPI()
+	if err := c.wireCatalog(); err != nil {
+		return err
+	}
+	// The first apply, and the controller's recurring jobs.
+	c.startJobs()
+	// The wizard is ready once the setup pages and the first apply are,
+	// and Cloud's link starts once the wizard is (a roost.ac name goes to
+	// the wizard).
+	if err := c.wireSetup(); err != nil {
+		return err
+	}
+	c.startCloud()
+	c.wireNotifier()
+	c.wireMonitoring()
+	c.wireDNS()
+	return c.listen(listen)
+}
 
-	// The lab's other servers (SPEC.md §10), reached over its network.
-	fleet := &node.Fleet{Self: labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, Lab: lab, Log: log,
-		List: st.Servers}
-	mgr := &manager.Manager{Lab: lab, Log: log, Version: version, Node: local, Activity: local.Activity,
+// wireSetupPages decides the setup code, and the setup pages on the home
+// network (SPEC.md §6.3.2).
+func (c *controller) wireSetupPages() error {
+	var err error
+	if c.token, err = web.SetupToken(c.ctx, c.st, c.lab.Paths.SetupTokenFile(), c.log); err != nil {
+		return err
+	}
+	c.pages = setupPages(c.ctx, c.lab, c.st, c.token, c.local, c.log)
+	return nil
+}
+
+// wireManager makes the manager, which runs services on the lab's
+// servers (SPEC.md §10), reached over its network.
+func (c *controller) wireManager() {
+	lab, labPath := c.lab, c.labPath
+	fleet := &node.Fleet{Self: labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, Lab: lab, Log: c.log,
+		List: c.st.Servers}
+	c.mgr = &manager.Manager{Lab: lab, Log: c.log, Version: version, Node: c.local, Activity: c.local.Activity,
 		Others: func() []manager.RemoteServer {
 			var out []manager.RemoteServer
 			for _, r := range fleet.Remotes() {
@@ -150,52 +248,75 @@ func serve(args []string) error {
 			}
 			return out
 		},
-		UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
-		Submit:    func(j maintenance.Job) { coord.Submit(j) },
-		Settings:  st,
-		Audit:     func(ctx context.Context, action, detail string) { st.Audit(ctx, nil, action, detail) }}
-	// The setup wizard. restart only asks it about postponing once it's
-	// stored, further down (wizard.Store).
-	wiz := &setup.Setup{
-		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
+		UpdateLab: func(change func(*config.Lab)) error { return config.Update(labPath, change) },
+		Submit:    func(j maintenance.Job) { c.coord.Submit(j) },
+		Settings:  c.st,
+		Audit:     func(ctx context.Context, action, detail string) { c.st.Audit(ctx, nil, action, detail) }}
+	c.mgr.RenameSelf = func(name string) error {
+		self := c.id
+		self.Name = name
+		if err := self.Save(lab.Paths.StateDir); err != nil {
+			return err
+		}
+		c.restarts.restart()
+		return nil
+	}
+}
 
-		Restart: restart,
-		Drives:  agentClient,
+// wireWizard makes the setup wizard. The restarter only asks it about
+// postponing once it's ready (wireSetup).
+func (c *controller) wireWizard() {
+	r := c.restarts
+	c.wiz = &setup.Setup{
+		Lab: c.lab, LabPath: c.labPath, Store: c.st, Secrets: podman.NewSecrets(),
+
+		Restart: r.restart,
+		Drives:  c.agent,
 		// The wizard's end restarts Roostack if a step asked for it.
-		RestartPending: restartPending.Load,
+		RestartPending: r.pending.Load,
 		Finished: func() {
-			if pages != nil {
+			if c.pages != nil {
 				// The setup pages on the home network close a few seconds
 				// later: the page saying setup is finished, and its
 				// stylesheets, load before the restart ends them.
-				pages.Finish()
+				c.pages.Finish()
 			}
-			if !restartPending.Load() {
+			if !r.pending.Load() {
 				return
 			}
-			if pages == nil {
-				restartNow()
+			if c.pages == nil {
+				r.now()
 				return
 			}
 			go func() {
 				select {
-				case <-pages.Closed():
+				case <-c.pages.Closed():
 				case <-time.After(30 * time.Second):
 				}
-				restartNow()
+				r.now()
 			}()
 		},
 	}
-	// The web UI, with what every page relies on. The lab's previous
-	// address stops when its time is up (SPEC.md §6.6), checked once its
-	// DNS records can be deleted (below).
-	srv, err := web.NewServer(st, log, func(ctx context.Context) ([]web.ServiceView, error) {
-		return serviceViews(ctx, lab, mgr, log)
-	}, mgr, wiz, web.LabSettings{LabName: lab.DisplayName(), Domain: lab.Domain, UIHost: lab.UIHost(), DNSProvider: lab.DNS.Provider,
-		OldAddress: lab.OldAddress, BackupRepo: lab.Backup.Repository, HasGPU: lab.HasGPU, Maintenance: lab.Maintenance}, token)
+}
+
+// wireWeb makes the web UI, with what every page relies on, and the
+// sign-in page for services. The lab's previous address stops when its
+// time is up (SPEC.md §6.6), checked once its DNS records can be deleted
+// (wireDNS).
+func (c *controller) wireWeb() error {
+	lab := c.lab
+	srv, err := web.NewServer(c.st, c.log, func(ctx context.Context) ([]web.ServiceView, error) {
+		services, err := state.LoadServices(lab)
+		if err != nil {
+			return nil, err
+		}
+		return web.ServiceViews(ctx, lab, services, c.mgr, c.log), nil
+	}, c.mgr, c.wiz, web.LabSettings{LabName: lab.DisplayName(), Domain: lab.Domain, UIHost: lab.UIHost(), DNSProvider: lab.DNS.Provider,
+		OldAddress: lab.OldAddress, BackupRepo: lab.Backup.Repository, HasGPU: lab.HasGPU, Maintenance: lab.Maintenance}, c.token)
 	if err != nil {
 		return err
 	}
+	c.srv = srv
 	srv.SetupTokenFile = lab.Paths.SetupTokenFile()
 	srv.OnSetupComplete = func() {
 		os.Remove(lab.Paths.SetupTokenFile())
@@ -206,27 +327,30 @@ func serve(args []string) error {
 		os.Remove(backup.RestoreHintsFile(lab.Paths))
 	}
 	srv.Version = version
-	srv.Node = local
-	srv.Libraries = mgr
+	srv.Node = c.local
+	srv.Libraries = c.mgr
 	// Migrating photos into Immich (SPEC.md §8.5): its pages, and the
 	// email when one ends.
-	srv.Photos = mgr
-	local.OnPhotos = srv.PhotosEnded
-	if err := startSignIn(ctx, lab, st, srv, mgr, local, log); err != nil {
+	srv.Photos = c.mgr
+	c.local.OnPhotos = srv.PhotosEnded
+	if err := startSignIn(c.ctx, lab, c.st, srv, c.mgr, c.local, c.log); err != nil {
 		return err
 	}
-	// The lab's name as it is now: the setup wizard names it without a
-	// restart (it waits for the wizard's end, if anything asks for one),
-	// so Cloud, the network's join codes and other labs' guests would
-	// otherwise hear "My lab".
-	labName := config.NameAt(*labPath, lab)
-	// Roostack Cloud, unless it's turned off (SPEC.md §6.6): only the
-	// controller talks to it.
-	var link *cloud.Service
+	c.labName = config.NameAt(c.labPath, lab)
+	return nil
+}
+
+// wireCloud links the lab to Roostack Cloud, unless it's turned off
+// (SPEC.md §6.6): only the controller talks to it. The link starts later
+// (startCloud).
+func (c *controller) wireCloud() error {
+	lab, mgr, srv := c.lab, c.mgr, c.srv
 	if !lab.Cloud.Disabled {
-		if link, err = cloud.New(lab.Paths.StateDir, lab.Cloud, version, labName, log); err != nil {
+		link, err := cloud.New(lab.Paths.StateDir, lab.Cloud, version, c.labName, c.log)
+		if err != nil {
 			return err
 		}
+		c.link = link
 		srv.Cloud = link
 		link.LabDomain(lab.Domain)
 		// The previous address while it works: an earlier roost.ac name
@@ -248,7 +372,7 @@ func serve(args []string) error {
 		}
 		// Roostack Cloud's relay as a way in (SPEC.md §10.5): its
 		// interface through the agent, its edges for Caddy and DNS.
-		link.WireGuard = agentClient
+		link.WireGuard = c.agent
 		mgr.Relay = manager.Relay{Set: link.Relay, Stop: link.StopRelay, Edges: func() (relay, pub []string) {
 			for _, e := range link.RelayEdges() {
 				relay, pub = append(relay, e.Addr), append(pub, e.PublicIPv4)
@@ -261,7 +385,7 @@ func serve(args []string) error {
 		link.EdgesChanged = func() {
 			mgr.ApplyBecause("Roostack Cloud's relay changed its edges: changing how public visitors reach the lab")
 		}
-		go link.RefreshRelay(ctx, 5*time.Minute)
+		go link.RefreshRelay(c.ctx, 5*time.Minute)
 		// Roostack Cloud backup as a destination (SPEC.md §6.9).
 		mgr.CloudBackup = link
 		// What the lab tells Cloud after each check-in (SPEC.md §6.6): who
@@ -280,7 +404,7 @@ func serve(args []string) error {
 			return cloudapi.LabReport{Emails: emails, Backups: backups}, nil
 		}
 		// The lab's own CrowdSec bans, refused at the relay's edges too.
-		go link.SendBans(ctx, 5*time.Minute, func(ctx context.Context) ([]string, error) {
+		go link.SendBans(c.ctx, 5*time.Minute, func(ctx context.Context) ([]string, error) {
 			// CrowdSec runs while anything is public, its unit there
 			// with it (SPEC.md §6.11).
 			unit := filepath.Join(lab.Paths.QuadletDir(), generate.CrowdSecUnit+".container")
@@ -289,18 +413,31 @@ func serve(args []string) error {
 			}
 			return public.CrowdSecBans(ctx, userLaunch, generate.CrowdSecUnit)
 		})
+		// Roostack Cloud backup's keys: other servers ask the controller
+		// for theirs (each its own folder's), and the controller's own
+		// backups ask Cloud directly (SPEC.md §6.9).
+		c.storageKeys = func(ctx context.Context, server string) (cloudapi.StorageKeys, error) {
+			return link.StorageKeys(ctx, cloudapi.StorageRequest{Purpose: cloudapi.StorageBackup, Server: server})
+		}
+		self := lab.NodeID
+		c.cloudKeys.set(func(ctx context.Context) (cloudapi.StorageKeys, error) { return c.storageKeys(ctx, self) })
 	}
 	// The relay in the lab's settings without a link (unlinked before
 	// Unrelayed turned it off, or Cloud turned off here): off, so nothing
 	// asks Cloud to update it (SPEC.md §10.5).
-	if lab.Public.Relay && (link == nil || !link.Status().Linked) {
+	if lab.Public.Relay && (c.link == nil || !c.link.Status().Linked) {
 		if err := mgr.RelayGone(false); err != nil {
-			log.Error("turning Roostack Cloud's relay off", "err", err)
+			c.log.Error("turning Roostack Cloud's relay off", "err", err)
 		}
 	}
-	// Public access (SPEC.md §6.11): check links from a phone, and whether
-	// CrowdSec is up (the records wait for it).
-	crowdSecUp := func(ctx context.Context) bool {
+	return nil
+}
+
+// wirePublic sets up public access (SPEC.md §6.11): checking links from a
+// phone, and whether CrowdSec is up (the records wait for it).
+func (c *controller) wirePublic() {
+	srv, st, log := c.srv, c.st, c.log
+	c.crowdSecUp = func(ctx context.Context) bool {
 		return public.CrowdSecUp(ctx, fmt.Sprintf("127.0.0.1:%d", config.CrowdSecPort)) &&
 			public.AppSecUp(ctx, fmt.Sprintf("127.0.0.1:%d", config.AppSecPort))
 	}
@@ -308,25 +445,31 @@ func serve(args []string) error {
 		log.Info("public address checked from outside", "host", host, "from", from)
 		return web.RecordPublicCheck(context.Background(), st, host, at, from)
 	}}
-	srv.Protected = crowdSecUp
+	srv.Protected = c.crowdSecUp
 	srv.Attacks = func(ctx context.Context, since time.Duration) (public.Attacks, error) {
 		return public.CrowdSecAttacks(ctx, userLaunch, generate.CrowdSecUnit, since)
 	}
 	srv.Blocks = func(ctx context.Context, since time.Duration) ([]public.Block, error) {
 		return public.CrowdSecBlocks(ctx, userLaunch, generate.CrowdSecUnit, since)
 	}
-	// Roostack's network between servers (SPEC.md §10.2): this server is
-	// the hub others join.
-	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: labName, Self: id, Store: st, Agent: agentClient,
-		Log: log, Now: time.Now, Started: restart,
+}
+
+// wireNetwork starts Roostack's network between servers (SPEC.md §10.2),
+// with this server as the hub others join, and storage for other labs
+// (SPEC.md §10.10): this lab can keep other labs' backups, and store its
+// own at other labs.
+func (c *controller) wireNetwork() {
+	ctx, lab, st, mgr, srv, log := c.ctx, c.lab, c.st, c.mgr, c.srv, c.log
+	c.hub = &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: c.labName, Self: c.id, Store: st, Agent: c.agent,
+		Log: log, Now: time.Now, Started: c.restarts.restart,
 		Joined: func(ctx context.Context, id, name string) {
 			st.Audit(ctx, nil, web.AuditServerJoined, name)
 			// A new server keeps the lab's time zone (it can change it).
 			go mgr.MatchTimezone(context.WithoutCancel(ctx), id)
 			// The firewall lets it past the lab API now (SetLabServers).
-			local.Reapply("A server joined the lab")
+			c.local.Reapply("A server joined the lab")
 		}}
-	local.SetLabServers(func(ctx context.Context) ([]string, error) {
+	c.local.SetLabServers(func(ctx context.Context) ([]string, error) {
 		servers, err := st.Servers(ctx)
 		var addrs []string
 		for _, s := range servers {
@@ -335,9 +478,9 @@ func serve(args []string) error {
 		return addrs, err
 	})
 	if lab.Domain != "" {
-		hub.UI = "https://" + lab.UIHost()
+		c.hub.UI = "https://" + lab.UIHost()
 	}
-	hub.Start(ctx)
+	c.hub.Start(ctx)
 	// A fresh server can join an existing lab from its first-run page
 	// (SPEC.md §10.2), as `roostack node join` does: undone if it fails,
 	// then Roostack restarts as part of the lab.
@@ -351,9 +494,9 @@ func serve(args []string) error {
 			return "", err
 		}
 		say := func(format string, args ...any) { log.Info("joining a lab: " + fmt.Sprintf(format, args...)) }
-		if err := labnet.JoinLab(ctx, code, self, lab.Paths.StateDir, agentClient, say); err != nil {
+		if err := labnet.JoinLab(ctx, code, self, lab.Paths.StateDir, c.agent, say); err != nil {
 			// Undo it: the link, and anything saved for the lab.
-			if lerr := labnet.Leave(context.Background(), lab.Paths.StateDir, agentClient); lerr != nil {
+			if lerr := labnet.Leave(context.Background(), lab.Paths.StateDir, c.agent); lerr != nil {
 				log.Warn("undoing a failed join", "err", lerr)
 			}
 			return "", err
@@ -363,37 +506,39 @@ func serve(args []string) error {
 			// The page goes out first. Not restart(): that waits for the setup
 			// wizard, which a server joining a lab never finishes.
 			time.Sleep(2 * time.Second)
-			restartNow()
+			c.restarts.now()
 		}()
 		return code.Addr.String(), nil
 	}
-	srv.Network = hub
-	mgr.Registry = hub
-	// Storage for other labs (SPEC.md §10.10): this lab can keep other
-	// labs' backups, and store its own at other labs.
+	srv.Network = c.hub
+	mgr.Registry = c.hub
 	// The guests' link and stores are on whichever server offers the
 	// storage; the controller keeps the records and answers guests (on
 	// that server's link, forwarded here when it's another server).
-	guestHub := &labnet.GuestHub{LabName: labName, Store: st, Agent: mgr.GuestLinkAgent(), Log: log, Now: time.Now,
+	c.guestHub = &labnet.GuestHub{LabName: c.labName, Store: st, Agent: mgr.GuestLinkAgent(), Log: log, Now: time.Now,
 		Usage:  func(ctx context.Context, g store.Guest) (int64, error) { return mgr.GuestUsage(ctx, g.User()) },
 		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, web.AuditGuestJoined, name) },
 		// A guest server's store user added or removed: the guest's store
 		// follows (its password file).
 		Changed: func() { mgr.Apply() }}
-	mgr.GuestHub, mgr.GuestRecords, mgr.LinkAgent = guestHub, st, agentClient
-	guestHub.Start(ctx)
-	go guestHub.ServeGuests(ctx)
+	mgr.GuestHub, mgr.GuestRecords, mgr.LinkAgent = c.guestHub, st, c.agent
+	c.guestHub.Start(ctx)
+	go c.guestHub.ServeGuests(ctx)
 	mgr.RemoteAdded = func(r manager.RemoteStorage) { go forwardToRemote(ctx, lab, r, log) }
-	// Backups across servers (SPEC.md §10.10): the controller creates
-	// each server's repository with the recovery key.
-	mgr.BackupStore = st
-	mgr.Libraries = st
-	// This lab's storage at other labs: forward its servers' backups.
-	for _, r := range mgr.RemoteStorages(ctx) {
-		go forwardToRemote(ctx, lab, r, log)
+}
+
+// wireBackups sets up backups across servers (SPEC.md §10.10): the
+// controller creates each server's repository with the recovery key, and
+// forwards its servers' backups to this lab's storage at other labs.
+func (c *controller) wireBackups() {
+	lab, mgr := c.lab, c.mgr
+	mgr.BackupStore = c.st
+	mgr.Libraries = c.st
+	for _, r := range mgr.RemoteStorages(c.ctx) {
+		go forwardToRemote(c.ctx, lab, r, c.log)
 	}
-	if err := mgr.AdoptBackupDestination(ctx, lab.Backup.Repository); err != nil {
-		log.Error("recording this server's backup destination", "err", err)
+	if err := mgr.AdoptBackupDestination(c.ctx, lab.Backup.Repository); err != nil {
+		c.log.Error("recording this server's backup destination", "err", err)
 	}
 	mgr.HasRecoveryKey = func() bool {
 		_, err := os.Stat(backup.KeyFile(lab.Paths))
@@ -401,125 +546,140 @@ func serve(args []string) error {
 	}
 	mgr.EnsureRecoveryKey = func() error { return setup.EnsureRecoveryKey(lab.Paths) }
 	mgr.OpenRepo = repoOpener(lab)
-	mgr.Drives = agentClient
-	mgr.RenameSelf = func(name string) error {
-		self := id
-		self.Name = name
-		if err := self.Save(lab.Paths.StateDir); err != nil {
-			return err
-		}
-		restart()
-		return nil
-	}
-	// Roostack Cloud backup's keys: other servers ask the controller for
-	// theirs (each its own folder's), and the controller's own backups ask
-	// Cloud directly (SPEC.md §6.9).
-	var storageKeys func(ctx context.Context, server string) (cloudapi.StorageKeys, error)
-	if link != nil {
-		storageKeys = func(ctx context.Context, server string) (cloudapi.StorageKeys, error) {
-			return link.StorageKeys(ctx, cloudapi.StorageRequest{Purpose: cloudapi.StorageBackup, Server: server})
-		}
-		self := lab.NodeID
-		setCloudBackupKeys(func(ctx context.Context) (cloudapi.StorageKeys, error) { return storageKeys(ctx, self) })
-	}
-	go labnet.Serve(ctx, lab.Paths.StateDir, controllerAPI(hub, guestHub, mgr, storageKeys), log)
-	go labnet.KeepRenewed(ctx, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, id.ID, hub.RenewSelf, log)
-	// The catalog: the service registry's packages, fetched and checked
-	// against its signed index (SPEC.md §8.3.3).
+	mgr.Drives = c.agent
+}
+
+// serveLabAPI serves the lab API to the lab's servers (controllerAPI), and
+// keeps this server's own lab certificate renewed.
+func (c *controller) serveLabAPI() {
+	stateDir := c.lab.Paths.StateDir
+	go labnet.Serve(c.ctx, stateDir, controllerAPI(c.hub, c.guestHub, c.mgr, c.storageKeys), c.log)
+	go labnet.KeepRenewed(c.ctx, labnet.Identity{Dir: labnet.IdentityDir(stateDir)}, c.id.ID, c.hub.RenewSelf, c.log)
+}
+
+// wireCatalog starts the catalog: the service registry's packages, fetched
+// and checked against its signed index (SPEC.md §8.3.3).
+func (c *controller) wireCatalog() error {
+	lab, mgr := c.lab, c.mgr
 	roots, err := registry.RootKeys()
 	if err != nil {
 		return err
 	}
 	fetcher := &registry.Fetcher{URL: cmp.Or(lab.Registry.URL, registry.DefaultURL), Dir: lab.Paths.CatalogDir, Roots: roots,
-		Version: version, Arches: mgr.LabArches, Client: &http.Client{Timeout: time.Minute}, Log: log}
+		Version: version, Arches: mgr.LabArches, Client: &http.Client{Timeout: time.Minute}, Log: c.log}
 	// Withdrawals reach installed services: after each check, the manager
 	// stops or starts what they change (SPEC.md §8.3.4).
 	mgr.RegistryIndex, fetcher.Fetched = fetcher.Index, mgr.RegistryChanged
 	updater := registry.NewUpdater(fetcher, lab.Registry.Disabled, func(off bool) error {
-		return config.Update(*labPath, func(l *config.Lab) { l.Registry.Disabled = off })
-	}, log)
-	srv.Registry = updater
-	go updater.Run(ctx)
-	startControllerJobs(ctx, mgr, coord, st, log)
-	srv.RunningJob = func() string {
-		if st := coord.Status(); st.Running != nil {
+		return config.Update(c.labPath, func(l *config.Lab) { l.Registry.Disabled = off })
+	}, c.log)
+	c.srv.Registry = updater
+	go updater.Run(c.ctx)
+	return nil
+}
+
+// startJobs starts the controller's recurring jobs, and the first apply.
+func (c *controller) startJobs() {
+	startControllerJobs(c.ctx, c.mgr, c.coord, c.st, c.log)
+	c.srv.RunningJob = func() string {
+		if st := c.coord.Status(); st.Running != nil {
 			return st.Running.Name
 		}
 		return ""
 	}
 	// Converge on startup, e.g. after Roostack itself was upgraded.
-	mgr.ApplyBecause("Roostack started (after a restart or an update)")
+	c.mgr.ApplyBecause("Roostack started (after a restart or an update)")
 	// After a lab restore, the services' databases go back once they're set
 	// up again.
-	if r, ok := local.Jobs.Restores.(*backup.Restores); ok {
+	if r, ok := c.local.Jobs.Restores.(*backup.Restores); ok {
 		assigned := func() (config.Lab, []state.Service, error) {
-			l, services := local.Assigned()
+			l, services := c.local.Assigned()
 			return l, services, nil
 		}
-		go finishLabRestore(lab, coord, r.Restorer, assigned, mgr.Wait, local.Activity, log)
+		go finishLabRestore(c.lab, c.coord, r.Restorer, assigned, c.mgr.Wait, c.local.Activity, c.log)
 	}
+}
 
-	wizard.Store(wiz)
-	if err := wiz.AdoptExisting(ctx); err != nil {
+// wireSetup readies the setup wizard and the first-run pages: the setup
+// pages on the home network, and a new install becoming a lab restored
+// from its backups.
+func (c *controller) wireSetup() error {
+	lab, srv := c.lab, c.srv
+	c.restarts.wizard.Store(c.wiz)
+	if err := c.wiz.AdoptExisting(c.ctx); err != nil {
 		return err
 	}
 	// Where the setup pages on the home network send the Owner once setup
 	// is finished: the address saved in the wizard, if Roostack's own
 	// pages are there.
 	srv.FirstRunAddress = func() string {
-		l, err := config.Load(*labPath)
+		l, err := config.Load(c.labPath)
 		if err != nil || !l.HasAddress() || (l.OnInternet() && !l.PublicUI()) {
 			return ""
 		}
 		return "https://" + l.UIHost()
 	}
-	if pages != nil {
-		go serveSetupPages(ctx, pages, srv, lab, local, log)
-	}
-	// A roost.ac name from Roostack Cloud becomes the lab's address, and
-	// goes with the link (SPEC.md §6.6).
-	if link != nil {
-		link.UseName = func(ctx context.Context, c cloudapi.NameClaim) error {
-			return wiz.UseRoostAc(ctx, c.Name, c.Credentials)
-		}
-		link.Dropped = func(ctx context.Context) {
-			if err := wiz.DropRoostAc(context.WithoutCancel(ctx)); err != nil {
-				log.Error("taking away the lab's roost.ac address", "err", err)
-			}
-		}
-		link.Unrelayed = func(context.Context) {
-			if err := mgr.RelayGone(true); err != nil {
-				log.Error("turning Roostack Cloud's relay off", "err", err)
-			}
-		}
-		go link.Run(ctx)
-	}
-	// Email, through the lab's SMTP server (SPEC.md §6.13).
-	srv.Mail = &mail.Service{LabPath: *labPath, PasswordFile: lab.Paths.MailPasswordFile()}
-	go srv.RunNotifier(ctx)
-	// Monitoring: every service's address, the servers, the lab's address
-	// and people's own checks, every minute (SPEC.md §6.15).
-	srv.AutoChecks = mgr.MonitorChecks
-	srv.StatusPage, srv.StatusPageDir = mgr, lab.Paths.StatusPageDir()
-	srv.Monitor = &monitor.Monitor{Checks: srv.MonitorChecks, Store: st, Log: log,
-		Enabled: srv.MonitorOn, KeepDays: srv.HistoryKeepDays, Changed: srv.WriteStatusPage}
-	go srv.Monitor.Run(ctx)
-	// History older than the Owner's choice goes, on every server (SPEC.md §6.14).
-	go srv.RunHistoryCull(ctx)
-	// Direct links between servers that don't connect fall back to the
-	// controller (SPEC.md §10.10).
-	go sleep.Every(ctx, time.Minute, func() { mgr.CheckLinks(ctx) })
 	srv.DetectNetwork = public.DetectNetwork
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
-	// A new install can instead become a lab restored from its backups.
-	if token != "" {
-		srv.LabRestore = &labRestorer{lab: lab, drives: agentClient, acts: local.Activity, restart: restartNow, log: log, cloud: link}
+	if c.token != "" {
+		srv.LabRestore = &labRestorer{lab: lab, drives: c.agent, acts: c.local.Activity, restart: c.restarts.now, log: c.log, cloud: c.link}
 	}
+	if c.pages != nil {
+		go serveSetupPages(c.ctx, c.pages, srv, lab, c.local, c.log)
+	}
+	return nil
+}
 
-	// Keep *.<domain> pointing at this server for devices at home, and
-	// check they can see it (SPEC.md §6.5.1). The records of an old
-	// address follow while it works, and go when it ends (SPEC.md §6.6),
-	// even if the lab has no address now.
+// startCloud starts the link to Roostack Cloud. A roost.ac name from it
+// becomes the lab's address, and goes with the link (SPEC.md §6.6).
+func (c *controller) startCloud() {
+	link := c.link
+	if link == nil {
+		return
+	}
+	link.UseName = func(ctx context.Context, n cloudapi.NameClaim) error {
+		return c.wiz.UseRoostAc(ctx, n.Name, n.Credentials)
+	}
+	link.Dropped = func(ctx context.Context) {
+		if err := c.wiz.DropRoostAc(context.WithoutCancel(ctx)); err != nil {
+			c.log.Error("taking away the lab's roost.ac address", "err", err)
+		}
+	}
+	link.Unrelayed = func(context.Context) {
+		if err := c.mgr.RelayGone(true); err != nil {
+			c.log.Error("turning Roostack Cloud's relay off", "err", err)
+		}
+	}
+	go link.Run(c.ctx)
+}
+
+// wireNotifier sends email through the lab's SMTP server (SPEC.md §6.13),
+// and the notifier the emails about problems.
+func (c *controller) wireNotifier() {
+	c.srv.Mail = &mail.Service{LabPath: c.labPath, PasswordFile: c.lab.Paths.MailPasswordFile()}
+	go c.srv.RunNotifier(c.ctx)
+}
+
+// wireMonitoring starts monitoring: every service's address, the servers,
+// the lab's address and people's own checks, every minute (SPEC.md
+// §6.15); and culls history older than the Owner's choice, on every
+// server (SPEC.md §6.14).
+func (c *controller) wireMonitoring() {
+	srv := c.srv
+	srv.AutoChecks = c.mgr.MonitorChecks
+	srv.StatusPage, srv.StatusPageDir = c.mgr, c.lab.Paths.StatusPageDir()
+	srv.Monitor = &monitor.Monitor{Checks: srv.MonitorChecks, Store: c.st, Log: c.log,
+		Enabled: srv.MonitorOn, KeepDays: srv.HistoryKeepDays, Changed: srv.WriteStatusPage}
+	go srv.Monitor.Run(c.ctx)
+	go srv.RunHistoryCull(c.ctx)
+}
+
+// wireDNS keeps *.<domain> pointing at this server for devices at home,
+// and checks they can see it (SPEC.md §6.5.1). The records of an old
+// address follow while it works, and go when it ends (SPEC.md §6.6), even
+// if the lab has no address now.
+func (c *controller) wireDNS() {
+	lab, mgr, link := c.lab, c.mgr, c.link
 	if lab.DNS.Provider != "" || lab.OldAddress != nil {
 		// A roost.ac name's records are set through Roostack Cloud: its
 		// request log shows them (SPEC.md §6.6).
@@ -528,15 +688,15 @@ func serve(args []string) error {
 			recordsHTTP.Transport = link.RecordsTransport(nil)
 		}
 		records := &dnsrecords.Manager{
-			Lab: lab, Secrets: podman.NewSecrets(), Store: st, Log: log,
+			Lab: lab, Secrets: podman.NewSecrets(), Store: c.st, Log: c.log,
 			HTTP:        recordsHTTP,
 			LocalLookup: dnsrecords.SystemLookup, PublicLookup: dnsrecords.PublicLookup,
 			Wait:      90 * time.Second,
-			UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
+			UpdateLab: func(change func(*config.Lab)) error { return config.Update(c.labPath, change) },
 			// The old address as lab.yaml has it now: it's kept after it
 			// stops working, until its records are deleted.
 			OldAddress: func() *config.OldAddress {
-				l, err := config.Load(*labPath)
+				l, err := config.Load(c.labPath)
 				if err != nil {
 					return lab.OldAddress
 				}
@@ -545,7 +705,7 @@ func serve(args []string) error {
 			// Public addresses point at the lab's edge, if it has one
 			// (SPEC.md §10.5), else the home's public address (port
 			// forwarding), once CrowdSec is up.
-			PublicHosts: mgr.PublicHosts, Protected: crowdSecUp,
+			PublicHosts: mgr.PublicHosts, Protected: c.crowdSecUp,
 			Entry: public.Chosen{Home: public.PortForwarding{}, Edge: func(ctx context.Context) (public.Edge, bool) {
 				if mgr.RelayOn() && mgr.Relay.Edges != nil {
 					// Cloud points relayed names at its edges itself.
@@ -556,9 +716,9 @@ func serve(args []string) error {
 				return public.Edge{Name: cmp.Or(e.Name, e.ID), Addr: e.Address}, ok
 			}},
 			// link.<domain>, once chosen for joining or storage for others.
-			LinkWanted: func() bool { v, _ := st.Setting(context.Background(), web.LinkWantedKey); return v == "on" },
+			LinkWanted: func() bool { v, _ := c.st.Setting(context.Background(), web.LinkWantedKey); return v == "on" },
 			// Another copy of this lab runs it now: leave its records alone.
-			Paused: func() bool { v, _ := st.Setting(context.Background(), backup.FenceKey); return v != "" },
+			Paused: func() bool { v, _ := c.st.Setting(context.Background(), backup.FenceKey); return v != "" },
 			// The lab's own domain relayed through Roostack Cloud: public
 			// addresses are CNAMEs to its relay name, with the proof's TXT.
 			Relay: func() (dnsrecords.Relayed, bool) {
@@ -581,292 +741,39 @@ func serve(args []string) error {
 				if _, d := link.RelayName(); d != nil && (!d.Verified || d.Missing) {
 					go func() {
 						if err := mgr.CheckRelay(context.Background()); err != nil {
-							log.Warn("asking Roostack Cloud to look for the domain's proof", "err", err)
+							c.log.Warn("asking Roostack Cloud to look for the domain's proof", "err", err)
 						}
 					}()
 				}
 			},
 		}
-		wiz.RemoveOldRecords = records.RemoveOld
+		c.wiz.RemoveOldRecords = records.RemoveOld
 		if lab.DNS.Provider != "" {
-			go records.Run(ctx, 30*time.Minute)
-			srv.DNS = records
+			go records.Run(c.ctx, 30*time.Minute)
+			c.srv.DNS = records
 		}
 	}
-	go wiz.RunOldAddress(ctx, log)
+	go c.wiz.RunOldAddress(c.ctx, c.log)
+}
 
-	addr := *listen
+// listen serves the web UI on addr (default: the lab's UI address and
+// port) until ctx ends.
+func (c *controller) listen(addr string) error {
 	if addr == "" {
-		addr = fmt.Sprintf("%s:%d", lab.UIBind, lab.UIPort)
+		addr = fmt.Sprintf("%s:%d", c.lab.UIBind, c.lab.UIPort)
 	}
-	httpSrv := &http.Server{Addr: addr, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	httpSrv := &http.Server{Addr: addr, Handler: c.srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
-		<-ctx.Done()
+		<-c.ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		httpSrv.Shutdown(shutdown)
 	}()
-	log.Info("roostack listening", "addr", addr)
+	c.log.Info("roostack listening", "addr", addr)
 	if err := httpSrv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
-}
-
-// setupToken returns the first-run setup code, or "" if an account exists.
-// The code is kept in a file readable only by roostack (and root), so it
-// survives restarts until setup is done.
-func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger) (string, error) {
-	path := lab.Paths.SetupTokenFile()
-	n, err := st.CountUsers(ctx)
-	if err != nil || n > 0 {
-		if n > 0 { // e.g. a lab restored from its backups
-			os.Remove(path)
-		}
-		return "", err
-	}
-	if data, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(data))) > 0 {
-		token := strings.TrimSpace(string(data))
-		log.Info("waiting for first-run setup", "setup_code", token, "file", path)
-		return token, nil
-	}
-	token, err := authkit.NewToken()
-	if err != nil {
-		return "", err
-	}
-	if err := fsutil.WritePrivate(path, []byte(token+"\n")); err != nil {
-		return "", err
-	}
-	log.Info("waiting for first-run setup", "setup_code", token, "file", path)
-	return token, nil
-}
-
-// serviceViews builds the dashboard list from desired state plus live
-// systemd status.
-func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log *slog.Logger) ([]web.ServiceView, error) {
-	all, err := state.LoadServices(lab)
-	if err != nil {
-		return nil, err
-	}
-	// Each server reports its own services (SPEC.md §10.3).
-	infos := mgr.ServiceInfos(ctx)
-	withdrawn := mgr.Withdrawals(ctx)
-	updates := mgr.AvailableUpdates(ctx)
-	var views []web.ServiceView
-	for _, s := range all {
-		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Package: s.Package.Name, Local: s.Instance.Local, Held: s.Instance.Held}
-		facts := web.ServiceFacts{Reported: web.StatusUnknown}
-		if info, ok := infos[s.Name()]; ok {
-			v.ServiceDetail, facts.Reported, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
-		}
-		// Updates to newer versions (SPEC.md §7).
-		if u := updates[s.Name()]; u != nil {
-			v.Update = u.ToApp()
-		}
-		// What decides its status besides its server (web.ServiceStatus).
-		w := withdrawn[s.Name()]
-		facts.Stopped = w != nil && w.Stopped
-		facts.Updating = mgr.Updating(s.Name()) != nil
-		facts.AwaitingData, facts.Switching = s.Instance.AwaitingData, mgr.Switching(s.Name())
-		facts.Held, facts.Waiting = s.Instance.Held != nil, s.Instance.Waiting
-		v.Status = web.ServiceStatus(facts)
-		if s.Instance.Waiting {
-			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).
-			v.Server = ""
-			if n := mgr.NodeByID(s.Instance.Host); n != nil {
-				v.WasOn = n.Identity().Name
-			}
-		}
-		out, err := generate.Service(lab, s.Package, s.Instance)
-		if err != nil {
-			log.Error("generating service for status", "service", s.Name(), "err", err)
-			v.Status = web.StatusFailed
-			views = append(views, v)
-			continue
-		}
-		for _, h := range out.Hosts {
-			v.URLs = append(v.URLs, "https://"+h)
-		}
-		v.NoAddress = !lab.HasAddress() && len(s.Package.Routes) > 0
-		views = append(views, v)
-	}
-	return views, nil
-}
-
-// startMaintenance runs this server's maintenance coordinator with the
-// nightly backup and OS updates and weekly repository maintenance
-// (SPEC.md §3.2, §6.9).
-func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger, ag *agent.Client,
-	acts *activity.Registry, services serverServices) (node.Maintenance, *maintenance.Coordinator, error) {
-	ticker := time.NewTicker(time.Minute)
-	policy := maintenance.DefaultPolicy()
-	policy.WindowStart = time.Duration(lab.Maintenance.Hour()) * time.Hour
-	if lab.Maintenance.Restart == config.RestartNotify {
-		policy.Mode = maintenance.RebootNotify
-	}
-	coord := &maintenance.Coordinator{
-		Policy:  policy,
-		Now:     time.Now,
-		Journal: maintenance.FileJournal{Path: filepath.Join(lab.Paths.StateDir, "maintenance-journal.json")},
-		Ticks:   ticker.C,
-		Log:     log,
-		Reboot:  func() error { return ag.Reboot(context.Background()) },
-	}
-	jobs := node.Maintenance{}
-	updates := &osupdate.Service{Agent: ag, Store: st, Coord: coord, Now: time.Now, Log: log, Activity: acts,
-		HTTP: &http.Client{Timeout: time.Minute}}
-	// Backup runs recorded before they had repositories get theirs, once
-	// (SPEC.md §6.9).
-	repos := map[string]string{"": lab.Backup.Repository}
-	for _, c := range lab.Backup.Copies {
-		repos[c.Name] = c.Repository
-	}
-	if err := st.AdoptBackupRuns(ctx, repos); err != nil {
-		log.Warn("giving older backup runs their repositories", "err", err)
-	}
-	svc := &backup.Service{
-		Coord:      coord,
-		Store:      st,
-		Repository: lab.Backup.Repository,
-		// Set up by the controller: it removes old backups (SPEC.md §10.10).
-		PrunedElsewhere: lab.Backup.PrunedByController,
-		NextRun:         func() time.Time { return maintenance.NextDaily(time.Now(), maintenance.DefaultBackupAt) },
-		Activity:        acts,
-	}
-	if lab.Backup.Repository != "" {
-		if _, err := os.Stat(backup.KeyFile(lab.Paths)); err != nil {
-			log.Warn("backups are configured but not initialised; run: roostack backup init")
-		} else {
-			repo, err := newRepo(lab, userLaunch)
-			if err != nil {
-				return jobs, nil, err
-			}
-			if svc.Deps, err = newBackupDeps(lab, st, repo, userLaunch, services); err != nil {
-				return jobs, nil, err
-			}
-			// Back up the WireGuard keys too, so a restored lab keeps the keys
-			// its peers know.
-			dumpDB := svc.Deps.DumpState
-			svc.Deps.DumpState = func(ctx context.Context, path string) error {
-				if ag.KeysFile != "" {
-					if err := ag.SaveWireGuardKeys(ctx); err != nil {
-						return fmt.Errorf("saving the WireGuard keys: %w", err)
-					}
-				}
-				return dumpDB(ctx, path)
-			}
-			jobs.Restores = &backup.Restores{Coord: coord, Repo: repo, Activity: acts,
-				Restorer: &backup.Restorer{Repo: repo, Units: systemd.New(), Launch: userLaunch,
-					RoostackBin: svc.Deps.Preparer.RoostackBin, Now: time.Now},
-				Lookup: func(name string) (*generate.Output, string, error) { return lookupService(services, name) },
-			}
-		}
-	}
-	coord.Resume = func(name string) (maintenance.Job, bool) {
-		if name == backup.JobName && svc.Configured() {
-			return svc.Job(), true
-		}
-		return maintenance.Job{}, false
-	}
-	go func() {
-		coord.Run(ctx)
-		ticker.Stop()
-	}()
-	// Nightly: backup, then OS updates (SPEC.md §3.2). Updates are queued
-	// separately, so a failing backup doesn't hold back security fixes.
-	go maintenance.Every(ctx,
-		func(now time.Time) time.Time { return maintenance.NextDaily(now, maintenance.DefaultBackupAt) },
-		func() {
-			if svc.Configured() {
-				if err := svc.Submit(); err != nil {
-					log.Warn("nightly backup not started", "err", err)
-				}
-			}
-			if err := updates.Submit(ctx); err != nil {
-				log.Warn("nightly OS updates not started", "err", err)
-			}
-		})
-	// A new release series of Roostack waits for the Owner, then for a
-	// backup that worked within the last day (SPEC.md §7).
-	updates.BackupCheck = func(ctx context.Context) string {
-		if !svc.Configured() {
-			return "" // the offer said there's no backup to go back to
-		}
-		bs, err := svc.Status(ctx)
-		switch {
-		case err != nil:
-			return "Roostack couldn't read this server's backups"
-		case bs.Last == nil || bs.Last.Finished.IsZero():
-			return "there's no backup yet"
-		case !bs.Last.OK:
-			return "the last backup didn't work"
-		case time.Since(bs.Last.Finished) > 26*time.Hour:
-			return "the last backup is more than a day old"
-		}
-		return ""
-	}
-	go updates.WatchSeries(ctx, 5*time.Minute, 6*time.Hour)
-	// A run of OS updates that upgraded Roostack restarted it halfway
-	// through: record how that run ends (SPEC.md §7).
-	updates.Resume(ctx)
-	// Debian's own apt timers may also install an update that needs a
-	// restart; notice it.
-	updates.CheckReboot()
-	go sleep.Every(ctx, 30*time.Minute, func() { updates.CheckReboot() })
-	// Failed backups are tried again (backup/retry.go).
-	go svc.WatchRetries(ctx)
-	// A night the server was off is caught up, and a new lab's first
-	// backup made: a while after starting (once the services have), then
-	// hourly (SPEC.md §6.9).
-	go func() {
-		wait := catchUpDelay
-		for {
-			svc.CatchUpAt(time.Now().Add(wait))
-			if !sleep.For(ctx, wait) {
-				return
-			}
-			wait = time.Hour
-			why, err := svc.CatchUp(ctx)
-			switch {
-			case err != nil:
-				log.Warn("catching up a missed backup", "err", err)
-			case why != "":
-				log.Info("catching up a missed backup: " + why)
-			}
-		}
-	}()
-	if svc.Configured() {
-		go maintenance.Every(ctx,
-			func(now time.Time) time.Time {
-				return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn, maintenance.DefaultMaintenanceAt)
-			},
-			func() { coord.Submit(svc.MaintenanceJob()) })
-	}
-	jobs.Backups, jobs.Updates, jobs.Coord = svc, updates, coord
-	return jobs, coord, nil
-}
-
-// catchUpDelay is how long after starting Roostack checks for a missed
-// nightly backup.
-const catchUpDelay = 10 * time.Minute
-
-// lookupService generates an installed service's output (e.g. to restore
-// it), with its title.
-func lookupService(services serverServices, name string) (*generate.Output, string, error) {
-	lab, list, err := services()
-	if err != nil {
-		return nil, "", err
-	}
-	for _, s := range list {
-		if s.Name() == name {
-			// What runs of it now: only its databases while it's held after
-			// a restore that didn't finish, so restoring it again stops
-			// and starts only units that exist (SPEC.md §6.9).
-			out, err := state.Output(lab, s)
-			return out, s.Title(), err
-		}
-	}
-	return nil, "", fmt.Errorf("%s is not installed", name)
 }
 
 // waitForNetwork waits, up to a minute, until this server has a route to
