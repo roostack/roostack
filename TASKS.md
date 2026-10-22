@@ -34,6 +34,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Measure restic RAM/time on a realistic photo/video dataset
 - [ ] 🟡 **1.11 Maintenance coordinator + host OS updates**
 - [ ] **1.14 Design system** (agreed 2026-09-27)
+  - [ ] Look at the HTML emails (SPEC §6.13, "Email in HTML", 2026-10-22) in Gmail (web and phone), Apple Mail (light and dark), Outlook and Fastmail: a notification and the test email, sent from a VM; fix what a client shows wrongly
   - [ ] The `roostack` icon in `icons.go` (a house, for Roostack's own services) could become a line drawing of the hen
 - [ ] **1.17 Help site (SPEC §6.3.1)**
   - [ ] Publish it, with the website, when the Owner says

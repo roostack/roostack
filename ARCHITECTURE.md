@@ -174,6 +174,7 @@ Grouped by layer, from the commands down. Sub-packages that exist only for tests
 | `authkit` | Passwords (argon2id), tokens and two-factor codes (TOTP), public so Roostack Cloud's repository uses the same code; Cloud also turns on a pepper and sealed two-factor secrets. Fuzz-tested (the inputs fuzzing found are kept in `testdata/fuzz`) |
 | `awssig` | AWS Signature Version 4 with the standard library only (Route 53, S3-compatible storage; checked against the AWS SDK's signer): public, so Roostack Cloud signs Wasabi's STS and S3 requests with the same code |
 | `cloudapi` | The API between a lab and Roostack Cloud (paths, bodies, the records and acme-dns conventions): public, not under `internal`, so Cloud's own repository imports the same contract |
+| `mailkit` | Emails in HTML beside their plain text (SPEC §6.13, "Email in HTML"): blocks (paragraphs, lists, sections of notices, buttons) written as text (`Text`) and as email-safe HTML in the default theme's colours (`HTML`, from `email.html`), plain text read back into blocks (`FromText`), and the MIME body with the brand's mark embedded (`Body`). Public, so Roostack Cloud's emails have the same look with its own mark. Golden files in `testdata` (`go test ./mailkit -update`) |
 
 ### Small helpers and tools
 

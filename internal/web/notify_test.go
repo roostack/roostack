@@ -54,6 +54,13 @@ func TestNotifyProblems(t *testing.T) {
 		!strings.Contains(fm.sent[0].Body, "https://roost.lab.example.com/backups") || fm.sent[0].To[0] != "sam@example.com" {
 		t.Fatalf("first email: %+v", fm.sent)
 	}
+	// Its HTML says the same, with the notice in its section and a link to its page.
+	if e := fm.sent[0].HTML; e == nil || e.Text() != fm.sent[0].Body {
+		t.Fatalf("the HTML isn't made from what the text says: %+v", e)
+	} else if html, err := e.HTML(); err != nil || !strings.Contains(html, `href="https://roost.lab.example.com/backups"`) ||
+		!strings.Contains(html, "Needs attention</h2>") {
+		t.Errorf("the HTML has no section with a link to the backups page (%v):\n%s", err, html)
+	}
 	// The time in it changes; still the same problem, and nothing new to say.
 	fb.status.Last.Finished = t0.Add(5 * time.Minute)
 	if h.server.notify(ctx, t0.Add(20*time.Minute)); len(fm.sent) != 1 {

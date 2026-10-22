@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>{{.Heading}}</title>
+<style>
+  body { margin: 0; padding: 0; -webkit-text-size-adjust: 100%; }
+  @media (max-width: 600px) {
+    .rs-outer { padding: 16px 8px !important; }
+    .rs-pad { padding-left: 20px !important; padding-right: 20px !important; }
+  }
+  @media (prefers-color-scheme: dark) {
+    .rs-bg { background: #111617 !important; }
+    .rs-card { background: #1a2021 !important; border-color: #2a3435 !important; }
+    .rs-item { background: #141a1b !important; color: #e5eceb !important; }
+    .rs-fg { color: #e5eceb !important; }
+    .rs-muted { color: #98a8a8 !important; }
+    .rs-hiword { color: #c4b5fd !important; }
+    .rs-link { color: #2dd4bf !important; }
+    .rs-btn { background: #2dd4bf !important; }
+    .rs-btn-a { color: #062a25 !important; }
+    .rs-hi { background: #c4b5fd !important; border-left-color: #c4b5fd !important; }
+    .rs-bad { background: #ff8a80 !important; border-left-color: #ff8a80 !important; }
+    .rs-warn { background: #f5c16c !important; border-left-color: #f5c16c !important; }
+    .rs-ok { background: #7ee2ae !important; border-left-color: #7ee2ae !important; }
+    .rs-item.rs-hi, .rs-item.rs-bad, .rs-item.rs-warn, .rs-item.rs-ok { background: #141a1b !important; }
+  }
+</style>
+</head>
+<body class="rs-bg" style="margin:0;padding:0;background:#f5f7f7;">
+{{- if .Preview}}
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{{.Preview}}</div>
+{{- end}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="rs-bg" style="background:#f5f7f7;">
+<tr><td align="center" class="rs-outer" style="padding:32px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+
+  <tr><td style="padding:0 4px 16px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td style="vertical-align:middle;"><img src="cid:{{.MarkID}}" width="36" height="36" alt="" style="display:block;border:0;border-radius:8px;"></td>
+      <td class="rs-fg" style="vertical-align:middle;padding-left:10px;font-family:'Space Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1;letter-spacing:-0.03em;color:#1b2426;"><span style="font-weight:500;">roo</span><span style="font-weight:700;">stack</span>{{if .Cloud}}<span class="rs-hiword" style="font-weight:500;color:#7c3aed;"> cloud</span>{{end}}</td>
+    </tr></table>
+  </td></tr>
+
+  <tr><td class="rs-card" style="background:#ffffff;border:1px solid #dbe3e2;border-radius:12px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr><td class="rs-pad" style="padding:32px 36px 12px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+        {{- if .Heading}}
+        <h1 class="rs-fg" style="margin:0 0 16px;font-family:'Space Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:1.3;font-weight:600;color:#1b2426;">{{.Heading}}</h1>
+        {{- end}}
+        {{- range .Blocks}}
+        {{- if eq .Kind "p"}}
+        <p class="rs-fg" style="margin:0 0 16px;font-size:16px;line-height:1.5;color:#1b2426;">{{template "lines" .Lines}}</p>
+        {{- else if eq .Kind "link"}}
+        <p style="margin:0 0 16px;font-size:16px;line-height:1.5;"><a class="rs-link" href="{{.URL}}" style="color:#0f766e;">{{.Label}}</a></p>
+        {{- else if eq .Kind "list"}}
+        <ul class="rs-fg" style="margin:0 0 16px;padding:0 0 0 22px;font-size:16px;line-height:1.5;color:#1b2426;">
+          {{- range .Items}}
+          <li style="margin:0 0 6px;">{{template "item" .}}</li>
+          {{- end}}
+        </ul>
+        {{- else if eq .Kind "section"}}
+        <h2 class="rs-fg" style="margin:20px 0 10px;font-size:15px;line-height:1.4;font-weight:600;color:#1b2426;">{{if .Tone}}<span class="rs-{{.Tone}}" style="display:inline-block;width:8px;height:8px;border-radius:4px;background:{{toneColour .Tone}};margin-right:8px;vertical-align:1px;"></span>{{end}}{{.Title}}</h2>
+        {{- range .Items}}
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 8px;"><tr>
+          <td class="rs-item{{if .Tone}} rs-{{.Tone}}{{end}}" style="background:#eef3f2;border-left:3px solid {{toneColour .Tone}};border-radius:6px;padding:10px 14px;font-size:15px;line-height:1.5;color:#1b2426;">{{template "item" .}}</td>
+        </tr></table>
+        {{- end}}
+        <div style="height:8px;line-height:8px;font-size:8px;">&nbsp;</div>
+        {{- else if eq .Kind "action"}}
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 12px;"><tr>
+          <td class="rs-btn" bgcolor="#0f766e" style="background:#0f766e;border-radius:8px;">
+            <a class="rs-btn-a" href="{{.URL}}" style="display:inline-block;padding:12px 22px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.25;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">{{.Label}}</a>
+          </td>
+        </tr></table>
+        <p class="rs-muted" style="margin:0 0 20px;font-size:13px;line-height:1.5;color:#56676a;word-break:break-all;">Or open this address: <a class="rs-link" href="{{.URL}}" style="color:#0f766e;">{{.URL}}</a></p>
+        {{- end}}
+        {{- end}}
+      </td></tr>
+    </table>
+  </td></tr>
+  {{- if .Footer}}
+
+  <tr><td class="rs-muted" style="padding:16px 4px 0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#56676a;">
+    {{- range $i, $b := .Footer}}{{if $i}}<br>{{end}}
+    {{if eq $b.Kind "link"}}<a class="rs-link" href="{{$b.URL}}" style="color:#0f766e;">{{$b.Label}}</a>{{else}}{{template "lines" $b.Lines}}{{end}}
+    {{- end}}
+  </td></tr>
+  {{- end}}
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>
+{{- define "lines"}}{{range $i, $l := .}}{{if $i}}<br>{{end}}{{range $l}}{{if .URL}}<a class="rs-link" href="{{.URL}}" style="color:#0f766e;">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{end}}{{end}}{{end}}
+{{- define "item"}}{{template "lines" .Lines}}
+            {{- if .Detail}}<br><span class="rs-muted" style="font-size:13px;color:#56676a;">{{template "lines" .Detail}}</span>{{end}}
+            {{- if .URL}}{{if .Detail}} &nbsp;{{else}}<br>{{end}}<a class="rs-link" href="{{.URL}}" style="font-size:14px;color:#0f766e;">{{.LinkText}}</a>{{end}}{{end}}
