@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/instance"
@@ -205,6 +207,59 @@ func TestImportDataStaysInside(t *testing.T) {
 	}
 	if fi, err := os.Stat(filepath.Join(outside, "victim")); err != nil || fi.Sys().(*syscall.Stat_t).Nlink != 1 {
 		t.Error("something links to the victim")
+	}
+}
+
+// GNU tar pads a stream to its 10 KiB record after the end-of-archive
+// marker. ImportData reads that padding too, or a copy from a node, whose
+// sender waits for it to be read, never finishes; anything else after the
+// marker is refused, as tar would drop it. Runs the real tar.
+func TestImportDataReadsToTheEnd(t *testing.T) {
+	if _, err := exec.LookPath("tar"); err != nil {
+		t.Skip("no tar")
+	}
+	root := t.TempDir()
+	lab := config.Default()
+	lab.Paths.ServicesDir, lab.Paths.MediaDir = filepath.Join(root, "services"), filepath.Join(root, "media")
+	n := &Local{Lab: lab, Launch: direct}
+	stream := func(after byte) []byte {
+		b, _ := io.ReadAll(tarStream(t, member{name: "./a", typ: tar.TypeReg}))
+		pad := make([]byte, 10240-len(b))
+		pad[len(pad)-1] = after
+		return append(b, pad...)
+	}
+	for _, c := range []struct {
+		after byte
+		ok    bool
+	}{{0, true}, {'x', false}} {
+		pr, pw := io.Pipe()
+		sent := make(chan error, 1)
+		go func() {
+			_, err := pw.Write(stream(c.after))
+			pw.Close()
+			sent <- err
+		}()
+		// As the manager's pipe does: the reader is closed only on an error.
+		err := n.ImportData(context.Background(), "forgejo", 0, pr, 0)
+		if err != nil {
+			pr.CloseWithError(err)
+		}
+		if (err == nil) != c.ok {
+			t.Errorf("after the end %q: %v", c.after, err)
+		}
+		select {
+		case err := <-sent:
+			if c.ok && err != nil {
+				t.Errorf("sending: %v", err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("the sender is still waiting for its padding to be read")
+		}
+		if c.ok {
+			if b, _ := os.ReadFile(filepath.Join(lab.Paths.ServicesDir, "forgejo"+staging, "a")); string(b) != "pwned\n" {
+				t.Errorf("a = %q", b)
+			}
+		}
 	}
 }
 

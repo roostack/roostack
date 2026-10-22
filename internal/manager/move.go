@@ -377,7 +377,8 @@ func waitBackup(ctx context.Context, b node.Backups, t time.Time) (*store.Backup
 	}
 }
 
-// pipe connects a writer function to a reader function.
+// pipe connects a writer function to a reader function. It succeeds only
+// if both do, and read took everything write wrote.
 func pipe(ctx context.Context, write func(io.Writer) error, read func(io.Reader) error) error {
 	pr, pw := io.Pipe()
 	sent := make(chan error, 1)
@@ -387,12 +388,16 @@ func pipe(ctx context.Context, write func(io.Writer) error, read func(io.Reader)
 		sent <- err
 	}()
 	err := read(pr)
-	if err != nil {
-		pr.CloseWithError(err)
-	}
+	// Closed even when read succeeded: one that stopped before the end
+	// would otherwise leave write waiting for ever. write then fails, and
+	// so does the copy, as some of the data wasn't taken.
+	pr.CloseWithError(err)
 	werr := <-sent
 	if errors.Is(werr, backup.ErrNotInSnapshot) {
 		return werr
+	}
+	if err == nil && errors.Is(werr, io.ErrClosedPipe) {
+		werr = fmt.Errorf("the receiving side stopped before the end of the data: %w", werr)
 	}
 	return errors.Join(werr, err)
 }
