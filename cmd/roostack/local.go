@@ -1,13 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
-	"runtime"
-	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -57,7 +53,9 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets(),
 			// New containers' images are downloaded as their own step, with
 			// podman's output in the apply's log (SPEC.md §6.3.3).
-			Pull: pullImage},
+			Pull: func(ctx context.Context, image string, w io.Writer) error {
+				return podman.Pull(ctx, userLaunch, image, w)
+			}},
 		Log: log,
 		// Package hooks (e.g. creating Forgejo's admin) run with podman exec.
 		State: st, Events: st, Secrets: podman.NewSecrets(),
@@ -104,31 +102,4 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		b.AfterBackup = local.CountSizes
 	}
 	return local, agentClient, coord, nil
-}
-
-// pullImage downloads an image as the roostack user (outside Roostack's
-// sandbox, like everything podman does), unless it's already here.
-func pullImage(ctx context.Context, image string, w io.Writer) error {
-	if userLaunch(ctx, nil, "podman", "image", "exists", image).Run() == nil {
-		fmt.Fprintf(w, "Already downloaded.\n")
-		return nil
-	}
-	cmd := userLaunch(ctx, nil, "podman", "pull", image)
-	var out bytes.Buffer
-	cmd.Stdout, cmd.Stderr = io.MultiWriter(w, &out), io.MultiWriter(w, &out)
-	err := cmd.Run()
-	// Podman 5.4: "no image found in image index for architecture …";
-	// older versions said "manifest list".
-	if err != nil && bytes.Contains(out.Bytes(), []byte("no image found in")) {
-		return &reconcile.NoImageForArch{Image: image, Arch: runtime.GOARCH}
-	}
-	// Podman's own "Error: …" line says why, rather than only its exit
-	// status (the install's notice shows it).
-	if err != nil {
-		lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-		if why, ok := strings.CutPrefix(strings.TrimSpace(lines[len(lines)-1]), "Error: "); ok {
-			return fmt.Errorf("%w: %s", err, why)
-		}
-	}
-	return err
 }
