@@ -113,8 +113,8 @@ type photoSourceForm struct {
 	LocationError   string
 	// Which choices this person has: drives, a folder on the server,
 	// shares, locations.
-	CanDrive, CanFolder, CanShare, CanLocation   bool
-	ShareType, ShareServer, SharePath, ShareUser string
+	CanDrive, CanFolder, CanShare, CanLocation bool
+	shareForm
 }
 
 // photoDriveChoice is a drive for step 3.
@@ -417,12 +417,10 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 			f.Location, f.LocationSub = src.Location, src.Sub
 		}
 		if sh := src.Library.Share; sh != nil {
-			f.ShareType, f.ShareServer, f.SharePath, f.ShareUser = sh.Type, sh.Server, sh.Path, sh.Username
+			f.fillShare(sh)
 		}
 	}
-	if f.ShareType != "nfs" {
-		f.ShareType = "smb"
-	}
+	f.shareKind()
 	if n := s.Manager.NodeFor(ps.Name); n != nil {
 		f.ServerName = n.Identity().Name
 	}
@@ -496,17 +494,16 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 			at := func(sub string) string {
 				return pg.Base + "?" + url.Values{"where": {"location"}, "location": {f.Location}, "lsub": {sub}}.Encode() + "#step-3"
 			}
-			f.LocationCrumbs = []mediaCrumb{{title, at("")}}
-			if f.LocationSub != "" {
-				parts := strings.Split(f.LocationSub, "/")
-				for i, part := range parts {
-					f.LocationCrumbs = append(f.LocationCrumbs, mediaCrumb{part, at(strings.Join(parts[:i+1], "/"))})
-				}
-			}
-			f.LocationCrumbs[len(f.LocationCrumbs)-1].Href = ""
+			f.LocationCrumbs = crumbsFor(title, f.LocationSub, at)
 		}
 	}
 	return nil
+}
+
+// ShareFields are the share's fields, for share-fields.
+func (f photoSourceForm) ShareFields() shareFields {
+	return shareFields{shareForm: f.shareForm, ServerName: cmp.Or(f.ServerName, "the server"), Example: "photos or /volume1/photos",
+		Kept: ", until the migration is done."}
 }
 
 // LocationHref opens a folder in the location chosen.
@@ -552,77 +549,26 @@ func (s *Server) photoFoldersPage(w http.ResponseWriter, r *http.Request, panel 
 	if panel {
 		base = "/services/" + url.PathEscape(name) + "/photos"
 	}
-	q := r.URL.Query()
-	at := func(set url.Values) string { return base + "/folders?" + set.Encode() }
-	back := func(set url.Values) string { return base + "?" + set.Encode() + "#step-3" }
-	var p folderPicker
-	var l agent.Library
-	var folderHref func(string) string
-	if drive := q.Get("drive"); drive != "" {
-		src := node.PhotoSource{Kind: "drive", Library: agent.Library{Drive: drive}}
+	pl := pickerPlaceOf(r.URL.Query())
+	if pl.Drive != "" {
+		src := node.PhotoSource{Kind: "drive", Library: agent.Library{Drive: pl.Drive}}
 		if err := s.Photos.CheckPhotoSource(r.Context(), name, src, isAdmin(u)); err != nil {
 			http.NotFound(w, r)
 			return
 		}
-		dn, sub := q.Get("name"), cleanSub(q.Get("sub"))
-		l = agent.Library{Drive: drive, Sub: sub}
-		p.Title, p.Label, p.UseText = "Choose a folder on "+dn, dn, "Use "+dn
-		p.Crumbs = []mediaCrumb{{dn, at(url.Values{"drive": {drive}, "name": {dn}})}}
-		if sub != "" {
-			parts := strings.Split(sub, "/")
-			for i, part := range parts {
-				p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(url.Values{"drive": {drive}, "name": {dn}, "sub": {strings.Join(parts[:i+1], "/")}})})
-			}
-			p.Label, p.UseText = dn+" › "+strings.Join(parts, " › "), "Use "+parts[len(parts)-1]
-		}
-		p.CancelHref = back(url.Values{"where": {"drive"}})
-		p.UseHref = back(url.Values{"where": {"drive"}, "drive": {drive}, "sub": {sub}})
-		folderHref = func(f string) string {
-			return at(url.Values{"drive": {drive}, "name": {dn}, "sub": {strings.TrimPrefix(sub+"/"+f, "/")}})
-		}
-	} else {
-		if !isAdmin(u) {
-			http.NotFound(w, r)
-			return
-		}
-		folder := q.Get("folder")
-		server := ps.Host
-		p.CancelHref = back(url.Values{"where": {"folder"}})
-		p.Title = "Choose a folder"
-		p.Crumbs = []mediaCrumb{{"Folders", at(url.Values{})}}
-		if folder == "" || folder == "/" {
-			for _, root := range agent.LibraryFolderRoots {
-				p.Folders = append(p.Folders, pickerFolder{Name: root, Href: at(url.Values{"folder": {root}}), NoCounts: true})
-			}
-			p.Crumbs[0].Href = ""
-			data["Picker"], data["Own"], data["PickerBack"] = p, !panel, base
-			s.render(w, "photos-folders", data)
-			return
-		}
-		folder = path.Clean("/" + folder)
-		l = agent.Library{Folder: folder}
-		dir := ""
-		for _, part := range strings.Split(strings.Trim(folder, "/"), "/") {
-			dir += "/" + part
-			p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(url.Values{"folder": {dir}})})
-		}
-		p.Label, p.UseText = folder, "Use "+path.Base(folder)
-		p.UseHref = back(url.Values{"where": {"folder"}, "folder": {folder}})
-		folderHref = func(f string) string { return at(url.Values{"folder": {path.Join(folder, f)}}) }
-		_ = server
+	} else if !isAdmin(u) {
+		http.NotFound(w, r)
+		return
 	}
-	p.Crumbs[len(p.Crumbs)-1].Href = ""
-	list, err := s.Libraries.LibraryFolders(r.Context(), ps.Host, l)
-	if msg, ok := userMessage(err); ok {
-		p.Error, p.UseHref = msg, ""
-	} else if err != nil {
+	if pl.Folder == "/" {
+		pl.Folder = "" // the places folders can be
+	}
+	p, err := s.pickFolders(r.Context(), ps.Host, pl, pickerLinks{at: func(set url.Values) string { return base + "/folders?" + set.Encode() },
+		back: stepBack(base, "#step-3"), serverTitle: "Choose a folder", serverTop: "Folders"})
+	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	for _, f := range list.Folders {
-		p.Folders = append(p.Folders, pickerFolder{Name: f.Name, Href: folderHref(f.Name), Folders: f.Folders, Files: f.Files})
-	}
-	p.Counts = folderCounts(len(list.Folders), list.Files)
 	data["Picker"], data["Own"], data["PickerBack"] = p, !panel, base
 	s.render(w, "photos-folders", data)
 }
@@ -715,11 +661,7 @@ func (s *Server) photoSourceSubmit(w http.ResponseWriter, r *http.Request) {
 		src.Library = agent.Library{Folder: path.Clean("/" + folder)}
 		src.Title = src.Library.Folder
 	case "share":
-		sh := &agent.Share{Type: r.FormValue("share_type"), Server: strings.TrimSpace(r.FormValue("share_server")),
-			Path: strings.TrimSpace(r.FormValue("share_path")), Username: r.FormValue("share_user"), Password: r.FormValue("share_password")}
-		if sh.Type == "nfs" {
-			sh.Username, sh.Password = "", ""
-		}
+		sh := sharePosted(r)
 		src.Library = agent.Library{Share: sh}
 		src.Title = sh.Server + ", share " + sh.Path
 	case "location":

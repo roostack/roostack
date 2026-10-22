@@ -62,24 +62,7 @@
       <p class="hint seg-hint">A folder shared by a NAS or another computer. The whole share becomes the library: share just the
         folder you want, if it's not all of it.</p>
       <div class="seg-group">
-        {{segmented "share_type" "Kind of share" .ShareType (choice "smb" "SMB") (choice "nfs" "NFS") "size=small"}}
-        <p class="seg-panel hint seg-hint" data-seg="1">Windows sharing: most NASes. The share is its name, as the NAS calls it.</p>
-        <p class="seg-panel hint seg-hint" data-seg="2">Unix sharing. The share is the export's path, and the NAS must let
-          {{.ServerName}}'s address mount it.</p>
-        <div class="field-row">
-          <label>Server <input name="share_server" value="{{.ShareServer}}" placeholder="nas.local or 192.168.1.20" autocapitalize="off"
-              spellcheck="false" x-bind:required="where === 'share'">
-            <small>The NAS or computer sharing it.</small></label>
-          <label>Share <input name="share_path" value="{{.SharePath}}" placeholder="media or /volume1/media" autocapitalize="off"
-              spellcheck="false" x-bind:required="where === 'share'"></label>
-        </div>
-        <div class="seg-panel" data-seg="1"><div class="field-row">
-          <label>Username <input name="share_user" value="{{.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
-            <small>Empty for a share anyone on your network can open.</small></label>
-          <label>Password <input name="share_password" type="password" autocomplete="new-password">
-            <small>Kept on {{.ServerName}}, readable only by its system; Roostack's pages can't show it again. A NAS account
-              that can only read is best.</small></label>
-        </div></div>
+        {{template "share-fields" .ShareFields}}
       </div>
     </div>
   </div>

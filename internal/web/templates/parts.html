@@ -37,6 +37,27 @@
   {{- if .Failed}}Installing didn't finish: {{.Failed}}
   {{- else}}<span class="spinner" aria-hidden="true"></span> Step {{add1 .Current}} of {{len .Steps}}: {{lowerFirst .Step.Title}}…{{end}}</p>{{end}}{{end}}
 
+{{/* share-fields: a network share's fields on a form (shareFields): its
+     kind, server and share, and for SMB its login. */}}
+{{define "share-fields"}}{{segmented "share_type" "Kind of share" .ShareType (choice "smb" "SMB") (choice "nfs" "NFS") "size=small"}}
+        {{- if .Media}}
+        <p class="seg-panel hint seg-hint" data-seg="1">Windows sharing: most NASes. The share is its name, as the NAS calls it.</p>
+        <p class="seg-panel hint seg-hint" data-seg="2">Unix sharing. The share is the export's path, and the NAS must let
+          {{.ServerName}}'s address mount it.</p>{{end}}
+        <div class="field-row">
+          <label>Server <input name="share_server" value="{{.ShareServer}}" placeholder="nas.local or 192.168.1.20" autocapitalize="off" spellcheck="false"
+              {{- if .Media}} x-bind:required="where === 'share'">
+            <small>The NAS or computer sharing it.</small>{{else}}>{{end}}</label>
+          <label>Share <input name="share_path" value="{{.SharePath}}" placeholder="{{.Example}}" autocapitalize="off" spellcheck="false"
+              {{- if .Media}} x-bind:required="where === 'share'"{{end}}></label>
+        </div>
+        <div class="seg-panel" data-seg="1"><div class="field-row">
+          <label>Username <input name="share_user" value="{{.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <small>Empty for a share anyone on your network can open.</small></label>
+          <label>Password <input name="share_password" type="password" autocomplete="new-password">
+            <small>Kept on {{.ServerName}}, readable only by its system{{.Kept}}</small></label>
+        </div></div>{{end}}
+
 {{/* address-waiting: a service that can't be reached yet, because the lab
      has no address (SPEC.md §6.6); takes the page's data, for IsOwner. */}}
 {{define "address-waiting"}}<span class="with-icon address-waiting-text">{{icon "clock"}}Waiting for an address</span>
