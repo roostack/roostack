@@ -1176,6 +1176,12 @@ These touch many packages, so they run when wave 1 has merged and nothing else i
 2. **Roostack words:** D2. Page HTML before and after must match.
 3. **Shared with Cloud:** X1 (public `units`, then Cloud uses it), X4 (`SealFor`), X7 (the contract table in `cloudapi`, then Cloud's test and the fake). Roostack first, then Cloud against that commit, with X5's pin in place.
 
+**Wave 2 status (2026-10-22).** X4 and X7 touch none of the helpers' files, so they ran alongside step 1. All three were merged together in scratch worktrees and checked (vet, both full suites), then merged into both `main`s.
+- **Step 1** (D1, D3–D8, and wave 0's P5 follow-up; done): `fsutil.WriteFile` and `CopyFile` everywhere; one `internal/usererr`, with the five old types gone; one tested `fsutil.Within` and one service-name check; the duplicated pairs; `Paths.ServiceDataDirs`, `DatabaseFile` and `SetupTokenFile`, and `internal/destination`; `store.GetJSON` and `PutJSON`; `internal/sleep` for about 30 loops; transient units named after what they run; one parser for `/etc/fstab`'s blocks. Checked on VM 4 with an install, a backup and restore, a backup drive and media libraries. One small behaviour change: a few minute-long background checks now wait after each run rather than running on a fixed clock. TASKS.md has what was left and why.
+- **X4** (done): `SealFor`, `OpenFor` and `IsSealed` in `authkit`; Cloud's two-factor secrets use them, and its two older forms still open. Whether to reseal the older forms is the maintainer's call (TASKS).
+- **X7** (done): `cloudapi.Routes`; Cloud's `TestRoutes` checks its routes against it both ways; Roostack's fake Cloud follows it and its client is tested against suspensions and the write limit. It found a small misreport after a 429 and two test problems from before, filed in TASKS.
+- **Steps 2 (D2) and X1** follow, one at a time.
+
 ### Wave 3: structural, after the Owner decides
 
 Each its own session, in any order, once waves 1 and 2 have landed:

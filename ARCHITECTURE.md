@@ -172,9 +172,9 @@ Grouped by layer, from the commands down. Sub-packages that exist only for tests
 
 | Package | Purpose |
 |---|---|
-| `authkit` | Passwords (argon2id), tokens and two-factor codes (TOTP), public so Roostack Cloud's repository uses the same code; Cloud also turns on a pepper and sealed two-factor secrets. Fuzz-tested (the inputs fuzzing found are kept in `testdata/fuzz`) |
+| `authkit` | Passwords (argon2id), tokens and two-factor codes (TOTP), public so Roostack Cloud's repository uses the same code; Cloud also turns on a pepper and sealed two-factor secrets (`Sealer`; `SealFor` binds a secret to its owner as GCM's additional data). Fuzz-tested (the inputs fuzzing found are kept in `testdata/fuzz`) |
 | `awssig` | AWS Signature Version 4 with the standard library only (Route 53, S3-compatible storage; checked against the AWS SDK's signer): public, so Roostack Cloud signs Wasabi's STS and S3 requests with the same code |
-| `cloudapi` | The API between a lab and Roostack Cloud (paths, bodies, the records and acme-dns conventions): public, not under `internal`, so Cloud's own repository imports the same contract |
+| `cloudapi` | The API between a lab and Roostack Cloud (paths, bodies, the records and acme-dns conventions, and `Routes`: each route's method, path, whether it needs the lab's certificate, whether a suspended account's lab may still use it, and whether it counts against the lab's limit on changes): public, not under `internal`, so Cloud's own repository imports the same contract, and Cloud's tests and Roostack's fake Cloud (`cloudtest`) follow the same table |
 
 ### Small helpers and tools
 
