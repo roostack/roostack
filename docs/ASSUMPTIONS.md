@@ -312,7 +312,7 @@ Checked on VM3 (2026-10-20, arm64, Debian 13, Podman 5.4.2) with a test address,
 
 ## W. Bringing your own data from Docker Compose (SPEC §8.4)
 
-The rehearsal of 2026-10-20 on VM3 (arm64, Debian 13, Podman 5.4.2, Debian's Docker 26.1.5 and Compose 2.26.1 beside Roostack before its setup wizard): a Compose Immich and a Compose Plex with test data, moved by hand into the registry's packages (installed from state files and `roostack apply`) the way "Switch to this data" would. Scripts: `docs/migration-rehearsal/`. Nothing here was a real person's data. W9 onwards are the first version, tried through its pages on 2026-10-21.
+The rehearsal of 2026-10-20 on VM3 (arm64, Debian 13, Podman 5.4.2, Debian's Docker 26.1.5 and Compose 2.26.1 beside Roostack before its setup wizard): a Compose Immich and a Compose Plex with test data, moved by hand into the registry's packages (installed from state files and `roostack apply`) the way "Switch to this data" would. Scripts: `docs/archive/migration-rehearsal/`. Nothing here was a real person's data. W9 onwards are the first version, tried through its pages on 2026-10-21.
 
 | # | Assumption | Where it matters |
 |---|---|---|
@@ -331,7 +331,7 @@ The rehearsal of 2026-10-20 on VM3 (arm64, Debian 13, Podman 5.4.2, Debian's Doc
 
 ## X. Migrating photos into Immich (SPEC §8.5)
 
-Checked on VM1 (arm64, Debian 13), 2026-10-21, Immich 3.3.3 from the registry's package added as the Owner's own (the registry can't be fetched yet), machine learning off, with synthetic Takeouts from `docs/immich-import-test/maketakeout` (never real photos) and `manifest.json` compared with Immich's API afterwards.
+Checked on VM1 (arm64, Debian 13), 2026-10-21, Immich 3.3.3 from the registry's package added as the Owner's own (the registry can't be fetched yet), machine learning off, with synthetic Takeouts from `tools/maketakeout` (never real photos) and `manifest.json` compared with Immich's API afterwards.
 
 | # | Assumption | Where it matters |
 |---|---|---|

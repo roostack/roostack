@@ -2,14 +2,14 @@
 
 `maketakeout` writes a made-up Google Photos Takeout, with generated
 pictures and never real photos, for testing the photo migration into Immich
-on a VM ([IMMICH-IMPORT.md](../IMMICH-IMPORT.md) §2 "Google Photos" and §13
+on a VM ([IMMICH-IMPORT.md](../../docs/IMMICH-IMPORT.md) §2 "Google Photos" and §13
 "The test"). Beside the zips it writes `manifest.json`, which says exactly
 what's in them and what Immich should show afterwards, so a test can compare
 the two through Immich's API.
 
 ```sh
-go run ./docs/immich-import-test/maketakeout -out /tmp/takeout -photos 300 -split 5MB -seed 1
-go test ./docs/immich-import-test/...
+go run ./tools/maketakeout -out /tmp/takeout -photos 300 -split 5MB -seed 1
+go test ./tools/maketakeout
 ```
 
 | Flag | Default | |

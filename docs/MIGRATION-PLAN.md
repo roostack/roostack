@@ -690,7 +690,7 @@ Roostack assumes it owns its server (SPEC §3: a fresh Debian 13).
 
 Done by hand on VM 3, with Docker and Immich's and Plex's Compose images
 (the maintainer's yes), then destroyed. Full results in docs/ASSUMPTIONS.md,
-section W; the scripts in [migration-rehearsal/](migration-rehearsal/).
+section W; the scripts in [archive/migration-rehearsal/](archive/migration-rehearsal/).
 
 | | Result |
 |---|---|
