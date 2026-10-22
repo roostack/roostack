@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -205,6 +206,9 @@ func (a *statusAgent) WireGuardStatus(context.Context, string) (agent.WireGuardS
 // (no handshake), and says which it is when the link is up but nothing
 // answers.
 func TestJoinStorageUnreachable(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("127.0.0.2 is on Linux's loopback only: elsewhere connecting to it waits rather than being refused")
+	}
 	handshakeTimeout, joinTimeout = 100*time.Millisecond, 3*time.Second
 	t.Cleanup(func() { handshakeTimeout, joinTimeout = 20*time.Second, 45*time.Second })
 	key, _ := agent.NewWireGuardKey()

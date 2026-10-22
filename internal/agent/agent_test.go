@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -124,6 +125,9 @@ func (f *fakeHost) SetSSHKeysOnly(on bool) error { f.keysOnly = on; return nil }
 // start runs a real server on a Unix socket, so SO_PEERCRED is exercised.
 func start(t *testing.T, allowed []uint32) (*Client, *fakeHost) {
 	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("peer credentials are Linux's (SO_PEERCRED): elsewhere the agent refuses every caller")
+	}
 	host := &fakeHost{}
 	s := &Server{Host: host, AllowedUIDs: allowed, Version: "test",
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil))}

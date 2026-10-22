@@ -36,7 +36,10 @@ func TestEveryModuleCredited(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("go not found")
 	}
-	out, err := exec.Command("go", "list", "-deps", "-f", "{{with .Module}}{{.Path}}{{end}}", "../../cmd/...").Output()
+	// For Linux, where Roostack runs: a Mac compiles in two more modules.
+	cmd := exec.Command("go", "list", "-deps", "-f", "{{with .Module}}{{.Path}}{{end}}", "../../cmd/...")
+	cmd.Env = append(os.Environ(), "GOOS=linux")
+	out, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
 	}

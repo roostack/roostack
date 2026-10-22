@@ -85,7 +85,11 @@ func TestLibraryFstab(t *testing.T) {
 // A folder on the server must be under the allowed places, not one of
 // Roostack's own, and not reached through a link.
 func TestLibraryFolder(t *testing.T) {
-	dir := t.TempDir()
+	// Without symlinks: macOS's temporary folders are under /var, a link.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer func(roots []string) { LibraryFolderRoots = roots }(LibraryFolderRoots)
 	LibraryFolderRoots = []string{dir}
 	os.Mkdir(filepath.Join(dir, "music"), 0o755)
