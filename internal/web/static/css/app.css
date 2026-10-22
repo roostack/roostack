@@ -80,8 +80,6 @@ small, .hint { color: var(--muted); }
 .sidebar-nav { flex: 1; min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: var(--space-4);
   margin: 0 calc(var(--space-3) * -1); padding: 2px var(--space-3); }
 .nav-group { display: grid; gap: 2px; }
-.nav-heading { margin: 0; padding: var(--space-2) var(--space-3) var(--space-1); font-family: var(--font-display); font-size: var(--text-xs);
-  font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
 .nav-item, .nav-sub { display: flex; align-items: center; gap: var(--space-3); border-radius: var(--radius); color: var(--fg); text-decoration: none; }
 .nav-item { padding: 7px var(--space-3); font-weight: var(--weight-medium); }
 .nav-item .icon { width: 18px; height: 18px; vertical-align: 0; }
@@ -608,7 +606,6 @@ code.nowrap { white-space: nowrap; }
 .code-bar { display: flex; align-items: center; gap: var(--space-2); padding: 8px 14px; border-bottom: 1px solid var(--border);
   font: 12px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
 .code-bar .icon { color: currentColor; }
-.code-bar .code-action { margin-left: auto; }
 .code-panel pre { margin: 0; padding: 14px 16px; font-size: 12.5px; line-height: 1.6; overflow-x: auto; white-space: pre; }
 .code-comment { color: var(--muted); } .code-section { color: var(--accent); }
 
@@ -673,12 +670,12 @@ details.technical { margin: var(--space-1) 0 var(--space-5); }
 /* An open disclosure's contents are indented under it, with a line down
    the left tying them to their summary. Not for logs, action lists, tiles
    or the package editor (which styles its own: internal/editor). */
-details:not(.activity-details, .action, .user-actions, .tile > details, .pe details)[open] > :not(summary) {
+details:not(.activity-details, .action, .tile > details, .pe details)[open] > :not(summary) {
   margin: 0 0 0 var(--space-2); padding: var(--space-1) 0 var(--space-1) var(--space-3);
   border-left: 3px solid var(--accent-soft); }
-details:not(.activity-details, .action, .user-actions, .tile > details, .pe details)[open] > summary + * { margin-top: var(--space-2); padding-top: var(--space-2); }
-details:not(.activity-details, .action, .user-actions, .tile > details, .pe details)[open] > :last-child { margin-bottom: var(--space-2); padding-bottom: var(--space-2); }
-details:not(.activity-details, .action, .user-actions, .tile > details, .pe details)[open] > :is(ul, ol) { padding-left: calc(var(--space-3) + 1.25em); }
+details:not(.activity-details, .action, .tile > details, .pe details)[open] > summary + * { margin-top: var(--space-2); padding-top: var(--space-2); }
+details:not(.activity-details, .action, .tile > details, .pe details)[open] > :last-child { margin-bottom: var(--space-2); padding-bottom: var(--space-2); }
+details:not(.activity-details, .action, .tile > details, .pe details)[open] > :is(ul, ol) { padding-left: calc(var(--space-3) + 1.25em); }
 /* An action (a service's): a row with a chevron that opens its form. */
 details.action { border-top: 1px solid var(--border); padding: var(--space-3) 0; }
 .card-head + details.action { border-top: 0; padding-top: 0; }
@@ -689,8 +686,6 @@ details.action > summary::after { content: ""; flex: none; width: 16px; height: 
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m10 7 5 5-5 5'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m10 7 5 5-5 5'/%3E%3C/svg%3E") center / contain no-repeat; }
 details.action[open] > summary::after { rotate: 90deg; }
 @supports (color: color-mix(in srgb, red 50%, blue)) { details.action { border-top-color: var(--edge); } }
-.user-actions > summary { color: var(--accent); margin-top: var(--space-1); }
-.user-actions form { margin: var(--space-3) 0; }
 
 /* ---------- Activity (live status + collapsed log) ---------- */
 .activity { margin: var(--space-3) 0; }
@@ -1046,23 +1041,8 @@ dialog.picker .picker-title { padding-right: var(--space-6); }
 }
 
 /* ---------- Service cards ---------- */
-.service-head { display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; }
 li.card.service { display: block; }
-/* A service card's status and its Manage button, top right. */
-.service-actions { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); flex-shrink: 0; }
-.service-head { flex-wrap: wrap; }
-.service-head > div:first-child { flex: 1 1 14rem; min-width: 0; }
-/* Narrow: status and Manage go under the details, side by side. */
-@media (max-width: 480px) {
-  .service-actions { flex-direction: row; align-items: center; }
-}
-/* A tile's Open and Manage links, side by side. */
-.tile-links { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-4); margin: var(--space-2) 0; }
-.tile-links .install-line { margin: 0; }
 .section-title { margin-top: var(--space-6); }
-
-/* ---------- Server tiles (home) ---------- */
-.server-facts li { margin: var(--space-1) 0; }
 
 /* ---------- Server switcher (per-server settings) ---------- */
 /* Error scenes (internal/errpage): the small mark's hen and server with
@@ -1197,7 +1177,6 @@ button.wide { width: 100%; }
 @media (max-width: 700px) { .two-col { grid-template-columns: minmax(0, 1fr); } }
 .with-logo-inline { display: inline-flex; align-items: center; gap: var(--space-2); }
 .with-logo-inline img { border-radius: 4px; }
-.form-row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
 .add-group { display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap; }
 .add-group label { margin: 0; }
 .add-group input { display: block; margin-top: var(--space-1); }

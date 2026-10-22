@@ -123,8 +123,6 @@ func (s *Server) historyEntries(r *http.Request, nodes []serverNode, kind string
 	return entries, unreachable
 }
 
-func asStrings(v any) []string { s, _ := v.([]string); return s }
-
 // historyEventPage shows one event's log.
 func (s *Server) historyEventPage(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
