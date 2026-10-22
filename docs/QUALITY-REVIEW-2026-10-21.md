@@ -120,7 +120,16 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
   - For a move: switch the service back to the old server and start it there, so a failed move changes nothing; leave the new server's copy as kept data.
   - For a restore: hold the service stopped in its desired state, as a withdrawn package already is (`state.Service.Stop`; `generate.Stop` leaves out its containers), with a "needs attention" item that says why and offers "Restore again". A start by hand clears the hold.
   - Fold both into one `transferJob` later (D11).
-- **Effort:** S (the move), M (the hold, with its page). **Risk:** low. **Decision:** yes (the two behaviours, and the wording). **Not verified:** read from the code; check on a VM by making a dump fail, then applying an unrelated change.
+- **Effort:** S (the move), M (the hold, with its page). **Risk:** low. **Not verified:** read from the code; check on a VM by making a dump fail, then applying an unrelated change.
+- **Decided (the Owner, 2026-10-22):** a failed move switches back; a failed restore is held stopped, with **Restore again**, **Put back what was there** and **Start it anyway**. Owners and Admins see it; only the Owner gets the buttons ("The Owner can restore it again or start it anyway"). "Restore again…" opens the restore page with the service and the same backup chosen. The new server's copy after a failed move is kept as a new kind, `failed-move` ("From a move that didn't finish"). Each choice, and a successful restore, ends the hold, recorded in the audit log ("Started Immich after its restore didn't finish"). Wording, agreed (future tense for what will happen, present continuous for what's happening; Immich, dates and servers are examples):
+  - Restore log, last line: "Immich's files are back from the backup of Mon 20 Oct 03:00, but its database couldn't be loaded, so Roostack is keeping it stopped. Choose what to do on Immich's page."
+  - Needs attention (a problem, emailed with problems): "Immich is stopped: its files are back from the backup of Mon 20 Oct 03:00, but its database couldn't be loaded." Link: "What to do". Its status: **Stopped**, hint "Its restore didn't finish".
+  - Service page: "**Immich is stopped: its restore didn't finish.** Its files were put back from the backup of Mon 20 Oct 03:00, but its database couldn't be loaded: *(first line of the error)*. If it started now, Immich would be running on files without the database that goes with them: it could lose track of what it keeps, or offer to set itself up again for whoever opens it first. So Roostack will keep it stopped until you choose." Then "See the restore's log"; **Restore again…** ("Try the same backup again once the cause is fixed (a full disk, say), or an older one."); **Put back what was there…** (only with a kept copy); "Start Immich anyway…" (a disclosure, then a danger button **Start it anyway**).
+  - Put back's confirmation: "Put back Immich's data from before the restore, as it was at Wed 22 Oct 14:12? Immich will start again as it was before you restored it. The files from the backup will be kept, so you can try the restore again."
+  - Start anyway's confirmation: "Start Immich anyway, without its database from the backup? It will run on the backup's files with whatever is in its database now, which may be empty or half loaded. Immich may offer to set itself up again, or lose track of its files. Do this only if you'll put its database right yourself."
+  - Move log: "Its database didn't load on server-2: *(error)*", "Moving Immich back to server-1", then "Immich couldn't be moved to server-2: its database didn't load there. It's running on server-1 again, as before. What was copied to server-2 will stay there, at `/srv/roostack/services/immich.failed-move-20261022-1412`, until you delete it."
+  - Needs attention after a failed move (a warning): "Immich couldn't be moved to server-2. It's running on server-1, as before." Link: "See what went wrong".
+  - If moving back fails too, it's held on server-2: "Immich is stopped on server-2: its database didn't load there, and moving it back to server-1 failed too: *(error)*. Roostack will keep it stopped until you choose." Choices: **Move it again…** and **Start it anyway**.
 
 **P4. `config.Update` says concurrent edits are safe, but nothing locks it.**
 - **Where:** `internal/config/config.go:617-631`. It reads `lab.yaml`, applies the change and saves. It's called from `manager` (through `UpdateLab`), `node/settings.go:274, 301, 324, 373, 437`, `setup` and `mail`, all in one process.
@@ -160,7 +169,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Where:** the portal's "this month's bandwidth" (`cloud:internal/web/portal.go:530`) sums `relay_usage`, which has one row per lab per UTC day, so it can only be a UTC month. Visits, on the portal and in the lab API's `relayStats` (`cloud:internal/api/api.go:755-859`), are hourly, so both show them in the lab's own time zone. The code is consistent with its data. What's unwritten is which month the relay's monthly allowance (and later its bill) counts: DESIGN §3c says "monthly" without a zone.
 - **Why:** in Sydney the first 11 hours of each month count towards the month before, and a lab can change its time zone.
 - **Change:** if UTC, write it in DESIGN §3c and say "(UTC)" where the figure is shown; nothing else changes. If the lab's or the account's zone, the edges would have to report bytes hourly: a change to the data model.
-- **Effort:** S (UTC), M (another zone). **Risk:** low. **Decision:** yes.
+- **Effort:** S (UTC), M (another zone). **Risk:** low. **Decided (the Owner, 2026-10-22):** UTC.
 
 **P10. Cloud's email isn't wrapped or encoded for 7-bit servers.**
 - **Where:** `cloud:internal/mail/mail.go:133` sends `Content-Transfer-Encoding: 8bit` without checking the server's `8BITMIME`, and doesn't wrap lines. RFC 5322 limits a line to 998 octets. Roostack's mail uses quoted-printable (`internal/mail/mail.go:209-214`).
@@ -205,6 +214,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Why:** two accounts sharing subordinate IDs means the same host uid owns files in both's containers, so one can read or change the other's container files. It's rare on a NUC with one person, plausible on a reused server.
 - **Change:** `useradd --system --add-subids-for-system` when the user is made (line 19), so shadow picks a free range, and drop the `usermod`. Only fresh installs are supported, so nothing needs migrating. Update ASSUMPTIONS B1.
 - **Effort:** S. **Risk:** low. **Decision:** yes. **Not verified:** that Debian 13's shadow has `--add-subids-for-system` (shadow 4.11 and later should), and that it skips taken ranges. Check on a VM with a second user made before the install.
+- **Decided (the Owner, 2026-10-22):** as proposed.
 
 ---
 
