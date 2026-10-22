@@ -105,14 +105,14 @@ Things worth knowing:
 
 ## Regenerating files
 
-Some files are generated and checked into the repository. A test fails when one is out of date, so after a change that affects one, regenerate it and read the diff:
+Some files are generated and checked into the repository. A test fails when one is out of date, so after a change that affects one, regenerate it and read the diff. Run `make generated` to rewrite everything Go generates, the first four rows, in one go:
 
 | What | When | How |
 |---|---|---|
 | The generator's golden files | You changed what Roostack generates | `make golden` |
 | The package editor's `schema.js`, `examples.js` and corpus | You changed the package format or the package policy | `go test ./internal/editor -update-editor`, then `make editor-test` |
 | The design system's gallery, `docs/design/gallery.html` | You changed a component or a token | `go test ./internal/web -run TestGalleryFile -update-gallery` |
-| `THIRD_PARTY.md` | You added or updated a dependency | `go test ./internal/web -run TestEveryModuleCredited -update-credits` |
+| `THIRD_PARTY.md` | You added or updated a dependency | `go test ./internal/web -run TestThirdPartyFile -update-credits` |
 | The help site, embedded at `/help/` | You changed `help/` | `make build` (needs uv); `cd help && uv run zensical serve` previews it while you write |
 | The error pages' scenes, `internal/errpage/scenes.go` | You changed `assets/errors` | `assets/errors/generate.py` |
 | The brand mark and its PNGs | You changed `assets/brand` | `assets/brand/generate.py` (needs `rsvg-convert`; [assets/brand/README.md](assets/brand/README.md)) |
