@@ -343,9 +343,7 @@ func (s *Server) cloudStanding(l *attentionList) {
 	}
 	// Cloud backup's space, at the levels Cloud emails about.
 	if text := cloudSpaceOf(st).Warning(); text != "" {
-		l.add(attentionItem{Key: "cloud-space", Level: levelWarning,
-			Text: text,
-			Link: "/backups#plan", LinkText: "Backups"})
+		l.add(attentionItem{Key: "cloud-space", Level: levelWarning, Text: text, Link: "/backups#plan", LinkText: "Backups"})
 	}
 	if st.Suspended != "" {
 		l.add(attentionItem{Key: "cloud-suspended", Level: levelProblem,

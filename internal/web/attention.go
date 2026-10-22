@@ -147,9 +147,7 @@ func (s *Server) attention(ctx context.Context, u *store.User) []attentionItem {
 					level, key, text = levelWarning, "cert-expiring:"+mc.ID, mc.Name+"'s certificate on Roostack's network expires "+
 						whenText(mc.CertExpires)+" and isn't renewing. Check that it's running and can reach the controller."
 				}
-				l.add(attentionItem{Key: key, Level: level,
-					Text: text,
-					Link: "/servers#server-" + mc.ID, LinkText: "View servers"})
+				l.add(attentionItem{Key: key, Level: level, Text: text, Link: "/servers#server-" + mc.ID, LinkText: "View servers"})
 			}
 			switch st := mc.Status; {
 			case st.Running:

@@ -106,8 +106,8 @@ type Server struct {
 	// Node is the server running the services. Set with Manager.
 	Node ServiceNode
 
-	// The features that come and go, each nil (or empty) when it isn't
-	// there.
+	// The features a server may not have, each nil (or empty) when it
+	// doesn't.
 	FirstRun
 	Monitoring
 	SingleSignOn

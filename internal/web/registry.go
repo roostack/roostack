@@ -82,9 +82,7 @@ func (s *Server) registryAttention(l *attentionList) {
 		text = "Roostack's list of services is from " + whenText(v.Status.Date) +
 			": it hasn't been able to get a newer one, so it doesn't know of fixes or withdrawn versions since."
 	}
-	l.add(attentionItem{Key: "registry-stale", Level: levelWarning,
-		Text: text,
-		Link: "/settings/updates#registry", LinkText: "See why"})
+	l.add(attentionItem{Key: "registry-stale", Level: levelWarning, Text: text, Link: "/settings/updates#registry", LinkText: "See why"})
 }
 
 // registryOn says whether services can be installed from the registry:
