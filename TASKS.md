@@ -697,7 +697,18 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
 
 ## To discuss with the user
 
+- [ ] The big red button (SPEC §6.16, proposed 2026-10-22): docs/RED-BUTTON-PLAN.md §12 has the questions; mock-ups in docs/mockups/red-button
 - [x] Single sign-on for services (SPEC §5.2; research in docs/SSO-RESEARCH.md; mock-ups in docs/mockups/sso). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library, groups in the first version, two-factor as for Roostack with a choice to ask everyone, 30-day "keep me signed in" ticked, the look on People with a mark or a wide logo. Built and checked end to end on VM3 the same day with Mealie (OIDC) and Stirling-PDF (the wall): docs/ASSUMPTIONS.md V1–V6; the conformance suite passes (V7)
+
+## The big red button (SPEC §6.16, proposed 2026-10-22; waiting for the Owner's decisions)
+
+Planned only, while the code-quality pass runs; build after it, once the questions in docs/RED-BUTTON-PLAN.md §12 are answered.
+
+- [ ] Phase 1, the button: `public.block` and `public_block`; Caddy's page for outside visitors (first in the route block), the error page, public ports home-only, the sign-in page following its services, Paused in monitoring and the status page; `built_with:` in pkgspec, its policy, the editor (`check.js`, schema, corpus) and the format reference; Home's **Pause public access…** page, the service page, Settings → Public access, lifting; roles, audit, Security emails, the weekly summary; `roostack public pause | resume | status`; checked on a VM through port forwarding, the lab's edge and the relay
+- [ ] Phase 1, in the registry: `built_with:` for every package, and the list of names with titles in the index
+- [ ] Phase 2, advisories: `advisories/` in the registry and the index's field, with CI's checks; matching on the controller; the automation setting; worked out each time and lifting by themselves; **Keep it public anyway**; updating at once; hourly fetching; emails; a line in the report to Cloud
+- [ ] Phase 3: Cloud's nudge; pausing at the relay's edges from Cloud's website (Cloud's repository); the "closed" level (firewall, edge, relay) for problems in Caddy or Roostack
+- [ ] Phase 4: the registry's watcher (KEV, OSV, GitHub's advisories → issues); Syft in the registry's CI, if agreed
 
 ## Single sign-on: what's next (SPEC §5.2)
 
