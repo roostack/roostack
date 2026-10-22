@@ -382,6 +382,24 @@ func TestPorts(t *testing.T) {
 	}
 }
 
+// A clash state.Desired finds says what clashed: a port clash isn't
+// reported as a web address's (it once was, by matching "already used").
+func TestClashError(t *testing.T) {
+	var fe *FormError
+	port := errors.Join(errors.New("other"), &state.PortInUseError{Service: "forgejo-work", Port: 2222, UsedBy: "forgejo"})
+	if err := clashError(port); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "port 2222") || strings.Contains(fe.Msg, "web address") {
+		t.Errorf("port clash: %v", err)
+	}
+	host := errors.Join(&state.HostInUseError{Service: "immich", Host: "photos.lab.example.com", UsedBy: "vaultwarden"})
+	if err := clashError(host); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "web address") {
+		t.Errorf("hostname clash: %v", err)
+	}
+	other := errors.New("no such package")
+	if err := clashError(other); err != other {
+		t.Errorf("anything else: %v", err)
+	}
+}
+
 func addForgejo(t *testing.T, m *Manager) {
 	t.Helper()
 	dir := m.Lab.Paths.CatalogPackageDir("forgejo")

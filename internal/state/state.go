@@ -151,13 +151,13 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		// them while it's stopped.
 		for _, h := range out.Hosts {
 			if other, dup := hosts[h]; dup {
-				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Name(), h, other))
+				errs = append(errs, &HostInUseError{Service: s.Name(), Host: h, UsedBy: other})
 			}
 			hosts[h] = s.Name()
 		}
 		for _, p := range out.Ports {
 			if other, dup := ports[p]; dup {
-				errs = append(errs, fmt.Errorf("%s: port %d is already used by %s", s.Name(), p, other))
+				errs = append(errs, &PortInUseError{Service: s.Name(), Port: p, UsedBy: other})
 			}
 			ports[p] = s.Name()
 		}
@@ -180,7 +180,7 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		}
 		for _, h := range out.Hosts {
 			if other, dup := hosts[h]; dup {
-				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Name(), h, other))
+				errs = append(errs, &HostInUseError{Service: s.Name(), Host: h, UsedBy: other})
 			}
 			hosts[h] = s.Name()
 		}
@@ -202,6 +202,18 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	}
 	d.System = sys
 	return d, errors.Join(errs...)
+}
+
+// HostInUseError is a web address (hostname) that another service, or
+// Roostack itself, already has: every hostname is unique across the lab.
+type HostInUseError struct {
+	Service, Host string
+	// UsedBy is what already has the hostname.
+	UsedBy string
+}
+
+func (e *HostInUseError) Error() string {
+	return fmt.Sprintf("%s: hostname %s is already used by %s", e.Service, e.Host, e.UsedBy)
 }
 
 // PortInUseError is a package port that clashes with another port Roostack

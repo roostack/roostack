@@ -308,6 +308,27 @@ type InstallRequest struct {
 	BringData bool
 }
 
+// clashError says what to do about a web address or port that another
+// service already has (state.Desired's HostInUseError and PortInUseError),
+// or returns err as it is. Here the clash isn't a port the person is
+// choosing (setPort says that itself): it's a package's port, so the way
+// out is changing the other service's.
+func clashError(err error) error {
+	var he *state.HostInUseError
+	var pe *state.PortInUseError
+	switch {
+	case errors.As(err, &he):
+		return formErrorf("That web address is already used by another service. Choose a different one.")
+	case errors.As(err, &pe) && pe.UsedBy == "":
+		return formErrorf("%s would use port %d, which Roostack keeps for its web services (%d-%d).",
+			pe.Service, pe.Port, config.DefaultRoutePortMin, config.DefaultRoutePortMax)
+	case errors.As(err, &pe):
+		return formErrorf("%s would use port %d, which is already used by %s. Change the port on that service's page, then try again.",
+			pe.Service, pe.Port, pe.UsedBy)
+	}
+	return err
+}
+
 func formErrorf(format string, args ...any) error {
 	return &FormError{Msg: fmt.Sprintf(format, args...)}
 }
@@ -384,10 +405,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	// Check the server's services still generate, and no hostname is used
 	// twice in the lab, before saving anything.
 	if _, err := state.Desired(m.Lab, onNode, m.proxied(services, in.Host)...); err != nil {
-		if strings.Contains(err.Error(), "already used") {
-			return formErrorf("That web address is already used by another service. Choose a different one.")
-		}
-		return err
+		return clashError(err)
 	}
 	// The lab keeps the package file it installs from, before the
 	// instance that uses it (SPEC.md §8.3.1).
@@ -679,7 +697,7 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 		case errors.As(err, &pe):
 			return formErrorf("Port %d is already used by %s. Choose another port.", pe.Port, pe.UsedBy)
 		}
-		return err
+		return clashError(err)
 	}
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
@@ -853,10 +871,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 		return formErrorf("%s", err)
 	}
 	if _, err := state.Desired(m.Lab, state.OnNode(services, in.Host)); err != nil {
-		if strings.Contains(err.Error(), "already used") {
-			return formErrorf("That web address is already used by another service. Choose a different one.")
-		}
-		return err
+		return clashError(err)
 	}
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
