@@ -97,12 +97,7 @@ func TestRemoteStorageServerUsers(t *testing.T) {
 	if err := m.SetBackupDestination(ctx, "n-0000000002", ref); err != nil {
 		t.Fatal(err)
 	}
-	var log activity.Snapshot
-	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if log, _ = m.Activity.Latest(activity.BackupSetupFor("n-0000000002")); !log.Running() {
-			break
-		}
-	}
+	log := waitDone(t, m, activity.BackupSetupFor("n-0000000002"))
 	if log.Err != "" {
 		t.Fatalf("setup: %s\n%s", log.Err, strings.Join(log.Lines, "\n"))
 	}

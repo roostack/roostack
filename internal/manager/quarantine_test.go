@@ -65,11 +65,7 @@ func TestJunkJob(t *testing.T) {
 	if err := m.SetBackupDestination(ctx, "n-0000000002", "server:n-0000000001"); err != nil {
 		t.Fatal(err)
 	}
-	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if l, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002")); !l.Running() {
-			break
-		}
-	}
+	waitDone(t, m, activity.BackupSetupFor("n-0000000002"))
 	if _, _, ok := m.BackupTargetOf(ctx, "n-0000000002"); !ok {
 		t.Fatal("no backup set up")
 	}

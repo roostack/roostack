@@ -192,12 +192,7 @@ func TestRemoveWaiting(t *testing.T) {
 	if err := m.RemoveWaiting(ctx, "forgejo"); err != nil {
 		t.Fatal(err)
 	}
-	var l activity.Snapshot
-	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if l, _ = m.Activity.Latest(activity.Restore); !l.Running() {
-			break
-		}
-	}
+	l := waitDone(t, m, activity.Restore)
 	// The copy can't be read: its backups can't be checked, so it's kept.
 	if !strings.Contains(l.Err, "some backups couldn't be read, so nothing was deleted") {
 		t.Fatalf("with a copy that can't be read: %q", l.Err)
@@ -228,6 +223,23 @@ func TestRemoveWaiting(t *testing.T) {
 	if _, err := os.Stat(state.InstanceFile(m.Lab, "forgejo")); !os.IsNotExist(err) {
 		t.Error("it should be removed")
 	}
+}
+
+// waitDone waits for the latest log of a kind to finish, and fails the test
+// if it's still running after two minutes. Setting up a repository takes
+// seconds (restic derives each key slowly on purpose), and much longer on
+// a busy machine, so a short limit made tests fail at random, checking a
+// result that wasn't there yet.
+func waitDone(t *testing.T, m *Manager, kind string) activity.Snapshot {
+	t.Helper()
+	var l activity.Snapshot
+	for deadline := time.Now().Add(2 * time.Minute); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if l, _ = m.Activity.Latest(kind); !l.Running() {
+			return l
+		}
+	}
+	t.Fatalf("%s is still running after 2 minutes:\n%s", l.Title, strings.Join(l.Lines, "\n"))
+	return l
 }
 
 func waitRestore(t *testing.T, m *Manager) activity.Snapshot {

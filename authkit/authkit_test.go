@@ -50,17 +50,26 @@ func TestTokens(t *testing.T) {
 }
 
 // A login naming no account costs as much as a wrong password, so timing
-// doesn't reveal which usernames exist. (Loose bound: it only has to show
-// the argon2 work is done.)
+// doesn't reveal which usernames exist: its hash has the same argon2
+// settings as every other. The timing check is loose and takes the
+// quickest of a few tries, so a busy machine pausing once doesn't fail it.
 func TestVerifyNoAccountTakesAsLong(t *testing.T) {
 	hash, _ := HashPassword("correct horse battery")
-	VerifyNoAccount("warm up") // makes its hash once
-	start := time.Now()
-	VerifyPassword(hash, "wrong")
-	real := time.Since(start)
-	start = time.Now()
-	VerifyNoAccount("wrong")
-	if none := time.Since(start); none < real/2 {
+	settings := func(h string) string { return strings.Split(h, "$")[3] }
+	if settings(noAccountHash()) != settings(hash) {
+		t.Fatalf("no account's hash uses %s, a password's %s", settings(noAccountHash()), settings(hash))
+	}
+	quickest := func(f func()) time.Duration {
+		best := time.Duration(1<<63 - 1)
+		for range 3 {
+			start := time.Now()
+			f()
+			best = min(best, time.Since(start))
+		}
+		return best
+	}
+	real := quickest(func() { VerifyPassword(hash, "wrong") })
+	if none := quickest(func() { VerifyNoAccount("wrong") }); none < real/2 {
 		t.Errorf("no account took %v, a wrong password %v", none, real)
 	}
 }
