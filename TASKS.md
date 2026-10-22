@@ -214,7 +214,7 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
   - [x] 1a–1e here and 1h–1j in Cloud, merged into both `main`s on 2026-10-22
   - [x] 1f (CI, staticcheck, generated files, flaky tests) and 1g (the editor), merged on 2026-10-22
   - [x] S10, one capability convention on `Node` (batch 1c's follow-up), merged on 2026-10-22
-  - [ ] Cloud's reconciliation after 1h's move to `internal/ui`: the sync scripts' and mock-ups' paths, the design copy re-synced and checked, the docs (batch 1i's follow-up), merged into Cloud's `main` on 2026-10-22; Cloud's editor copy reading 1g's `scripts.json` is on Cloud's branch `claude/w1i-cloud-ci-b2c695` (`0683d9d`), not merged yet
+  - [ ] Cloud's reconciliation after 1h's move to `internal/ui`: the sync scripts' and mock-ups' paths, the design copy re-synced and checked, the docs (batch 1i's follow-up), merged into Cloud's `main` on 2026-10-22; Cloud's editor copy reads 1g's `scripts.json` (merged on 2026-10-22, pinned at Roostack `f27115b`)
   - [x] Moving a service back to the controller with "copy directly" hung (found by 1c; on `main` before wave 1): the import now reads each tar stream to its end (2026-10-22, SPEC §10.10). Checked on VMs 5 and 6: Vaultwarden there and back, with its data
   - [ ] T1's later step: split `agent` into portable wire types and client, and the Linux server
   - [ ] Turn on GitHub's private vulnerability reporting in the repository's settings (SECURITY.md relies on it; the maintainer)
