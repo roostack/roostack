@@ -66,10 +66,6 @@ func (s *Server) catalogReady(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	// A fresh list from the registry, unless there's one from the last
 	// few minutes (SPEC.md §8.3.3). The page doesn't wait long: the
 	// background check keeps the list current anyway.
@@ -534,10 +530,6 @@ func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name, port := r.PathValue("name"), r.PathValue("port")
 	enabled := r.FormValue("enabled") == "on"
 	hostPort, err := strconv.Atoi(strings.TrimSpace(r.FormValue("host_port")))
@@ -613,10 +605,6 @@ func (s *Server) installFields(name string, p *pkgspec.Package) []formField {
 
 // retryWithSubmit runs a failed install again with changed settings.
 func (s *Server) retryWithSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad form.", http.StatusBadRequest)
@@ -701,10 +689,6 @@ func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 // servicePkg loads the package of the installed service named in the URL
 // (titled as the service), writing a 404 if there is none.
 func (s *Server) servicePkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, bool) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return nil, false
-	}
 	p, err := s.Manager.ServicePackage(r.PathValue("name"))
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
@@ -719,10 +703,6 @@ func (s *Server) servicePkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Pa
 
 // pkg loads the package named in the URL, writing a 404 if there is none.
 func (s *Server) pkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, bool) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return nil, false
-	}
 	name := r.PathValue("name")
 	p, err := s.Manager.Package(name)
 	// With the registry turned off, only the Owner's own packages can be
@@ -753,10 +733,6 @@ func (s *Server) pkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, 
 // titleSubmit changes what people call a service; its name stays
 // (SPEC.md §8.2).
 func (s *Server) titleSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name, title := r.PathValue("name"), r.FormValue("title")
 	err := s.Manager.SetTitle(r.Context(), name, title)
 	if errors.Is(err, manager.ErrNotFound) {

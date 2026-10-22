@@ -23,6 +23,18 @@ import (
 // internal/monitor; the services' and servers' come from the manager
 // (AutoChecks), the lab's address and people's own from here.
 
+// Monitoring is monitoring's part of the server: nil Monitor hides it (a
+// server that isn't the controller).
+type Monitoring struct {
+	// Monitor runs monitoring's checks. AutoChecks are the manager's
+	// (services and servers). StatusPage switches the public status page
+	// (the manager), which is written to StatusPageDir.
+	Monitor       *monitor.Monitor
+	AutoChecks    func(ctx context.Context) []monitor.Check
+	StatusPage    StatusPageSwitch
+	StatusPageDir string
+}
+
 // Runtime settings.
 const (
 	monitorOffKey  = "monitor.off"       // "yes": monitoring switched off
@@ -280,11 +292,7 @@ func (s *Server) renderMonitoring(w http.ResponseWriter, r *http.Request, formEr
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	ctx := r.Context()
 	statuses := s.Monitor.Statuses()
 	var services, servers, own []monitor.Status
@@ -344,11 +352,7 @@ func (s *Server) monitorCheckPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	h, err := s.Monitor.History(r.Context(), key, 90, true)
 	if err != nil {
 		s.serverError(w, err)
@@ -383,7 +387,7 @@ func (s *Server) monitorCheckPage(w http.ResponseWriter, r *http.Request) {
 		data["CheckedFrom"] = s.Node.Identity().Name
 	}
 	data["CertDays"] = st.CertDaysLeft(now)
-	if st.Kind == monitor.KindService && s.Manager != nil {
+	if st.Kind == monitor.KindService {
 		data["ServiceHref"] = "/services/" + st.Service
 	}
 	s.render(w, "monitoring-check", data)
@@ -526,7 +530,7 @@ func (s *Server) statusPageSubmit(w http.ResponseWriter, r *http.Request) {
 // monitorAttention adds what monitoring found down to "needs attention"
 // (SPEC.md §6.15): a check down after three failures, a certificate not
 // being renewed. Servers aren't repeated: "can't reach" says so already.
-func (s *Server) monitorAttention(add func(attentionItem)) {
+func (s *Server) monitorAttention(l *attentionList) {
 	if s.Monitor == nil {
 		return
 	}
@@ -537,10 +541,10 @@ func (s *Server) monitorAttention(add func(attentionItem)) {
 		}
 		switch {
 		case st.State == monitor.StateDown:
-			add(attentionItem{Level: levelProblem, Key: "monitor:" + st.Key,
+			l.add(attentionItem{Level: levelProblem, Key: "monitor:" + st.Key,
 				Text: downText(st), Link: checkHref(st.Key), LinkText: "See what's wrong"})
 		case st.CertWarning && st.State == monitor.StateUp:
-			add(attentionItem{Level: levelWarning, Key: "monitor-cert:" + st.Key,
+			l.add(attentionItem{Level: levelWarning, Key: "monitor-cert:" + st.Key,
 				Text: capitalise(st.Name + "'s address: " + certWarningText(st, now) + "."), Link: checkHref(st.Key), LinkText: "Details"})
 		}
 	}

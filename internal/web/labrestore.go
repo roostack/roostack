@@ -74,8 +74,8 @@ type restoreSession struct {
 
 func (s *Server) restoreSessionOf(r *http.Request) *restoreSession {
 	c, err := r.Cookie(restoreCookie)
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.setupMu.Lock()
+	defer s.setupMu.Unlock()
 	if err != nil || s.restore == nil || s.restore.origin != originOf(r) || !authkit.TokensEqual(c.Value, s.restore.id) {
 		return nil
 	}
@@ -178,9 +178,9 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.mu.Lock()
+	s.setupMu.Lock()
 	s.restore = &restoreSession{id: id, found: found, origin: originOf(r)}
-	s.mu.Unlock()
+	s.setupMu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: restoreCookie, Value: id, Path: "/setup/restore", HttpOnly: true,
 		SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})
 	data["Found"], data["Searched"] = found, true

@@ -1,85 +1,17 @@
 package web
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"roostack.cloud/roostack/internal/activity"
-	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labrestore"
 )
-
-type fakeLabRestore struct {
-	mu        sync.Mutex
-	src       labrestore.Source
-	key       string
-	started   *labrestore.Found
-	usedDrive string
-	// unfinished: a restore started earlier and didn't finish.
-	unfinished bool
-	// found and unopened, if set, are what Find finds.
-	found    []labrestore.Found
-	unopened []labrestore.Unopened
-	// finished: the restore is done, and Roostack about to restart.
-	finished bool
-}
-
-func (f *fakeLabRestore) Unfinished() bool { return f.unfinished }
-
-func (f *fakeLabRestore) Find(_ context.Context, src labrestore.Source, key string) ([]labrestore.Found, []labrestore.Unopened, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.src, f.key = src, key
-	if f.found != nil {
-		return f.found, f.unopened, nil
-	}
-	snap := backup.Snapshot{ID: "abc", Time: time.Now().Add(-time.Hour)}
-	return []labrestore.Found{
-			{Repository: "/mnt/backup/roostack/l/n-1", Domain: "lab.example.com", ServerName: "nuc", Controller: true, Snapshot: snap, Snapshots: 12},
-			{Repository: "/mnt/backup/roostack/l/n-2", Domain: "lab.example.com", ServerName: "vps", Snapshot: snap, Snapshots: 9},
-		},
-		[]labrestore.Unopened{{Repository: "rest:https://u:hunter22@elsewhere/lab", Problem: "The recovery key doesn't open it."}}, nil
-}
-
-func (f *fakeLabRestore) Start(fd labrestore.Found) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.started = &fd
-	return nil
-}
-
-func (f *fakeLabRestore) Drives(context.Context) ([]agent.Drive, error) {
-	return []agent.Drive{{ID: "system", Kind: "system", Usable: true},
-		{ID: "uuid:64B1", Kind: "usb", Name: "OLD BACKUPS", Usable: true}}, nil
-}
-func (f *fakeLabRestore) UseDrive(_ context.Context, id string) (string, error) {
-	f.usedDrive = id
-	return "/mnt/roostack-old-backups", nil
-}
-
-func (f *fakeLabRestore) Running() bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.started != nil && !f.finished
-}
-
-func (f *fakeLabRestore) Progress() (activity.Snapshot, bool) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	snap := activity.Snapshot{Title: "Restoring lab.example.com", Status: "Restoring nuc's files", Lines: []string{"/var/lib/roostack"}}
-	if f.finished {
-		snap.Finished = time.Now()
-	}
-	return snap, true
-}
 
 // A restore started on the setup pages at home can't follow Roostack once
 // it restarts as the restored lab (that closes them): the page says where
@@ -175,9 +107,9 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 		t.Errorf("creating an Owner during a restore: %d", code)
 	}
 	// Roostack restarts as the restored lab: the page moves on to logging in.
-	h.server.mu.Lock()
+	h.server.setupMu.Lock()
 	h.server.setupToken = ""
-	h.server.mu.Unlock()
+	h.server.setupMu.Unlock()
 	h.server.LabRestore = nil
 	req, _ := http.NewRequest(http.MethodGet, h.srv.URL+"/setup/restore/progress", nil)
 	req.Header.Set("HX-Request", "true")

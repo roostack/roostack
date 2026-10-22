@@ -30,18 +30,6 @@ type ServiceUpdates interface {
 	SetUpdatePolicy(ctx context.Context, name, policy string) error
 }
 
-// StatusUpdating is a service updating to a newer version.
-const StatusUpdating = "updating"
-
-func init() {
-	templateFuncs["appVersion"] = appVersion
-	// sentence ends an error's text with a full stop.
-	templateFuncs["sentence"] = func(s string) string { return strings.TrimRight(strings.TrimSpace(s), ".") + "." }
-	templateFuncs["revision"] = func(v string) string { return strings.TrimPrefix(v[len(upstream(v)):], "-roostack.") }
-	templateFuncs["updateKind"] = updateKindText
-	templateFuncs["updatePolicyText"] = updatePolicyText
-}
-
 // updatePolicyText says how a service updates (its update policy), as
 // its settings page offers it.
 func updatePolicyText(policy string) string {
@@ -107,12 +95,12 @@ func lastUpdateShown(rec *manager.UpdateRecord, u *manager.Update) bool {
 	return (u != nil && u.To == rec.To) || (u == nil && recent)
 }
 
-// updateAttention adds "Needs attention" items for updates: a failed one
-// is a problem (emailed like the others); the services with an update
-// waiting for a person share one line.
-func (s *Server) updateAttention(r *http.Request, services []ServiceView, add func(item attentionItem)) {
-	ups := s.Manager.AvailableUpdates(r.Context())
-	ws := s.Manager.Withdrawals(r.Context())
+// serviceUpdatesAttention adds "Needs attention" items for updates to
+// services: a failed one is a problem (emailed like the others); the
+// services with an update waiting for a person share one line.
+func (s *Server) serviceUpdatesAttention(ctx context.Context, services []ServiceView, l *attentionList) {
+	ups := s.Manager.AvailableUpdates(ctx)
+	ws := s.Manager.Withdrawals(ctx)
 	var waiting []string
 	link := ""
 	for _, svc := range services {
@@ -120,7 +108,7 @@ func (s *Server) updateAttention(r *http.Request, services []ServiceView, add fu
 			continue
 		}
 		u := ups[svc.Name]
-		if rec := s.Manager.LastUpdate(r.Context(), svc.Name); rec != nil && rec.Result != manager.UpdateDone &&
+		if rec := s.Manager.LastUpdate(ctx, svc.Name); rec != nil && rec.Result != manager.UpdateDone &&
 			lastUpdateShown(rec, u) {
 			text := "Updating " + svc.Title + " to " + appVersion(rec.To, rec.From) + " didn't work"
 			if rec.Result == manager.UpdateRolledBack {
@@ -128,7 +116,7 @@ func (s *Server) updateAttention(r *http.Request, services []ServiceView, add fu
 			} else {
 				text += "."
 			}
-			add(attentionItem{Level: levelProblem, Text: text, Link: "/services/" + svc.Name + "#update",
+			l.add(attentionItem{Level: levelProblem, Text: text, Link: "/services/" + svc.Name + "#update",
 				LinkText: "See what happened", Key: "update:" + svc.Name + ":" + rec.To})
 			continue
 		}
@@ -142,9 +130,9 @@ func (s *Server) updateAttention(r *http.Request, services []ServiceView, add fu
 	case 0:
 		return
 	case 1:
-		add(attentionItem{Level: levelInfo, Text: "An update is available for " + waiting[0] + ".", Link: link, LinkText: "See it"})
+		l.add(attentionItem{Level: levelInfo, Key: "updates-available", Text: "An update is available for " + waiting[0] + ".", Link: link, LinkText: "See it"})
 	default:
-		add(attentionItem{Level: levelInfo, Text: "Updates are available for " + joinAnd(waiting) + ".", Link: "/services",
+		l.add(attentionItem{Level: levelInfo, Key: "updates-available", Text: "Updates are available for " + joinAnd(waiting) + ".", Link: "/services",
 			LinkText: "See them"})
 	}
 }
@@ -185,10 +173,6 @@ func joinOr(names []string) string {
 
 // updateSubmit starts updating a service (Admins).
 func (s *Server) updateSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name, to := r.PathValue("name"), r.FormValue("to")
 	// Only the Owner accepts what a package of their own asks for, as when
 	// installing (SPEC.md §8.3.4).
@@ -219,10 +203,6 @@ var updatePolicies = []string{"notify", "patch", "minor", "all"}
 
 // updatePolicySubmit saves how a service updates (Admins).
 func (s *Server) updatePolicySubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name, policy := r.PathValue("name"), r.FormValue("updates")
 	if !slices.Contains(updatePolicies, policy) {
 		http.Error(w, "unknown update policy", http.StatusBadRequest)

@@ -1,14 +1,12 @@
 package web
 
 import (
-	"bytes"
 	"cmp"
+	"context"
 	"errors"
-	"hash/fnv"
 	"net/http"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +15,6 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -158,7 +155,7 @@ func (s *Server) withTiers(services []ServiceView) {
 // services) and the drawn icon of its first category otherwise.
 func (s *Server) withIcons(services []ServiceView, logos bool) {
 	items := map[string]manager.CatalogItem{}
-	if s.Manager != nil && len(services) > 0 {
+	if len(services) > 0 {
 		if catalog, err := s.Manager.Catalog(); err == nil {
 			for _, it := range catalog {
 				items[it.Name] = it
@@ -174,46 +171,113 @@ func (s *Server) withIcons(services []ServiceView, logos bool) {
 	}
 }
 
-// pageData collects what most pages show, for the current user.
-func (s *Server) pageData(r *http.Request) (map[string]any, error) {
+// pageData collects what most pages show, for the current user. The
+// lab's services aren't among them: listing them asks every server, so a
+// page that shows them adds them (withServices), and the sidebar fetches
+// them for its list under Services (render).
+func (s *Server) pageData(r *http.Request) map[string]any {
+	u := currentUser(r)
+	return map[string]any{
+		"User":          u,
+		pageServicesKey: &pageServices{fetch: func() ([]ServiceView, error) { return s.servicesFor(r) }},
+		"CanManage":     auth.Can(u.Role, auth.ManageServices),
+		"IsOwner":       auth.Can(u.Role, auth.ManageHost),
+		"Internet":      s.onInternet(),
+		"Apply":         s.applyStatus(),
+		"Server":        s.serverRefOf(r),
+	}
+}
+
+// pageServicesKey is where pageData keeps the lab's services for a page,
+// until they're asked for.
+const pageServicesKey = "pageServices"
+
+// pageServices are the lab's services for one page, fetched the first
+// time they're asked for.
+type pageServices struct {
+	once  sync.Once
+	fetch func() ([]ServiceView, error)
+	list  []ServiceView
+	err   error
+}
+
+func (p *pageServices) get() ([]ServiceView, error) {
+	p.once.Do(func() { p.list, p.err = p.fetch() })
+	return p.list, p.err
+}
+
+// pageDataWithServices is pageData with the lab's services (as
+// Services), for a page that shows them; on an error it has sent the
+// error page.
+func (s *Server) pageDataWithServices(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
+	data := s.pageData(r)
+	if _, err := withServices(data); err != nil {
+		s.serverError(w, err)
+		return nil, false
+	}
+	return data, true
+}
+
+// withServices adds the lab's services to a page's data (as Services), for
+// a page that shows them, and returns them.
+func withServices(data map[string]any) ([]ServiceView, error) {
+	p, ok := data[pageServicesKey].(*pageServices)
+	if !ok {
+		return nil, errors.New("page data without its services")
+	}
+	services, err := p.get()
+	if err != nil {
+		return nil, err
+	}
+	data["Services"] = services
+	return services, nil
+}
+
+// servicesFor are the lab's services the person r comes from can use,
+// with their registry tiers and icons.
+func (s *Server) servicesFor(r *http.Request) ([]ServiceView, error) {
 	u := currentUser(r)
 	services, err := s.Services(r.Context())
 	if err != nil {
 		return nil, err
 	}
 	s.withTiers(services)
-	s.withIcons(services, s.Manager != nil && auth.Can(u.Role, auth.ManageServices))
-	services = s.usableBy(r.Context(), u, services)
-	return map[string]any{
-		"User":      u,
-		"Services":  services,
-		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
-		"IsOwner":   auth.Can(u.Role, auth.ManageHost),
-		"Internet":  s.onInternet(),
-		"Apply":     s.applyStatus(),
-		"Server":    s.serverRefOf(r),
-	}, nil
+	s.withIcons(services, auth.Can(u.Role, auth.ManageServices))
+	return s.usableBy(r.Context(), u, services), nil
+}
+
+// serviceByName is the lab's service called name, as the dashboard lists
+// it, and whether there is one.
+func (s *Server) serviceByName(ctx context.Context, name string) (ServiceView, bool, error) {
+	services, err := s.Services(ctx)
+	if err != nil {
+		return ServiceView{}, false, err
+	}
+	for _, svc := range services {
+		if svc.Name == name {
+			return svc, true, nil
+		}
+	}
+	return ServiceView{}, false, nil
 }
 
 func (s *Server) homePage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
+	data, ok := s.pageDataWithServices(w, r)
+	if !ok {
 		return
 	}
 	s.homeData(r, data)
 	// What an apply is doing (downloading, building), or why it failed
 	// lately: nothing should look like magic.
-	if a := s.activityFor(r, activity.Apply); a != nil && (a.Running() || a.Err != "" && time.Since(a.Finished) < 24*time.Hour) {
+	if a := s.activityFor(r, activity.Apply); a != nil && a.Recent(24*time.Hour) && (a.Running() || a.Err != "") {
 		data["ApplyActivity"] = a
 	}
 	s.render(w, "home", data)
 }
 
 func (s *Server) homePartial(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
+	data, ok := s.pageDataWithServices(w, r)
+	if !ok {
 		return
 	}
 	s.homeData(r, data)
@@ -224,7 +288,7 @@ func (s *Server) homePartial(w http.ResponseWriter, r *http.Request) {
 // attention, and for those who manage services, the servers and the
 // figures across the top (docs/DESIGN.md "Layout").
 func (s *Server) homeData(r *http.Request, data map[string]any) {
-	data["Attention"] = s.attention(r)
+	data["Attention"] = s.attention(r.Context(), currentUser(r))
 	// Members see a link to migrate their photos into each Immich they may
 	// (SPEC.md §8.5).
 	if u := currentUser(r); !isAdmin(u) {
@@ -238,7 +302,7 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 		servers := s.serverViews(r)
 		data["Servers"] = servers
 		f := homeFiguresOf(data["Services"].([]ServiceView), servers)
-		nodes := s.serverNodes(r)
+		nodes := s.serverNodes()
 		disks := s.homeDisks(r, nodes)
 		f.addDisks(disks)
 		// A server with a disk running low needs attention too.
@@ -254,9 +318,9 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 				f.ServerIssues++
 			}
 		}
-		s.mu.Lock()
-		s.serverIssues, s.serverIssuesAt = f.ServerIssues, time.Now()
-		s.mu.Unlock()
+		s.issues.mu.Lock()
+		s.issues.n, s.issues.at = f.ServerIssues, time.Now()
+		s.issues.mu.Unlock()
 		data["Figures"] = f
 		// Each server's disks together, for its row in the table.
 		perServer := map[string]diskSummary{}
@@ -285,6 +349,16 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 // serverIssuesFresh is how long Home's count of servers needing attention
 // shows in the sidebar.
 const serverIssuesFresh = 10 * time.Minute
+
+// serverIssues is how many servers needed attention when Home last asked
+// them all (a restart due, an OS update or change that didn't finish, a
+// disk running low, not answering), for the sidebar's count beside
+// Servers without asking each server on every page.
+type serverIssues struct {
+	mu sync.Mutex
+	n  int
+	at time.Time
+}
 
 // diskSummary is a server's disks together: used of total, and the
 // worst level among them.
@@ -399,9 +473,8 @@ func homeFiguresOf(services []ServiceView, servers []serverView) homeFigures {
 }
 
 func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
+	data, ok := s.pageDataWithServices(w, r)
+	if !ok {
 		return
 	}
 	if a := s.activityFor(r, activity.Apply); a != nil {
@@ -419,9 +492,8 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
+	data, ok := s.pageDataWithServices(w, r)
+	if !ok {
 		return
 	}
 	s.addBuiltIns(r, data)
@@ -433,205 +505,13 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 func (s *Server) addBuiltIns(r *http.Request, data map[string]any) {
 	show := r.URL.Query().Get("builtin") == "1"
 	data["ShowBuiltIn"] = show
-	if show && s.Manager != nil && data["CanManage"] == true {
+	if show && data["CanManage"] == true {
 		data["BuiltIns"] = s.Manager.AllBuiltIns(r.Context())
 	}
 }
 
-func (s *Server) servicePage(w http.ResponseWriter, r *http.Request) {
-	s.renderServiceWith(w, r, nil, false)
-}
-
-// serviceSettingsPage is where a service's settings change (its page
-// shows them as a summary): web address and package settings, updates,
-// its name.
-func (s *Server) serviceSettingsPage(w http.ResponseWriter, r *http.Request) {
-	s.renderServiceWith(w, r, map[string]any{"EditSettings": true}, false)
-}
-
-// renderService shows a service's page; portErr is a form error for one of
-// its ports ({"port": name, "msg": text}).
-func (s *Server) renderService(w http.ResponseWriter, r *http.Request, portErr map[string]string) {
-	s.renderServiceWith(w, r, map[string]any{"PortError": portErr}, portErr != nil)
-}
-
-// serviceAction is an action button on the service page.
-type serviceAction struct {
-	Name, Title, Description string
-	Fields                   []formField
-}
-
-// renderServiceWith shows a service's page with extra data (form errors,
-// an action's result), or its settings page with "EditSettings"; failed
-// sets a 400 status.
-func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra map[string]any, failed bool) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	name := r.PathValue("name")
-	for _, svc := range data["Services"].([]ServiceView) {
-		if svc.Name == name {
-			data["Service"] = svc
-			if s.Manager != nil {
-				if ms, err := s.Manager.Servers(); err == nil && len(ms) > 1 {
-					data["MultiServer"] = true
-				}
-			}
-		}
-	}
-	if data["Service"] == nil {
-		http.NotFound(w, r)
-		return
-	}
-	// Installing: its log, for the step list's Details. Once it's done, the
-	// step list's polling reloads the page (status, Open link).
-	if install := data["Service"].(ServiceView).Install; install != nil {
-		if a := s.activityFor(r, install.Log); a != nil {
-			data["InstallActivity"] = a
-		}
-	} else if r.URL.Query().Get("installing") == "1" && r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Refresh", "true")
-	}
-	if s.Manager != nil {
-		if p, err := s.Manager.ServicePackage(name); err == nil {
-			data["Package"] = p
-			// Who makes it, for the About card (the logo is the page's own).
-			if c := newProjectCredit(p); c != nil {
-				c.IconURL = ""
-				data["Credit"] = c
-			}
-			var actions []serviceAction
-			for _, h := range p.HooksOn(pkgspec.HookAction) {
-				actions = append(actions, serviceAction{Name: h.Name, Title: h.Title, Description: h.Description, Fields: inputFields(h)})
-			}
-			data["Actions"] = actions
-			// ?action=connect opens that action: single sign-on's Connect
-			// prompt links to it.
-			data["OpenAction"] = r.URL.Query().Get("action")
-			s.addSettingsData(data, name, p, nil)
-			if access, err := s.Manager.Access(name); err == nil {
-				data["Access"] = access
-				if v := s.wafCard(r.Context(), access); v != nil {
-					data["WAF"] = v
-				}
-			}
-			// Migrating photos into Immich (SPEC.md §8.5): the call to
-			// action at the top and the card.
-			if c := s.photoCardFor(r.Context(), currentUser(r), name); c != nil {
-				c.Saved = photoSaved[r.URL.Query().Get("photos")]
-				data["PhotoCard"] = c
-			}
-			// The registry withdrew its version (SPEC.md §8.3.4).
-			if wd := s.Manager.Withdrawals(r.Context())[name]; wd != nil {
-				data["Withdrawal"] = wd
-			}
-			// Held after a restore that didn't finish (SPEC.md §6.9).
-			if v := s.heldViewOf(data["Service"].(ServiceView)); v != nil {
-				data["Held"] = v
-			}
-			// A newer version (SPEC.md §7).
-			s.addUpdateData(r, data, name)
-			if data["UpdateDone"] == true {
-				w.Header().Set("HX-Refresh", "true")
-			}
-		}
-		if n := s.serverOf(r); n != nil {
-			st := n.InstallStatus(r.Context(), name)
-			data["Setup"] = st
-			if st.Failed != "" && auth.Can(currentUser(r).Role, auth.ManageServices) {
-				if p, ok := data["Package"].(*pkgspec.Package); ok {
-					data["InstallFields"] = s.installFields(name, p)
-				}
-			}
-		}
-		// The latest setup log, if it's this service's.
-		if a := s.activityFor(r, activity.Setup); a != nil && a.Title == "Setting up "+data["Service"].(ServiceView).Title {
-			data["SetupActivity"] = a
-		}
-		data["DataDirs"] = s.Manager.DataDirs(name)
-		if files, err := s.Manager.ServiceFiles(name); err == nil {
-			data["Files"] = files
-		}
-		ports, err := s.Manager.Ports(name)
-		if err != nil && !errors.Is(err, manager.ErrNotFound) {
-			s.serverError(w, err)
-			return
-		}
-		data["Ports"] = ports
-	}
-	if urls := data["Service"].(ServiceView).URLs; len(urls) > 0 {
-		data["Host"] = strings.TrimPrefix(urls[0], "https://")
-	}
-	for k, v := range extra {
-		data[k] = v
-	}
-	if sub, ok := extra["Submitted"].(url.Values); ok {
-		if p, ok := data["Package"].(*pkgspec.Package); ok {
-			s.addSettingsData(data, r.PathValue("name"), p, sub)
-		}
-	}
-	if failed {
-		w.WriteHeader(http.StatusBadRequest)
-	}
-	if o := s.oldAddress(); o != nil {
-		data["Old"] = o
-	}
-	page := "service"
-	if u := s.serviceUptime(r.Context(), name); u != nil && data["CanManage"] == true {
-		data["Uptime"] = u
-	}
-	if p, ok := data["Package"].(*pkgspec.Package); ok {
-		if c := s.ssoCardFor(r, name, p); c != nil {
-			if msg, ok := data["SSOError"].(string); ok {
-				c.Error = msg
-			}
-			c.Open = c.On && c.CanChoose && (c.Error != "" || r.URL.Query().Get("sso") == "who")
-			if st, ok := data["Setup"].(manager.HookStatus); ok {
-				c.Hook = st.SSO
-				if a := p.Action(st.SSO.NeedsKey); a != nil {
-					c.Connect, c.ConnectTitle = a.Name, a.Title
-				}
-			}
-			data["SSO"] = c
-		}
-	}
-	if s.Libraries != nil {
-		if c, err := s.Libraries.ServiceLibraries(r.Context(), name); err == nil && c.Reads {
-			data["Libraries"] = c
-		}
-	}
-	// Bringing its data in, under way (SPEC.md §8.4): the Owner's.
-	if data["IsOwner"] == true {
-		if x, err := s.Manager.ImportsOf(name); err == nil {
-			if v, err := x.Import(r.Context(), name); err == nil && v.Source != nil && v.Switched.IsZero() {
-				data["ImportUnderway"] = importUnderway(v)
-			}
-		}
-	}
-	if data["EditSettings"] == true {
-		page = "service-settings"
-		// A form that came back keeps what was chosen.
-		if sub, ok := data["Submitted"].(url.Values); ok {
-			if c, ok := data["Libraries"].(manager.ServiceLibraryChoice); ok && sub.Get("libraries_chosen") != "" {
-				c.Chosen = sub["library"]
-				data["Libraries"] = c
-			}
-			if p := sub.Get("updates"); slices.Contains(updatePolicies, p) {
-				data["UpdatePolicy"] = p
-			}
-		}
-	}
-	s.render(w, page, data)
-}
-
 func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	s.renderBackups(w, r, data)
 }
 
@@ -652,8 +532,8 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	data["CanRestore"] = owner && s.labHasBackups(r)
 	// The recovery key is the lab's, kept by the controller (which serves
 	// this page).
-	data["RecoveryKey"] = s.Setup != nil && owner && s.hasRecoveryKey()
-	if data["RecoveryKey"] == true && s.Manager != nil {
+	data["RecoveryKey"] = owner && s.hasRecoveryKey()
+	if data["RecoveryKey"] == true {
 		if k, err := s.Manager.KeyChangeStatus(); err == nil {
 			data["KeyChange"] = k
 		}
@@ -663,10 +543,14 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	}
 	// Every service in the lab can be restored, from any backup of it
 	// (SPEC.md §10.10), listed by the server it runs on.
-	all, _ := data["Services"].([]ServiceView)
+	all, err := withServices(data)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
 	data["RestoreGroups"] = s.servicesByServer(all)
 	// Where backups go: the plan (SPEC.md §6.9).
-	if s.Manager != nil && auth.Can(currentUser(r).Role, auth.ManageHost) {
+	if auth.Can(currentUser(r).Role, auth.ManageHost) {
 		// Storage at other labs is the whole lab's, shown on every server's page.
 		remotes := s.remoteViews(r)
 		data["Remotes"] = remotes
@@ -694,11 +578,9 @@ type serviceGroup struct {
 // lab's order of servers (one unnamed group with a single server).
 func (s *Server) servicesByServer(services []ServiceView) []serviceGroup {
 	var order []string
-	if s.Manager != nil {
-		if ms, err := s.Manager.Servers(); err == nil && len(ms) > 1 {
-			for _, m := range ms {
-				order = append(order, m.Name)
-			}
+	if ms, err := s.Manager.Servers(); err == nil && len(ms) > 1 {
+		for _, m := range ms {
+			order = append(order, m.Name)
 		}
 	}
 	this := ""
@@ -743,9 +625,6 @@ func (s *Server) labHasBackups(r *http.Request) bool {
 	if s.restores(r) != nil || (s.Node != nil && s.Node.Restores() != nil) {
 		return true
 	}
-	if s.Manager == nil {
-		return false
-	}
 	servers, err := s.Manager.Servers()
 	if err != nil {
 		return false
@@ -759,11 +638,7 @@ func (s *Server) labHasBackups(r *http.Request) bool {
 }
 
 func (s *Server) backupsPartial(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	data["Backup"] = s.backupView(r)
 	s.renderLive(w, r, "backups", "backup-card", data)
 }
@@ -886,54 +761,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		"Done": "Password changed. Other devices you were logged in on need to log in again."})
 }
 
-// renderPart renders one named template from a page (htmx partials). Like
-// render, it renders into a buffer first, so a template error becomes an
-// error rather than half a part sent with 200 OK.
-func (s *Server) renderPart(w http.ResponseWriter, page, name string, data any) {
-	var buf bytes.Buffer
-	if err := s.pages[page].ExecuteTemplate(&buf, name, data); err != nil {
-		s.Log.Error("render partial", "page", page, "part", name, "err", strings.TrimSpace(err.Error()))
-		http.Error(w, "Something went wrong showing this part of the page; the details are in the Roostack log.", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(buf.Bytes())
-}
-
-// Parts of pages that refresh themselves send a fingerprint of what they
-// show (static/app.js); when it's still the same, the answer is 204 No
-// Content and htmx leaves the page alone: nothing to download or redraw,
-// and open panels, selections and scroll positions are untouched.
-const (
-	haveHeader        = "X-Roostack-Have"
-	fingerprintHeader = "X-Roostack-Fingerprint"
-)
-
-// renderLive renders a self-refreshing part, or 204 if the page already
-// shows exactly this.
-func (s *Server) renderLive(w http.ResponseWriter, r *http.Request, page, name string, data any) {
-	var buf bytes.Buffer
-	if err := s.pages[page].ExecuteTemplate(&buf, name, data); err != nil {
-		s.Log.Error("render partial", "page", page, "part", name, "err", strings.TrimSpace(err.Error()))
-		return
-	}
-	h := fnv.New64a()
-	h.Write(buf.Bytes())
-	fp := strconv.FormatUint(h.Sum64(), 36)
-	w.Header().Set(fingerprintHeader, fp)
-	w.Header().Set("Cache-Control", "no-store")
-	if r.Header.Get(haveHeader) == fp {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(buf.Bytes())
-}
-
 func (s *Server) applyStatus() *manager.ApplyStatus {
-	if s.Manager == nil {
-		return nil
-	}
 	st := s.Manager.Status()
 	return &st
 }

@@ -137,22 +137,6 @@ func serve(args []string) error {
 	// The setup pages on the home network (SPEC.md §6.3.2), decided before
 	// the first apply, whose firewall opens their port.
 	pages := setupPages(ctx, lab, st, token, local, log)
-	var mgrRef *manager.Manager
-	srv, err := web.NewServer(st, func(ctx context.Context) ([]web.ServiceView, error) {
-		return serviceViews(ctx, lab, mgrRef, log)
-	}, token, log)
-	if err != nil {
-		return err
-	}
-	srv.OnSetupComplete = func() {
-		os.Remove(setupTokenPath(lab))
-		// A restore that wasn't finished, and the recovery key typed for it
-		// (with the key hints it learned).
-		os.Remove(backup.RestoreKeyFile(lab.Paths))
-		os.Remove(backup.RestoreStartedFile(lab.Paths))
-		os.Remove(backup.RestoreHintsFile(lab.Paths))
-	}
-	srv.Version = version
 
 	// The lab's other servers (SPEC.md §10), reached over its network.
 	fleet := &node.Fleet{Self: labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, Lab: lab, Log: log,
@@ -169,14 +153,63 @@ func serve(args []string) error {
 		Submit:    func(j maintenance.Job) { coord.Submit(j) },
 		Settings:  st,
 		Audit:     func(ctx context.Context, action, detail string) { st.Audit(ctx, nil, action, detail) }}
-	mgrRef = mgr
-	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
+	// The setup wizard. restart only asks it about postponing once it's
+	// stored, further down (wizard.Store).
+	wiz := &setup.Setup{
+		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
+
+		Restart: restart,
+		Drives:  agentClient,
+		// The wizard's end restarts Roostack if a step asked for it.
+		RestartPending: restartPending.Load,
+		Finished: func() {
+			if pages != nil {
+				// The setup pages on the home network close a few seconds
+				// later: the page saying setup is finished, and its
+				// stylesheets, load before the restart ends them.
+				pages.Finish()
+			}
+			if !restartPending.Load() {
+				return
+			}
+			if pages == nil {
+				restartNow()
+				return
+			}
+			go func() {
+				select {
+				case <-pages.Closed():
+				case <-time.After(30 * time.Second):
+				}
+				restartNow()
+			}()
+		},
+	}
+	// The web UI, with what every page relies on. The lab's previous
+	// address stops when its time is up (SPEC.md §6.6), checked once its
+	// DNS records can be deleted (below).
+	srv, err := web.NewServer(st, log, func(ctx context.Context) ([]web.ServiceView, error) {
+		return serviceViews(ctx, lab, mgr, log)
+	}, mgr, wiz, web.LabSettings{LabName: lab.DisplayName(), Domain: lab.Domain, UIHost: lab.UIHost(), DNSProvider: lab.DNS.Provider,
+		OldAddress: lab.OldAddress, BackupRepo: lab.Backup.Repository, HasGPU: lab.HasGPU, Maintenance: lab.Maintenance}, token)
+	if err != nil {
+		return err
+	}
+	srv.OnSetupComplete = func() {
+		os.Remove(setupTokenPath(lab))
+		// A restore that wasn't finished, and the recovery key typed for it
+		// (with the key hints it learned).
+		os.Remove(backup.RestoreKeyFile(lab.Paths))
+		os.Remove(backup.RestoreStartedFile(lab.Paths))
+		os.Remove(backup.RestoreHintsFile(lab.Paths))
+	}
+	srv.Version = version
+	srv.Node = local
 	srv.Libraries = mgr
 	// Migrating photos into Immich (SPEC.md §8.5): its pages, and the
 	// email when one ends.
 	srv.Photos = mgr
 	local.OnPhotos = srv.PhotosEnded
-	srv.UIHost = lab.UIHost()
 	if err := startSignIn(ctx, lab, st, srv, mgr, local, log); err != nil {
 		return err
 	}
@@ -406,7 +439,6 @@ func serve(args []string) error {
 	srv.Registry = updater
 	go updater.Run(ctx)
 	startControllerJobs(ctx, mgr, coord, st, log)
-	srv.Maintenance = lab.Maintenance
 	srv.RunningJob = func() string {
 		if st := coord.Status(); st.Running != nil {
 			return st.Running.Name
@@ -425,41 +457,10 @@ func serve(args []string) error {
 		go finishLabRestore(lab, coord, r.Restorer, assigned, mgr.Wait, local.Activity, log)
 	}
 
-	wiz := &setup.Setup{
-		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
-
-		Restart: restart,
-		Drives:  agentClient,
-		// The wizard's end restarts Roostack if a step asked for it.
-		RestartPending: restartPending.Load,
-		Finished: func() {
-			if pages != nil {
-				// The setup pages on the home network close a few seconds
-				// later: the page saying setup is finished, and its
-				// stylesheets, load before the restart ends them.
-				pages.Finish()
-			}
-			if !restartPending.Load() {
-				return
-			}
-			if pages == nil {
-				restartNow()
-				return
-			}
-			go func() {
-				select {
-				case <-pages.Closed():
-				case <-time.After(30 * time.Second):
-				}
-				restartNow()
-			}()
-		},
-	}
 	wizard.Store(wiz)
 	if err := wiz.AdoptExisting(ctx); err != nil {
 		return err
 	}
-	srv.Setup, srv.DNSProvider, srv.LabName = wiz, lab.DNS.Provider, lab.DisplayName()
 	// Where the setup pages on the home network send the Owner once setup
 	// is finished: the address saved in the wizard, if Roostack's own
 	// pages are there.
@@ -473,9 +474,6 @@ func serve(args []string) error {
 	if pages != nil {
 		go serveSetupPages(ctx, pages, srv, lab, local, log)
 	}
-	// The previous address stops when its time is up (SPEC.md §6.6),
-	// checked once its DNS records can be deleted (below).
-	srv.OldAddress = lab.OldAddress
 	// A roost.ac name from Roostack Cloud becomes the lab's address, and
 	// goes with the link (SPEC.md §6.6).
 	if link != nil {
@@ -667,35 +665,25 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 	updates := mgr.AvailableUpdates(ctx)
 	var views []web.ServiceView
 	for _, s := range all {
-		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown", Package: s.Package.Name, Local: s.Instance.Local}
+		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Package: s.Package.Name, Local: s.Instance.Local, Held: s.Instance.Held}
+		facts := web.ServiceFacts{Reported: web.StatusUnknown}
 		if info, ok := infos[s.Name()]; ok {
-			v.ServiceDetail, v.Status, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
-		}
-		if w := withdrawn[s.Name()]; w != nil && w.Stopped {
-			// The registry withdrew it as dangerous (SPEC.md §8.3.4).
-			v.Status = web.StatusRegistryStop
+			v.ServiceDetail, facts.Reported, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
 		}
 		// Updates to newer versions (SPEC.md §7).
 		if u := updates[s.Name()]; u != nil {
 			v.Update = u.ToApp()
 		}
-		if mgr.Updating(s.Name()) != nil {
-			v.Status = web.StatusUpdating
-		}
-		if s.Instance.AwaitingData {
-			// Installed to wait for its data (SPEC.md §8.4).
-			v.Status = web.StatusAwaitingData
-		}
-		if mgr.Switching(s.Name()) {
-			v.Status = web.StatusSwitching
-		}
-		if s.Instance.Held != nil {
-			// Held after a restore that didn't finish (SPEC.md §6.9).
-			v.Status, v.Held = web.StatusHeld, s.Instance.Held
-		}
+		// What decides its status besides its server (web.ServiceStatus).
+		w := withdrawn[s.Name()]
+		facts.Stopped = w != nil && w.Stopped
+		facts.Updating = mgr.Updating(s.Name()) != nil
+		facts.AwaitingData, facts.Switching = s.Instance.AwaitingData, mgr.Switching(s.Name())
+		facts.Held, facts.Waiting = s.Instance.Held != nil, s.Instance.Waiting
+		v.Status = web.ServiceStatus(facts)
 		if s.Instance.Waiting {
 			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).
-			v.Status, v.Server = web.StatusWaiting, ""
+			v.Server = ""
 			if n := mgr.NodeByID(s.Instance.Host); n != nil {
 				v.WasOn = n.Identity().Name
 			}
@@ -703,7 +691,7 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
 			log.Error("generating service for status", "service", s.Name(), "err", err)
-			v.Status = "failed"
+			v.Status = web.StatusFailed
 			views = append(views, v)
 			continue
 		}

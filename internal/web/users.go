@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/mail"
 	"strconv"
 	"strings"
 
@@ -76,8 +75,8 @@ func (s *Server) userAddSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if email != "" {
-		if a, err := mail.ParseAddress(email); err != nil || a.Address != email {
-			fail(email + " isn't an email address.")
+		if msg := emailProblem(email); msg != "" {
+			fail(msg)
 			return
 		}
 	}

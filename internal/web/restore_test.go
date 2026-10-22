@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -16,41 +15,6 @@ import (
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/setup"
 )
-
-type fakeRestores struct {
-	snaps    []backup.Snapshot
-	kept     []backup.KeptCopy
-	restored []string
-	removed  []string
-	pending  bool
-	putBack  []string
-}
-
-func (f *fakeRestores) Snapshots(context.Context, string) ([]backup.Snapshot, error) {
-	return f.snaps, nil
-}
-func (f *fakeRestores) Restore(_ context.Context, name, id string) error {
-	if f.pending {
-		return backup.ErrRestoreQueued
-	}
-	f.restored = append(f.restored, name+" "+id)
-	return nil
-}
-func (f *fakeRestores) Pending(context.Context) (bool, error) { return f.pending, nil }
-func (f *fakeRestores) Kept(context.Context, string) ([]backup.KeptCopy, error) {
-	return f.kept, nil
-}
-func (f *fakeRestores) Outcome(context.Context, string) (backup.RestoreOutcome, error) {
-	return backup.RestoreOutcome{}, nil
-}
-func (f *fakeRestores) RemoveKept(_ context.Context, _, p string) error {
-	f.removed = append(f.removed, p)
-	return nil
-}
-func (f *fakeRestores) PutBack(_ context.Context, _, p string) error {
-	f.putBack = append(f.putBack, p)
-	return nil
-}
 
 func TestRestoreFlow(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)

@@ -26,9 +26,6 @@ type Holds interface {
 	FailedMoves(ctx context.Context) map[string]manager.FailedMove
 }
 
-// StatusHeld is a service held stopped after a restore that didn't finish.
-const StatusHeld = "held"
-
 // heldView is a held service, for its page and Needs attention.
 type heldView struct {
 	instance.Hold
@@ -47,7 +44,7 @@ func (s *Server) heldViewOf(svc ServiceView) *heldView {
 	}
 	v := &heldView{Hold: *svc.Held, On: svc.Server, TakenText: svc.Held.Taken.Local().Format("Mon 2 Jan 15:04"),
 		AtText: svc.Held.At.Local().Format("Mon 2 Jan 15:04")}
-	if svc.Held.MovedFrom != "" && s.Manager != nil {
+	if svc.Held.MovedFrom != "" {
 		v.From = svc.Held.MovedFrom
 		if n := s.Manager.NodeByID(svc.Held.MovedFrom); n != nil {
 			v.From = n.Identity().Name
@@ -67,7 +64,7 @@ func (v *heldView) RestoreAgain(service string) string {
 
 // holdAttention is a problem for each held service, and a warning for
 // each move that didn't finish and went back.
-func (s *Server) holdAttention(r *http.Request, services []ServiceView, add func(item attentionItem)) {
+func (s *Server) holdAttention(ctx context.Context, services []ServiceView, l *attentionList) {
 	for _, svc := range services {
 		v := s.heldViewOf(svc)
 		if v == nil {
@@ -82,12 +79,12 @@ func (s *Server) holdAttention(r *http.Request, services []ServiceView, add func
 			item.Text = svc.Title + " is stopped: its files are back from the backup of " + v.TakenText +
 				", but its database couldn't be loaded."
 		}
-		add(item)
+		l.add(item)
 	}
-	moves := s.Manager.FailedMoves(r.Context())
+	moves := s.Manager.FailedMoves(ctx)
 	for _, svc := range services {
 		if f, ok := moves[svc.Name]; ok && svc.Held == nil {
-			add(attentionItem{Level: levelWarning, Link: "/services/" + svc.Name + "/move", LinkText: "See what went wrong",
+			l.add(attentionItem{Level: levelWarning, Link: "/services/" + svc.Name + "/move", LinkText: "See what went wrong",
 				Key:  "move-failed:" + svc.Name + ":" + f.At.Format(time.RFC3339),
 				Text: svc.Title + " couldn't be moved to " + f.ToName + ". It's running on " + f.FromName + ", as before."})
 		}
@@ -109,10 +106,6 @@ func (s *Server) heldPutBackSubmit(w http.ResponseWriter, r *http.Request) {
 // heldChoice carries out one of the Owner's choices for a held service and
 // records it in the audit log.
 func (s *Server) heldChoice(w http.ResponseWriter, r *http.Request, do func(context.Context, string) error, audit string) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	title := name
 	if p, err := s.Manager.ServicePackage(name); err == nil {

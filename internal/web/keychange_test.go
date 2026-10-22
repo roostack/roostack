@@ -14,30 +14,6 @@ import (
 	"roostack.cloud/roostack/internal/setup"
 )
 
-func (f *fakeManager) KeyChangeStatus() (*manager.KeyChange, error) { return f.keyChange, nil }
-func (f *fakeManager) StartKeyChange(context.Context) error {
-	f.keyOps = append(f.keyOps, "start")
-	f.keyChange = &manager.KeyChange{Phase: manager.KeyConfirm}
-	return nil
-}
-func (f *fakeManager) NewRecoveryKey() (string, error) {
-	if f.keyChange == nil || f.keyChange.Phase != manager.KeyConfirm {
-		return "", manager.ErrNotFound
-	}
-	return "the-new-recovery-key", nil
-}
-func (f *fakeManager) ConfirmKeyChange(context.Context) error {
-	f.keyOps = append(f.keyOps, "confirm")
-	f.keyChange.Phase = manager.KeyAdding
-	f.keyChange.Repos = []manager.KeyRepo{{Repository: "/mnt/usb/roostack", Added: true}, {Repository: "s3:s3.example.com/b", Error: "unreachable"}}
-	return nil
-}
-func (f *fakeManager) CancelKeyChange() error {
-	f.keyOps = append(f.keyOps, "cancel")
-	f.keyChange = nil
-	return nil
-}
-
 // Changing the recovery key (SPEC.md §6.9): the same check as showing it,
 // then the new key, which must be confirmed saved before anything
 // changes; progress shows on the Backups page.

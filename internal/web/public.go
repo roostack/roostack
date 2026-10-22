@@ -27,6 +27,23 @@ import (
 // on a lab on the internet the provider's firewall, SPEC.md §6.12), and a
 // check from outside, with what to look at if it fails.
 
+// PublicAddresses is what Roostack checks and sees on the public
+// addresses, each nil when it isn't known.
+type PublicAddresses struct {
+	// Checks are the outside check links for public addresses, and
+	// Protected says whether CrowdSec is running, AppSec with it (SPEC.md
+	// §6.10, §6.11).
+	Checks    *public.Checks
+	Protected func(ctx context.Context) bool
+	// Attacks says what CrowdSec saw on the public addresses over a while,
+	// for the weekly summary (optional).
+	Attacks func(ctx context.Context, since time.Duration) (public.Attacks, error)
+	// Blocks are the requests CrowdSec's AppSec refused over a while, for
+	// the service pages and the weekly summary (optional; waf.go).
+	Blocks func(ctx context.Context, since time.Duration) ([]public.Block, error)
+	waf    wafCache
+}
+
 // PublicAccess is making services public, in internal/manager.
 type PublicAccess interface {
 	Access(name string) ([]manager.RouteAccess, error)
@@ -289,11 +306,7 @@ func fromLoopback(r *http.Request) bool {
 // publicSettingsPage is Settings → Public access: what's public, whether
 // CrowdSec is running, and the sharing choice.
 func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	asked, share := s.Manager.SignalSharing()
 	data["SharingAsked"], data["Share"] = asked, share
 	hosts := s.Manager.PublicHosts()
@@ -527,10 +540,6 @@ func (s *Server) publicSharingSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "public access", "CrowdSec sharing: "+share)
 	redirect(w, r, "/settings/public")
-}
-
-func init() {
-	templateFuncs["publicState"] = func(state string) string { return publicState[state] }
 }
 
 // publicState is a record's state for people.

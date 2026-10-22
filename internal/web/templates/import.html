@@ -358,17 +358,7 @@
     <div class="seg-panel" data-seg="3">
       <p class="hint seg-hint">A folder shared by a NAS or the old machine. Roostack mounts it read-only while you bring data in.</p>
       <div class="seg-group">
-        {{segmented "share_type" "Kind of share" $f.ShareType (choice "smb" "SMB") (choice "nfs" "NFS") "size=small"}}
-        <div class="field-row">
-          <label>Server <input name="share_server" value="{{$f.ShareServer}}" placeholder="nas.local or 192.168.1.20" autocapitalize="off" spellcheck="false"></label>
-          <label>Share <input name="share_path" value="{{$f.SharePath}}" placeholder="immich or /volume1/immich" autocapitalize="off" spellcheck="false"></label>
-        </div>
-        <div class="seg-panel" data-seg="1"><div class="field-row">
-          <label>Username <input name="share_user" value="{{$f.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
-            <small>Empty for a share anyone on your network can open.</small></label>
-          <label>Password <input name="share_password" type="password" autocomplete="new-password">
-            <small>Kept on {{$f.ServerName}}, readable only by its system, until the import is done.</small></label>
-        </div></div>
+        {{template "share-fields" $f.ShareFields}}
       </div>
     </div>
   </div>

@@ -55,17 +55,13 @@ func (s *Server) historyKeepDays(ctx context.Context) int {
 }
 
 func (s *Server) historyPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	kind := r.URL.Query().Get("kind")
 	var before time.Time
 	if v, err := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64); err == nil {
 		before = time.Unix(v, 0)
 	}
-	nodes := s.serverNodes(r)
+	nodes := s.serverNodes()
 	entries, unreachable := s.historyEntries(r, nodes, kind, before)
 	if unreachable != nil {
 		data["Unreachable"] = unreachable
@@ -123,8 +119,6 @@ func (s *Server) historyEntries(r *http.Request, nodes []serverNode, kind string
 	return entries, unreachable
 }
 
-func asStrings(v any) []string { s, _ := v.([]string); return s }
-
 // historyEventPage shows one event's log.
 func (s *Server) historyEventPage(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -132,7 +126,7 @@ func (s *Server) historyEventPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	for _, mn := range s.serverNodes(r) {
+	for _, mn := range s.serverNodes() {
 		if mn.view.ID != r.PathValue("server") {
 			continue
 		}
@@ -144,11 +138,7 @@ func (s *Server) historyEventPage(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			break
 		}
-		data, err := s.pageData(r)
-		if err != nil {
-			s.serverError(w, err)
-			return
-		}
+		data := s.pageData(r)
 		data["Event"], data["Server"], data["Lines"] = e, mn.view.Label(), strings.Split(e.Output, "\n")
 		s.render(w, "settings-history-event", withArea(data, "history"))
 		return
@@ -187,8 +177,7 @@ func (s *Server) cullHistory(ctx context.Context, before time.Time) int64 {
 	} else {
 		s.Log.Error("deleting old history", "err", err)
 	}
-	r, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
-	for _, mn := range s.serverNodes(r) {
+	for _, mn := range s.serverNodes() {
 		if h, ok := mn.node.(node.History); ok {
 			if n, err := h.CullHistory(ctx, before); err == nil {
 				total += n

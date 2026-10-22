@@ -37,55 +37,17 @@ var wizardSteps = map[string]int{"twofactor": 1, "setup-timezone": 2, "setup-ssh
 // wizardStepCount is how many steps wizardSteps has.
 const wizardStepCount = 5
 
-// requireWizard allows the setup wizard to the Owner.
-func (s *Server) requireWizard(h http.HandlerFunc) http.Handler {
-	return s.requireOwner(func(w http.ResponseWriter, r *http.Request) {
-		if s.Setup == nil {
-			http.NotFound(w, r)
-			return
-		}
-		h(w, r)
-	})
-}
-
-// requireOwner allows host settings (SPEC.md §5) to the Owner, once they
-// have 2FA.
-func (s *Server) requireOwner(h http.HandlerFunc) http.Handler {
-	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
-		u := currentUser(r)
-		if !auth.Can(u.Role, auth.ManageHost) {
-			http.Error(w, "Only the Owner can change these settings.", http.StatusForbidden)
-			return
-		}
-		if u.TOTPSecret == "" {
-			redirect(w, r, firstThen(s.twoFactorPath(r, u), r))
-			return
-		}
-		if u.MustChangePassword {
-			redirect(w, r, firstThen("/account", r))
-			return
-		}
-		if ownerNeedsEmail(u) {
-			redirect(w, r, firstThen("/account/notifications", r))
-			return
-		}
-		h(w, r)
-	})
-}
-
 // wizardNext is the setup wizard's next step, or Home once it's finished.
 func (s *Server) wizardNext(r *http.Request) string {
-	if s.Setup != nil {
-		if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
-			return p.Next()
-		}
+	if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
+		return p.Next()
 	}
 	return "/"
 }
 
 // wizardOpen reports whether this server's setup wizard has steps left.
 func (s *Server) wizardOpen(r *http.Request) bool {
-	return s.Setup != nil && s.inWizard(r)
+	return s.inWizard(r)
 }
 
 // twoFactorInWizard reports whether u turns on two-factor as a step of
@@ -269,10 +231,8 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 		clients = append(clients, sshClient{Addr: c.String(), Where: sshClientWhere(c, a.Controller, internet)})
 	}
 	multi := false
-	if s.Manager != nil {
-		ms, err := s.Manager.Servers()
-		multi = err == nil && len(ms) > 1
-	}
+	ms, err := s.Manager.Servers()
+	multi = err == nil && len(ms) > 1
 	if choice == "" {
 		choice = cmp.Or(a.Choice, map[bool]string{true: config.SSHFromAny, false: config.SSHFromLAN}[internet])
 	}
@@ -678,20 +638,6 @@ func (s *Server) hasRecoveryKey() bool {
 // true if it handled err.
 // errNoServer means this Roostack can't change its server's settings.
 var errNoServer = errors.New("server settings aren't available")
-
-// userMessage returns an error's message if it is one the user can act on
-// (a problem with what they entered), rather than a server error.
-func userMessage(err error) (string, bool) {
-	var ce *setup.CheckError
-	var fe *node.FormError
-	switch {
-	case errors.As(err, &ce):
-		return ce.Msg, true
-	case errors.As(err, &fe):
-		return fe.Msg, true
-	}
-	return "", false
-}
 
 func (s *Server) wizardError(w http.ResponseWriter, r *http.Request, err error, page string, data map[string]any) bool {
 	if err == nil {

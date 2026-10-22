@@ -25,40 +25,6 @@ import (
 
 const signInHost = "login.lab.example.com"
 
-// fakeSSO is the manager's single sign-on side.
-type fakeSSO struct {
-	on  map[string]bool
-	why string
-}
-
-func (f *fakeSSO) SSOAvailable(string) (bool, string) { return f.why == "", f.why }
-func (f *fakeSSO) SetSSO(_ context.Context, name string, on bool) error {
-	if on && f.why != "" {
-		return &manager.FormError{Msg: f.why}
-	}
-	f.on[name] = on
-	return nil
-}
-func (f *fakeSSO) SSOOff(name string) string {
-	if titles := map[string]string{"mealie": "Mealie", "forgejo": "Forgejo"}; !f.on[name] {
-		return titles[name]
-	}
-	return ""
-}
-func (f *fakeSSO) SSOClients() []sso.Client {
-	var out []sso.Client
-	if f.on["mealie"] {
-		out = append(out, sso.Client{ID: "mealie", Title: "Mealie", RedirectURIs: []string{"https://recipes.lab.example.com/login"}})
-	}
-	if f.on["stirling-pdf"] {
-		out = append(out, sso.Client{ID: "stirling-pdf", Title: "Stirling-PDF", Host: "pdf.lab.example.com"})
-	}
-	if f.on["forgejo"] {
-		out = append(out, sso.Client{ID: "forgejo", Title: "Forgejo", RedirectURIs: []string{"https://git.lab.example.com/user/oauth2/lab.example.com/callback"}})
-	}
-	return out
-}
-
 // ssoPackages adds the fixtures with single sign-on to the fake manager.
 type ssoPackages struct{ *fakeManager }
 
@@ -608,7 +574,7 @@ func TestPeopleSSO(t *testing.T) {
 	if groups, _ := h.store.Groups(ctx); len(groups[0].Members) != 0 {
 		t.Error("details without groups ticked takes her out of them")
 	}
-	if code, body := h.post("/users/"+itoa64(mum)+"/details", url.Values{"email": {"not an address"}}, h.srv.URL); code != 400 || !strings.Contains(body, "isn&#39;t an email address") {
+	if code, body := h.post("/users/"+itoa64(mum)+"/details", url.Values{"email": {"not an address"}}, h.srv.URL); code != 400 || !strings.Contains(body, "Enter an email address, such as sam@example.com.") {
 		t.Errorf("bad email: %d", code)
 	}
 	_, body = h.get("/settings/people")

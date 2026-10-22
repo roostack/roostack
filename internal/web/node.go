@@ -12,7 +12,7 @@ import (
 // has no UI of its own, so its address says which lab it belongs to and
 // where to manage it (SPEC.md §10.2).
 func NodePage(name, labName, ui string, fenced func() *backup.Fence) (http.Handler, error) {
-	t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
+	t, err := template.New("layout.html").Funcs(templateFuncs()).ParseFS(templateFS,
 		"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/node-home.html")
 	if err != nil {
 		return nil, err

@@ -29,7 +29,7 @@ func (s *Server) keyChangePage(w http.ResponseWriter, r *http.Request) {
 // renderKeyChange shows the change page (without the new key: it's only
 // shown right after the check), with an error.
 func (s *Server) renderKeyChange(w http.ResponseWriter, r *http.Request, status int, msg string) {
-	if s.Setup == nil || !s.hasRecoveryKey() {
+	if !s.hasRecoveryKey() {
 		http.NotFound(w, r)
 		return
 	}
@@ -46,7 +46,7 @@ func (s *Server) renderKeyChange(w http.ResponseWriter, r *http.Request, status 
 // keyChangeSubmit checks it's the Owner, makes the new key if there isn't
 // one waiting, and shows it.
 func (s *Server) keyChangeSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Setup == nil || !s.hasRecoveryKey() {
+	if !s.hasRecoveryKey() {
 		http.NotFound(w, r)
 		return
 	}

@@ -31,29 +31,32 @@
 </nav>
 {{end}}{{end}}
 
-{{/* service-summary: where a service runs and when it was last backed up. */}}
-{{define "service-summary"}}<p class="hint">{{with .Server}}On {{server .}}{{end}}
-  {{- if not .LastBackup.IsZero}} · backed up {{when .LastBackup}}{{else if .Server}} · not backed up yet{{end}}</p>{{end}}
-
-{{/* service-details: what its server reports, for the curious. The id
-     keeps it open when the tiles refresh (static/app.js). */}}
 {{/* install-line: how far a service's install has got, in one line (the
      Services list and Home; its page shows every step). */}}
 {{define "install-line"}}{{with .Install}}<p class="install-line">
   {{- if .Failed}}Installing didn't finish: {{.Failed}}
   {{- else}}<span class="spinner" aria-hidden="true"></span> Step {{add1 .Current}} of {{len .Steps}}: {{lowerFirst .Step.Title}}…{{end}}</p>{{end}}{{end}}
 
-{{define "service-details"}}
-<details class="technical" id="details-{{.Name}}">
-  <summary>Details</summary>
-  <dl class="facts">
-    {{with .Containers}}<dt>Containers</dt><dd>{{range .}}<code>{{.Name}}</code> · {{or .State "unknown"}}<br><small class="hint" title="{{.Image}}">{{image .Image}}</small><br>{{end}}</dd>{{end}}
-    {{with .Routes}}<dt>Web</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">{{if $.NoAddress}}Until the lab has an address, reach the port above from your computer with an SSH tunnel to this server.{{else}}Caddy on the controller forwards these addresses here.{{end}}</small></dd>{{end}}
-    {{with .Ports}}<dt>Ports</dt><dd>{{range .}}{{.Title}}: {{.Port}}/{{.Protocol}} ({{if eq .Exposure "public"}}anywhere{{else}}home network{{end}})<br>{{end}}</dd>{{end}}
-    {{with .DataDirs}}<dt>Data</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}{{if ge $.DataSize 0}}{{size $.DataSize}}{{else}}<small class="hint">size not counted yet</small>{{end}}</dd>{{end}}
-  </dl>
-</details>
-{{end}}
+{{/* share-fields: a network share's fields on a form (shareFields): its
+     kind, server and share, and for SMB its login. */}}
+{{define "share-fields"}}{{segmented "share_type" "Kind of share" .ShareType (choice "smb" "SMB") (choice "nfs" "NFS") "size=small"}}
+        {{- if .Media}}
+        <p class="seg-panel hint seg-hint" data-seg="1">Windows sharing: most NASes. The share is its name, as the NAS calls it.</p>
+        <p class="seg-panel hint seg-hint" data-seg="2">Unix sharing. The share is the export's path, and the NAS must let
+          {{.ServerName}}'s address mount it.</p>{{end}}
+        <div class="field-row">
+          <label>Server <input name="share_server" value="{{.ShareServer}}" placeholder="nas.local or 192.168.1.20" autocapitalize="off" spellcheck="false"
+              {{- if .Media}} x-bind:required="where === 'share'">
+            <small>The NAS or computer sharing it.</small>{{else}}>{{end}}</label>
+          <label>Share <input name="share_path" value="{{.SharePath}}" placeholder="{{.Example}}" autocapitalize="off" spellcheck="false"
+              {{- if .Media}} x-bind:required="where === 'share'"{{end}}></label>
+        </div>
+        <div class="seg-panel" data-seg="1"><div class="field-row">
+          <label>Username <input name="share_user" value="{{.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <small>Empty for a share anyone on your network can open.</small></label>
+          <label>Password <input name="share_password" type="password" autocomplete="new-password">
+            <small>Kept on {{.ServerName}}, readable only by its system{{.Kept}}</small></label>
+        </div></div>{{end}}
 
 {{/* address-waiting: a service that can't be reached yet, because the lab
      has no address (SPEC.md §6.6); takes the page's data, for IsOwner. */}}

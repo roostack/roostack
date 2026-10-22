@@ -154,7 +154,7 @@ func (s *Server) serverSpaces(ctx context.Context, m serverRef, n any) *serverDi
 	out := &serverDisks{ServerID: m.ID}
 	var promised, promisedLeft int64
 	// Other labs' quotas count on the server that stores their backups.
-	if s.Manager != nil && s.Manager.GuestServer(ctx) == m.ID {
+	if s.Manager.GuestServer(ctx) == m.ID {
 		if guests, err := s.Manager.StorageGuests(ctx); err == nil {
 			for _, g := range guests {
 				if g.Removed.IsZero() {
@@ -214,7 +214,7 @@ func (d *serverDisks) store() *serverDisks {
 // (disks-live): 204 while unchanged, and without polling once done.
 // ?store=1: only the disk holding the backup store.
 func (s *Server) diskPart(w http.ResponseWriter, r *http.Request) {
-	for _, mn := range s.serverNodes(r) {
+	for _, mn := range s.serverNodes() {
 		if mn.view.ID != r.PathValue("server") {
 			continue
 		}
@@ -231,12 +231,14 @@ func (s *Server) diskPart(w http.ResponseWriter, r *http.Request) {
 }
 
 // spaceAttention flags servers running out of space (home page).
-func (s *Server) spaceAttention(r *http.Request, add func(level, text, link, linkText string)) {
-	for _, mn := range s.serverNodes(r) {
-		if d := s.serverSpaces(r.Context(), mn.view, mn.node); d != nil {
+func (s *Server) spaceAttention(ctx context.Context, l *attentionList) {
+	for _, mn := range s.serverNodes() {
+		if d := s.serverSpaces(ctx, mn.view, mn.node); d != nil {
 			for _, v := range d.Disks {
 				if v.Level != "" {
-					add(v.Level, v.Warning, "/servers#server-"+mn.view.ID, "See its disks")
+					l.add(attentionItem{Key: "space:" + mn.view.ID + ":" + v.Mount + ":" + v.Level, Level: v.Level,
+						Text: v.Warning,
+						Link: "/servers#server-" + mn.view.ID, LinkText: "See its disks"})
 				}
 			}
 		}

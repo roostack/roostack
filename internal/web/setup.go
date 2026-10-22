@@ -35,20 +35,21 @@ const (
 // setupPassed reports whether this browser entered the setup code lately,
 // or the form carries it.
 func (s *Server) setupPassed(r *http.Request) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.setupToken == "" {
+	s.setupMu.Lock()
+	token := s.setupToken
+	s.setupMu.Unlock()
+	if token == "" {
 		return false
 	}
-	if authkit.TokensEqual(strings.TrimSpace(r.PostFormValue("token")), s.setupToken) {
+	if authkit.TokensEqual(strings.TrimSpace(r.PostFormValue("token")), token) {
 		return true
 	}
 	c, err := r.Cookie(setupCodeCookie)
 	if err != nil {
 		return false
 	}
-	until, ok := s.setupPasses[originOf(r)+authkit.HashToken(c.Value)]
-	return ok && time.Now().Before(until)
+	_, ok := s.setupPasses.get(originOf(r) + authkit.HashToken(c.Value))
+	return ok
 }
 
 // setupCodeSubmit checks the setup code, the first step.
@@ -57,9 +58,9 @@ func (s *Server) setupCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/")
 		return
 	}
-	s.mu.Lock()
+	s.setupMu.Lock()
 	ok := s.setupToken != "" && authkit.TokensEqual(strings.TrimSpace(r.PostFormValue("token")), s.setupToken)
-	s.mu.Unlock()
+	s.setupMu.Unlock()
 	if !ok {
 		time.Sleep(failedLoginDelay)
 		w.WriteHeader(http.StatusBadRequest)
@@ -71,16 +72,8 @@ func (s *Server) setupCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	now := time.Now()
-	s.mu.Lock()
-	for k, until := range s.setupPasses {
-		if now.After(until) {
-			delete(s.setupPasses, k)
-		}
-	}
 	// Kept with where it was entered: it works only there (SPEC.md §6.3.2).
-	s.setupPasses[originOf(r)+authkit.HashToken(token)] = now.Add(setupPassFor)
-	s.mu.Unlock()
+	s.setupPasses.put(originOf(r)+authkit.HashToken(token), struct{}{}, time.Now().Add(setupPassFor))
 	http.SetCookie(w, &http.Cookie{Name: setupCodeCookie, Value: token, Path: "/setup", MaxAge: int(setupPassFor.Seconds()),
 		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})
 	redirect(w, r, "/setup")

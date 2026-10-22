@@ -18,22 +18,15 @@ import (
 
 // restoreService finds the installed service named in the URL.
 func (s *Server) restoreService(w http.ResponseWriter, r *http.Request) (ServiceView, bool) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return ServiceView{}, false
-	}
-	services, err := s.Services(r.Context())
+	svc, ok, err := s.serviceByName(r.Context(), r.PathValue("name"))
 	if err != nil {
 		s.serverError(w, err)
 		return ServiceView{}, false
 	}
-	for _, svc := range services {
-		if svc.Name == r.PathValue("name") {
-			return svc, true
-		}
+	if !ok {
+		http.NotFound(w, r)
 	}
-	http.NotFound(w, r)
-	return ServiceView{}, false
+	return svc, ok
 }
 
 func (s *Server) restorePage(w http.ResponseWriter, r *http.Request) {

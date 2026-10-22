@@ -354,17 +354,7 @@
     {{with $f.Seg "share"}}<div class="{{if $ctl}}seg-panel{{end}}" data-seg="{{.}}">
       <p class="hint seg-hint">A folder shared by a NAS or another computer{{if not $p.Admin}}, with your own login to it{{end}}.</p>
       <div class="seg-group">
-        {{segmented "share_type" "Kind of share" $f.ShareType (choice "smb" "SMB") (choice "nfs" "NFS") "size=small"}}
-        <div class="field-row">
-          <label>Server <input name="share_server" value="{{$f.ShareServer}}" placeholder="nas.local or 192.168.1.20" autocapitalize="off" spellcheck="false"></label>
-          <label>Share <input name="share_path" value="{{$f.SharePath}}" placeholder="photos or /volume1/photos" autocapitalize="off" spellcheck="false"></label>
-        </div>
-        <div class="seg-panel" data-seg="1"><div class="field-row">
-          <label>Username <input name="share_user" value="{{$f.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
-            <small>Empty for a share anyone on your network can open.</small></label>
-          <label>Password <input name="share_password" type="password" autocomplete="new-password">
-            <small>Kept on {{or $f.ServerName "the server"}}, readable only by its system, until the migration is done.</small></label>
-        </div></div>
+        {{template "share-fields" $f.ShareFields}}
       </div>
     </div>{{end}}
     {{with $f.Seg "folder"}}<div class="{{if $ctl}}seg-panel{{end}}" data-seg="{{.}}">

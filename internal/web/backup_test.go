@@ -12,14 +12,6 @@ import (
 	"roostack.cloud/roostack/internal/store"
 )
 
-type fakeBackups struct {
-	status backup.Status
-	runs   int
-}
-
-func (f *fakeBackups) Status(context.Context) (backup.Status, error) { return f.status, nil }
-func (f *fakeBackups) RunNow(context.Context) error                  { f.runs++; return nil }
-
 func TestBackupCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleAdmin)
 	fb := &fakeBackups{}

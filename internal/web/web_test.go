@@ -5,12 +5,9 @@ import (
 	"context"
 	"io"
 	"io/fs"
-	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
-	"net/http/httptest"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -19,91 +16,6 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
 )
-
-type harness struct {
-	t      *testing.T
-	srv    *httptest.Server
-	client *http.Client
-	store  *store.Store
-	server *Server
-	setup  bool // OnSetupComplete called
-}
-
-var nowFunc = time.Now
-
-// wrongCode is a two-factor code that isn't valid for secret now, nor in
-// the windows either side ("000000" is a real code about once in a
-// million runs, which made tests flaky).
-func wrongCode(secret string) string {
-	valid := map[string]bool{}
-	for step := -3; step <= 3; step++ {
-		c, _ := authkit.TOTPCode(secret, nowFunc().Add(time.Duration(step)*30*time.Second))
-		valid[c] = true
-	}
-	for _, c := range []string{"000000", "111111", "222222", "333333", "444444", "555555", "666666", "777777"} {
-		if !valid[c] {
-			return c
-		}
-	}
-	panic("no wrong code")
-}
-
-// userSecret is a test user's two-factor secret.
-func userSecret(h *harness, username string) string {
-	u, _ := h.store.UserByUsername(context.Background(), username)
-	return u.TOTPSecret
-}
-
-func newHarness(t *testing.T, setupToken string) *harness {
-	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
-	services := func(context.Context) ([]ServiceView, error) {
-		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running",
-			URLs: []string{"https://passwords.lab.example.com"}}}, nil
-	}
-	s, err := NewServer(st, services, setupToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	h := &harness{t: t, store: st, server: s}
-	s.OnSetupComplete = func() { h.setup = true }
-	h.srv = httptest.NewServer(s.Handler())
-	t.Cleanup(h.srv.Close)
-	jar, _ := cookiejar.New(nil)
-	h.client = &http.Client{Jar: jar}
-	return h
-}
-
-func (h *harness) get(path string) (int, string) {
-	h.t.Helper()
-	resp, err := h.client.Get(h.srv.URL + path)
-	if err != nil {
-		h.t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	return resp.StatusCode, string(body)
-}
-
-func (h *harness) post(path string, form url.Values, origin string) (int, string) {
-	h.t.Helper()
-	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+path, strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if origin != "" {
-		req.Header.Set("Origin", origin)
-	}
-	resp, err := h.client.Do(req)
-	if err != nil {
-		h.t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	return resp.StatusCode, string(body)
-}
 
 func TestFirstRunNamesTheLab(t *testing.T) {
 	h := newHarness(t, "the-setup-code")
@@ -198,25 +110,6 @@ func TestFirstRunSetup(t *testing.T) {
 	if _, body := h.get("/setup"); strings.Contains(body, "Welcome to Roostack") {
 		t.Error("setup page must not be available after setup")
 	}
-}
-
-// enrollTOTP reads the key from the 2FA page and submits a valid code. It
-// returns the secret and the time the code was generated for.
-func (h *harness) enrollTOTP(page string) (string, time.Time) {
-	h.t.Helper()
-	secret := totpSecretOf(h.t, page)
-	now := time.Now()
-	code, err := authkit.TOTPCode(secret, now)
-	if err != nil {
-		h.t.Fatal(err)
-	}
-	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {wrongCode(secret)}}, h.srv.URL); status != http.StatusBadRequest {
-		h.t.Errorf("a wrong enrollment code: status %d, want 400", status)
-	}
-	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {code}}, h.srv.URL); status != http.StatusOK {
-		h.t.Fatalf("enrollment failed: %d", status)
-	}
-	return secret, now
 }
 
 // totpSecretOf reads the key being set up from a two-factor page.

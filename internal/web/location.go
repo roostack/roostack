@@ -61,7 +61,7 @@ func (s *Server) backupPlace(ctx context.Context, m serverRef, host string) (atH
 
 // locationSubmit records where a server is.
 func (s *Server) locationSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil || s.serverOf(r) == nil {
+	if s.serverOf(r) == nil {
 		http.NotFound(w, r)
 		return
 	}

@@ -23,10 +23,6 @@ type Withdrawals interface {
 	SetStops(on bool) error
 }
 
-// StatusRegistryStop is a service Roostack stopped because the registry
-// withdrew its version as dangerous.
-const StatusRegistryStop = "registry-stop"
-
 // registryReason is the registry's reason as the end of a sentence.
 func registryReason(w *manager.Withdrawal) string {
 	return strings.TrimRight(strings.TrimSpace(w.Reason), ".") + "."
@@ -36,8 +32,8 @@ func registryReason(w *manager.Withdrawal) string {
 // service whose version the registry withdrew. Stops are problems (and
 // emailed like other problems); warnings, a stop the Owner turned off
 // or overrode, and notices say what's wrong and what to do.
-func (s *Server) withdrawalAttention(r *http.Request, services []ServiceView, add func(item attentionItem)) {
-	ws := s.Manager.Withdrawals(r.Context())
+func (s *Server) withdrawalAttention(ctx context.Context, services []ServiceView, l *attentionList) {
+	ws := s.Manager.Withdrawals(ctx)
 	for _, svc := range services {
 		w := ws[svc.Name]
 		if w == nil {
@@ -63,17 +59,13 @@ func (s *Server) withdrawalAttention(r *http.Request, services []ServiceView, ad
 			item.Level, item.LinkText = levelInfo, "Read it"
 			item.Text = "The service registry has a notice about " + svc.Title + " " + w.Version + ": " + registryReason(w)
 		}
-		add(item)
+		l.add(item)
 	}
 }
 
 // startAnywaySubmit starts a service Roostack stopped, once the Owner has
 // confirmed the risk.
 func (s *Server) startAnywaySubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	private := r.FormValue("private") == "1"
 	err := s.Manager.StartAnyway(r.Context(), name, private)
@@ -100,10 +92,6 @@ func (s *Server) startAnywaySubmit(w http.ResponseWriter, r *http.Request) {
 // registryStopsSubmit saves the Owner's choice whether Roostack may stop
 // a service the registry says is dangerous.
 func (s *Server) registryStopsSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	on := r.FormValue("on") == "1"
 	if err := s.Manager.SetStops(on); err != nil {
 		s.serverError(w, err)

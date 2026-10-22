@@ -91,11 +91,13 @@ type importSourceForm struct {
 	Check         *agent.Readability
 	PlaceError    string
 	Roots         []string
-	ShareType     string
-	ShareServer   string
-	SharePath     string
-	ShareUser     string
-	DrivesError   string
+	shareForm
+	DrivesError string
+}
+
+// ShareFields are the share's fields, for share-fields.
+func (f importSourceForm) ShareFields() shareFields {
+	return shareFields{shareForm: f.shareForm, ServerName: f.ServerName, Example: "immich or /volume1/immich", Kept: ", until the import is done."}
 }
 
 // importPath is a prefix line: where an old folder is now.
@@ -202,12 +204,8 @@ func (s *Server) renderImport(w http.ResponseWriter, r *http.Request, errMsg str
 		s.serverError(w, err)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	svc := s.serviceViewOf(r, name)
+	data := s.pageData(r)
+	svc := s.serviceRow(r.Context(), name, true)
 	pg := importPage{Name: name, Title: cmp.Or(svc.Title, p.Title), Service: svc, Package: p, V: v, Error: errMsg}
 	pg.Switching = s.Manager.Switching(name)
 	pg.Switch = s.activityFor(r, activity.ImportFor(name))
@@ -266,21 +264,6 @@ func (s *Server) renderImport(w http.ResponseWriter, r *http.Request, errMsg str
 	s.render(w, "import", data)
 }
 
-// serviceViewOf is a service's row as the dashboard has it (its title,
-// status and logo), or just its name.
-func (s *Server) serviceViewOf(r *http.Request, name string) ServiceView {
-	if services, err := s.Services(r.Context()); err == nil {
-		for _, svc := range services {
-			if svc.Name == name {
-				one := []ServiceView{svc}
-				s.withIcons(one, true)
-				return one[0]
-			}
-		}
-	}
-	return ServiceView{Name: name, Title: name, DrawnIcon: categoryIcon(nil)}
-}
-
 // importReached is the furthest step the person got to.
 func importReached(v node.ImportView, switching bool) int {
 	switch {
@@ -335,15 +318,13 @@ func (s *Server) importSource(r *http.Request, name string, pg *importPage) erro
 	if q.Get("drive") == "" && q.Get("folder") == "" && src != nil {
 		f.Drive, f.Sub, f.Folder = src.Library.Drive, src.Library.Sub, src.Library.Folder
 		if sh := src.Library.Share; sh != nil {
-			f.ShareType, f.ShareServer, f.SharePath, f.ShareUser = sh.Type, sh.Server, sh.Path, sh.Username
+			f.fillShare(sh)
 		}
 	}
-	if t := q.Get("share_type"); t != "" {
-		f.ShareType, f.ShareServer, f.SharePath, f.ShareUser = t, q.Get("share_server"), q.Get("share_path"), q.Get("share_user")
+	if q.Get("share_type") != "" {
+		f.fillShareFrom(q.Get)
 	}
-	if f.ShareType != "nfs" {
-		f.ShareType = "smb"
-	}
+	f.shareKind()
 	n := s.Manager.NodeFor(name)
 	if n == nil || s.Libraries == nil {
 		return nil
@@ -632,73 +613,15 @@ func (s *Server) importFoldersPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
+	data := s.pageData(r)
+	base := "/services/" + url.PathEscape(name) + "/import"
+	p, err := s.pickFolders(r.Context(), n.Identity().ID, pickerPlaceOf(r.URL.Query()), pickerLinks{
+		at:   func(set url.Values) string { return base + "/folders?" + set.Encode() },
+		back: stepBack(base, "#step-1"), serverTitle: "Choose a folder on " + n.Identity().Name, serverTop: n.Identity().Name})
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	server := n.Identity().ID
-	q := r.URL.Query()
-	base := "/services/" + url.PathEscape(name) + "/import"
-	at := func(set url.Values) string { return base + "/folders?" + set.Encode() }
-	back := func(set url.Values) string { return base + "?" + set.Encode() + "#step-1" }
-	var p folderPicker
-	var l agent.Library
-	var folderHref func(string) string
-	if drive := q.Get("drive"); drive != "" {
-		dn, sub := q.Get("name"), cleanSub(q.Get("sub"))
-		l = agent.Library{Drive: drive, Sub: sub}
-		p.Title, p.Label, p.UseText = "Choose a folder on "+dn, dn, "Use "+dn
-		p.Crumbs = []mediaCrumb{{dn, at(url.Values{"drive": {drive}, "name": {dn}})}}
-		if sub != "" {
-			parts := strings.Split(sub, "/")
-			for i, part := range parts {
-				p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(url.Values{"drive": {drive}, "name": {dn}, "sub": {strings.Join(parts[:i+1], "/")}})})
-			}
-			p.Label, p.UseText = dn+" › "+strings.Join(parts, " › "), "Use "+parts[len(parts)-1]
-		}
-		p.CancelHref = back(url.Values{"where": {"drive"}})
-		p.UseHref = back(url.Values{"where": {"drive"}, "drive": {drive}, "sub": {sub}})
-		folderHref = func(f string) string {
-			return at(url.Values{"drive": {drive}, "name": {dn}, "sub": {strings.TrimPrefix(sub+"/"+f, "/")}})
-		}
-	} else {
-		folder := q.Get("folder")
-		p.CancelHref = back(url.Values{"where": {"folder"}})
-		p.Title = "Choose a folder on " + n.Identity().Name
-		p.Crumbs = []mediaCrumb{{n.Identity().Name, at(url.Values{})}}
-		if folder == "" {
-			for _, root := range agent.LibraryFolderRoots {
-				p.Folders = append(p.Folders, pickerFolder{Name: root, Href: at(url.Values{"folder": {root}}), NoCounts: true})
-			}
-			p.Crumbs[0].Href = ""
-			data["Picker"], data["PickerBack"] = p, base
-			s.render(w, "import-folders", data)
-			return
-		}
-		folder = path.Clean("/" + folder)
-		l = agent.Library{Folder: folder}
-		dir := ""
-		for _, part := range strings.Split(strings.Trim(folder, "/"), "/") {
-			dir += "/" + part
-			p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(url.Values{"folder": {dir}})})
-		}
-		p.Label, p.UseText = folder, "Use "+path.Base(folder)
-		p.UseHref = back(url.Values{"where": {"folder"}, "folder": {folder}})
-		folderHref = func(f string) string { return at(url.Values{"folder": {path.Join(folder, f)}}) }
-	}
-	p.Crumbs[len(p.Crumbs)-1].Href = ""
-	list, err := s.Libraries.LibraryFolders(r.Context(), server, l)
-	if msg, ok := userMessage(err); ok {
-		p.Error, p.UseHref = msg, ""
-	} else if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	for _, f := range list.Folders {
-		p.Folders = append(p.Folders, pickerFolder{Name: f.Name, Href: folderHref(f.Name), Folders: f.Folders, Files: f.Files})
-	}
-	p.Counts = folderCounts(len(list.Folders), list.Files)
 	data["Picker"], data["PickerBack"] = p, base
 	s.render(w, "import-folders", data)
 }
@@ -711,11 +634,7 @@ func (s *Server) importBrowsePage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	v, err := x.Import(r.Context(), name)
 	if err != nil {
 		s.serverError(w, err)
@@ -736,14 +655,11 @@ func (s *Server) importBrowsePage(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(forWhat, "prefix:") {
 		p.CancelHref = base + "#step-2"
 	}
-	p.Crumbs = []mediaCrumb{{top, at(".")}}
-	if rel != "." {
-		parts := strings.Split(rel, "/")
-		for i, part := range parts {
-			p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(strings.Join(parts[:i+1], "/"))})
-		}
+	crumbRel := rel
+	if rel == "." {
+		crumbRel = ""
 	}
-	p.Crumbs[len(p.Crumbs)-1].Href = ""
+	p.Crumbs = crumbsFor(top, crumbRel, func(rel string) string { return at(cmp.Or(rel, ".")) })
 	p.UseText = "Use " + path.Base(cmp.Or(strings.TrimPrefix(rel, "."), top))
 	p.UseHref = base + "?" + url.Values{"for": {forWhat}, "path": {rel}}.Encode()
 	list, err := x.BrowseImport(r.Context(), name, rel)
@@ -808,11 +724,7 @@ func (s *Server) importSourceSubmit(w http.ResponseWriter, r *http.Request) {
 		src.Library = agent.Library{Folder: path.Clean("/" + folder)}
 		src.Title = src.Library.Folder
 	case "share":
-		sh := &agent.Share{Type: r.FormValue("share_type"), Server: strings.TrimSpace(r.FormValue("share_server")),
-			Path: strings.TrimSpace(r.FormValue("share_path")), Username: r.FormValue("share_user"), Password: r.FormValue("share_password")}
-		if sh.Type == "nfs" {
-			sh.Username, sh.Password = "", ""
-		}
+		sh := sharePosted(r)
 		src.Library = agent.Library{Share: sh}
 		src.Title = sh.Server + ", share " + sh.Path
 	default:
