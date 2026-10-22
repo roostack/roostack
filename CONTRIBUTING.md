@@ -66,7 +66,7 @@ bin/roostack serve -lab <file> -listen 127.0.0.1:8480
 
 - `go test ./...` runs every Go test, and `make editor-test` the editor's JavaScript tests, including its checks against `pkgspec`'s on every package of the corpus.
 - **The backup tests use the real restic** and skip without it, silently unless you run `go test -v`. With restic on your `PATH` they run; `ROOSTACK_RESTIC_BIN=/path/to/restic` picks a particular binary. A skipped test has hidden a breakage before, so make sure they ran.
-- **Web tests** drive the real handlers through `httptest`, with fakes for the layers underneath (`fakeManager`, `fakeSetup`, `fakeBackups` in `internal/web/*_test.go`), and `loggedIn(t, role)` signs in. Add to the fakes rather than going around them.
+- **Web tests** drive the real handlers through `httptest`, with fakes for the layers underneath (`fakeManager`, `fakeSetup`, `fakeBackups` and the rest in `internal/web/fakes_test.go`, where `fakeManager` is one embedded fake per area), and the harness in `harness_test.go`, where `loggedIn(t, role)` signs in. The harness fails a page that shows `<no value>` or a printf's `%!`, which is what a template shows for data it wasn't given. Add to the fakes rather than going around them.
 - **Manager and backup tests** use a real SQLite store and real restic.
 - **The generator** is tested against golden files ([regenerating them](#regenerating-files) is below).
 - **The whole suite on Linux**, in the dev VM: `scripts/dev-vm.sh test` builds the test binaries on your machine, runs them in the VM with its restic, and takes the test binaries' flags, such as `-test.run TestApply`.

@@ -352,6 +352,8 @@ type ServiceNode interface {
 	Restores() node.Restores
 	Updates() node.Updates
 	Settings() node.Settings
+	Disks() node.Disks
+	History() node.History
 }
 
 // LabNetwork is what the UI needs from labnet.Hub.

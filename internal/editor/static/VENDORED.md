@@ -16,4 +16,4 @@ node_modules/.bin/esbuild entry.js --bundle --format=iife --global-name=YAML --p
   --target=es2020 --minify --charset=utf8 --outfile=yaml.js
 ```
 
-then put the comment on top (the first line, then `node_modules/yaml/LICENSE` with ` * ` before each line, then ` */`) and `yaml.js` below it. The bundle on its own has SHA-256 `042ea9c537bb9524b267cf773a1214d17f45b16c2b650ff08f947e11162f4b77`, the same each time. Update this table, the file name in `editor.go` and THIRD_PARTY.md (`internal/web/credits.go`).
+then put the comment on top (the first line, then `node_modules/yaml/LICENSE` with ` * ` before each line, then ` */`) and `yaml.js` below it. The bundle on its own has SHA-256 `042ea9c537bb9524b267cf773a1214d17f45b16c2b650ff08f947e11162f4b77`, the same each time. Update this table, the file name in `scripts.json` (its `scripts` and `vendored`) and THIRD_PARTY.md (`internal/web/credits.go`).

@@ -204,13 +204,28 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 
 The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUALITY-REVIEW-2026-10-21.md); IDs refer to it.
 
-- [ ] The Owner decides the rest of the review's §12 questions and agrees the plan (§11). All decided on 2026-10-22 (§12, "Decided")
-- [ ] CLAUDE.md's writing rules: the Owner's tense rule (2026-10-22), in batch 1e
+- [x] The Owner decides the rest of the review's §12 questions and agrees the plan (§11). All decided on 2026-10-22 (§12, "Decided")
+- [x] CLAUDE.md's writing rules: the Owner's tense rule (2026-10-22), in batch 1e
 - [x] Wave 0: the behaviour fixes found in passing (§2), all approved by the Owner on 2026-10-22 (P3 with its agreed wording, P9 in UTC); each finding's status, with its commit, is in the review
   - [x] Roostack's: P3–P7, P12, P13, P15, P16 (2026-10-22)
-  - [x] Cloud's: P1, P2, P8–P11, P14 (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`, not merged yet)
+  - [x] Cloud's: P1, P2, P8–P11, P14 (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`, merged)
   - [ ] P3's follow-up: check a failed move through a backup on two VMs (only fakes so far)
-- [ ] Wave 1: the parallel batches 1a–1j (§11)
+- [ ] Wave 1: the parallel batches 1a–1j (§11); the review's §11 "Wave 1 status" says what each did
+  - [x] 1a–1e here and 1h–1j in Cloud, merged into both `main`s on 2026-10-22
+  - [ ] 1f (CI, staticcheck, generated files, flaky tests) and 1g (the editor), running
+  - [ ] S10, one capability convention on `Node` (batch 1c's follow-up), running
+  - [ ] Cloud's reconciliation after 1h's move to `internal/ui`: the sync scripts' and mock-ups' paths, the design copy re-synced and checked, the docs (batch 1i's follow-up), running
+  - [x] Moving a service back to the controller with "copy directly" hung (found by 1c; on `main` before wave 1): the import now reads each tar stream to its end (2026-10-22, SPEC §10.10). Checked on VMs 5 and 6: Vaultwarden there and back, with its data
+  - [ ] T1's later step: split `agent` into portable wire types and client, and the Linux server
+  - [ ] Turn on GitHub's private vulnerability reporting in the repository's settings (SECURITY.md relies on it; the maintainer)
+  - [ ] `web.NewServer` could take `Node` as an argument too (always set in production; not in S1's decision)
+  - [ ] `li.card.service` in app.css is unused (not on §9's list)
+  - [ ] The media library form doesn't trim a share's server and path, as the photo and import steps do
+  - [ ] `importBrowsePage`'s "Use …" label trims a leading "." from folder names (`TrimPrefix(rel, ".")`)
+  - [ ] Right after saving a server's restart policy, its page shows the old hour until a reload a few seconds later (on `main` before wave 1)
+  - [ ] D3 (wave 2): `store.FormError` is a fifth "error a person can fix" type; `web.userMessage` doesn't know it (only `cmd/roostack` calls `store.Open` today)
+  - [ ] `AdoptBackupRuns` and `backup_runs.destination` exist only for runs from before repositories were recorded: pre-release aids that could go (a behaviour change, the Owner's call)
+  - [ ] Wave 4g: "the Owner" still means the maintainer in many older SPEC, TASKS and DESIGN entries ("the Owner's choice"); SPEC's top note explains it
 - [ ] Wave 2: the shared helpers, one at a time (§11)
   - [ ] P5's follow-up: one parser for the `# Added by Roostack:` blocks, with typed tag constructors (the edits share `editFstab` since wave 0, and `/etc/fstab` is replaced in one step since 2026-10-22, SPEC §6.1 "Editing `/etc/fstab`")
   - [ ] D1: the atomic writes of files that aren't private (0644: generated files, Caddy's, the registry's, `labnet`'s certificates) still have their own copies; switch them to `fsutil.WriteFile`, and add `fsutil.CopyFile` for the streamed copies (`labrestore.copyFile`, `node/importcopy.go`). Wave 0 (P7) moved every private (0600) and 0640 file to `fsutil` (2026-10-22)

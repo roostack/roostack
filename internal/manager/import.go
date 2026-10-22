@@ -83,8 +83,8 @@ func (m *Manager) SwitchImport(ctx context.Context, service string) error {
 		return formErrorf("Check your files again first.")
 	}
 	host := cmp.Or(in.Host, m.Lab.NodeID)
-	up, ok := m.node(host).(node.Updater)
-	if !ok {
+	up := node.Capability(m.node(host), node.Node.Updater)
+	if up == nil {
 		return formErrorf("Roostack can't reach %s's server.", p.Title)
 	}
 	switching.Lock()

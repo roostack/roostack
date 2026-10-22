@@ -53,7 +53,7 @@ func (f *fakeNode) ServiceDetails(context.Context) (map[string]ServiceDetail, er
 	return map[string]ServiceDetail{"vaultwarden": {Status: "running", Containers: []Container{{Name: "roostack-vaultwarden-app",
 		Image: "docker.io/vaultwarden/server:1.34", State: "active (running)"}}, DataSize: 1234}}, nil
 }
-func (f *fakeNode) Memory(context.Context) (MemoryInfo, error) {
+func (f *fakeNode) MemoryInfo(context.Context) (MemoryInfo, error) {
 	return MemoryInfo{Total: 8_000_000_000, Available: 3_600_000_000}, nil
 }
 func (f *fakeNode) BuiltIns(context.Context) ([]BuiltIn, error) {
@@ -88,6 +88,18 @@ func (f *fakeNode) Updates() Updates   { return nil }
 func (f *fakeNode) Settings() Settings { return f.settings }
 func (f *fakeNode) Media() Media       { return f.media }
 func (f *fakeNode) Imports() Imports   { return nil }
+
+// Capabilities: it reports its memory, and nothing else.
+func (f *fakeNode) Mover() Mover         { return nil }
+func (f *fakeNode) Updater() Updater     { return nil }
+func (f *fakeNode) Disks() Disks         { return nil }
+func (f *fakeNode) Memory() Memory       { return f }
+func (f *fakeNode) LeftData() LeftData   { return nil }
+func (f *fakeNode) History() History     { return nil }
+func (f *fakeNode) Linked() Linked       { return nil }
+func (f *fakeNode) GuestHost() GuestHost { return nil }
+func (f *fakeNode) Processor() Processor { return nil }
+func (f *fakeNode) Photos() Photos       { return nil }
 
 type fakeSettings struct{ zone string }
 
@@ -169,7 +181,7 @@ func TestRemote(t *testing.T) {
 		d["vaultwarden"].DataSize != 1234 {
 		t.Errorf("details = %+v, %v", d, err)
 	}
-	if m, err := r.Memory(ctx); err != nil || m.Total != 8_000_000_000 || m.Available != 3_600_000_000 {
+	if m, err := r.MemoryInfo(ctx); err != nil || m.Total != 8_000_000_000 || m.Available != 3_600_000_000 {
 		t.Errorf("memory = %+v, %v", m, err)
 	}
 	if b, err := r.BuiltIns(ctx); err != nil || len(b) != 1 || b[0].Name != "Roostack agent" {

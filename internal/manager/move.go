@@ -67,7 +67,7 @@ func (m *Manager) MoveInfo(ctx context.Context, name string) (MoveInfo, error) {
 			info.From = mc
 		}
 	}
-	if mv, ok := m.node(host).(node.Mover); ok {
+	if mv := node.Capability(m.node(host), node.Node.Mover); mv != nil {
 		if size, err := mv.DataSize(ctx, name); err == nil {
 			info.Size = size
 		}
@@ -105,9 +105,8 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	if err := m.checkArch(ctx, p, cmp.Or(in.Title, p.Title), to); err != nil {
 		return err
 	}
-	src, ok1 := m.node(from).(node.Mover)
-	dst, ok2 := m.node(to).(node.Mover)
-	if !ok1 || !ok2 {
+	src, dst := node.Capability(m.node(from), node.Node.Mover), node.Capability(m.node(to), node.Node.Mover)
+	if src == nil || dst == nil {
 		return formErrorf("Choose a server in this lab.")
 	}
 	for _, id := range []string{from, to} {
@@ -377,7 +376,8 @@ func waitBackup(ctx context.Context, b node.Backups, t time.Time) (*store.Backup
 	}
 }
 
-// pipe connects a writer function to a reader function.
+// pipe connects a writer function to a reader function. It succeeds only
+// if both do, and read took everything write wrote.
 func pipe(ctx context.Context, write func(io.Writer) error, read func(io.Reader) error) error {
 	pr, pw := io.Pipe()
 	sent := make(chan error, 1)
@@ -387,12 +387,16 @@ func pipe(ctx context.Context, write func(io.Writer) error, read func(io.Reader)
 		sent <- err
 	}()
 	err := read(pr)
-	if err != nil {
-		pr.CloseWithError(err)
-	}
+	// Closed even when read succeeded: one that stopped before the end
+	// would otherwise leave write waiting for ever. write then fails, and
+	// so does the copy, as some of the data wasn't taken.
+	pr.CloseWithError(err)
 	werr := <-sent
 	if errors.Is(werr, backup.ErrNotInSnapshot) {
 		return werr
+	}
+	if err == nil && errors.Is(werr, io.ErrClosedPipe) {
+		werr = fmt.Errorf("the receiving side stopped before the end of the data: %w", werr)
 	}
 	return errors.Join(werr, err)
 }
@@ -430,8 +434,8 @@ func (m *Manager) switchHost(name, to string) error {
 
 // KeptData lists folders moves left on a server.
 func (m *Manager) KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error) {
-	mv, ok := m.node(serverID).(node.Mover)
-	if !ok {
+	mv := node.Capability(m.node(serverID), node.Node.Mover)
+	if mv == nil {
 		return nil, ErrNotFound
 	}
 	return mv.KeptData(ctx)
@@ -441,16 +445,16 @@ func (m *Manager) KeptData(ctx context.Context, serverID string) ([]node.KeptFol
 // PutBackKeptData puts a folder kept on a server back in place of its
 // service's data (node.Local.PutBackKeptData).
 func (m *Manager) PutBackKeptData(ctx context.Context, serverID, path string) error {
-	mv, ok := m.node(serverID).(node.Mover)
-	if !ok {
+	mv := node.Capability(m.node(serverID), node.Node.Mover)
+	if mv == nil {
 		return ErrNotFound
 	}
 	return mv.PutBackKeptData(ctx, path)
 }
 
 func (m *Manager) RemoveKeptData(ctx context.Context, serverID, path string) error {
-	mv, ok := m.node(serverID).(node.Mover)
-	if !ok {
+	mv := node.Capability(m.node(serverID), node.Node.Mover)
+	if mv == nil {
 		return ErrNotFound
 	}
 	if err := mv.RemoveKeptData(ctx, path); err != nil {

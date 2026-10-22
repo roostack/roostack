@@ -38,7 +38,7 @@ func TestKeepHistory(t *testing.T) {
 
 	var events []store.Event
 	testwait.For(t, 10*time.Second, func() bool {
-		events, _ = n.History(ctx, time.Time{}, "", 10)
+		events, _ = n.HistoryPage(ctx, time.Time{}, "", 10)
 		return len(events) == 2
 	})
 	if len(events) != 2 {

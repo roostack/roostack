@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
-	"roostack.cloud/roostack/internal/node"
 )
 
 // History (SPEC.md §6.14): what Roostack did on each server (each finished
@@ -93,11 +92,11 @@ func (s *Server) historyEntries(r *http.Request, nodes []serverNode, kind string
 	}
 	if kind != "people" {
 		for _, mn := range nodes {
-			h, ok := mn.node.(node.History)
-			if !ok {
+			h := mn.node.History()
+			if h == nil {
 				continue
 			}
-			events, err := h.History(r.Context(), before, kind, historyPage)
+			events, err := h.HistoryPage(r.Context(), before, kind, historyPage)
 			if err != nil {
 				unreachable = append(unreachable, mn.view.Label())
 				continue
@@ -130,8 +129,8 @@ func (s *Server) historyEventPage(w http.ResponseWriter, r *http.Request) {
 		if mn.view.ID != r.PathValue("server") {
 			continue
 		}
-		h, ok := mn.node.(node.History)
-		if !ok {
+		h := mn.node.History()
+		if h == nil {
 			break
 		}
 		e, err := h.HistoryEvent(r.Context(), id)
@@ -178,7 +177,7 @@ func (s *Server) cullHistory(ctx context.Context, before time.Time) int64 {
 		s.Log.Error("deleting old history", "err", err)
 	}
 	for _, mn := range s.serverNodes() {
-		if h, ok := mn.node.(node.History); ok {
+		if h := mn.node.History(); h != nil {
 			if n, err := h.CullHistory(ctx, before); err == nil {
 				total += n
 			} else {

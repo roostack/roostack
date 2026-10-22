@@ -1,8 +1,10 @@
 // Package node is one server in the lab (SPEC.md §10). The Node interface
 // is everything the controller asks of a server; Local is this server and
 // Remote is another one, reached over the lab API (api.go serves it on
-// every server, remote.go calls it). Both implement the same interfaces,
-// so the manager and the web layer don't need to know which they have.
+// every server, remote.go calls it). Both implement Node, so the manager
+// and the web layer don't need to know which they have. What a server may
+// not have (its backups, moving data, its disks...) is a Node method that
+// returns nil when it doesn't (Node's doc says more).
 //
 // A server's work is given to it as an Assignment: the services placed
 // on it and the lab settings they need. The controller pushes each
@@ -13,8 +15,10 @@
 //
 // Where things are:
 //   - local.go, wire.go: Node, Local, Assignment and its wire form;
-//     api.go, remote.go, fleet.go: the lab API, its client, and the
-//     controller's set of other servers;
+//     api.go, remote.go, fleet.go: the lab API's route table, its
+//     client, and the controller's set of other servers; *wire.go: each
+//     feature's client methods beside the routes that answer them
+//     (roundtrip_test.go calls every one);
 //   - install.go, hooks.go, ssohooks.go, build.go: an install's steps,
 //     package hooks, single sign-on's hooks and Caddy's image build;
 //   - maintenance.go, settings.go: the server's maintenance jobs (backups,

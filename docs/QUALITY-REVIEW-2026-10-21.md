@@ -1154,6 +1154,17 @@ They touch few files, but they overlap with waves 1 and 2, so they go first.
 
 1b's and 1c's only shared file would be `internal/web`'s use of node capabilities if S10 is done: do S10 in 1c and leave web's call sites to it.
 
+**Wave 1 status (2026-10-22).** 1a–1e and 1h–1j are merged into both repositories' local `main` (Roostack `8585c66`, Cloud `0da7d41`; not pushed). Before merging, all eight were merged together in scratch worktrees and checked: `go vet` on both systems, and both suites. Roostack's suite failed once on `TestCloudLinking`, a T4 test that gives up silently under load; it passed five runs on its own, and 1f fixes it.
+- **1a** (T1, done): builds, vets and tests natively on a Mac; the Linux-only tests skip and say why. Left for later: splitting `agent` into portable wire types and the Linux server.
+- **1b** (S1, S2 steps 1 and 3, S3, S4's helper, S5, S6, D13, D14 apart from the update summary's wording, §9's web dead code, T8; done): twelve commits. The 597 pages the web tests render are identical before and after, apart from whitespace on one; the gallery is unchanged; the full suite and a look in the browser on VM 4. It also fixed `TestRestoreAgainChoosesTheBackup`, from wave 0, which failed after 06:00 local time.
+- **1c** (S9, done): `TestRoundTrip` calls all 94 lab API calls; one wire file per feature; `Server.Handler` is an 11-line route table. Checked with two VMs in every mix of old and new versions. It found that moving a service back to the controller with "copy directly" hung, a bug from before wave 1, fixed on 2026-10-22 (the import reads each tar stream to its end: SPEC.md §10.10). S10 is its follow-up, running.
+- **1d** (S14, done): `store.go` split by table (checked line by line), `queryAll[T]`, and the migrations squashed into one schema at version 37, with a test proving the schemas match.
+- **1e** (N3, N4, N6, N7, N8, the community files, done): CONTRIBUTING (approved by the Owner), SECURITY, the code of conduct, issue templates, CLAUDE.md with the wording rules, ARCHITECTURE by layer with "life of an install" and "life of a backup run", SPEC's contents and §10.3 as built, `TASKS-DONE.md`, `tools/maketakeout`, `docs/archive/`. All 374 relative links resolve.
+- **1h** (S15, S16's JSON helpers and `Wait`, S4's helper; done): `internal/ui`; `admin` no longer imports `web`; the static files moved there too. The pages the tests render are identical. Small behaviour changes: lock-outs say minutes up to 120 (they switched to hours at 90 in places); the API's answers aren't cached; a JSON body with trailing data is refused; two log lines are worded differently; a return path with a backslash is refused on both sites.
+- **1i** (X5, G1, G2, N5, §9's `SetEdgeToken`, the licence notice on copies; done): `ROOSTACK_REF`, CI checks for generated and copied files, shellcheck, actionlint, Dependabot, `ops/lib.sh`. Its follow-up, running, points the sync scripts and mock-ups at `internal/ui`, re-syncs the design copy and checks the portal, then makes stale design copies fail CI.
+- **1j** (N1, N2; done): LICENSE (the maintainer, all rights reserved), NOTICE, CLAUDE.md and ARCHITECTURE.md (approved by the Owner), README, `docs/RUNBOOK-CI.md`.
+- **1f and 1g** started after these merges. Their status will be added here when they land.
+
 ### Wave 2: cross-cutting helpers, one session at a time
 
 These touch many packages, so they run when wave 1 has merged and nothing else is in flight, one after another:

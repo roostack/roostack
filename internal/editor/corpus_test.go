@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -48,18 +47,11 @@ type corpusCase struct {
 	Risks    []string `json:"risks,omitempty"`
 }
 
-var corpusBases = map[string]string{
-	"vaultwarden": "vaultwarden/1.34.3-roostack.1.yaml",
-	"forgejo":     "forgejo/15.0.9-roostack.1.yaml",
-	"immich":      "immich/2.1.0-roostack.1.yaml",
-}
-
+// readBase reads one of the test packages (testPackages) as a base for
+// the corpus.
 func readBase(t *testing.T, name string) *yaml.Node {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "testdata", "packages", corpusBases[name]))
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, data := testPackage(t, name)
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		t.Fatal(err)
@@ -487,7 +479,7 @@ routes:
 
 func corpus(t *testing.T) []corpusCase {
 	var cases []corpusCase
-	for _, base := range slices.Sorted(maps.Keys(corpusBases)) {
+	for _, base := range slices.Sorted(slices.Values(testPackages)) {
 		doc := readBase(t, base)
 		first := map[string]string{}
 		root := doc.Content[0]

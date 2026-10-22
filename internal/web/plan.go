@@ -205,7 +205,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 				}
 			}
 			// Another server's backup store: its disk, as it says.
-			if d, ok := s.Manager.NodeByID(host).(node.Disks); ok {
+			if d := node.Capability(s.Manager.NodeByID(host), node.Node.Disks); d != nil {
 				dctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 				if disks, err := d.DiskSpaces(dctx); err == nil {
 					if ds, ok := node.StoreDisk(disks); ok {

@@ -309,6 +309,10 @@ func (n *Local) Photos() Photos {
 	return n
 }
 
+// Photos isn't on the lab API yet: photos are migrated only into an
+// Immich on the controller (TASKS.md).
+func (r *Remote) Photos() Photos { return nil }
+
 // photoService is a service of this server's that photos can be migrated
 // into: Immich (photoimport.Supports).
 func (n *Local) photoService(service string) (state.Service, error) {
@@ -841,7 +845,7 @@ func (n *Local) SetPhotoMemory(ctx context.Context, service, share string) error
 }
 
 func (n *Local) PhotoMemory(ctx context.Context, service string) (limit, total int64) {
-	if m, err := n.Memory(ctx); err == nil {
+	if m, err := n.MemoryInfo(ctx); err == nil {
 		total = m.Total
 	}
 	return photoimport.Memory(total, n.loadPhotos(ctx, service).Memory), total

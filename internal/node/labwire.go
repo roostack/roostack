@@ -75,13 +75,13 @@ func (s *Server) labRoutes(handle handleFunc) {
 		w := WireStatus{Running: st.Running, LastRun: st.LastRun, Finished: st.Finished, Version: s.Version(),
 			Backups: n.Backups() != nil, Restores: n.Restores() != nil, Updates: n.Updates() != nil,
 			Settings: n.Settings() != nil, Imports: n.Imports() != nil}
-		if p, ok := n.(Processor); ok {
+		if p := n.Processor(); p != nil {
 			w.Arch = p.Arch()
 		}
 		if st.LastErr != nil {
 			w.LastErr = st.LastErr.Error()
 		}
-		if l, ok := n.(Linked); ok {
+		if l := n.Linked(); l != nil {
 			w.Addrs, w.Links = l.LinkStatus(r.Context())
 		}
 		return w, nil

@@ -35,6 +35,10 @@ type healthNode struct {
 	restarts int
 }
 
+// Updater is h itself, so updates use its CheckHealth (Local's would
+// return the Local).
+func (h *healthNode) Updater() node.Updater { return h }
+
 func (h *healthNode) CheckHealth(_ context.Context, service string) (node.Health, error) {
 	in, err := instance.Load(state.InstanceFile(h.m.Lab, service))
 	if err != nil {

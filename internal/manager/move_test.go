@@ -74,6 +74,10 @@ func (m *movingServer) did(op string) error {
 	return nil
 }
 func (m *movingServer) DataDirs(string) []string { return nil }
+
+// Mover is the server itself (fakeRemote's is nil).
+func (m *movingServer) Mover() node.Mover { return m }
+
 func (m *movingServer) ExportData(_ context.Context, _ string, dir int, since time.Time, w io.Writer) error {
 	m.mu.Lock()
 	out := map[string]file{}
@@ -450,5 +454,30 @@ func TestMoveThroughBackupGoesBack(t *testing.T) {
 	var fe *FormError
 	if err := m.StartHeld(ctx, "forgejo"); !errors.As(err, &fe) {
 		t.Errorf("starting one that isn't held: %v", err)
+	}
+}
+
+// A reader that returns before reading everything (as tar stops at its
+// end-of-archive marker) fails the copy rather than leaving the writer
+// waiting for ever, and a whole copy still succeeds.
+func TestPipeReaderStopsEarly(t *testing.T) {
+	data := make([]byte, 64<<10)
+	done := make(chan error, 1)
+	go func() {
+		done <- pipe(context.Background(), func(w io.Writer) error { _, err := w.Write(data); return err },
+			func(r io.Reader) error { _, err := io.ReadFull(r, make([]byte, 1024)); return err })
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("a copy that wasn't all read succeeded")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the writer is still waiting")
+	}
+	err := pipe(context.Background(), func(w io.Writer) error { _, err := w.Write(data); return err },
+		func(r io.Reader) error { _, err := io.Copy(io.Discard, r); return err })
+	if err != nil {
+		t.Error(err)
 	}
 }

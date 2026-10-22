@@ -145,12 +145,22 @@ func (f rtNode) LatestActivity(kind string) (activity.Snapshot, bool) {
 	f.rec("LatestActivity", kind)
 	return rtActivity, true
 }
-func (f rtNode) Backups() Backups   { return rtBackups(f) }
-func (f rtNode) Restores() Restores { return rtRestores(f) }
-func (f rtNode) Updates() Updates   { return rtUpdates(f) }
-func (f rtNode) Settings() Settings { return rtSettings(f) }
-func (f rtNode) Media() Media       { return rtMedia(f) }
-func (f rtNode) Imports() Imports   { return rtImports(f) }
+func (f rtNode) Backups() Backups     { return rtBackups(f) }
+func (f rtNode) Restores() Restores   { return rtRestores(f) }
+func (f rtNode) Updates() Updates     { return rtUpdates(f) }
+func (f rtNode) Settings() Settings   { return rtSettings(f) }
+func (f rtNode) Media() Media         { return rtMedia(f) }
+func (f rtNode) Imports() Imports     { return rtImports(f) }
+func (f rtNode) Mover() Mover         { return f }
+func (f rtNode) Updater() Updater     { return f }
+func (f rtNode) Disks() Disks         { return f }
+func (f rtNode) Memory() Memory       { return f }
+func (f rtNode) LeftData() LeftData   { return f }
+func (f rtNode) History() History     { return f }
+func (f rtNode) Linked() Linked       { return f }
+func (f rtNode) GuestHost() GuestHost { return f }
+func (f rtNode) Processor() Processor { return f }
+func (f rtNode) Photos() Photos       { return nil }
 
 // Processor, Linked.
 func (f rtNode) Arch() string { f.rec("Arch"); return "arm64" }
@@ -238,13 +248,16 @@ func (f rtNode) DiskSpaces(context.Context) ([]DiskSpace, error) {
 	f.rec("DiskSpaces")
 	return rtDisks, nil
 }
-func (f rtNode) Memory(context.Context) (MemoryInfo, error) { f.rec("Memory"); return rtMemory, nil }
-func (f rtNode) LeftData(_ context.Context, s string) ([]string, error) {
-	f.rec("LeftData", s)
+func (f rtNode) MemoryInfo(context.Context) (MemoryInfo, error) {
+	f.rec("MemoryInfo")
+	return rtMemory, nil
+}
+func (f rtNode) LeftDataDirs(_ context.Context, s string) ([]string, error) {
+	f.rec("LeftDataDirs", s)
 	return []string{"/srv/old"}, nil
 }
-func (f rtNode) History(_ context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
-	f.rec("History", before, kind, limit)
+func (f rtNode) HistoryPage(_ context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
+	f.rec("HistoryPage", before, kind, limit)
 	return rtEvents, nil
 }
 func (f rtNode) HistoryEvent(_ context.Context, id int64) (store.Event, error) {
@@ -663,12 +676,12 @@ func TestRoundTrip(t *testing.T) {
 		{"CheckHealth", func() (any, error) { return r.CheckHealth(ctx, "immich") }, []rtCall{call("CheckHealth", "immich")}, rtHealth},
 
 		{"DiskSpaces", func() (any, error) { return r.DiskSpaces(ctx) }, []rtCall{call("DiskSpaces")}, rtDisks},
-		{"Memory", func() (any, error) { return r.Memory(ctx) }, []rtCall{call("Memory")}, rtMemory},
-		{"LeftData", func() (any, error) { return r.LeftData(ctx, "immich") }, []rtCall{call("LeftData", "immich")}, []string{"/srv/old"}},
-		{"History", func() (any, error) { return r.History(ctx, rtSince, "backup", 50) },
-			[]rtCall{call("History", rtSince, "backup", 50)}, rtEvents},
-		{"History all", func() (any, error) { return r.History(ctx, time.Time{}, "", 500) },
-			[]rtCall{call("History", time.Time{}, "", 200)}, rtEvents},
+		{"MemoryInfo", func() (any, error) { return r.MemoryInfo(ctx) }, []rtCall{call("MemoryInfo")}, rtMemory},
+		{"LeftDataDirs", func() (any, error) { return r.LeftDataDirs(ctx, "immich") }, []rtCall{call("LeftDataDirs", "immich")}, []string{"/srv/old"}},
+		{"HistoryPage", func() (any, error) { return r.HistoryPage(ctx, rtSince, "backup", 50) },
+			[]rtCall{call("HistoryPage", rtSince, "backup", 50)}, rtEvents},
+		{"HistoryPage all", func() (any, error) { return r.HistoryPage(ctx, time.Time{}, "", 500) },
+			[]rtCall{call("HistoryPage", time.Time{}, "", 200)}, rtEvents},
 		{"HistoryEvent", func() (any, error) { return r.HistoryEvent(ctx, 7) }, []rtCall{call("HistoryEvent", int64(7))}, rtEvents[0]},
 		{"CullHistory", func() (any, error) { return r.CullHistory(ctx, rtSince) }, []rtCall{call("CullHistory", rtSince)}, int64(12)},
 
@@ -744,7 +757,9 @@ func TestRoundTrip(t *testing.T) {
 
 	// Every method that goes over the wire has a row.
 	local := map[string]bool{"Identity": true, "Address": true, "Close": true, "Pending": true, "DataDirs": true,
-		"Backups": true, "Restores": true, "Updates": true, "Settings": true, "Media": true, "Imports": true}
+		"Backups": true, "Restores": true, "Updates": true, "Settings": true, "Media": true, "Imports": true,
+		"Mover": true, "Updater": true, "Disks": true, "Memory": true, "LeftData": true, "History": true,
+		"Linked": true, "GuestHost": true, "Processor": true, "Photos": true}
 	for prefix, v := range map[string]any{"": r, "Backups.": remoteBackups{}, "Restores.": remoteRestores{},
 		"Updates.": remoteUpdates{}, "Settings.": remoteSettings{}, "Media.": remoteMedia{}, "Imports.": remoteImports{}} {
 		typ := reflect.TypeOf(v)
@@ -760,16 +775,25 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-// bareNode is a node with no capabilities: only Node's methods, and none
-// of its maintenance jobs, settings, media or imports.
+// bareNode is a node with no capabilities.
 type bareNode struct{ Node }
 
-func (bareNode) Backups() Backups   { return nil }
-func (bareNode) Restores() Restores { return nil }
-func (bareNode) Updates() Updates   { return nil }
-func (bareNode) Settings() Settings { return nil }
-func (bareNode) Media() Media       { return nil }
-func (bareNode) Imports() Imports   { return nil }
+func (bareNode) Backups() Backups     { return nil }
+func (bareNode) Restores() Restores   { return nil }
+func (bareNode) Updates() Updates     { return nil }
+func (bareNode) Settings() Settings   { return nil }
+func (bareNode) Media() Media         { return nil }
+func (bareNode) Imports() Imports     { return nil }
+func (bareNode) Mover() Mover         { return nil }
+func (bareNode) Updater() Updater     { return nil }
+func (bareNode) Disks() Disks         { return nil }
+func (bareNode) Memory() Memory       { return nil }
+func (bareNode) LeftData() LeftData   { return nil }
+func (bareNode) History() History     { return nil }
+func (bareNode) Linked() Linked       { return nil }
+func (bareNode) GuestHost() GuestHost { return nil }
+func (bareNode) Processor() Processor { return nil }
+func (bareNode) Photos() Photos       { return nil }
 
 // A server without a capability answers "not found" to each of its
 // routes, so the controller knows it isn't there, rather than a server
@@ -847,9 +871,9 @@ func TestRoundTripWithout(t *testing.T) {
 		"FinishUpdate":    func() error { return r.FinishUpdate(ctx, "u-1") },
 		"CheckHealth":     func() error { _, err := r.CheckHealth(ctx, "immich"); return err },
 		"DiskSpaces":      func() error { _, err := r.DiskSpaces(ctx); return err },
-		"Memory":          func() error { _, err := r.Memory(ctx); return err },
-		"LeftData":        func() error { _, err := r.LeftData(ctx, "immich"); return err },
-		"History":         func() error { _, err := r.History(ctx, time.Time{}, "", 10); return err },
+		"MemoryInfo":      func() error { _, err := r.MemoryInfo(ctx); return err },
+		"LeftDataDirs":    func() error { _, err := r.LeftDataDirs(ctx, "immich"); return err },
+		"HistoryPage":     func() error { _, err := r.HistoryPage(ctx, time.Time{}, "", 10); return err },
 		"HistoryEvent":    func() error { _, err := r.HistoryEvent(ctx, 1); return err },
 		"CullHistory":     func() error { _, err := r.CullHistory(ctx, rtSince); return err },
 

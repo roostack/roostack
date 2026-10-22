@@ -579,8 +579,8 @@ func (m *Manager) InstallSummary(name string, req InstallRequest) (*InstallSumma
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), memoryWait)
 	defer cancel()
-	if nm, ok := n.(node.Memory); ok {
-		if info, err := nm.Memory(ctx); err == nil {
+	if nm := node.Capability(n, node.Node.Memory); nm != nil {
+		if info, err := nm.MemoryInfo(ctx); err == nil {
 			out.Server.Total, out.Server.Available = info.Total, info.Available
 		} else {
 			m.Log.Warn("server memory", "server", id.Name, "err", err)
@@ -914,13 +914,13 @@ func (m *Manager) DataDirs(name string) []string {
 // None when there are none, or the server can't say: a server from before
 // answers 404, and nothing is assumed then.
 func (m *Manager) leftData(ctx context.Context, host, name string) []string {
-	nl, ok := m.node(host).(node.LeftData)
-	if !ok {
+	nl := node.Capability(m.node(host), node.Node.LeftData)
+	if nl == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, memoryWait)
 	defer cancel()
-	dirs, err := nl.LeftData(ctx, name)
+	dirs, err := nl.LeftDataDirs(ctx, name)
 	if err != nil && !errors.Is(err, node.ErrNotFound) {
 		m.Log.Warn("a service's data from before", "server", host, "service", name, "err", err)
 	}

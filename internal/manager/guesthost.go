@@ -29,8 +29,7 @@ func (m *Manager) GuestServer(ctx context.Context) string {
 
 // guestHost is that server.
 func (m *Manager) guestHost(ctx context.Context) node.GuestHost {
-	h, _ := m.node(m.GuestServer(ctx)).(node.GuestHost)
-	return h
+	return node.Capability(m.node(m.GuestServer(ctx)), node.Node.GuestHost)
 }
 
 // GuestLinkAgent configures the guests' link on the hosting server (the
@@ -71,7 +70,7 @@ func (m *Manager) SetGuestServer(ctx context.Context, id string) error {
 	if n == nil {
 		return ErrNotFound
 	}
-	if _, ok := n.(node.GuestHost); !ok || (n != m.Node && n.Settings() == nil) {
+	if n.GuestHost() == nil || (n != m.Node && n.Settings() == nil) {
 		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	old := m.GuestServer(ctx)

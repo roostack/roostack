@@ -129,7 +129,7 @@ func (m *Manager) linkInfos(ctx context.Context) map[string]linkInfo {
 	out := map[string]linkInfo{}
 	for id, p := range peers {
 		info := linkInfo{Peer: p}
-		if l, ok := m.node(id).(node.Linked); ok {
+		if l := node.Capability(m.node(id), node.Node.Linked); l != nil {
 			info.Home, _ = l.LinkStatus(ctx)
 		}
 		out[id] = info
@@ -263,7 +263,7 @@ func (m *Manager) CheckLinks(ctx context.Context) {
 		// Either side seeing a recent handshake is enough.
 		up := false
 		for _, side := range [][2]string{{p[0], p[1]}, {p[1], p[0]}} {
-			if l, ok := m.node(side[0]).(node.Linked); ok {
+			if l := node.Capability(m.node(side[0]), node.Node.Linked); l != nil {
 				_, hs := l.LinkStatus(ctx)
 				if t := hs[infos[side[1]].PublicKey]; t > 0 && time.Since(time.Unix(t, 0)) < linkFresh {
 					up = true

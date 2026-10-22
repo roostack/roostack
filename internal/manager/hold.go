@@ -122,8 +122,8 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 	}
 	host := cmp.Or(in.Host, m.Lab.NodeID)
 	if !h.KeptByRestore {
-		mv, ok := m.node(host).(node.Mover)
-		if !ok {
+		mv := node.Capability(m.node(host), node.Node.Mover)
+		if mv == nil {
 			return ErrNotFound
 		}
 		if err := mv.PutBackKeptData(ctx, h.Kept); err != nil {

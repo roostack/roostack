@@ -979,7 +979,7 @@ type fakeNode struct {
 	disks    []node.DiskSpace
 }
 
-func (f *fakeNode) History(_ context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
+func (f *fakeNode) HistoryPage(_ context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
 	var out []store.Event
 	for _, e := range f.events {
 		if (kind == "" || e.Kind == kind) && (before.IsZero() || e.Finished.Before(before)) {
@@ -1012,6 +1012,18 @@ func (f *fakeNode) CullHistory(_ context.Context, before time.Time) (int64, erro
 
 // DiskSpaces is f.disk (the system disk, with the backup store) and any
 // more disks in f.disks.
+// Capabilities: its disks and history, and nothing else.
+func (f *fakeNode) Disks() node.Disks         { return f }
+func (f *fakeNode) History() node.History     { return f }
+func (f *fakeNode) Mover() node.Mover         { return nil }
+func (f *fakeNode) Updater() node.Updater     { return nil }
+func (f *fakeNode) Memory() node.Memory       { return nil }
+func (f *fakeNode) LeftData() node.LeftData   { return nil }
+func (f *fakeNode) Linked() node.Linked       { return nil }
+func (f *fakeNode) GuestHost() node.GuestHost { return nil }
+func (f *fakeNode) Processor() node.Processor { return nil }
+func (f *fakeNode) Photos() node.Photos       { return nil }
+
 func (f *fakeNode) DiskSpaces(context.Context) ([]node.DiskSpace, error) {
 	if f.disk == nil {
 		return nil, errors.New("no disk")

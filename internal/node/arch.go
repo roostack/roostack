@@ -12,6 +12,12 @@ type Processor interface {
 	Arch() string
 }
 
+// Processor is this server, which knows its own processor.
+func (n *Local) Processor() Processor { return n }
+
+// Processor is the server, as its status says (Arch).
+func (r *Remote) Processor() Processor { return r }
+
 var (
 	_ Processor = (*Local)(nil)
 	_ Processor = (*Remote)(nil)
