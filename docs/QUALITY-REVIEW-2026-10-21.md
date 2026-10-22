@@ -1282,7 +1282,7 @@ Every recommendation above was accepted, except where this list says otherwise:
   - **X5:** a `ROOSTACK_REF` file in Cloud, read by CI and `deploy.sh`; the deploy refuses a dirty or different Roostack checkout; the binary records both commits. A real module version once Roostack is public.
   - **X2, G1:** Cloud's CI fails when a copy doesn't match the Roostack commit it names, and warns when that commit is behind Roostack's `main`.
 - **Cloud is private, and stays private.** That changes N1 and N5:
-  - **Cloud's licence is a proprietary "all rights reserved" notice,** not an open-source licence. It also carries a NOTICE saying which parts come from Roostack under Apache-2.0, which allows this. When Cloud's website serves Roostack's editor, CSS and icons to browsers, those files keep Roostack's copyright and licence notice. **Still open:** the copyright holder's name.
+  - **Cloud's licence is a proprietary "all rights reserved" notice,** not an open-source licence. It also carries a NOTICE saying which parts come from Roostack under Apache-2.0, which allows this. When Cloud's website serves Roostack's editor, CSS and icons to browsers, those files keep Roostack's copyright and licence notice. The copyright holder, for now, is the maintainer.
   - **No CONTRIBUTING, SECURITY or code of conduct in Cloud,** and no public pull requests. Issues about Roostack Cloud are raised in Roostack's repository; Cloud's README says so.
   - **Roostack's SECURITY.md covers both products,** with reports to `security@roostack.cloud` (which exists) and GitHub's private vulnerability reporting.
   - **Roostack's code of conduct** is the Contributor Covenant 2.1, with reports to `security@roostack.cloud` unless the Owner names another address.
@@ -1302,4 +1302,4 @@ Every recommendation above was accepted, except where this list says otherwise:
   - J3, the OpenTofu module when production is planned;
   - D14 left for wave 4;
   - `SetEdgeToken` deleted, with "rotate an edge's token" filed in Cloud's TASKS.
-- **Still open:** S1, explained again on 2026-10-22.
+- **S1:** the dependencies that are always set in production become constructor arguments, and their nil checks go: the manager, the store, the log, the lab's settings, the setup steps, the sessions and the templates. The ones that come with a feature stay optional, grouped by feature.
