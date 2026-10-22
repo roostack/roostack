@@ -216,7 +216,8 @@ func (n *Local) ImportData(ctx context.Context, service string, dir int, r io.Re
 // refuses ".." and delays links sent in the same stream, but follows a
 // link already on disk (docs/ASSUMPTIONS.md L19, checked on VM1), and a
 // copy sends its data more than once into the same folder. The stream
-// stops at the member refused, which never reaches tar. strip is tar's
+// stops at the member refused, which never reaches tar. It's read to its
+// end, past tar's end-of-archive marker (readPadding). strip is tar's
 // --strip-components; links is updated as the stream goes.
 func checkStream(r io.Reader, w io.Writer, strip int, links map[string]bool) error {
 	tr := tar.NewReader(r)
@@ -224,6 +225,9 @@ func checkStream(r io.Reader, w io.Writer, strip int, links map[string]bool) err
 	for {
 		h, err := tr.Next()
 		if errors.Is(err, io.EOF) {
+			if err := readPadding(r); err != nil {
+				return err
+			}
 			return tw.Close()
 		}
 		if err != nil {
@@ -247,6 +251,27 @@ func checkStream(r io.Reader, w io.Writer, strip int, links map[string]bool) err
 			return err
 		}
 		if _, err := io.Copy(tw, tr); err != nil {
+			return err
+		}
+	}
+}
+
+// readPadding reads what follows a tar stream's end-of-archive marker: GNU
+// tar pads its stream to a whole record (10 KiB) with zeros. A sender
+// across the lab API finishes only once all it sent has been read, so
+// stopping at the marker would leave a copy waiting for ever. Anything but
+// zeros is refused: tar would drop it, and it may be data.
+func readPadding(r io.Reader) error {
+	buf := make([]byte, 32<<10)
+	for {
+		n, err := r.Read(buf)
+		if slices.ContainsFunc(buf[:n], func(b byte) bool { return b != 0 }) {
+			return errors.New("the data sent goes on after the end of its tar stream")
+		}
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
 			return err
 		}
 	}

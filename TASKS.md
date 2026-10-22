@@ -215,7 +215,7 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
   - [ ] 1f (CI, staticcheck, generated files, flaky tests) and 1g (the editor), running
   - [ ] S10, one capability convention on `Node` (batch 1c's follow-up), running
   - [ ] Cloud's reconciliation after 1h's move to `internal/ui`: the sync scripts' and mock-ups' paths, the design copy re-synced and checked, the docs (batch 1i's follow-up), running
-  - [ ] Moving a service back to the controller with "copy directly" hangs (found by 1c; on `main` before wave 1): its own session, running
+  - [x] Moving a service back to the controller with "copy directly" hung (found by 1c; on `main` before wave 1): the import now reads each tar stream to its end (2026-10-22, SPEC §10.10). Checked on VMs 5 and 6: Vaultwarden there and back, with its data
   - [ ] T1's later step: split `agent` into portable wire types and client, and the Linux server
   - [ ] Turn on GitHub's private vulnerability reporting in the repository's settings (SECURITY.md relies on it; the maintainer)
   - [ ] `web.NewServer` could take `Node` as an argument too (always set in production; not in S1's decision)
