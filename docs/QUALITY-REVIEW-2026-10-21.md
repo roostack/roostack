@@ -1145,12 +1145,12 @@ They touch few files, but they overlap with waves 1 and 2, so they go first.
 | **1b. Web tidy** | Roostack | §9's web dead code, D13, D14, S1 (constructor and groups), S3, S5, S6, T8 (web's fakes) | `internal/web/**` only | Page HTML before/after; gallery unchanged; VM look |
 | **1c. Lab API wire** | Roostack | S9 (round-trip test first, then wire files), S10 if decided | `internal/node/api.go`, `remote.go`, new `*wire.go`, `remote_test.go` | The new round-trip test before and after; VM with a second server joined |
 | **1d. Store split** | Roostack | S14 step 1 (pure move), dead store functions | `internal/store/*` | Suite; `git diff --stat` shows only moves |
-| **1e. Docs and layout** | Roostack | N3, N4, N6, N7, N8, package docs for `cloud`, `node`, `setup` (new `doc.go`s), CONTRIBUTING, SECURITY; CLAUDE.md's writing rules gain the Owner's wording rules (2026-10-22; see wave 4): the future for what will happen, the present continuous for what's happening, not the present simple; and no short, clipped statements | `README.md`, `ARCHITECTURE.md`, `CLAUDE.md`, `docs/**`, `tools/maketakeout` (moved), new `doc.go`s | Links resolve; `go test ./tools/...` |
+| **1e. Docs and layout** | Roostack | N3, N4, N6, N7, N8, package docs for `cloud`, `node`, `setup` (new `doc.go`s), CONTRIBUTING, SECURITY (both products, `security@roostack.cloud`), the code of conduct, issue templates (one for Roostack Cloud); CLAUDE.md's writing rules gain the Owner's wording rules (2026-10-22; see wave 4): the future for what will happen, the present continuous for what's happening, not the present simple; and no short, clipped statements | `README.md`, `ARCHITECTURE.md`, `CLAUDE.md`, `docs/**`, `tools/maketakeout` (moved), new `doc.go`s | Links resolve; `go test ./tools/...` |
 | **1f. CI and generated files** | Roostack | G1, G2, G3 (if decided), the Makefile's `gofmt` | `.github/**`, `Makefile`, `scripts/*` (shellcheck fixes) | CI green on a branch |
 | **1g. Editor** | Roostack, then Cloud's sync | J1 (escape helper, split `importCompose`, script manifest) | `internal/editor/**`, then `cloud:tools/sync-editor.sh`, `cloud:site/src/pages/package-editor.astro` | `make editor-test`; corpus unchanged |
 | **1h. Cloud ui** | Cloud | S15, S16's JSON helpers and `Wait`, S4's `<no value>` test helper | `internal/web/**`, `internal/admin/**`, new `internal/ui` | Full suite; e2e; look at the website and the console |
 | **1i. Cloud CI, ops and build** | Cloud | X5 (stamp and refuse dirty), G1's Cloud rows, G2's Cloud rows, `ops/lib.sh`, N5 | `.github/**`, `Makefile`, `ops/*.sh`, `tools/*`, `.gitignore` | CI green; a deploy to test |
-| **1j. Cloud docs** | Cloud | N1, N2, the stale comments | new `CLAUDE.md`, `ARCHITECTURE.md`, `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `SECURITY.md`, `README.md`, `docs/DESIGN.md` headings | Read by the Owner |
+| **1j. Cloud docs** | Cloud | N1 as decided (a proprietary LICENSE, a NOTICE for Roostack's Apache-2.0 parts, Roostack's notice kept on the files the website serves, a README that says Cloud is private and where issues go), N2, the stale comments | new `CLAUDE.md`, `ARCHITECTURE.md`, `LICENSE`, `NOTICE`, `README.md`, `docs/DESIGN.md` headings, `tools/sync-*.sh` (the notice) | Read by the Owner |
 
 1b's and 1c's only shared file would be `internal/web`'s use of node capabilities if S10 is done: do S10 in 1c and leave web's call sites to it.
 
@@ -1261,3 +1261,45 @@ Grouped. Everything not listed here can go ahead once the plan is agreed.
 - N8: which documents are history, and where `maketakeout` goes.
 - S14 step 3: squashing the store's migrations before the first release.
 - J3: the OpenTofu module layout and its timing.
+
+### Decided (the Owner, 2026-10-22)
+
+Every recommendation above was accepted, except where this list says otherwise:
+
+- **Wave 1:**
+  - **T1:** no direct `x/sys/unix`; build tags with the standard `syscall`.
+  - **S7:** web isn't split now; revisit after wave 3.
+  - **S10:** every capability is a `Node` method that returns nil when the server lacks it.
+  - **S14 step 3:** the migrations are squashed into a schema that counts as migration 37, so databases already at 37 carry on.
+  - **N3:** a CONTRIBUTING.md for people; CLAUDE.md keeps what's for agents, points to it, and gains the wording rules.
+  - **N6:** SPEC §10.3 is rewritten as built; "2.1 Licence" becomes §3.3 (four citations); §10.6 gets a one-line note, not a renumbering.
+  - **N7:** a reading order and contents list for SPEC; finished TASKS phases go to `TASKS-DONE.md`; "the maintainer" in project documents, "the Owner" for the role.
+  - **N8:** `maketakeout` moves to `tools/maketakeout`; `docs/migration-rehearsal` moves to `docs/archive/`; ARM64-PLAN, PLAN and the research documents stay.
+  - **G3:** staticcheck in CI, pinned, with a `staticcheck.conf` that turns off ST1005; not deadcode.
+  - **G2:** Dependabot, monthly, grouped, for GitHub Actions and Go modules; other pinned versions in one versions file per repository.
+  - **J1:** no JavaScript formatter yet; an `.editorconfig`.
+  - **X6:** keep the stricter hand-written `sameOrigin`.
+  - **X5:** a `ROOSTACK_REF` file in Cloud, read by CI and `deploy.sh`; the deploy refuses a dirty or different Roostack checkout; the binary records both commits. A real module version once Roostack is public.
+  - **X2, G1:** Cloud's CI fails when a copy doesn't match the Roostack commit it names, and warns when that commit is behind Roostack's `main`.
+- **Cloud is private, and stays private.** That changes N1 and N5:
+  - **Cloud's licence is a proprietary "all rights reserved" notice,** not an open-source licence. It also carries a NOTICE saying which parts come from Roostack under Apache-2.0, which allows this. When Cloud's website serves Roostack's editor, CSS and icons to browsers, those files keep Roostack's copyright and licence notice. **Still open:** the copyright holder's name.
+  - **No CONTRIBUTING, SECURITY or code of conduct in Cloud,** and no public pull requests. Issues about Roostack Cloud are raised in Roostack's repository; Cloud's README says so.
+  - **Roostack's SECURITY.md covers both products,** with reports to `security@roostack.cloud` (which exists) and GitHub's private vulnerability reporting.
+  - **Roostack's code of conduct** is the Contributor Covenant 2.1, with reports to `security@roostack.cloud` unless the Owner names another address.
+  - **Roostack's issue templates** include one for Roostack Cloud.
+  - **N5's "built from outside"** no longer applies to Cloud.
+- **N2:** CLAUDE.md and ARCHITECTURE.md for Cloud, drafted from the code and read by the Owner before they're committed.
+- **Waves 2 and 3:** every recommendation accepted:
+  - X1, a public `units`;
+  - X4, `SealFor` and `OpenFor`, still opening the old form;
+  - X7, a route table in `cloudapi`;
+  - D10;
+  - no shared mail package (X3);
+  - D2, `internal/words` with a rough and an exact duration style;
+  - D3, `internal/usererr`;
+  - S2 step 4, S8 step 4 (photos first) and S17 (the relay and `controlplane` now, `accounts` gradually);
+  - D12, one "Kept copies" list, with a mock-up first;
+  - J3, the OpenTofu module when production is planned;
+  - D14 left for wave 4;
+  - `SetEdgeToken` deleted, with "rotate an edge's token" filed in Cloud's TASKS.
+- **Still open:** S1, explained again on 2026-10-22.
