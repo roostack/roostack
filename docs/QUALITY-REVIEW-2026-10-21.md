@@ -1181,7 +1181,9 @@ These touch many packages, so they run when wave 1 has merged and nothing else i
 - **X4** (done): `SealFor`, `OpenFor` and `IsSealed` in `authkit`; Cloud's two-factor secrets use them, and its two older forms still open. Whether to reseal the older forms is the maintainer's call (TASKS).
 - **X7** (done): `cloudapi.Routes`; Cloud's `TestRoutes` checks its routes against it both ways; Roostack's fake Cloud follows it and its client is tested against suspensions and the write limit. It found a small misreport after a 429 and two test problems from before, filed in TASKS.
 - **Step 2, D2** (done, merged): `internal/words` (`Capitalise`, `And`, `Or`, `Count`, `Plural`, `FirstLine`, `RoughDuration`, `ExactDuration`) in place of about 30 copies in `web`, `manager`, `node` and `setup`; the template functions call it. Every page, activity line, audit line, user error and email the suite produces was recorded before and after: no sentence changed. One fix on purpose: `Capitalise` works on letters, not bytes, so a first letter outside ASCII ("émilie") is no longer broken. What kept its own formatter, so its output stays the same, is in TASKS.md for wave 4.
-- **X1** follows.
+- **X1** (done, merged): `units` is a public package, with `AsSold` (the portal's style) beside `Bytes` and `Count`; every size Roostack shows is unchanged. Cloud's own four formatters and `thousands` are gone: the portal and the owners' storage emails use `AsSold`, the console, the command line and the team's storage emails `Bytes`, so a size is written one way in each place (examples before and after in Cloud's commit `e687289`).
+
+Wave 2 is complete.
 
 ### Wave 3: structural, after the Owner decides
 
