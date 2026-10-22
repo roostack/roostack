@@ -39,7 +39,7 @@ func (n *Local) GuestSpace(context.Context) (int64, int64, error) {
 		var st syscall.Statfs_t
 		err := syscall.Statfs(dir, &st)
 		if err == nil {
-			return int64(st.Bavail) * st.Bsize, int64(st.Blocks) * st.Bsize, nil
+			return int64(st.Bavail) * int64(st.Bsize), int64(st.Blocks) * int64(st.Bsize), nil
 		}
 		parent := filepath.Dir(dir)
 		if !errors.Is(err, os.ErrNotExist) || parent == dir {

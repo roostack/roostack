@@ -201,7 +201,15 @@ func ping(ctx context.Context, ip net.IP) error {
 	if ip.To4() == nil {
 		family, proto, echo = syscall.AF_INET6, syscall.IPPROTO_ICMPV6, 128
 	}
-	fd, err := syscall.Socket(family, syscall.SOCK_DGRAM|syscall.SOCK_CLOEXEC, proto)
+	// Close-on-exec is set under ForkLock, as the net package does where
+	// SOCK_CLOEXEC is missing (macOS), so no child started meanwhile
+	// inherits the socket.
+	syscall.ForkLock.RLock()
+	fd, err := syscall.Socket(family, syscall.SOCK_DGRAM, proto)
+	if err == nil {
+		syscall.CloseOnExec(fd)
+	}
+	syscall.ForkLock.RUnlock()
 	if err != nil {
 		return fmt.Errorf("pinging isn't allowed here: %w", err)
 	}
