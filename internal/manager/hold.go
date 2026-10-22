@@ -89,7 +89,7 @@ func (m *Manager) heldService(name string) (string, *instance.Hold, error) {
 		return "", nil, err
 	}
 	if in.Held == nil {
-		return "", nil, formErrorf("%s isn't stopped any more. Reload the page to see how it is.", cmp.Or(in.Title, p.Title))
+		return "", nil, formErrorf("%s isn't stopped any more, so there's nothing to choose: reload the page to see how it's doing.", cmp.Or(in.Title, p.Title))
 	}
 	return cmp.Or(in.Title, p.Title), in.Held, nil
 }
@@ -114,7 +114,7 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 		return err
 	}
 	if h.Kept == "" {
-		return formErrorf("There's no data from before the restore to put back.")
+		return formErrorf("There's no data from before the restore to put back, so restore it again or start it anyway instead.")
 	}
 	_, in, err := m.installedService(name)
 	if err != nil {
@@ -136,7 +136,8 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 	// maintenance there, in the background.
 	x := m.node(host).Restores()
 	if x == nil {
-		return formErrorf("Roostack can't reach %s right now.", m.nameOf(host))
+		return formErrorf("Roostack can't reach %s right now, so it can't put the data back yet: try again once %s is back on.",
+			m.nameOf(host), m.nameOf(host))
 	}
 	if err := x.PutBack(ctx, name, h.Kept); err != nil {
 		return err
@@ -283,7 +284,8 @@ func (m *Manager) moveBack(ctx context.Context, act interface {
 		act.Printf("%v", err)
 		h := instance.Hold{Error: err.Error(), MovedFrom: from}
 		if herr := m.holdOn(name, to, h); herr != nil {
-			act.Printf("Couldn't keep it stopped: %v", herr)
+			act.Printf("Roostack couldn't record that %s should stay stopped (%v), so it may start again at the next change on %s.",
+				title, herr, m.nameOf(to))
 		}
 		return fmt.Errorf("%s is stopped on %s: its database didn't load there, and moving it back to %s failed too: %v. "+
 			"Roostack will keep it stopped until you choose.", title, m.nameOf(to), m.nameOf(from), err)
@@ -294,10 +296,11 @@ func (m *Manager) moveBack(ctx context.Context, act interface {
 	where := ""
 	aside, aerr := dst.SetAsideData(ctx, name, node.FailedMove)
 	if aerr != nil {
-		act.Printf("Couldn't set what was copied aside on %s: %v", m.nameOf(to), aerr)
+		act.Printf("Roostack couldn't set aside what was copied to %s (%v), so it's still in %s's usual folders there.",
+			m.nameOf(to), aerr, title)
 	} else if len(aside) > 0 {
-		where = ", at " + strings.Join(aside, " and ")
+		where = ", at " + strings.Join(aside, " and ") + ","
 	}
 	return fmt.Errorf("%s couldn't be moved to %s: its database didn't load there. It's running on %s again, as before. "+
-		"What was copied to %s will stay there%s, until you delete it.", title, m.nameOf(to), m.nameOf(from), m.nameOf(to), where)
+		"What was copied to %s will stay there%s until you delete it.", title, m.nameOf(to), m.nameOf(from), m.nameOf(to), where)
 }

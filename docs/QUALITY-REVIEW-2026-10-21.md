@@ -103,6 +103,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** run `ca dev` only for the test environment.
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in Cloud's `049d194` (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`).
 
 **P2. The console's expired passkey ceremonies are never deleted.**
 - **Where:** `cloud:internal/db/queries/passkeys.sql:46-50` has no purge for `admin_passkey_ceremonies`. The website's ceremonies are purged by `DeleteExpiredPasskeyCeremonies` (`:27`), called hourly.
@@ -110,6 +111,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** add the query and call it from the console's hourly job (`cloud:cmd/cloud/adminconsole.go:351`).
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in Cloud's `18985dd` (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`).
 
 **P3. After a failed database load, a restored or moved service is stopped, but only until the next apply.**
 - **Where:**
@@ -176,6 +178,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** fixed by one size formatter (§3.3).
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in Cloud's `60f4c66` (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`).
 
 **P9. Which month does relay bandwidth count in?**
 - **Where:** the portal's "this month's bandwidth" (`cloud:internal/web/portal.go:530`) sums `relay_usage`, which has one row per lab per UTC day, so it can only be a UTC month. Visits, on the portal and in the lab API's `relayStats` (`cloud:internal/api/api.go:755-859`), are hourly, so both show them in the lab's own time zone. The code is consistent with its data. What's unwritten is which month the relay's monthly allowance (and later its bill) counts: DESIGN §3c says "monthly" without a zone.
@@ -188,12 +191,15 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** port Roostack's encoding.
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in Cloud's `2f1c4f2` (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`).
+- **Status:** Fixed in Cloud's `aad1a52` (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`).
 
 **P11. A restore email in Cloud is sent outside any transaction.**
 - **Where:** `cloud:internal/api/restore.go:170-188` calls `Mail.Send` in a goroutine. Everywhere else mail is queued in the outbox in the same transaction as the change, then the outbox is woken.
 - **Change:** queue it like the rest (S16, "Owner and the lab's recipients").
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in Cloud's `81bbc36` (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`).
 
 **P12. Some htmx partials send half a page with 200 OK on a template error.**
 - **Where:** `internal/web/pages.go:886` `renderPart` executes the template straight into the response, where `render` and `renderLive` buffer first.
@@ -216,6 +222,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** have `cloud:tools/sync-editor.sh` also sync the tokens, and check drift in CI (G1).
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in Cloud's `28c7517` (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`).
 
 **P15. Remote node calls drop errors and use a fresh context.**
 - **Where:** `internal/node/remote.go:389` (`remoteRestores.Pending`), `:424` and `:433` (`remoteUpdates.Pending`, `RestartStatus`) discard the error.

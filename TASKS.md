@@ -684,9 +684,9 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
 
 - [ ] The Owner decides the rest of the review's §12 questions and agrees the plan (§11); §2's are decided
 - [ ] CLAUDE.md's writing rules: the Owner's tense rule (2026-10-22), in batch 1e
-- [ ] Wave 0: the behaviour fixes found in passing (§2), all approved by the Owner on 2026-10-22 (P3 with its agreed wording, P9 in UTC)
-  - [x] Roostack's: P3–P7, P12, P13, P15, P16 (2026-10-22; each finding's status in the review)
-  - [ ] Cloud's: P1, P2, P8–P11, P14
+- [x] Wave 0: the behaviour fixes found in passing (§2), all approved by the Owner on 2026-10-22 (P3 with its agreed wording, P9 in UTC); each finding's status, with its commit, is in the review
+  - [x] Roostack's: P3–P7, P12, P13, P15, P16 (2026-10-22)
+  - [x] Cloud's: P1, P2, P8–P11, P14 (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`, not merged yet)
   - [ ] P3's follow-up: check a failed move through a backup on two VMs (only fakes so far)
 - [ ] Wave 1: the parallel batches 1a–1j (§11)
 - [ ] Wave 2: the shared helpers, one at a time (§11)

@@ -374,7 +374,8 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 			h.Kept = kept[0]
 		}
 		if herr := m.holdService(j.name, h); herr != nil {
-			act.Printf("Couldn't keep it stopped: %v", herr)
+			act.Printf("Roostack couldn't record that %s should stay stopped (%v), so it may start again at the next change on %s.",
+				j.title, herr, m.nameOf(j.to))
 		}
 		return errors.New(backup.NotLoadedMsg(j.title, j.snap.Time))
 	}

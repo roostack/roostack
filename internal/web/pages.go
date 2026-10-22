@@ -893,7 +893,7 @@ func (s *Server) renderPart(w http.ResponseWriter, page, name string, data any) 
 	var buf bytes.Buffer
 	if err := s.pages[page].ExecuteTemplate(&buf, name, data); err != nil {
 		s.Log.Error("render partial", "page", page, "part", name, "err", strings.TrimSpace(err.Error()))
-		http.Error(w, "Something went wrong showing this part of the page. Details are in the Roostack log.", http.StatusInternalServerError)
+		http.Error(w, "Something went wrong showing this part of the page; the details are in the Roostack log.", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

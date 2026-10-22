@@ -321,12 +321,12 @@ func clashError(err error) error {
 	var pe *state.PortInUseError
 	switch {
 	case errors.As(err, &he):
-		return formErrorf("That web address is already used by another service. Choose a different one.")
+		return formErrorf("That web address is already used by another service, so choose a different one.")
 	case errors.As(err, &pe) && pe.UsedBy == "":
-		return formErrorf("%s would use port %d, which Roostack keeps for its web services (%d-%d).",
+		return formErrorf("%s would use port %d, but that's one of the ports Roostack is keeping for its web services (%d-%d), so its package needs a different port.",
 			pe.Service, pe.Port, config.DefaultRoutePortMin, config.DefaultRoutePortMax)
 	case errors.As(err, &pe):
-		return formErrorf("%s would use port %d, which is already used by %s. Change the port on that service's page, then try again.",
+		return formErrorf("%s would use port %d, but %s is already using it, so change the port on that service's page and try again.",
 			pe.Service, pe.Port, pe.UsedBy)
 	}
 	return err
