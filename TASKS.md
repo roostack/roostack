@@ -210,11 +210,11 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
   - [x] Roostack's: P3–P7, P12, P13, P15, P16 (2026-10-22)
   - [x] Cloud's: P1, P2, P8–P11, P14 (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`, merged)
   - [ ] P3's follow-up: check a failed move through a backup on two VMs (only fakes so far)
-- [ ] Wave 1: the parallel batches 1a–1j (§11); the review's §11 "Wave 1 status" says what each did
+- [x] Wave 1: the parallel batches 1a–1j (§11), all merged by 2026-10-22; the review's §11 "Wave 1 status" says what each did
   - [x] 1a–1e here and 1h–1j in Cloud, merged into both `main`s on 2026-10-22
-  - [ ] 1f (CI, staticcheck, generated files, flaky tests) and 1g (the editor), running
-  - [ ] S10, one capability convention on `Node` (batch 1c's follow-up), running
-  - [ ] Cloud's reconciliation after 1h's move to `internal/ui`: the sync scripts' and mock-ups' paths, the design copy re-synced and checked, the docs (batch 1i's follow-up), running
+  - [x] 1f (CI, staticcheck, generated files, flaky tests) and 1g (the editor), merged on 2026-10-22
+  - [x] S10, one capability convention on `Node` (batch 1c's follow-up), merged on 2026-10-22
+  - [ ] Cloud's reconciliation after 1h's move to `internal/ui`: the sync scripts' and mock-ups' paths, the design copy re-synced and checked, the docs (batch 1i's follow-up), merged into Cloud's `main` on 2026-10-22; Cloud's editor copy reading 1g's `scripts.json` is on Cloud's branch `claude/w1i-cloud-ci-b2c695` (`0683d9d`), not merged yet
   - [x] Moving a service back to the controller with "copy directly" hung (found by 1c; on `main` before wave 1): the import now reads each tar stream to its end (2026-10-22, SPEC §10.10). Checked on VMs 5 and 6: Vaultwarden there and back, with its data
   - [ ] T1's later step: split `agent` into portable wire types and client, and the Linux server
   - [ ] Turn on GitHub's private vulnerability reporting in the repository's settings (SECURITY.md relies on it; the maintainer)
