@@ -6,7 +6,7 @@ Guidance for Claude (and other agents) working on Roostack. Read [CONTRIBUTING.m
 
 Roostack (pronounced "Roost Stack") self-hosts useful services (photos, passwords, git, media) on your own hardware: one-click installs, automatic HTTPS, backups and updates, from a simple web UI. The end user is often **not technical** (a NUC at someone's parents' house), but **a technical user must never find anything magical**: every page says what Roostack is doing, where files live, and shows the log.
 
-Stack: Go (module `roostack.cloud/roostack`, Go 1.26), Debian 13, rootless Podman driven by systemd Quadlets, Caddy, restic, WireGuard, SQLite, server-rendered HTML with htmx and Alpine.js. Early development: nothing is released, and only fresh installs are supported (no migration of pre-release data beyond `store` schema additions).
+Stack: Go (module `roostack.cloud/roostack`, Go 1.26), Debian 13, rootless Podman driven by systemd Quadlets, Caddy, restic, WireGuard, SQLite, server-rendered HTML with htmx and Alpine.js. Early development: nothing is released, and only fresh installs are supported (no migration of pre-release data beyond `store` schema additions). The store's schema is one squashed step at version 37 (`store.schema`, 2026-10-22); a schema change is a new step at the end of `store.migrations`, never an edit to `schema` or to a step that has shipped, and a database from before the squash is refused with a sentence asking for a fresh install.
 
 ## Documents: read before, update with every change
 
