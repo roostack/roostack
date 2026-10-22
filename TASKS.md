@@ -688,6 +688,7 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
 - [ ] Wave 1: the parallel batches 1a–1j (§11)
 - [ ] Wave 2: the shared helpers, one at a time (§11)
 - [ ] Wave 3: the structural changes the Owner chooses (§11)
+- [ ] Wave 4 (the Owner, 2026-10-22): wording across both repositories. Rework the present simple for actions and short, clipped statements into natural sentences (the future for what will happen, the present continuous for what's happening). A sample of rewrites for the Owner first, then batches by area (§11)
 
 ## To discuss with the user
 

@@ -1128,7 +1128,7 @@ They touch few files, but they overlap with waves 1 and 2, so they go first.
 | **1b. Web tidy** | Roostack | §9's web dead code, D13, D14, S1 (constructor and groups), S3, S5, S6, T8 (web's fakes) | `internal/web/**` only | Page HTML before/after; gallery unchanged; VM look |
 | **1c. Lab API wire** | Roostack | S9 (round-trip test first, then wire files), S10 if decided | `internal/node/api.go`, `remote.go`, new `*wire.go`, `remote_test.go` | The new round-trip test before and after; VM with a second server joined |
 | **1d. Store split** | Roostack | S14 step 1 (pure move), dead store functions | `internal/store/*` | Suite; `git diff --stat` shows only moves |
-| **1e. Docs and layout** | Roostack | N3, N4, N6, N7, N8, package docs for `cloud`, `node`, `setup` (new `doc.go`s), CONTRIBUTING, SECURITY; CLAUDE.md's writing rules gain the Owner's tense rule (2026-10-22: the future for what will happen, the present continuous for what's happening, not the present simple) | `README.md`, `ARCHITECTURE.md`, `CLAUDE.md`, `docs/**`, `tools/maketakeout` (moved), new `doc.go`s | Links resolve; `go test ./tools/...` |
+| **1e. Docs and layout** | Roostack | N3, N4, N6, N7, N8, package docs for `cloud`, `node`, `setup` (new `doc.go`s), CONTRIBUTING, SECURITY; CLAUDE.md's writing rules gain the Owner's wording rules (2026-10-22; see wave 4): the future for what will happen, the present continuous for what's happening, not the present simple; and no short, clipped statements | `README.md`, `ARCHITECTURE.md`, `CLAUDE.md`, `docs/**`, `tools/maketakeout` (moved), new `doc.go`s | Links resolve; `go test ./tools/...` |
 | **1f. CI and generated files** | Roostack | G1, G2, G3 (if decided), the Makefile's `gofmt` | `.github/**`, `Makefile`, `scripts/*` (shellcheck fixes) | CI green on a branch |
 | **1g. Editor** | Roostack, then Cloud's sync | J1 (escape helper, split `importCompose`, script manifest) | `internal/editor/**`, then `cloud:tools/sync-editor.sh`, `cloud:site/src/pages/package-editor.astro` | `make editor-test`; corpus unchanged |
 | **1h. Cloud ui** | Cloud | S15, S16's JSON helpers and `Wait`, S4's `<no value>` test helper | `internal/web/**`, `internal/admin/**`, new `internal/ui` | Full suite; e2e; look at the website and the console |
@@ -1155,6 +1155,38 @@ Each its own session, in any order, once waves 1 and 2 have landed:
 - **D9:** DNS probes onto the records code.
 - **S17:** Cloud's `accounts`, `relay` and `controlplane` packages and the `cmd/cloud` tidy; T3 (template database, `t.Parallel`) and T6's tests alongside.
 - **T2:** parallel restic tests and a template repository.
+
+### Wave 4: wording, after waves 1–3
+
+Added by the Owner on 2026-10-22. Across both repositories, find sentences people read that use the present simple for actions, or that are short and clipped, and rework them to sound natural.
+
+**The rules:**
+- **The present simple for actions sounds generated.** For example, "Roostack keeps it stopped." or "Immich starts again."
+- **Use the future for what will happen,** especially after something a person might do: "Roostack will keep the service stopped until you choose."
+- **Use the present continuous for what's happening now:** "Immich is starting again on server-1."
+- **What's fine:**
+  - states with "is": "Immich is stopped";
+  - past results: "its restore didn't finish";
+  - instructions: "Choose what to do".
+- **Not too long, not clipped.** Stay concise, but don't string together short, clipped statements. Join them where a person would ("…, so Roostack will keep the service stopped until you choose").
+
+**Why after waves 1–3:** those waves move much of this text. D2 gathers the words helpers, D3 the error type, S2 moves the attention items, and D13 the pickers. Rewording first would mean doing it twice and conflicting with every batch. Until then, new and changed wording follows the rules, which batch 1e writes into CLAUDE.md.
+
+**How:**
+1. **A sample first.** One session gathers about 30 representative sentences from every area below, with a proposed rewrite of each, for the Owner to approve. The approved pairs then become the examples in CLAUDE.md's writing rules, which the batches follow.
+2. **Batches by area,** in parallel since their files are disjoint:
+   - **4a.** Roostack's pages: `internal/web` templates, and the Go strings web shows (attention items, errors, notices, emails from the notifier).
+   - **4b.** Roostack's other messages people read: activity logs and errors people can fix, in `manager`, `node`, `backup`, `setup`, `osupdate`, `labrestore` and the rest; the CLI's output in `cmd/`.
+   - **4c.** The help site (`help/docs`).
+   - **4d.** The package editor's text (`help.yaml`, `editor.js`, `suggest.js`, `compose.js`'s notes). `pkgspec`'s check messages change with `check.js`'s, which the corpus test enforces, so the batch also covers `internal/pkgspec`.
+   - **4e.** Cloud's website, console and emails (`internal/web`, `internal/admin`, the email templates and the Go strings they show).
+   - **4f.** Cloud's site (`site/`) and status page (`status/`).
+   - **4g.** If the Owner wants it, the project documents (README, ARCHITECTURE, SPEC, DESIGN). These are written for contributors, so they come last.
+3. **Checks:**
+   - Tests that match exact wording are updated with the text: wave 1's helpers for finding a page's parts (T5) make this lighter.
+   - The gallery and the editor's corpus regenerate.
+   - The HTML before and after is diffed to show the changes are wording only.
+   - Each batch gives the Owner a before-and-after list to read.
 
 ---
 
