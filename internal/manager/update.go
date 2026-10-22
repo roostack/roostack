@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
@@ -200,12 +201,12 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 		// build for the one this service's server has (SPEC.md §8.3.3).
 		if a, _ := m.noBuildFor(ctx, p.Name, p.Version, in.Host); a != "" && u.Blocked == "" {
 			u.Blocked = fmt.Sprintf("This version has no build for %s's kind of processor (%s), so it can't run there. "+
-				"Roostack offers it once it has one.", m.serverName(cmp.Or(in.Host, m.Lab.NodeID)), a)
+				"Roostack offers it once it has one.", m.serverName(in.HostOr(m.Lab.NodeID)), a)
 		}
 		if rec := m.LastUpdate(ctx, s.Name()); rec != nil && rec.To == p.Version && rec.Result != UpdateDone {
 			u.FailedBefore = true
 		}
-		u.NoBackups = !m.backupsOn(ctx, cmp.Or(in.Host, m.Lab.NodeID))
+		u.NoBackups = !m.backupsOn(ctx, in.HostOr(m.Lab.NodeID))
 		u.Auto = in.AllowsUpdate(u.Kind) && len(u.Notes) == 0 && len(u.NewRisks) == 0 && !u.FailedBefore && !u.NoBackups &&
 			u.Blocked == ""
 		out[s.Name()] = u
@@ -270,7 +271,7 @@ func (m *Manager) backupsOn(ctx context.Context, host string) bool {
 		return false
 	}
 	t, _, ok := m.BackupTargetOf(ctx, host)
-	return ok && t.Provider != "setup"
+	return ok && t.Provider != destination.Setup
 }
 
 // updatedInstance is a service's instance for a newer package: the same
@@ -547,7 +548,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		err = fmt.Errorf("%s changed to %s meanwhile", u.Title, old.Instance.Version)
 		return rec
 	}
-	host := cmp.Or(old.Instance.Host, m.Lab.NodeID)
+	host := old.Instance.HostOr(m.Lab.NodeID)
 	rec.Server = host
 	n := m.node(host)
 	up := node.Capability(n, node.Node.Updater)

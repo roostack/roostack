@@ -90,10 +90,7 @@ const (
 )
 
 func (n *Local) DataDirs(service string) []string {
-	return []string{
-		filepath.Join(n.Lab.Paths.ServicesDir, service),
-		filepath.Join(n.Lab.Paths.MediaDir, service),
-	}
+	return n.Lab.Paths.ServiceDataDirs(service)
 }
 
 func (n *Local) dataDir(service string, dir int) (string, error) {

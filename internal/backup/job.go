@@ -105,9 +105,7 @@ func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 	p := Plan{
 		Paths: []string{paths.StateDir, secrets},
 		Excludes: append(excludeAllBut(paths.HomeDir, secrets),
-			filepath.Join(paths.StateDir, "roostack.db"),
-			filepath.Join(paths.StateDir, "roostack.db-wal"),
-			filepath.Join(paths.StateDir, "roostack.db-shm"),
+			paths.DatabaseFile(), paths.DatabaseFile()+"-wal", paths.DatabaseFile()+"-shm",
 			KeyFile(paths),
 			RestoreKeyFile(paths), RestoreStartedFile(paths), RestoreHintsFile(paths),
 			// A change's new and old keys and its progress (internal/manager),

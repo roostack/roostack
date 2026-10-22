@@ -211,7 +211,7 @@ func StartFromBackup(paths config.Paths) (bool, error) {
 	if !ok || m.Step != "database" {
 		return false, nil
 	}
-	db := filepath.Join(paths.StateDir, "roostack.db")
+	db := paths.DatabaseFile()
 	for _, f := range []string{db + "-wal", db + "-shm"} {
 		if err := os.Remove(f); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return false, err

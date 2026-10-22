@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -32,9 +33,9 @@ func TestCloudBackups(t *testing.T) {
 
 	t0 := time.Date(2026, 10, 18, 3, 0, 0, 0, time.UTC)
 	cloudRepo := "s3:https://s3.test/backups/labs/lab_1/n-0000000002"
-	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000001", Provider: CloudChoice, Repository: "s3:https://s3.test/backups/labs/lab_1/n-0000000001"})
+	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000001", Provider: destination.Cloud, Repository: "s3:https://s3.test/backups/labs/lab_1/n-0000000001"})
 	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "provider:2", Repository: "s3:https://s3.wasabisys.com/b/x"})
-	st.SetBackupCopy(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: CloudChoice, Repository: cloudRepo})
+	st.SetBackupCopy(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: destination.Cloud, Repository: cloudRepo})
 	local(m).Jobs.Backups = fakeBackups{backup.Status{LastOK: &store.BackupRun{OK: true, Finished: t0}}}
 	vps.backups = fakeBackups{backup.Status{LastOK: &store.BackupRun{OK: true, Finished: t0.Add(time.Hour)},
 		Copies: []backup.CopyStatus{{Name: "copy-1", Repository: cloudRepo, LastOK: &store.BackupRun{OK: true, Finished: t0.Add(-time.Hour)}}}}}

@@ -12,6 +12,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
@@ -59,10 +60,7 @@ func (m *Manager) MoveInfo(ctx context.Context, name string) (MoveInfo, error) {
 	if err != nil {
 		return info, err
 	}
-	host := in.Host
-	if host == "" {
-		host = m.Lab.NodeID
-	}
+	host := in.HostOr(m.Lab.NodeID)
 	for _, mc := range servers {
 		if mc.ID == host {
 			info.From = mc
@@ -73,7 +71,7 @@ func (m *Manager) MoveInfo(ctx context.Context, name string) (MoveInfo, error) {
 			info.Size = size
 		}
 	}
-	if t, _, ok := m.BackupTargetOf(ctx, host); ok && t.Provider != "setup" {
+	if t, _, ok := m.BackupTargetOf(ctx, host); ok && t.Provider != destination.Setup {
 		info.ViaBackup = true
 	}
 	info.Suggested = MoveCopy
@@ -96,10 +94,7 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	if err != nil {
 		return err
 	}
-	from := in.Host
-	if from == "" {
-		from = m.Lab.NodeID
-	}
+	from := in.HostOr(m.Lab.NodeID)
 	if to == from {
 		return usererr.New("%s already runs there.", p.Title)
 	}
@@ -120,7 +115,7 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	case MoveCopy:
 	case MoveBackup:
 		t, _, ok := m.BackupTargetOf(ctx, from)
-		if !ok || t.Provider == "setup" || m.node(from).Backups() == nil {
+		if !ok || t.Provider == destination.Setup || m.node(from).Backups() == nil {
 			return usererr.New("%s's backups aren't set up through Roostack yet, so this way isn't available. Copy it directly instead.",
 				m.nameOf(from))
 		}
@@ -341,7 +336,7 @@ func (m *Manager) moveViaBackup(ctx context.Context, act *activity.Log, name, ti
 	}
 	stopped = true
 	act.Step("Copying %s's data from the backup to %s", title, m.nameOf(to))
-	for dir, path := range []string{filepath.Join(m.Lab.Paths.ServicesDir, name), filepath.Join(m.Lab.Paths.MediaDir, name)} {
+	for dir, path := range m.Lab.Paths.ServiceDataDirs(name) {
 		strip := len(strings.Split(strings.Trim(path, "/"), "/"))
 		err := pipe(ctx, func(w io.Writer) error { return repo.Dump(ctx, snap.ID, path, w) },
 			func(r io.Reader) error { return dst.ImportData(ctx, name, dir, r, strip) })

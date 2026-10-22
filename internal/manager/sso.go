@@ -27,7 +27,7 @@ func (m *Manager) SSOAvailable(name string) (bool, string) {
 		return false, ""
 	case !m.Lab.HasAddress():
 		return false, "Single sign-on needs your lab's address first: the sign-in page is at login.<your address>."
-	case in.Host != "" && in.Host != m.Lab.NodeID:
+	case in.HostOr(m.Lab.NodeID) != m.Lab.NodeID:
 		return false, "Single sign-on works for services on this server (the lab's main one) for now. Move " + p.Title + " here to use it."
 	}
 	return true, ""
@@ -106,7 +106,7 @@ func (m *Manager) SSOClients() []sso.Client {
 	clients := []sso.Client{}
 	for _, s := range services {
 		p, in := s.Package, s.Instance
-		if !generate.SSOOn(m.Lab, p, in) || in.Waiting || (in.Host != "" && in.Host != m.Lab.NodeID) {
+		if !generate.SSOOn(m.Lab, p, in) || in.Waiting || (in.HostOr(m.Lab.NodeID) != m.Lab.NodeID) {
 			continue
 		}
 		route := p.SSORoute()

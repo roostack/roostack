@@ -83,6 +83,9 @@ type FirstRun struct {
 	// databases are still being put back (optional).
 	LabRestore     LabRestorer
 	RestorePending func() bool
+	// SetupTokenFile is where the setup code is kept, which the setup
+	// pages name (config.Paths.SetupTokenFile).
+	SetupTokenFile string
 
 	// setupMu guards setupToken and restore. setupToken must be entered
 	// to create the first Owner, so whoever reaches the UI first on the

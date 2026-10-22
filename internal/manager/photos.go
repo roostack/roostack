@@ -53,7 +53,7 @@ func (m *Manager) PhotoServices(ctx context.Context) []PhotoService {
 	var out []PhotoService
 	for _, s := range services {
 		if photoimport.Supports(s.Package) {
-			out = append(out, PhotoService{Name: s.Name(), Title: s.Title(), Host: cmp.Or(s.Instance.Host, m.Lab.NodeID)})
+			out = append(out, PhotoService{Name: s.Name(), Title: s.Title(), Host: s.Instance.HostOr(m.Lab.NodeID)})
 		}
 	}
 	return out
@@ -68,7 +68,7 @@ func (m *Manager) photoService(service string) (PhotoService, error) {
 	if !photoimport.Supports(p) {
 		return PhotoService{}, ErrNotFound
 	}
-	return PhotoService{Name: service, Title: cmp.Or(in.Title, p.Title), Host: cmp.Or(in.Host, m.Lab.NodeID)}, nil
+	return PhotoService{Name: service, Title: cmp.Or(in.Title, p.Title), Host: in.HostOr(m.Lab.NodeID)}, nil
 }
 
 // PhotosOf is migrating photos into a service, on its server.

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
 
 	"roostack.cloud/roostack/internal/instance"
 )
@@ -33,7 +32,7 @@ func (n *Local) LeftDataDirs(_ context.Context, name string) ([]string, error) {
 		return nil, ErrNotFound
 	}
 	var out []string
-	for _, dir := range []string{filepath.Join(n.Lab.Paths.ServicesDir, name), filepath.Join(n.Lab.Paths.MediaDir, name)} {
+	for _, dir := range n.Lab.Paths.ServiceDataDirs(name) {
 		f, err := os.Open(dir)
 		if errors.Is(err, os.ErrNotExist) {
 			continue

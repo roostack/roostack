@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
@@ -70,7 +71,7 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 		return usererr.New("Choose where the copy goes.")
 	case ref == main.Provider:
 		return usererr.New("That's where %s backups already go. A copy protects you only somewhere else.", m.backupsOf(serverID))
-	case strings.HasPrefix(ref, "server:") && strings.TrimPrefix(ref, "server:") == main.StoreHost:
+	case destination.Parse(ref) == destination.Ref{Kind: destination.Server, ID: main.StoreHost}:
 		return usererr.New("That's where %s backups already go.", m.backupsOf(serverID))
 	}
 	for _, c := range m.BackupCopiesOf(ctx, serverID) {
@@ -226,7 +227,7 @@ func (m *Manager) RemoveBackupCopy(ctx context.Context, serverID, ref string) er
 		return err
 	}
 	if t.ScopedKey != "" {
-		if _, id, _ := strings.Cut(ref, ":"); id != "" {
+		if id := destination.Parse(ref).ID; id != "" {
 			if p, err := m.provider(ctx, id); err == nil {
 				var s3 S3Provider
 				if json.Unmarshal([]byte(p.Config), &s3) == nil {

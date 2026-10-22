@@ -146,7 +146,7 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 	}
 	if !s.setupPassed(r) {
 		time.Sleep(failedLoginDelay)
-		fail("The setup code is wrong. It is shown in the Roostack log and in /var/lib/roostack/setup-token.")
+		fail("The setup code is wrong. It is shown in the Roostack log and in " + s.SetupTokenFile + ".")
 		return
 	}
 	// A drive is mounted (if it isn't) and searched.

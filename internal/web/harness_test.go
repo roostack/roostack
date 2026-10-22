@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -53,6 +54,7 @@ func newHarness(t *testing.T, setupToken string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.SetupTokenFile = config.Default().Paths.SetupTokenFile()
 	h := &harness{t: t, store: st, server: s}
 	s.OnSetupComplete = func() { h.setup = true }
 	h.srv = httptest.NewServer(s.Handler())

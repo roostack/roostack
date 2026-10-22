@@ -39,7 +39,7 @@ func user(args []string) error {
 	if err != nil {
 		return err
 	}
-	st, err := store.Open(dbPath(lab))
+	st, err := store.Open(lab.Paths.DatabaseFile())
 	if err != nil {
 		return err
 	}

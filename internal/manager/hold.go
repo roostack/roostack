@@ -121,7 +121,7 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	host := cmp.Or(in.Host, m.Lab.NodeID)
+	host := in.HostOr(m.Lab.NodeID)
 	if !h.KeptByRestore {
 		mv := node.Capability(m.node(host), node.Node.Mover)
 		if mv == nil {
@@ -251,7 +251,7 @@ func (m *Manager) FailedMoves(ctx context.Context) map[string]FailedMove {
 			continue
 		}
 		unix, _ := strconv.ParseInt(at, 10, 64)
-		out[s.Name()] = FailedMove{To: to, ToName: m.nameOf(to), FromName: m.nameOf(cmp.Or(s.Instance.Host, m.Lab.NodeID)),
+		out[s.Name()] = FailedMove{To: to, ToName: m.nameOf(to), FromName: m.nameOf(s.Instance.HostOr(m.Lab.NodeID)),
 			At: time.Unix(unix, 0)}
 	}
 	return out

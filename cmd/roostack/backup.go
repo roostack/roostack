@@ -126,7 +126,7 @@ func backupInit(ctx context.Context, lab config.Lab, repo *backup.Repo) error {
 }
 
 func backupRun(ctx context.Context, lab config.Lab, repo *backup.Repo, launch backupLaunch) error {
-	st, err := store.Open(dbPath(lab))
+	st, err := store.Open(lab.Paths.DatabaseFile())
 	if err != nil {
 		return err
 	}

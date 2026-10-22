@@ -43,6 +43,10 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
 		}
 	}
+	// The setup code's pages say where it's kept.
+	if page == "setup" || page == "setup-restore" {
+		data["SetupTokenFile"] = s.SetupTokenFile
+	}
 	// The setup wizard's steps show only themselves, and how far along
 	// they are (wizardSteps).
 	if data["Wizard"] == true {

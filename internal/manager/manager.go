@@ -898,10 +898,7 @@ func (m *Manager) Remove(ctx context.Context, name string) error {
 // DataDirs lists where a service keeps data, to tell the user what
 // removing it leaves behind.
 func (m *Manager) DataDirs(name string) []string {
-	return []string{
-		filepath.Join(m.Lab.Paths.ServicesDir, name),
-		filepath.Join(m.Lab.Paths.MediaDir, name),
-	}
+	return m.Lab.Paths.ServiceDataDirs(name)
 }
 
 // leftData lists a service's data folders from before on a server (it was

@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
@@ -492,7 +493,7 @@ func (f *fakeBackupPlan) ChangeS3Key(_ context.Context, ref, accessKey, secretKe
 func (f *fakeBackupPlan) BackupChoices(context.Context) ([]manager.BackupChoice, error) {
 	out := []manager.BackupChoice{{Ref: "server:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}
 	if f.cloudBackup {
-		out = append(out, manager.BackupChoice{Ref: manager.CloudChoice, Title: "Roostack Cloud", Note: "This lab uses 120.0 GB of 500.0 GB."})
+		out = append(out, manager.BackupChoice{Ref: destination.Cloud, Title: "Roostack Cloud", Note: "This lab uses 120.0 GB of 500.0 GB."})
 	}
 	return out, nil
 }
@@ -507,7 +508,7 @@ func (f *fakeBackupPlan) BackupKind(_ context.Context, _, ref string) string {
 		return manager.KindOnline
 	case strings.HasPrefix(ref, "remote:"):
 		return manager.KindFriend
-	case ref == manager.CloudChoice:
+	case ref == destination.Cloud:
 		return manager.KindCloud
 	}
 	return manager.KindServer

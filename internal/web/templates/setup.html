@@ -8,7 +8,7 @@
   <form method="post" action="/setup/code">
     <label>Setup code
       <input name="token" autocomplete="off" required autofocus>
-      <small>Shown when Roostack was installed, and saved in <code>/var/lib/roostack/setup-token</code> on the server.</small>
+      <small>Shown when Roostack was installed, and saved in <code>{{.SetupTokenFile}}</code> on the server.</small>
     </label>
     <button type="submit">Continue</button>
   </form>

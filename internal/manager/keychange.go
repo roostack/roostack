@@ -13,6 +13,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/store"
@@ -387,7 +388,7 @@ func (m *Manager) keyRepos(ctx context.Context) ([]keyRepo, error) {
 		out = append(out, keyRepo{Ref: ref, ServerID: t.ServerID, Repository: t.Repository,
 			open: func(keyFile string) (*backup.Repo, error) {
 				var r *backup.Repo
-				if strings.HasPrefix(t.Provider, "setup") {
+				if destination.Parse(t.Provider).Kind == destination.Setup {
 					// Set up by this server's wizard: its own main backup.
 					if t.ServerID != m.Lab.NodeID {
 						return nil, fmt.Errorf("%s's backup was set up on that server", m.nameOf(t.ServerID))

@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
@@ -130,7 +131,7 @@ func (m *Manager) onNode(services []state.Service, id string) []state.Service {
 			continue
 		}
 		// The controller also runs any with no host yet.
-		if s.Instance.Host == id || (id == m.Lab.NodeID && s.Instance.Host == "") {
+		if s.Instance.HostOr(m.Lab.NodeID) == id {
 			out = append(out, s)
 		}
 	}
@@ -644,7 +645,7 @@ func (m *Manager) markRemoved(ctx context.Context, id string) {
 	targets, _ := m.BackupStore.BackupTargets(ctx)
 	copies, _ := m.BackupStore.BackupCopies(ctx)
 	for _, t := range append(targets, copies...) {
-		if t.ServerID != id || strings.HasPrefix(t.Provider, "setup") {
+		if t.ServerID != id || destination.Parse(t.Provider).Kind == destination.Setup {
 			continue
 		}
 		repo, err := m.adminRepo(ctx, t)
@@ -682,7 +683,7 @@ func (m *Manager) ServiceFiles(name string) (*ServiceFiles, error) {
 	}
 	f := &ServiceFiles{QuadletDir: m.Lab.Paths.QuadletDir(), CaddySitesDir: m.Lab.Paths.CaddySitesDir(),
 		Quadlets: out.Quadlets, CaddySite: out.CaddySite}
-	if in.Host != "" && in.Host != m.Lab.NodeID {
+	if in.HostOr(m.Lab.NodeID) != m.Lab.NodeID {
 		f.CaddySite = nil
 		for _, r := range m.others() {
 			if r.Identity().ID == in.Host {

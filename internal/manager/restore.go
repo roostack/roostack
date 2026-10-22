@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -188,7 +187,7 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	if err != nil {
 		return err
 	}
-	host := cmp.Or(in.Host, m.Lab.NodeID)
+	host := in.HostOr(m.Lab.NodeID)
 	to = cmp.Or(to, host)
 	if in.Waiting && to == host {
 		to = m.Lab.NodeID // its server is gone: here, unless chosen
@@ -310,7 +309,7 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 	} else {
 		act.Step("Copying %s's data from the backup to %s", j.title, m.nameOf(j.to))
 	}
-	for dir, path := range []string{filepath.Join(m.Lab.Paths.ServicesDir, j.name), filepath.Join(m.Lab.Paths.MediaDir, j.name)} {
+	for dir, path := range m.Lab.Paths.ServiceDataDirs(j.name) {
 		if !slices.ContainsFunc(j.snap.Paths, func(p string) bool { return fsutil.Within(p, path) }) {
 			continue // e.g. no media folder
 		}

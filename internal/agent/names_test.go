@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/instance"
 )
 
@@ -27,5 +28,12 @@ func TestNamesMatchTheirOwners(t *testing.T) {
 		if got, want := whoName.MatchString(who), auth.ValidUsername(who); got != want {
 			t.Errorf("whoName(%q) = %v, auth.ValidUsername = %v", who, got, want)
 		}
+	}
+}
+
+// The agent's fixed backup folder is config's default (review D6).
+func TestSystemBackupDirIsTheDefault(t *testing.T) {
+	if want := config.Default().Paths.BackupStoreDir(); SystemBackupDir != want {
+		t.Errorf("SystemBackupDir = %s, config's default BackupStoreDir = %s", SystemBackupDir, want)
 	}
 }

@@ -61,7 +61,12 @@ type Drive struct {
 	Backup bool `json:"backup,omitempty"`
 }
 
-// SystemBackupDir is where backups go on the server's own disk.
+// SystemBackupDir is where backups go on the server's own disk: the
+// default config.Paths.BackupStoreDir, which a test keeps it equal to.
+// It's fixed here rather than sent by roostack, so the agent (as root)
+// never makes a folder the roostack user's at a path it was handed. If a
+// lab.yaml moves media_dir, the two will differ: backups on the server's
+// own disk will still go here.
 const SystemBackupDir = "/srv/roostack/backups"
 
 // usableFS are filesystems backups can go on as they are.

@@ -35,7 +35,7 @@ func (m *Manager) ImportsOf(service string) (node.Imports, error) {
 	if err != nil {
 		return nil, err
 	}
-	n := m.node(cmp.Or(in.Host, m.Lab.NodeID))
+	n := m.node(in.HostOr(m.Lab.NodeID))
 	if n == nil {
 		return nil, usererr.New("Roostack can't reach the server it runs on.")
 	}
@@ -83,7 +83,7 @@ func (m *Manager) SwitchImport(ctx context.Context, service string) error {
 	if !v.Check.Ready() {
 		return usererr.New("Check your files again first.")
 	}
-	host := cmp.Or(in.Host, m.Lab.NodeID)
+	host := in.HostOr(m.Lab.NodeID)
 	up := node.Capability(m.node(host), node.Node.Updater)
 	if up == nil {
 		return usererr.New("Roostack can't reach %s's server.", p.Title)

@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/hosttime"
@@ -459,12 +460,12 @@ func (s *Server) backupDrives(r *http.Request, chosen string) (planOptions, erro
 	// This server's own disk counts once, however its backup got there.
 	for ref := range used {
 		if s.Manager.BackupKind(r.Context(), m.ID, ref) == manager.KindSystem {
-			used["drive:system"] = true
+			used[destination.New(destination.Drive, "system")] = true
 		}
 	}
 	o := planOptions{CanDrives: true}
 	for _, d := range drives {
-		if !used["drive:"+d.ID] {
+		if !used[destination.New(destination.Drive, d.ID)] {
 			o.Drives = append(o.Drives, d)
 		}
 	}

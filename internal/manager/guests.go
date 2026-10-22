@@ -15,6 +15,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
@@ -397,7 +398,7 @@ func (m *Manager) remoteStorage(ctx context.Context) ([]RemoteStorage, error) {
 		}
 		var r RemoteStorage
 		if json.Unmarshal([]byte(p.Config), &r) == nil {
-			r.Ref = fmt.Sprintf("provider:%d", p.ID)
+			r.Ref = destination.OfProvider(p.ID)
 			out = append(out, r)
 		}
 	}
@@ -461,8 +462,7 @@ func (m *Manager) EndingStorages(ctx context.Context) []EndingStorage {
 
 // renameRemote follows a host lab's new name.
 func (m *Manager) renameRemote(ctx context.Context, r RemoteStorage, name string) {
-	_, id, _ := strings.Cut(r.Ref, ":")
-	p, err := m.provider(ctx, id)
+	p, err := m.provider(ctx, destination.Parse(r.Ref).ID)
 	if err != nil {
 		return
 	}
@@ -579,8 +579,7 @@ func (m *Manager) removeRemoteUsers(ctx context.Context, act *activity.Log, serv
 		} else {
 			act.Printf("Removed %s's user at %s.", m.nameOf(serverID), r.HostName)
 		}
-		_, id, _ := strings.Cut(r.Ref, ":")
-		p, err := m.provider(ctx, id)
+		p, err := m.provider(ctx, destination.Parse(r.Ref).ID)
 		if err != nil {
 			continue
 		}

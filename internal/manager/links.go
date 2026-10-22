@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/trust"
@@ -98,11 +99,11 @@ func (m *Manager) linkPairs(ctx context.Context) [][2]string {
 	seen := map[string]bool{}
 	var out [][2]string
 	for _, t := range append(targets, copies...) {
-		kind, store, _ := strings.Cut(t.Provider, ":")
-		if kind != "server" {
+		r := destination.Parse(t.Provider)
+		if r.Kind != destination.Server {
 			continue
 		}
-		from := t.ServerID
+		from, store := t.ServerID, r.ID
 		if from == store || from == m.Lab.NodeID || store == m.Lab.NodeID || from == "" || store == "" {
 			continue
 		}

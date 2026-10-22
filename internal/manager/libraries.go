@@ -516,14 +516,14 @@ func (m *Manager) ServiceLibraries(ctx context.Context, service string) (Service
 	if err != nil {
 		return ServiceLibraryChoice{}, err
 	}
-	c := ServiceLibraryChoice{Reads: p.ReadsLibraries(), Chosen: in.Libraries, ServerName: m.nameOf(cmp.Or(in.Host, m.Lab.NodeID)),
+	c := ServiceLibraryChoice{Reads: p.ReadsLibraries(), Chosen: in.Libraries, ServerName: m.nameOf(in.HostOr(m.Lab.NodeID)),
 		Paths: in.LibraryPaths, Inside: librariesPath(p)}
 	if c.Reads {
 		c.Choices = m.ServerLibraryChoices(ctx, in.Host)
 	}
 	c.Binds = slices.Sorted(maps.Keys(in.PlaceLibraries(p).Binds))
 	if len(c.Binds) > 0 {
-		c.Gone = m.goneLibraries(ctx, cmp.Or(in.Host, m.Lab.NodeID), c.Binds)
+		c.Gone = m.goneLibraries(ctx, in.HostOr(m.Lab.NodeID), c.Binds)
 	}
 	return c, nil
 }

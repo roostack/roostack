@@ -138,6 +138,11 @@ type PortOverride struct {
 	Exposure string `yaml:"exposure,omitempty"`
 }
 
+// HostOr is the server the service runs on: Host, or controller if Host
+// is empty (a service installed before labs had several servers, until
+// state.AssignHosts sets it).
+func (in *Instance) HostOr(controller string) string { return cmp.Or(in.Host, controller) }
+
 // ID is the service's name: Name, or the package's for its first copy.
 func (in *Instance) ID() string {
 	if in.Name != "" {

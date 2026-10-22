@@ -72,7 +72,7 @@ func serve(args []string) error {
 	} else if restored {
 		log.Info("starting as the restored lab", "domain", lab.Domain)
 	}
-	st, err := store.Open(dbPath(lab))
+	st, err := store.Open(lab.Paths.DatabaseFile())
 	if err != nil {
 		return err
 	}
@@ -195,8 +195,9 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
+	srv.SetupTokenFile = lab.Paths.SetupTokenFile()
 	srv.OnSetupComplete = func() {
-		os.Remove(setupTokenPath(lab))
+		os.Remove(lab.Paths.SetupTokenFile())
 		// A restore that wasn't finished, and the recovery key typed for it
 		// (with the key hints it learned).
 		os.Remove(backup.RestoreKeyFile(lab.Paths))
@@ -620,15 +621,11 @@ func serve(args []string) error {
 	return nil
 }
 
-func dbPath(lab config.Lab) string { return filepath.Join(lab.Paths.StateDir, "roostack.db") }
-
-func setupTokenPath(lab config.Lab) string { return filepath.Join(lab.Paths.StateDir, "setup-token") }
-
 // setupToken returns the first-run setup code, or "" if an account exists.
 // The code is kept in a file readable only by roostack (and root), so it
 // survives restarts until setup is done.
 func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger) (string, error) {
-	path := setupTokenPath(lab)
+	path := lab.Paths.SetupTokenFile()
 	n, err := st.CountUsers(ctx)
 	if err != nil || n > 0 {
 		if n > 0 { // e.g. a lab restored from its backups

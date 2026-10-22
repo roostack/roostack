@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
@@ -194,7 +195,8 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 				e.FreeOn = "this server's disk"
 			}
 		}
-		if host, ok := strings.CutPrefix(e.Ref, "server:"); ok {
+		if ref := destination.Parse(e.Ref); ref.Kind == destination.Server {
+			host := ref.ID
 			e.Path = s.Manager.LinkPath(ctx, m.ID, host)
 			if s.Node != nil {
 				e.Via = s.Node.Identity().Name
@@ -221,7 +223,8 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		}
 		e.AtHome, e.Away = manager.AtHome(e.Kind), manager.Away(e.Kind)
 		e.Access = s.Manager.BackupAccess(ctx, m.ID, e.Ref)
-		if id, ok := strings.CutPrefix(e.Ref, "provider:"); ok && e.Kind == manager.KindOnline && !wizard {
+		if ref := destination.Parse(e.Ref); ref.Kind == destination.Provider && e.Kind == manager.KindOnline && !wizard {
+			id := ref.ID
 			e.KeyAction, e.KeyOpen = p.Action+"/key", r.FormValue("key") == e.Ref
 			if a := s.activityFor(r, activity.BackupKeyFor(id)); a != nil && a.Recent(time.Hour) {
 				e.KeyChange = a
@@ -231,7 +234,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			s.planRollback(r, m, &e)
 		}
 		if e.Kind == manager.KindServer {
-			e.AtHome, e.Away, e.AskWhere = s.backupPlace(ctx, m, strings.TrimPrefix(e.Ref, "server:"))
+			e.AtHome, e.Away, e.AskWhere = s.backupPlace(ctx, m, destination.Parse(e.Ref).ID)
 		}
 		p.Entries = append(p.Entries, e)
 		used[e.Ref] = true
@@ -370,8 +373,8 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 // driveOf is the drive (agent.Drive.ID) a backup is on, if on one of the
 // server's drives.
 func driveOf(ref, kind string) string {
-	if id, ok := strings.CutPrefix(ref, "drive:"); ok {
-		return id
+	if r := destination.Parse(ref); r.Kind == destination.Drive {
+		return r.ID
 	}
 	if kind == manager.KindSystem {
 		return "system"
@@ -429,7 +432,7 @@ func (s *Server) planOptions(r *http.Request, m serverRef, main store.BackupTarg
 			o.Friends = append(o.Friends, c)
 		case manager.KindServer:
 			// A copy can't share the main backup's store.
-			if !wizard && !(hasMain && c.Ref == "server:"+main.StoreHost) {
+			if !wizard && !(hasMain && c.Ref == destination.New(destination.Server, main.StoreHost)) {
 				o.Servers = append(o.Servers, c)
 			}
 		case manager.KindSystem:
@@ -515,13 +518,13 @@ func (s *Server) resolveChoice(r *http.Request) (string, error) {
 	ctx := r.Context()
 	switch r.FormValue("choice") {
 	case "drive":
-		if d := r.FormValue("drive"); strings.HasPrefix(d, "server:") {
+		if d := r.FormValue("drive"); destination.Parse(d).Kind == destination.Server {
 			return d, nil // another server's own disk
 		} else if d != "" {
-			return "drive:" + d, nil
+			return destination.New(destination.Drive, d), nil
 		}
 		if f := strings.TrimSpace(r.FormValue("folder")); f != "" {
-			return "folder:" + f, nil
+			return destination.New(destination.Folder, f), nil
 		}
 		return "", nil
 	case "online":
@@ -547,7 +550,7 @@ func (s *Server) resolveChoice(r *http.Request) (string, error) {
 	case "server":
 		return r.FormValue("server"), nil
 	case "cloud":
-		return manager.CloudChoice, nil
+		return destination.Cloud, nil
 	}
 	return "", nil
 }

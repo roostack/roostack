@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/manager"
@@ -591,7 +592,7 @@ func TestBackupPlan(t *testing.T) {
 		t.Error("Roostack Cloud not offered")
 	}
 	h.post("/backups/plan", url.Values{"add": {"2"}, "choice": {"cloud"}}, h.srv.URL)
-	if fm.destination != manager.CloudChoice {
+	if fm.destination != destination.Cloud {
 		t.Fatalf("backup 1 to Roostack Cloud = %q", fm.destination)
 	}
 	fm.cloudBackup, fm.destination = false, ""

@@ -77,7 +77,7 @@
   <form method="post" action="/setup/restore" data-kind="{{.Kind}}" x-data="{ kind: $el.dataset.kind }">
     {{if not .Passed}}<label>Setup code
       <input name="token" autocomplete="off" required autofocus>
-      <small>Shown in the Roostack log, and saved in <code>/var/lib/roostack/setup-token</code>.</small>
+      <small>Shown in the Roostack log, and saved in <code>{{.SetupTokenFile}}</code>.</small>
     </label>{{end}}
     {{/* Where the backups are: a segmented control, its fields following
          the choice (Alpine; without scripts every choice's fields show). */}}
