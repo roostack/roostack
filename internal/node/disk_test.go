@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -16,6 +17,9 @@ import (
 // the test's folders (services, media, the backup store and a backup
 // drive's repository) share one disk, which may also be the system's.
 func TestDiskSpaces(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("space is counted with GNU du and ionice, as on the servers")
+	}
 	root := t.TempDir()
 	var lab config.Lab
 	lab.Paths.ServicesDir, lab.Paths.MediaDir = filepath.Join(root, "services"), filepath.Join(root, "media")

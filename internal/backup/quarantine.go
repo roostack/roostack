@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"path"
 	"regexp"
@@ -199,19 +200,24 @@ func (f *folderFiles) run(ctx context.Context, name string, args ...string) ([]b
 	return out, nil
 }
 
-func (f *folderFiles) List(ctx context.Context, kind string) ([]FileInfo, error) {
-	out, err := f.run(ctx, "find", path.Join(f.dir, kind), "-maxdepth", "1", "-type", "f", "-printf", "%f %s\n")
+// List reads the folder directly rather than through launch: local
+// repositories are under /mnt, /media or /srv (agent.FolderRoots), which
+// roostack's sandbox can read, and their files are the roostack user's.
+func (f *folderFiles) List(_ context.Context, kind string) ([]FileInfo, error) {
+	entries, err := os.ReadDir(path.Join(f.dir, kind))
 	if err != nil {
 		return nil, err
 	}
 	var files []FileInfo
-	for line := range strings.Lines(string(out)) {
-		name, size, ok := strings.Cut(strings.TrimSpace(line), " ")
-		if !ok {
+	for _, e := range entries {
+		if !e.Type().IsRegular() {
 			continue
 		}
-		n, _ := strconv.ParseInt(size, 10, 64)
-		files = append(files, FileInfo{Name: name, Size: n})
+		fi, err := e.Info()
+		if err != nil {
+			continue // removed since the folder was read
+		}
+		files = append(files, FileInfo{Name: e.Name(), Size: fi.Size()})
 	}
 	return files, nil
 }

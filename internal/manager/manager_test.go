@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -617,7 +618,9 @@ func TestInstallSummary(t *testing.T) {
 	}
 	// The server it would run on: its memory (this test's machine's), and
 	// what Vaultwarden, already there, expects.
-	if sv := s.Server; !sv.This || sv.Servers != 1 || sv.Expected != 50_000_000 || sv.Total <= 0 || sv.Available <= 0 {
+	// The memory is read from /proc/meminfo, which only Linux has.
+	if sv := s.Server; !sv.This || sv.Servers != 1 || sv.Expected != 50_000_000 ||
+		runtime.GOOS == "linux" && (sv.Total <= 0 || sv.Available <= 0) {
 		t.Errorf("server memory = %+v", sv)
 	}
 	caddy := s.Files[len(s.Files)-1]

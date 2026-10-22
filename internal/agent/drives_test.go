@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -161,6 +162,9 @@ func TestValidUUID(t *testing.T) {
 }
 
 func TestPrepareFolder(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the roostack folder is made with Linux's mkdirat and openat")
+	}
 	root := t.TempDir()
 	uid, gid := os.Getuid(), os.Getgid()
 	// Only the roostack folder is made: the folder given must exist.
@@ -220,6 +224,9 @@ func TestPrepareFolder(t *testing.T) {
 // The roostack folder is never a symlink followed, even one the roostack
 // user put there to point at another folder.
 func TestPrepareFolderRefusesSymlink(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the roostack folder is made with Linux's mkdirat and openat")
+	}
 	root, outside := t.TempDir(), t.TempDir()
 	os.Mkdir(filepath.Join(root, "backup"), 0o755)
 	for _, target := range []string{outside, filepath.Join(root, "backup", "elsewhere")} {

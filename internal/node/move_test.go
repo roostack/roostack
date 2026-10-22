@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"syscall"
@@ -30,6 +31,9 @@ func direct(ctx context.Context, env []string, name string, args ...string) *exe
 }
 
 func TestKeptData(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("kept data is measured with GNU du, as on the servers")
+	}
 	root := t.TempDir()
 	lab := config.Default()
 	lab.Paths.ServicesDir, lab.Paths.MediaDir = filepath.Join(root, "services"), filepath.Join(root, "media")
@@ -131,6 +135,9 @@ func tarStream(t *testing.T, members ...member) *bytes.Reader {
 // in, even through a link left there by an earlier pass of the copy
 // (docs/ASSUMPTIONS.md L19). Runs the real tar.
 func TestImportDataStaysInside(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("links are listed with GNU find, as on the servers")
+	}
 	if _, err := exec.LookPath("tar"); err != nil {
 		t.Skip("no tar")
 	}

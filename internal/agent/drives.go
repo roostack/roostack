@@ -291,7 +291,7 @@ func statfs(path string) (free, size int64) {
 	if err := syscall.Statfs(path, &st); err != nil {
 		return -1, 0
 	}
-	return int64(st.Bavail) * st.Bsize, int64(st.Blocks) * st.Bsize
+	return int64(st.Bavail) * int64(st.Bsize), int64(st.Blocks) * int64(st.Bsize)
 }
 
 // Drives lists the places backups can go.
