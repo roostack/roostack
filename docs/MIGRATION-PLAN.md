@@ -1,23 +1,23 @@
 # Bringing your own data: moving from Docker Compose (decided 2026-10-20)
 
-The details behind SPEC.md §8.4. **Decided, not built:** the Owner chose
+The details behind SPEC.md §8.4. **Decided, not built:** the maintainer chose
 every recommendation in §11 on 2026-10-20.
 
 Many people who'd use Roostack already run their services with Docker
-Compose, the Owner included (Immich and Plex). They want to move a
+Compose, the maintainer included (Immich and Plex). They want to move a
 service into Roostack **keeping everything**: photos, libraries, watch
 history, accounts, settings and, where possible, the addresses their
 phones and TVs already use.
 
-**The direction (the Owner, 2026-10-20).** A first draft proposed a page
+**The direction (the maintainer, 2026-10-20).** A first draft proposed a page
 that reads the old machine over SSH and moves each app with a recipe of
-its own. The Owner's view: moving is too dependent on each app for that
+its own. The maintainer's view: moving is too dependent on each app for that
 to be the starting point. Instead, Roostack gives a **technical user the
 tools to do it themselves**, step by step: they take their own backup
 (the files, and a database dump), put it where Roostack can see it (a USB
 drive, a network share, a folder on the server), and Roostack brings it
 into a service, like a restore from files rather than from a backup.
-**The tools are generic** (the Owner asked whether they could be, the same
+**The tools are generic** (the maintainer asked whether they could be, the same
 day): they match the old setup to the package by where each folder appears
 inside the container, so there's no code for any one app, and help pages
 keep only what can't be done in general. The first draft's automation stays
@@ -364,7 +364,7 @@ Immich needs                                   found in the old setup
   works, but once its drive is unplugged and plugged back in it stays
   broken ("Input/output error") until the service restarts, while the view
   folder at `/media` comes back by itself. The bind takes the drive's mount,
-  not the automount under it. **Decided (2026-10-20), the Owner:**
+  not the automount under it. **Decided (2026-10-20), the maintainer:**
   - **Where the old media mounts share a parent** (`/data/movies`,
     `/data/tv`), the service's view folder goes at that parent (`/data`),
     each library named after its old subfolder: the view folder as it is
@@ -689,7 +689,7 @@ Roostack assumes it owns its server (SPEC §3: a fresh Debian 13).
 ## 10. Rehearsal on VM 3 (run 2026-10-20)
 
 Done by hand on VM 3, with Docker and Immich's and Plex's Compose images
-(the Owner's yes), then destroyed. Full results in docs/ASSUMPTIONS.md,
+(the maintainer's yes), then destroyed. Full results in docs/ASSUMPTIONS.md,
 section W; the scripts in [migration-rehearsal/](migration-rehearsal/).
 
 | | Result |
@@ -701,7 +701,7 @@ section W; the scripts in [migration-rehearsal/](migration-rehearsal/).
 | **Docker beside Roostack** | ❌ Docker's published ports get past Roostack's firewall, and its forward chain drops (W7) |
 | **Timings** | Not measured: a VM's virtual disks don't say anything about real hardware (W8). The estimates stay estimates |
 
-## 11. Decisions (the Owner chose every recommendation, 2026-10-20)
+## 11. Decisions (the maintainer chose every recommendation, 2026-10-20)
 
 1. **The direction:** the tools (§3), generic for any package, with short
    help per app, as the first version.

@@ -115,4 +115,4 @@ The release workflow then calls [.github/workflows/apt-publish.yml](.github/work
 
 ## Licence
 
-Roostack is under the [Apache License 2.0](LICENSE) (SPEC §2.1). The services it installs keep their own licences, and the software Roostack is built from is listed in [THIRD_PARTY.md](THIRD_PARTY.md).
+Roostack is under the [Apache License 2.0](LICENSE) (SPEC §3.3). The services it installs keep their own licences, and the software Roostack is built from is listed in [THIRD_PARTY.md](THIRD_PARTY.md).
