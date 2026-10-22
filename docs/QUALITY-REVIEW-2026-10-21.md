@@ -157,7 +157,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
   - One block parser with typed tag constructors.
 - **Effort:** M. **Risk:** medium: it's the privilege boundary; verify on a VM. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
-- **Status:** Fixed in `be6a0d1` (2026-10-22): one `editFstab` with a lock, a synced write and the reload. The write stays in place: the agent's sandbox can write `/etc/fstab` but not `/etc`, so an atomic rename needs `ReadWritePaths=/etc` (the Owner's call, in TASKS); the block parser waits for wave 2. Checked on VM3: a backup drive and a media library added and removed.
+- **Status:** Fixed in `be6a0d1` and, for the atomic write, `0757cbb` (2026-10-22): one `editFstab` with a lock and the reload. The agent's sandbox can't write `/etc`, so the agent writes the new file in `/etc/roostack` and a short systemd job renames it over `/etc/fstab` (the Owner's choice); `/etc/fstab` left the agent's `ReadWritePaths`. The block parser waits for wave 2. Checked on VM3 with the installed unit: a backup drive and a media library added and removed, and a reboot.
 
 **P6. A port clash is reported as a web-address clash.**
 - **Where:** `internal/manager/manager.go:387, 856` match `strings.Contains(err.Error(), "already used")` and say "That web address is already used". The port message at `internal/state/state.go:160` contains the same words.
@@ -784,6 +784,7 @@ Many long functions are linear and well commented (`reconcile.Plan`, `generate`'
   - Replace the absence-by-sleep with an explicit signal.
   - Compare the minimum of N runs, or check that the no-account hash uses the same parameters.
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Status:** Partly done in `9716696` (2026-10-22): `authkit`'s test does both; the backup set-up and restore waits in `manager` that gave up silently share a `waitDone` that waits two minutes and fails clearly (`TestRemoteStorageServerUsers` had failed that way under load). The rest stays for wave 1.
 
 **T5. 833 `strings.Contains(body, …)` checks in Roostack's web tests.**
 - **Why:** they tie tests to exact wording, so rewording a sentence breaks unrelated tests. Only `between` (`internal/web/pagessignin_test.go:308`) finds a section of a page; the rest slice with `strings.Index`.
