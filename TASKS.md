@@ -682,8 +682,9 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 
 The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUALITY-REVIEW-2026-10-21.md); IDs refer to it.
 
-- [ ] The Owner decides the review's §12 questions and agrees the plan (§11)
-- [ ] Wave 0: the behaviour fixes found in passing (§2). Approved by the Owner 2026-10-22: P2, P3 (with its agreed wording), P4, P5, P8, P9 (UTC), P11, P14, P16. Explained, awaiting a decision: P1, P6, P7, P10, P12, P13, P15
+- [ ] The Owner decides the rest of the review's §12 questions and agrees the plan (§11); §2's are decided
+- [ ] CLAUDE.md's writing rules: the Owner's tense rule (2026-10-22), in batch 1e
+- [ ] Wave 0: the behaviour fixes found in passing (§2), all approved by the Owner on 2026-10-22 (P3 with its agreed wording, P9 in UTC): P3–P7, P12, P13, P15, P16 here; P1, P2, P8–P11, P14 in Cloud
 - [ ] Wave 1: the parallel batches 1a–1j (§11)
 - [ ] Wave 2: the shared helpers, one at a time (§11)
 - [ ] Wave 3: the structural changes the Owner chooses (§11)

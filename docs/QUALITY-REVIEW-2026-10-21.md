@@ -102,12 +102,14 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Why:** there's only a `test` environment today, so it hasn't bitten. The first production deploy would leave roost.ac down until someone starts the units by hand.
 - **Change:** run `ca dev` only for the test environment.
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P2. The console's expired passkey ceremonies are never deleted.**
 - **Where:** `cloud:internal/db/queries/passkeys.sql:46-50` has no purge for `admin_passkey_ceremonies`. The website's ceremonies are purged by `DeleteExpiredPasskeyCeremonies` (`:27`), called hourly.
 - **Why:** the table only grows. It's a result of the console's passkey code being a copy of the website's (S15).
 - **Change:** add the query and call it from the console's hourly job (`cloud:cmd/cloud/adminconsole.go:351`).
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P3. After a failed database load, a restored or moved service is stopped, but only until the next apply.**
 - **Where:**
@@ -136,6 +138,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Why:** two overlapping updates can each read the old file and the second save loses the first change. The comment's claim ("callers change only their own fields, so concurrent edits … don't overwrite each other") is true only if they don't overlap in time.
 - **Change:** a package-level mutex around read-change-save; fix the comment.
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P5. `/etc/fstab` is edited in seven places, unlocked and in place.**
 - **Where:** `internal/agent/drives.go:394/417`, `import.go:82/87`, `library.go:226/237, 259/282, 648/678, 873/959`, `shares.go:213/225`.
@@ -149,21 +152,25 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
   - One `editFstab(func(tab string) (string, error))` with a mutex, an atomic write and the reload.
   - One block parser with typed tag constructors.
 - **Effort:** M. **Risk:** medium: it's the privilege boundary; verify on a VM. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P6. A port clash is reported as a web-address clash.**
 - **Where:** `internal/manager/manager.go:387, 856` match `strings.Contains(err.Error(), "already used")` and say "That web address is already used". The port message at `internal/state/state.go:160` contains the same words.
 - **Change:** a `HostInUseError` beside the existing `PortInUseError` (`state.go:208`), and `errors.As`.
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P7. Atomic writes can leave a private file with the wrong permissions.**
 - **Where:** every hand-written `os.WriteFile(tmp, data, 0o600)` then `os.Rename` (§3.1). `os.WriteFile` applies the mode only when it creates the file, so a leftover `.tmp` from an earlier crash, if it was 0644, keeps 0644. Only `reconcile.writeAtomic` (`internal/reconcile/reconcile.go:708`) uses `CreateTemp` and `Chmod`.
 - **Change:** fixed by the helper in §3.1.
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P8. Cloud's quota email shows 400 kB as "0 MB".**
 - **Where:** `cloud:internal/storage/meter.go:255` formats with `%.0f MB` below a gigabyte.
 - **Change:** fixed by one size formatter (§3.3).
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P9. Which month does relay bandwidth count in?**
 - **Where:** the portal's "this month's bandwidth" (`cloud:internal/web/portal.go:530`) sums `relay_usage`, which has one row per lab per UTC day, so it can only be a UTC month. Visits, on the portal and in the lab API's `relayStats` (`cloud:internal/api/api.go:755-859`), are hourly, so both show them in the lab's own time zone. The code is consistent with its data. What's unwritten is which month the relay's monthly allowance (and later its bill) counts: DESIGN §3c says "monthly" without a zone.
@@ -175,28 +182,33 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Where:** `cloud:internal/mail/mail.go:133` sends `Content-Transfer-Encoding: 8bit` without checking the server's `8BITMIME`, and doesn't wrap lines. RFC 5322 limits a line to 998 octets. Roostack's mail uses quoted-printable (`internal/mail/mail.go:209-214`).
 - **Change:** port Roostack's encoding.
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P11. A restore email in Cloud is sent outside any transaction.**
 - **Where:** `cloud:internal/api/restore.go:170-188` calls `Mail.Send` in a goroutine. Everywhere else mail is queued in the outbox in the same transaction as the change, then the outbox is woken.
 - **Change:** queue it like the rest (S16, "Owner and the lab's recipients").
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P12. Some htmx partials send half a page with 200 OK on a template error.**
 - **Where:** `internal/web/pages.go:886` `renderPart` executes the template straight into the response, where `render` and `renderLive` buffer first.
 - **Change:** buffer it like the others.
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P13. The package editor's Compose import puts a service name into a regular expression unescaped.**
 - **Where:** `internal/editor/static/compose.js:404` (`dsvc`) and `:432` (`^${o}:\d+$`). The same file escapes names elsewhere (`:432`'s first pattern).
 - **Why:** a Compose service name with a `.` matches more than meant. Compose's names allow `.`, `-` and `_`.
 - **Change:** one shared `escapeRegExp`, used everywhere the escape is inlined (five places).
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P14. The website's copy of the editor uses a design token the site doesn't have.**
 - **Where:** `cloud:site/src/styles/roostack/tokens.css` was synced from Roostack `51a7674`, 401 commits ago; the editor from `06aa380`. `editor.css` uses `var(--text-xs)` (lines 157, 162, 197) with no fallback, and the site's tokens don't define it.
 - **Why:** those labels render at the inherited size on roostack.cloud.
 - **Change:** have `cloud:tools/sync-editor.sh` also sync the tokens, and check drift in CI (G1).
 - **Effort:** S. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P15. Remote node calls drop errors and use a fresh context.**
 - **Where:** `internal/node/remote.go:389` (`remoteRestores.Pending`), `:424` and `:433` (`remoteUpdates.Pending`, `RestartStatus`) discard the error.
@@ -204,6 +216,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
   - A request that asks for them can't be cancelled when the person leaves the page; the 3-minute timeout is the only bound.
 - **Change:** add `ctx` to those interface methods; return the errors.
 - **Effort:** M. **Risk:** low. **Decision:** no.
+- **Decided (the Owner, 2026-10-22):** approved.
 
 **P16. The deb's subordinate ID range can overlap one that was there before.**
 - **Where:** `packaging/deb/postinst:25` gives the `roostack` user a fixed `200000-265535` with `usermod --add-subuids`, which doesn't check for overlaps.
@@ -1115,7 +1128,7 @@ They touch few files, but they overlap with waves 1 and 2, so they go first.
 | **1b. Web tidy** | Roostack | §9's web dead code, D13, D14, S1 (constructor and groups), S3, S5, S6, T8 (web's fakes) | `internal/web/**` only | Page HTML before/after; gallery unchanged; VM look |
 | **1c. Lab API wire** | Roostack | S9 (round-trip test first, then wire files), S10 if decided | `internal/node/api.go`, `remote.go`, new `*wire.go`, `remote_test.go` | The new round-trip test before and after; VM with a second server joined |
 | **1d. Store split** | Roostack | S14 step 1 (pure move), dead store functions | `internal/store/*` | Suite; `git diff --stat` shows only moves |
-| **1e. Docs and layout** | Roostack | N3, N4, N6, N7, N8, package docs for `cloud`, `node`, `setup` (new `doc.go`s), CONTRIBUTING, SECURITY | `README.md`, `ARCHITECTURE.md`, `CLAUDE.md`, `docs/**`, `tools/maketakeout` (moved), new `doc.go`s | Links resolve; `go test ./tools/...` |
+| **1e. Docs and layout** | Roostack | N3, N4, N6, N7, N8, package docs for `cloud`, `node`, `setup` (new `doc.go`s), CONTRIBUTING, SECURITY; CLAUDE.md's writing rules gain the Owner's tense rule (2026-10-22: the future for what will happen, the present continuous for what's happening, not the present simple) | `README.md`, `ARCHITECTURE.md`, `CLAUDE.md`, `docs/**`, `tools/maketakeout` (moved), new `doc.go`s | Links resolve; `go test ./tools/...` |
 | **1f. CI and generated files** | Roostack | G1, G2, G3 (if decided), the Makefile's `gofmt` | `.github/**`, `Makefile`, `scripts/*` (shellcheck fixes) | CI green on a branch |
 | **1g. Editor** | Roostack, then Cloud's sync | J1 (escape helper, split `importCompose`, script manifest) | `internal/editor/**`, then `cloud:tools/sync-editor.sh`, `cloud:site/src/pages/package-editor.astro` | `make editor-test`; corpus unchanged |
 | **1h. Cloud ui** | Cloud | S15, S16's JSON helpers and `Wait`, S4's `<no value>` test helper | `internal/web/**`, `internal/admin/**`, new `internal/ui` | Full suite; e2e; look at the website and the console |
@@ -1149,7 +1162,7 @@ Each its own session, in any order, once waves 1 and 2 have landed:
 
 Grouped. Everything not listed here can go ahead once the plan is agreed.
 
-**Behaviour (§2):**
+**Behaviour (§2):** all decided by the Owner on 2026-10-22 (each finding says how).
 - P3: after a failed database load, should a move switch back to the old server, and should a restore hold the service stopped until someone acts?
 - P9: does the relay's monthly allowance count in UTC?
 - P16: may shadow choose the `roostack` user's subordinate ID range?
