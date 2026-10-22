@@ -4,7 +4,8 @@
 #
 #   vet         gofmt and go vet (make vet), and staticcheck
 #   test        the whole test suite with restic (so the backup tests run
-#               rather than skip), and the package editor's JavaScript tests
+#               rather than skip), the package editor's JavaScript tests,
+#               and the public help's password gate's
 #   help        the help site's strict build (make help), so a broken link
 #               fails a pull request, not only a release
 #   generated   the files Python generates are up to date
@@ -77,9 +78,10 @@ jobs:
       - name: go test
         run: go test ./...
       # The package editor's checks against Go's, and its import (SPEC.md
-      # §8.3.7), with the runner image's own Node (20 or later).
-      - name: node --test (the package editor)
-        run: node --version && make editor-test
+      # §8.3.7), and the public help's password gate (help/worker), with the
+      # runner image's own Node (20 or later).
+      - name: node --test (the package editor, the help's gate)
+        run: node --version && make editor-test gate-test
 
   # The help site as a release builds it: Zensical exactly as help/uv.lock
   # pins it (refusing a lock that's out of date), strict, so a broken link
