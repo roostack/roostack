@@ -580,15 +580,20 @@ it. The report says only "paused since …, N services".
   - Syft in CI for exact versions (§4), which the watcher's exact
     matches depend on.
 
-### 10.1 Raising advisories without a full-time team: the watcher
+### 10.1 Raising advisories without a full-time team: the watcher — Decided (2026-10-22), the Owner's answers to questions 14–17
 
 Advisories only help if someone writes them within hours of a zero-day.
 The project has no security team, so most of the work has to be done by
-a scheduled job, with a person only approving. **Proposed: a watcher in
-the registry's own GitHub Actions that drafts advisories for a
-maintainer to approve.** Labs never read the feeds, and nothing that
-can pause a service is published without a person (or, much later, the
-narrow exception in §10.1.5).
+a scheduled job, with a person only approving. **Decided (the Owner,
+2026-10-22): a watcher in the registry's own GitHub Actions that drafts
+advisories for a maintainer to approve**, written in Go as `roostack
+registry watch`, beside `roostack registry index`. Labs never read the
+feeds, and nothing that can pause a service is published without a
+person. Urgent alerts go to the maintainers' phones through ntfy. An AI
+first pass comes once the watcher works without it; publishing with
+nobody around waits until drafts have been accurate for a few months
+(§10.1.5). The rest of §10.1 (the sources, matching, ranking) is the
+proposal as written; its details are settled when it's built.
 
 #### 10.1.1 What it reads
 
@@ -663,8 +668,10 @@ From that:
 #### 10.1.4 Reaching a person quickly
 
 - **A critical match that's being used in attacks** sends a push
-  notification to the maintainers' phones (ntfy or Pushover, *question
-  15*), linking to the pull request.
+  notification to the maintainers' phones through **ntfy** (the Owner,
+  2026-10-22; open source, and it could be self-hosted on a lab),
+  linking to the pull request. *Considered:* Pushover (a small fee per
+  device), GitHub's own notifications only (easy to miss at night).
 - **Approving is one action:** reviewing and merging the pull request,
   from a phone if needed. Publishing is automatic after that, as it is
   now: the index is signed and labs fetch it within the hour (minutes
@@ -675,16 +682,17 @@ From that:
 
 #### 10.1.5 Optional, later
 
-- **An AI first pass** (*question 16*): for each strong match, Claude
+- **An AI first pass** (the Owner, 2026-10-22: yes, once the watcher
+  works without it): for each strong match, Claude
   reads the advisory and the app's notes. It writes the plain-English
   summary that the lab will show, and suggests an answer to "can someone
   on the internet use this without signing in?", with its reasons.
   - A maintainer still approves the draft.
   - It saves the most time per alert, at a few cents each.
   - The project's API key goes in the registry's CI secrets.
-- **Publishing with nobody around** (*question 17*): only for the
-  narrowest case, and only once drafts have proved accurate for a few
-  months. The case is:
+- **Publishing with nobody around** (the Owner, 2026-10-22: not now;
+  revisit once drafts have been accurate for a few months): only for the
+  narrowest case. The case is:
   - an exact version match;
   - on a KEV list;
   - usable without signing in;
@@ -774,6 +782,8 @@ second phase, since advisories need someone to write them:
 
 ## 12. Questions for the Owner
 
+Questions 14–17 were answered on 2026-10-22 (below, and §10.1); 1–13 are still open.
+
 1. **Who:** Admins may pause, only the Owner lifts or keeps something
    public anyway? *(Recommended.)* Or the Owner only, for both?
 2. **The default for new labs:**
@@ -813,20 +823,13 @@ second phase, since advisories need someone to write them:
     container, and its list of names kept by the registry rather than
     in Roostack's code?
 13. **The phases** as in §11: the button first, advisories second?
-14. **The watcher** (§10.1): a scheduled job in the registry's CI that
-    drafts advisory pull requests and a weekly digest, with a maintainer
-    approving every one *(recommended)*? And written as
-    `roostack registry watch` in Go, beside `roostack registry index`
-    *(recommended)*, rather than a separate script?
-15. **Urgent alerts to the maintainers' phones:**
-    - ntfy *(recommended: open source, and could be self-hosted on a
-      lab)*;
-    - Pushover (a small one-off fee per device);
-    - or GitHub's own notifications only.
-16. **An AI first pass** on strong matches (a summary and a suggested
-    "usable without signing in?"), with a maintainer still approving?
-    *(Recommended, once the watcher works without it.)*
-17. **Publishing with nobody around**, for the narrowest case (an exact
-    match, on a KEV list, usable without signing in, no objection within
-    a few hours)? *(Recommended: not now. Revisit once drafts have been
-    accurate for a few months.)*
+14. ~~**The watcher** (§10.1)~~ **Decided (2026-10-22): yes.** A
+    scheduled job in the registry's CI drafts advisory pull requests and
+    a weekly digest, a maintainer approves every one, and it's written
+    as `roostack registry watch` in Go.
+15. ~~**Urgent alerts to the maintainers' phones**~~ **Decided
+    (2026-10-22): ntfy.**
+16. ~~**An AI first pass**~~ **Decided (2026-10-22): yes, once the
+    watcher works without it.**
+17. ~~**Publishing with nobody around**~~ **Decided (2026-10-22): not
+    now.** Revisit once drafts have been accurate for a few months.
