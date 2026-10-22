@@ -189,11 +189,7 @@ func (s *Server) migratable(ctx context.Context, u *store.User) []manager.PhotoS
 // photosHome is /immich-photos: the one Immich someone may migrate into,
 // or a choice of them, or who to ask.
 func (s *Server) photosHome(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	u := currentUser(r)
 	all := []manager.PhotoService(nil)
 	if s.Photos != nil {
@@ -209,14 +205,14 @@ func (s *Server) photosHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["Own"], data["Choices"], data["Owner"] = true, mine, s.ownerName(r.Context())
-	data["PhotoHosts"] = s.photoHosts(all)
+	data["PhotoHosts"] = s.photoHosts(r.Context(), all)
 	s.render(w, "photos-home", data)
 }
 
 // photoHosts are each Immich's address, by name, for the choice.
-func (s *Server) photoHosts(list []manager.PhotoService) map[string]string {
+func (s *Server) photoHosts(ctx context.Context, list []manager.PhotoService) map[string]string {
 	out := map[string]string{}
-	views, err := s.Services(context.Background())
+	views, err := s.Services(ctx)
 	if err != nil {
 		return out
 	}
@@ -248,15 +244,11 @@ func (s *Server) renderPhotos(w http.ResponseWriter, r *http.Request, panel bool
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	pg := &photoPage{Name: name, Title: ps.Title, Panel: panel, Admin: isAdmin(u), Error: errMsg,
 		Owner: s.ownerName(r.Context()), IsOwner: u.Role == auth.RoleOwner, Permissions: photoimport.Permissions,
 		MostMemory: s.Photos.PhotoSettings(r.Context(), name).Memory == photoimport.MemoryMost,
-		Post:       "/immich-photos/" + url.PathEscape(name), Service: s.photoServiceView(r, name, isAdmin(u))}
+		Post:       "/immich-photos/" + url.PathEscape(name), Service: s.serviceRow(r.Context(), name, isAdmin(u))}
 	pg.Base = pg.Post
 	if panel {
 		pg.Base = "/services/" + url.PathEscape(name) + "/photos"
@@ -339,14 +331,8 @@ func (s *Server) renderPhotosPage(w http.ResponseWriter, data map[string]any, pa
 
 // serviceURL is a service's own address ("" if it has none).
 func (s *Server) serviceURL(ctx context.Context, name string) string {
-	views, err := s.Services(ctx)
-	if err != nil {
-		return ""
-	}
-	for _, v := range views {
-		if v.Name == name && len(v.URLs) > 0 {
-			return v.URLs[0]
-		}
+	if v, ok, _ := s.serviceByName(ctx, name); ok && len(v.URLs) > 0 {
+		return v.URLs[0]
 	}
 	return ""
 }
@@ -561,11 +547,7 @@ func (s *Server) photoFoldersPage(w http.ResponseWriter, r *http.Request, panel 
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	base := "/immich-photos/" + url.PathEscape(name)
 	if panel {
 		base = "/services/" + url.PathEscape(name) + "/photos"
@@ -1119,17 +1101,14 @@ func (f photoSourceForm) Control(admin bool) (template.HTML, error) {
 	return segmented("where", "Where the export is", f.Where, args...)
 }
 
-// photoServiceView is Immich's row, with its logo for those who may see it
-// (withIcons).
-func (s *Server) photoServiceView(r *http.Request, name string, admin bool) ServiceView {
-	if services, err := s.Services(r.Context()); err == nil {
-		for _, svc := range services {
-			if svc.Name == name {
-				one := []ServiceView{svc}
-				s.withIcons(one, admin)
-				return one[0]
-			}
-		}
+// serviceRow is a service's row as the dashboard has it (its title,
+// status and icon, with its logo for those who may see it: withIcons), or
+// just its name.
+func (s *Server) serviceRow(ctx context.Context, name string, logos bool) ServiceView {
+	if svc, ok, _ := s.serviceByName(ctx, name); ok {
+		one := []ServiceView{svc}
+		s.withIcons(one, logos)
+		return one[0]
 	}
 	return ServiceView{Name: name, Title: name, DrawnIcon: categoryIcon(nil)}
 }

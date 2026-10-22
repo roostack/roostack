@@ -33,11 +33,7 @@ func (s *Server) serverGonePage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) renderServerGone(w http.ResponseWriter, r *http.Request, errMsg string, status int) {
 	id := r.PathValue("server")
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	plan, err := s.Manager.LostServerPlan(r.Context(), id)
 	// While (or just after) its services are restored, the page shows how
 	// that's going; the server may have left the lab by then (its name

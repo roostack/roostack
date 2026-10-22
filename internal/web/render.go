@@ -87,11 +87,14 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 	if n, ok := data["Nav"].(nav); ok && n.Active == "services" && n.Backups {
 		current, _ := data["Service"].(ServiceView)
 		n.InService = current.Name != ""
-		if services, ok := data["Services"].([]ServiceView); ok {
-			for _, sv := range services {
-				n.Services = append(n.Services, navLink{Href: "/services/" + sv.Name, Title: sv.Title,
-					Logo: sv.IconURL, Icon: sv.DrawnIcon, Current: sv.Name == current.Name})
-			}
+		services, ok := data["Services"].([]ServiceView)
+		if p, lazy := data[pageServicesKey].(*pageServices); !ok && lazy {
+			// A page in Services that doesn't list them itself.
+			services, _ = p.get()
+		}
+		for _, sv := range services {
+			n.Services = append(n.Services, navLink{Href: "/services/" + sv.Name, Title: sv.Title,
+				Logo: sv.IconURL, Icon: sv.DrawnIcon, Current: sv.Name == current.Name})
 		}
 		data["Nav"] = n
 	}

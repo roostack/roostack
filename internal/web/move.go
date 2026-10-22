@@ -33,11 +33,7 @@ func (s *Server) renderMove(w http.ResponseWriter, r *http.Request, errMsg strin
 		s.serverError(w, err)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	servers, _ := s.Manager.Servers()
 	var targets []manager.Server
 	for _, mc := range servers {

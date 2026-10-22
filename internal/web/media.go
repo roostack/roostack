@@ -39,11 +39,7 @@ func (s *Server) mediaPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	servers, err := s.Libraries.MediaLibraries(r.Context())
 	if err != nil {
 		s.serverError(w, err)
@@ -204,11 +200,7 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	q := r.Form
 	if q == nil {
 		q = r.URL.Query()
@@ -334,11 +326,7 @@ func (s *Server) mediaFoldersPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	q := r.URL.Query()
 	sv, ok, err := s.mediaServer(r, q.Get("server"))
 	if err != nil {
@@ -515,11 +503,7 @@ func (s *Server) mediaLibraryPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	readers, err := s.Libraries.LibraryReaders(r.Context(), sv.ServerID)
 	if err != nil {
 		s.serverError(w, err)

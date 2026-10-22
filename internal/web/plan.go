@@ -654,11 +654,7 @@ func (s *Server) renderPlanPage(w http.ResponseWriter, r *http.Request, wizard b
 		s.renderBackupStep(w, r, map[string]any{"Error": msg})
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	data["Error"] = msg
 	s.renderBackups(w, r, data)
 }

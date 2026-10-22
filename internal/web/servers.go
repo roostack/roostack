@@ -176,11 +176,7 @@ func (s *Server) serverRoutes(mux *http.ServeMux) {
 
 // renderUnreachable is a server's settings page while it doesn't answer.
 func (s *Server) renderUnreachable(w http.ResponseWriter, r *http.Request, m serverRef) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	data["Server"] = m
 	w.WriteHeader(http.StatusServiceUnavailable)
 	s.render(w, "settings-server-unreachable", data)

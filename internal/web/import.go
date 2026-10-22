@@ -202,12 +202,8 @@ func (s *Server) renderImport(w http.ResponseWriter, r *http.Request, errMsg str
 		s.serverError(w, err)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	svc := s.serviceViewOf(r, name)
+	data := s.pageData(r)
+	svc := s.serviceRow(r.Context(), name, true)
 	pg := importPage{Name: name, Title: cmp.Or(svc.Title, p.Title), Service: svc, Package: p, V: v, Error: errMsg}
 	pg.Switching = s.Manager.Switching(name)
 	pg.Switch = s.activityFor(r, activity.ImportFor(name))
@@ -264,21 +260,6 @@ func (s *Server) renderImport(w http.ResponseWriter, r *http.Request, errMsg str
 		w.WriteHeader(status)
 	}
 	s.render(w, "import", data)
-}
-
-// serviceViewOf is a service's row as the dashboard has it (its title,
-// status and logo), or just its name.
-func (s *Server) serviceViewOf(r *http.Request, name string) ServiceView {
-	if services, err := s.Services(r.Context()); err == nil {
-		for _, svc := range services {
-			if svc.Name == name {
-				one := []ServiceView{svc}
-				s.withIcons(one, true)
-				return one[0]
-			}
-		}
-	}
-	return ServiceView{Name: name, Title: name, DrawnIcon: categoryIcon(nil)}
 }
 
 // importReached is the furthest step the person got to.
@@ -632,11 +613,7 @@ func (s *Server) importFoldersPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	server := n.Identity().ID
 	q := r.URL.Query()
 	base := "/services/" + url.PathEscape(name) + "/import"
@@ -711,11 +688,7 @@ func (s *Server) importBrowsePage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	v, err := x.Import(r.Context(), name)
 	if err != nil {
 		s.serverError(w, err)

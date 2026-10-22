@@ -6,11 +6,7 @@ import "net/http"
 // labs sharing storage.
 
 func (s *Server) labNamePage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	s.render(w, "settings-lab", withArea(data, "lab"))
 }
 
@@ -18,11 +14,7 @@ func (s *Server) labNameSubmit(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	err := s.Setup.SetLabName(r.Context(), name, true)
 	if msg, ok := userMessage(err); ok {
-		data, derr := s.pageData(r)
-		if derr != nil {
-			s.serverError(w, derr)
-			return
-		}
+		data := s.pageData(r)
 		data["Error"], data["LabName"] = msg, name
 		w.WriteHeader(http.StatusBadRequest)
 		s.render(w, "settings-lab", withArea(data, "lab"))

@@ -1467,3 +1467,24 @@ func TestListText(t *testing.T) {
 		}
 	}
 }
+
+// Listing the lab's services asks every server, so only the pages that
+// show them ask: Settings' pages don't, a page under Services asks once
+// for the sidebar, and a service's page once for itself and the sidebar.
+func TestServicesAskedForOnlyWhereShown(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.setSetup(&fakeSetup{p: allDone})
+	list, asked := h.server.Services, 0
+	h.server.Services = func(ctx context.Context) ([]ServiceView, error) { asked++; return list(ctx) }
+	for path, want := range map[string]int{"/settings/lab": 0, "/settings/updates": 0, "/services/vaultwarden/move": 1, "/services/vaultwarden": 1} {
+		asked = 0
+		if code, _ := h.get(path); code != http.StatusOK || asked != want {
+			t.Errorf("%s: %d, asked for the services %d times, want %d", path, code, asked, want)
+		}
+	}
+	// A page that doesn't show them works when they can't be listed.
+	h.server.Services = func(context.Context) ([]ServiceView, error) { return nil, errors.New("a server didn't answer") }
+	if code, _ := h.get("/settings/lab"); code != http.StatusOK {
+		t.Errorf("Settings → Lab name without the services: %d", code)
+	}
+}

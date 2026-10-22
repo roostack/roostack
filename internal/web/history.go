@@ -55,11 +55,7 @@ func (s *Server) historyKeepDays(ctx context.Context) int {
 }
 
 func (s *Server) historyPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	kind := r.URL.Query().Get("kind")
 	var before time.Time
 	if v, err := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64); err == nil {
@@ -142,11 +138,7 @@ func (s *Server) historyEventPage(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			break
 		}
-		data, err := s.pageData(r)
-		if err != nil {
-			s.serverError(w, err)
-			return
-		}
+		data := s.pageData(r)
 		data["Event"], data["Server"], data["Lines"] = e, mn.view.Label(), strings.Split(e.Output, "\n")
 		s.render(w, "settings-history-event", withArea(data, "history"))
 		return

@@ -83,11 +83,7 @@ func (s *Server) visitorsPage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/services")
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	data["Period"] = r.FormValue("period")
 	s.render(w, "visitors", data)
 }

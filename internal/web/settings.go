@@ -121,11 +121,7 @@ type areaCard struct {
 
 // settingsPage is the overview grid.
 func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	cards := map[string]areaCard{}
 	for _, a := range settingsAreas {
 		cards[a.ID] = areaCard{settingsArea: a}
@@ -291,11 +287,7 @@ type areaNav struct {
 }
 
 func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	data["LabDomain"] = s.Domain
 	data["UIHost"] = s.uiHost()
 	data["DomainSet"] = s.Domain != "" && s.domainDone(r)
@@ -325,11 +317,7 @@ func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	data["DNS"] = s.dnsView(r)
 	data["NetworkForm"] = s.networkForm(r, false)
 	if s.DNS != nil {
@@ -353,11 +341,7 @@ const endpointKey = "network.endpoint"
 // renderServers shows the Servers page; extra is added to its data
 // (e.g. a new join code).
 func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map[string]any) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	// ?remove=<id> opens that server's remove section (from "Remove it").
 	data["Remove"] = r.FormValue("remove")
 	servers, err := s.Manager.Servers()
@@ -533,11 +517,7 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request) {
 
 // renderUpdates shows the updates page; errMsg is shown on it (400).
 func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg string) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	data["Updates"] = s.updatesView(r, errMsg)
 	// The registry is the lab's, kept by the controller: on its page.
 	if s.serverRefOf(r).This {

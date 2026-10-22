@@ -26,11 +26,7 @@ func (s *Server) storagePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map[string]any) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	guests, err := s.Manager.StorageGuests(r.Context())
 	if err != nil {
 		s.serverError(w, err)

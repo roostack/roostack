@@ -37,11 +37,7 @@ func (s *Server) renderEmail(w http.ResponseWriter, r *http.Request, extra map[s
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	m, hasPassword := s.Mail.Settings()
 	if m.Port == 0 {
 		m.Port, m.Security = 587, config.MailSTARTTLS

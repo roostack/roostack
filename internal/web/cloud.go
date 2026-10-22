@@ -152,11 +152,7 @@ func (s *Server) requireCloud(h http.HandlerFunc) http.Handler {
 }
 
 func (s *Server) cloudPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	data["Cloud"] = s.cloudView(r, false)
 	data["Unlinked"] = r.FormValue("unlinked")
 	s.render(w, "settings-cloud", withArea(data, "cloud"))
@@ -449,11 +445,7 @@ func (s *Server) cloudLinkedPage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, s.cloudNext(r, setup, st))
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	data["Stage"], data["Setup"], data["Wizard"], data["Suffix"] = st, setup, setup && s.wizardOpen(r), s.cloudSuffix(r.Context())
 	s.render(w, "cloud-linked", data)
 }

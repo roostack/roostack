@@ -2,6 +2,8 @@ package web
 
 import (
 	"cmp"
+	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
@@ -169,8 +171,71 @@ func (s *Server) withIcons(services []ServiceView, logos bool) {
 	}
 }
 
-// pageData collects what most pages show, for the current user.
-func (s *Server) pageData(r *http.Request) (map[string]any, error) {
+// pageData collects what most pages show, for the current user. The
+// lab's services aren't among them: listing them asks every server, so a
+// page that shows them adds them (withServices), and the sidebar fetches
+// them for its list under Services (render).
+func (s *Server) pageData(r *http.Request) map[string]any {
+	u := currentUser(r)
+	return map[string]any{
+		"User":          u,
+		pageServicesKey: &pageServices{fetch: func() ([]ServiceView, error) { return s.servicesFor(r) }},
+		"CanManage":     auth.Can(u.Role, auth.ManageServices),
+		"IsOwner":       auth.Can(u.Role, auth.ManageHost),
+		"Internet":      s.onInternet(),
+		"Apply":         s.applyStatus(),
+		"Server":        s.serverRefOf(r),
+	}
+}
+
+// pageServicesKey is where pageData keeps the lab's services for a page,
+// until they're asked for.
+const pageServicesKey = "pageServices"
+
+// pageServices are the lab's services for one page, fetched the first
+// time they're asked for.
+type pageServices struct {
+	once  sync.Once
+	fetch func() ([]ServiceView, error)
+	list  []ServiceView
+	err   error
+}
+
+func (p *pageServices) get() ([]ServiceView, error) {
+	p.once.Do(func() { p.list, p.err = p.fetch() })
+	return p.list, p.err
+}
+
+// pageDataWithServices is pageData with the lab's services (as
+// Services), for a page that shows them; on an error it has sent the
+// error page.
+func (s *Server) pageDataWithServices(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
+	data := s.pageData(r)
+	if _, err := withServices(data); err != nil {
+		s.serverError(w, err)
+		return nil, false
+	}
+	return data, true
+}
+
+// withServices adds the lab's services to a page's data (as Services), for
+// a page that shows them, and returns them.
+func withServices(data map[string]any) ([]ServiceView, error) {
+	p, ok := data[pageServicesKey].(*pageServices)
+	if !ok {
+		return nil, errors.New("page data without its services")
+	}
+	services, err := p.get()
+	if err != nil {
+		return nil, err
+	}
+	data["Services"] = services
+	return services, nil
+}
+
+// servicesFor are the lab's services the person r comes from can use,
+// with their registry tiers and icons.
+func (s *Server) servicesFor(r *http.Request) ([]ServiceView, error) {
 	u := currentUser(r)
 	services, err := s.Services(r.Context())
 	if err != nil {
@@ -178,22 +243,27 @@ func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 	}
 	s.withTiers(services)
 	s.withIcons(services, auth.Can(u.Role, auth.ManageServices))
-	services = s.usableBy(r.Context(), u, services)
-	return map[string]any{
-		"User":      u,
-		"Services":  services,
-		"CanManage": auth.Can(u.Role, auth.ManageServices),
-		"IsOwner":   auth.Can(u.Role, auth.ManageHost),
-		"Internet":  s.onInternet(),
-		"Apply":     s.applyStatus(),
-		"Server":    s.serverRefOf(r),
-	}, nil
+	return s.usableBy(r.Context(), u, services), nil
+}
+
+// serviceByName is the lab's service called name, as the dashboard lists
+// it, and whether there is one.
+func (s *Server) serviceByName(ctx context.Context, name string) (ServiceView, bool, error) {
+	services, err := s.Services(ctx)
+	if err != nil {
+		return ServiceView{}, false, err
+	}
+	for _, svc := range services {
+		if svc.Name == name {
+			return svc, true, nil
+		}
+	}
+	return ServiceView{}, false, nil
 }
 
 func (s *Server) homePage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
+	data, ok := s.pageDataWithServices(w, r)
+	if !ok {
 		return
 	}
 	s.homeData(r, data)
@@ -206,9 +276,8 @@ func (s *Server) homePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) homePartial(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
+	data, ok := s.pageDataWithServices(w, r)
+	if !ok {
 		return
 	}
 	s.homeData(r, data)
@@ -404,9 +473,8 @@ func homeFiguresOf(services []ServiceView, servers []serverView) homeFigures {
 }
 
 func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
+	data, ok := s.pageDataWithServices(w, r)
+	if !ok {
 		return
 	}
 	if a := s.activityFor(r, activity.Apply); a != nil {
@@ -424,9 +492,8 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
+	data, ok := s.pageDataWithServices(w, r)
+	if !ok {
 		return
 	}
 	s.addBuiltIns(r, data)
@@ -444,11 +511,7 @@ func (s *Server) addBuiltIns(r *http.Request, data map[string]any) {
 }
 
 func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	s.renderBackups(w, r, data)
 }
 
@@ -480,7 +543,11 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	}
 	// Every service in the lab can be restored, from any backup of it
 	// (SPEC.md §10.10), listed by the server it runs on.
-	all, _ := data["Services"].([]ServiceView)
+	all, err := withServices(data)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
 	data["RestoreGroups"] = s.servicesByServer(all)
 	// Where backups go: the plan (SPEC.md §6.9).
 	if auth.Can(currentUser(r).Role, auth.ManageHost) {
@@ -571,11 +638,7 @@ func (s *Server) labHasBackups(r *http.Request) bool {
 }
 
 func (s *Server) backupsPartial(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	data["Backup"] = s.backupView(r)
 	s.renderLive(w, r, "backups", "backup-card", data)
 }

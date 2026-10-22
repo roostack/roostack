@@ -292,11 +292,7 @@ func (s *Server) renderMonitoring(w http.ResponseWriter, r *http.Request, formEr
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	ctx := r.Context()
 	statuses := s.Monitor.Statuses()
 	var services, servers, own []monitor.Status
@@ -356,11 +352,7 @@ func (s *Server) monitorCheckPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	h, err := s.Monitor.History(r.Context(), key, 90, true)
 	if err != nil {
 		s.serverError(w, err)

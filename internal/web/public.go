@@ -306,11 +306,7 @@ func fromLoopback(r *http.Request) bool {
 // publicSettingsPage is Settings → Public access: what's public, whether
 // CrowdSec is running, and the sharing choice.
 func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	asked, share := s.Manager.SignalSharing()
 	data["SharingAsked"], data["Share"] = asked, share
 	hosts := s.Manager.PublicHosts()

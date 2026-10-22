@@ -42,9 +42,8 @@ type serviceAction struct {
 // an action's result), or its settings page with "EditSettings"; failed
 // sets a 400 status.
 func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra map[string]any, failed bool) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
+	data, ok := s.pageDataWithServices(w, r)
+	if !ok {
 		return
 	}
 	name := r.PathValue("name")
