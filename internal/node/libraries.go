@@ -1,14 +1,15 @@
 package node
 
 import (
+	"cmp"
 	"context"
-	"encoding/json"
 	"maps"
 	"slices"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/reconcile"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Media libraries (SPEC.md §8.1, "Media libraries"): each apply mounts the
@@ -62,8 +63,17 @@ func (n *Local) applyLibraries(ctx context.Context, act *activity.Log, a Assignm
 		}
 		return
 	}
-	applied := map[string]agent.Library{}
-	n.loadSetting(ctx, librariesKey, &applied)
+	// What was mounted and shown before (none without State).
+	applied, views := map[string]agent.Library{}, map[string]bool{}
+	if n.State != nil {
+		a, err := store.GetJSON[map[string]agent.Library](ctx, n.State, librariesKey)
+		maps.Copy(applied, a)
+		v, verr := store.GetJSON[map[string]bool](ctx, n.State, viewsKey)
+		maps.Copy(views, v)
+		if err := cmp.Or(err, verr); err != nil {
+			n.Log.Error("reading the media libraries", "err", err)
+		}
+	}
 	current := map[string]bool{}
 	if libs, err := n.Libraries.Libraries(ctx); err == nil {
 		for _, l := range libs {
@@ -93,8 +103,6 @@ func (n *Local) applyLibraries(ctx context.Context, act *activity.Log, a Assignm
 		applied[name] = l
 	}
 	// Views go before the libraries they show.
-	views := map[string]bool{}
-	n.loadSetting(ctx, viewsKey, &views)
 	for _, svc := range slices.Sorted(maps.Keys(readers)) {
 		var libs []string
 		for _, l := range readers[svc] {
@@ -131,8 +139,12 @@ func (n *Local) applyLibraries(ctx context.Context, act *activity.Log, a Assignm
 		}
 		delete(applied, name)
 	}
-	n.saveSetting(ctx, librariesKey, applied)
-	n.saveSetting(ctx, viewsKey, views)
+	if n.State != nil {
+		err := cmp.Or(store.PutJSON(ctx, n.State, librariesKey, applied), store.PutJSON(ctx, n.State, viewsKey, views))
+		if err != nil {
+			n.Log.Error("recording the media libraries", "err", err)
+		}
+	}
 }
 
 // sameLibrary says whether two libraries mount the same thing the same way.
@@ -141,26 +153,4 @@ func sameLibrary(a, b agent.Library) bool {
 		return false
 	}
 	return a.AsOwner == nil || (a.AsOwner.UID == b.AsOwner.UID && a.AsOwner.GID == b.AsOwner.GID)
-}
-
-// loadSetting reads a JSON runtime setting into v (nothing without State).
-func (n *Local) loadSetting(ctx context.Context, key string, v any) {
-	if n.State == nil {
-		return
-	}
-	if s, err := n.State.Setting(ctx, key); err == nil && s != "" {
-		json.Unmarshal([]byte(s), v)
-	}
-}
-
-// saveSetting writes v as a JSON runtime setting.
-func (n *Local) saveSetting(ctx context.Context, key string, v any) {
-	if n.State == nil {
-		return
-	}
-	if b, err := json.Marshal(v); err == nil {
-		if err := n.State.SetSetting(ctx, key, string(b)); err != nil {
-			n.Log.Error("recording the media libraries", "err", err)
-		}
-	}
 }

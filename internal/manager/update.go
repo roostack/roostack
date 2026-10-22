@@ -3,7 +3,6 @@ package manager
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -19,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -337,23 +337,18 @@ func (m *Manager) LastUpdate(ctx context.Context, name string) *UpdateRecord {
 	if m.Settings == nil {
 		return nil
 	}
-	v, err := m.Settings.Setting(ctx, updateKey+name)
-	if err != nil || v == "" {
+	rec, err := store.GetJSON[*UpdateRecord](ctx, m.Settings, updateKey+name)
+	if err != nil {
 		return nil
 	}
-	var rec UpdateRecord
-	if json.Unmarshal([]byte(v), &rec) != nil {
-		return nil
-	}
-	return &rec
+	return rec
 }
 
 func (m *Manager) saveUpdate(ctx context.Context, name string, rec UpdateRecord) {
 	if m.Settings == nil {
 		return
 	}
-	data, _ := json.Marshal(rec)
-	if err := m.Settings.SetSetting(ctx, updateKey+name, string(data)); err != nil {
+	if err := store.PutJSON(ctx, m.Settings, updateKey+name, rec); err != nil {
 		m.Log.Error("recording an update", "service", name, "err", err)
 	}
 }

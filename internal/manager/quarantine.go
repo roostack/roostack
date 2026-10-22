@@ -2,7 +2,6 @@ package manager
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -224,12 +223,8 @@ func (m *Manager) JunkReports(ctx context.Context) []JunkReport {
 	if m.Settings == nil {
 		return nil
 	}
-	v, err := m.Settings.Setting(ctx, junkKey)
-	if err != nil || v == "" {
-		return nil
-	}
-	var out []JunkReport
-	if err := json.Unmarshal([]byte(v), &out); err != nil {
+	out, err := store.GetJSON[[]JunkReport](ctx, m.Settings, junkKey)
+	if err != nil {
 		m.Log.Warn("reading junk reports", "err", err)
 	}
 	return out
@@ -248,11 +243,7 @@ func (m *Manager) addJunkReport(ctx context.Context, r JunkReport) error {
 	if len(reports) > maxJunkReports {
 		reports = reports[len(reports)-maxJunkReports:]
 	}
-	data, err := json.Marshal(reports)
-	if err != nil {
-		return err
-	}
-	return m.Settings.SetSetting(ctx, junkKey, string(data))
+	return store.PutJSON(ctx, m.Settings, junkKey, reports)
 }
 
 // DismissJunk forgets the reports: the Owner has seen them.

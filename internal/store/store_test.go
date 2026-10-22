@@ -294,6 +294,27 @@ func TestSettings(t *testing.T) {
 	}
 }
 
+// JSON settings round-trip; an unset one is the zero value, and one that
+// isn't the type's JSON is an error.
+func TestJSONSettings(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	type rec struct{ Done []string }
+	if v, err := GetJSON[*rec](ctx, s, "r"); v != nil || err != nil {
+		t.Fatalf("unset: %v %v", v, err)
+	}
+	if err := PutJSON(ctx, s, "r", rec{Done: []string{"a"}}); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := GetJSON[rec](ctx, s, "r"); err != nil || len(v.Done) != 1 || v.Done[0] != "a" {
+		t.Errorf("got %+v, %v", v, err)
+	}
+	s.SetSetting(ctx, "r", "not json")
+	if _, err := GetJSON[rec](ctx, s, "r"); err == nil {
+		t.Error("bad JSON: want an error")
+	}
+}
+
 func TestUserManagement(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()

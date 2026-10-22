@@ -3,7 +3,6 @@ package manager
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"slices"
 
 	"roostack.cloud/roostack/internal/agent"
@@ -96,9 +95,7 @@ func (m *Manager) PhotosOf(service string) (node.Photos, error) {
 func (m *Manager) PhotoSettings(ctx context.Context, service string) PhotoSettings {
 	var s PhotoSettings
 	if m.Settings != nil {
-		if v, err := m.Settings.Setting(ctx, photoSettingsKey(service)); err == nil && v != "" {
-			json.Unmarshal([]byte(v), &s)
-		}
+		s, _ = store.GetJSON[PhotoSettings](ctx, m.Settings, photoSettingsKey(service))
 	}
 	return s
 }
@@ -121,11 +118,7 @@ func (m *Manager) SetPhotoSettings(ctx context.Context, service string, s PhotoS
 	if err := x.SetPhotoMemory(ctx, service, s.Memory); err != nil {
 		return err
 	}
-	b, err := json.Marshal(s)
-	if err != nil {
-		return err
-	}
-	return m.Settings.SetSetting(ctx, photoSettingsKey(service), string(b))
+	return store.PutJSON(ctx, m.Settings, photoSettingsKey(service), s)
 }
 
 // PhotoLocations are the Owner's additional locations for a service.

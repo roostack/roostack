@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Roostack's own updates (SPEC.md §7, "A new release series"). Its apt
@@ -218,19 +218,12 @@ func (s *Service) fetchSeries(ctx context.Context, url string) (string, string, 
 }
 
 func (s *Service) seriesCheck(ctx context.Context) seriesCheck {
-	var c seriesCheck
-	if v, _ := s.Store.Setting(ctx, seriesKey); v != "" {
-		json.Unmarshal([]byte(v), &c)
-	}
+	c, _ := store.GetJSON[seriesCheck](ctx, s.Store, seriesKey)
 	return c
 }
 
 func (s *Service) saveSeriesCheck(ctx context.Context, c seriesCheck) error {
-	data, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-	return s.Store.SetSetting(ctx, seriesKey, string(data))
+	return store.PutJSON(ctx, s.Store, seriesKey, c)
 }
 
 // Series reports this server's release series and any newer one.

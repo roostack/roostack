@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +23,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
 )
@@ -326,7 +326,12 @@ func (n *Local) photoService(service string) (state.Service, error) {
 
 func (n *Local) loadPhotos(ctx context.Context, service string) photoSet {
 	var set photoSet
-	n.loadSetting(ctx, photoKey(service), &set)
+	if n.State != nil {
+		var err error
+		if set, err = store.GetJSON[photoSet](ctx, n.State, photoKey(service)); err != nil {
+			n.Log.Error("reading a service's photo migrations", "service", service, "err", err)
+		}
+	}
 	if set.People == nil {
 		set.People = map[string]*PhotoState{}
 	}
@@ -347,11 +352,7 @@ func (n *Local) updatePhotos(ctx context.Context, service, who string, change fu
 		return err
 	}
 	st.Updated = time.Now()
-	b, err := json.Marshal(set)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, photoKey(service), string(b))
+	return store.PutJSON(ctx, n.State, photoKey(service), set)
 }
 
 // checkWho refuses a name that isn't a Roostack account's.
@@ -838,11 +839,7 @@ func (n *Local) SetPhotoMemory(ctx context.Context, service, share string) error
 	defer n.pho.mu.Unlock()
 	set := n.loadPhotos(ctx, service)
 	set.Memory = share
-	b, err := json.Marshal(set)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, photoKey(service), string(b))
+	return store.PutJSON(ctx, n.State, photoKey(service), set)
 }
 
 func (n *Local) PhotoMemory(ctx context.Context, service string) (limit, total int64) {
@@ -1102,11 +1099,7 @@ func (n *Local) ForgetPhotos(ctx context.Context, service, who string) error {
 	defer n.pho.mu.Unlock()
 	set := n.loadPhotos(ctx, service)
 	delete(set.People, who)
-	b, err := json.Marshal(set)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, photoKey(service), string(b))
+	return store.PutJSON(ctx, n.State, photoKey(service), set)
 }
 
 // resumePhotos, once after Roostack starts, follows any run that was

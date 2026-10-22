@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -188,8 +188,13 @@ func importKey(service string) string { return "import." + service }
 
 // loadImport reads a service's import (empty if none).
 func (n *Local) loadImport(ctx context.Context, service string) ImportState {
-	var st ImportState
-	n.loadSetting(ctx, importKey(service), &st)
+	if n.State == nil {
+		return ImportState{}
+	}
+	st, err := store.GetJSON[ImportState](ctx, n.State, importKey(service))
+	if err != nil {
+		n.Log.Error("reading a service's import", "service", service, "err", err)
+	}
 	return st
 }
 
@@ -201,11 +206,7 @@ func (n *Local) updateImport(ctx context.Context, service string, change func(*I
 	if err := change(&st); err != nil {
 		return err
 	}
-	b, err := json.Marshal(st)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, importKey(service), string(b))
+	return store.PutJSON(ctx, n.State, importKey(service), st)
 }
 
 // importService is a service of this server's, for an import.
