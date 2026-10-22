@@ -882,12 +882,18 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		"Done": "Password changed. Other devices you were logged in on need to log in again."})
 }
 
-// renderPart renders one named template from a page (htmx partials).
+// renderPart renders one named template from a page (htmx partials). Like
+// render, it renders into a buffer first, so a template error becomes an
+// error rather than half a part sent with 200 OK.
 func (s *Server) renderPart(w http.ResponseWriter, page, name string, data any) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.pages[page].ExecuteTemplate(w, name, data); err != nil {
+	var buf bytes.Buffer
+	if err := s.pages[page].ExecuteTemplate(&buf, name, data); err != nil {
 		s.Log.Error("render partial", "page", page, "part", name, "err", strings.TrimSpace(err.Error()))
+		http.Error(w, "Something went wrong showing this part of the page. Details are in the Roostack log.", http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(buf.Bytes())
 }
 
 // Parts of pages that refresh themselves send a fingerprint of what they
