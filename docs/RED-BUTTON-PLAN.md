@@ -1,8 +1,11 @@
-# Taking services off the internet quickly: the "big red button" (proposal, 2026-10-22)
+# Taking services off the internet quickly: the "big red button" (2026-10-22)
 
-**A proposal for the Owner. Nothing here is decided or built.** The short
-version is SPEC.md §6.16; this document has the reasoning, the formats and
-the questions. Mock-ups are in [docs/mockups/red-button/](mockups/red-button/README.md).
+**Decided by the Owner the same day, except the shape of `built_with:`
+(§4.1, still open). Not built:** building waits until the code-quality
+review is completely finished (the Owner, 2026-10-22). The short version
+is SPEC.md §6.16; this document has the reasoning, the formats and the
+questions with their answers (§12). Where the text below says
+"proposed" or "recommended", §12 says what was chosen. Mock-ups are in [docs/mockups/red-button/](mockups/red-button/README.md).
 
 ## The problem
 
@@ -293,8 +296,85 @@ public_block:
      declared names in the index ("php 8.4.13"), which the service page
      can show;
    - a person still reviews the names.
-   - A new tool for the registry's CI, so it's only a proposal (*question
-     10*). Labs never scan.
+   - Agreed by the Owner (2026-10-22, question 10). Labs never scan.
+
+### 4.1 The shape of `built_with:` — Open (2026-10-22): the options
+
+The Owner asked for the pros and cons before deciding (question 12).
+Five choices, each with a recommendation.
+
+**One thing shapes all of them:** advisories don't depend on
+`built_with:`. An advisory names the exact package versions it affects
+(§5), so a package whose `built_with:` is missing a name still gets the
+advisory. What depends on `built_with:` is:
+
+- pausing by what services are built with (§3);
+- "possibly affected" notices for the Owner's own packages;
+- the watcher's loose matching, before Syft's exact matching (§10.1);
+- what the service page shows.
+
+So it needs to be right and easy to keep, but it doesn't need to be
+complete to the last library.
+
+**A. The name**
+
+| Option | For | Against |
+|---|---|---|
+| **`built_with`** *(recommended)* | Reads as plain English in the file and the UI ("Built with PHP, Laravel"); clashes with nothing | Not a standard term; a little long |
+| `components` | The bill-of-materials world's word (CycloneDX) | Roostack already calls a service's containers its components (the `io.roostack.component` label, the generated units' names); two meanings in one package |
+| `stack` | Short, and developers know "tech stack" | Vague (hosting, OS?); one word for a list |
+| `technologies` | Plain | Long and vague |
+| `runtime` | Precise for PHP or Node | Too narrow: Log4j and nginx aren't runtimes |
+
+**B. Per package or per container**
+
+| Option | For | Against |
+|---|---|---|
+| **Per package** *(recommended)* | One line, reviewed once; a pause is per service anyway; enough for "pause everything built with PHP" | Can't say which part: Immich's server is Node and its machine learning Python, and the page can't tell them apart |
+| Per container | Precise; the service page can say "Immich's machine learning: Python"; the same shape as Syft's results (one image each) | More to write and review (Immich has two containers and a database). It tempts a wrong conclusion: a container with no route can still be reached by attackers' data, since Immich passes uploaded photos to its machine learning |
+| Both (a package list, with an optional list per container) | Simple by default, precise where it matters | Two places to look, and a rule for how they combine |
+
+Why per package is enough: Syft is agreed, and it already gives the
+per-image detail automatically for registry packages, so typing it by
+hand would duplicate it.
+
+**C. Versions**
+
+| Option | For | Against |
+|---|---|---|
+| **Names only, by hand; exact versions from Syft** *(recommended)* | Names stay true across updates, so there's no upkeep; versions are exact and automatic | Packages of your own get no versions (no CI runs them) |
+| Names with a major line by hand (`php: "8.4"`) | Helps when an advisory is about one line | Goes stale whenever an image changes, and the update bot would have to bump it |
+| No versions at all | Simplest | The service page can't say which PHP, and the watcher can't rule out an unaffected line |
+
+**D. Where the list of names lives**
+
+| Option | For | Against |
+|---|---|---|
+| **The registry keeps it, published in the index** *(recommended)* | A new name (a new library with a zero-day) needs no Roostack release. Each entry can carry a title, a line about it, and the package identifiers (purl, CPE) the watcher maps feeds from | Roostack can only check a name's form, so a typo in a package of your own is just an unknown name. The package editor, which also runs from a file without a network, would carry a copy, which can be out of date (as suggestions only) |
+| Roostack's code (like `categories`) | Strict checks everywhere; the editor knows every name | Every new name waits for a Roostack release, and registry packages wait for it |
+| Free text | Nothing to keep | "PHP", "php8" and "php-fpm" become three things, so pausing by PHP misses two |
+| Standard identifiers only (purl, CPE) | Matches the feeds directly | Unreadable to people (`pkg:generic/php`), and CPE names are inconsistent. Better as a mapping behind each name (the first option) |
+
+**E. Where the field lives**
+
+| Option | For | Against |
+|---|---|---|
+| **In the package file** *(recommended)* | Reviewed with the package; works for packages of your own; the lab keeps it with its copy of the package (§8.3.1) | Correcting a missing name means a new package revision, which every lab is offered as an update. Mitigation: fix it with the next real version, since advisories don't depend on it (above) |
+| In `registry.yaml` (per package, every version) | Maintainers can correct it any time, without a new version | Packages of your own have no `registry.yaml`, so they'd need the package field anyway; not per version |
+| Worked out from Syft only, with no field | No upkeep | Syft misses some things: bundled JavaScript, some static binaries, apps that vendor their libraries. It gives nothing for packages of your own, and the mapping from Syft's findings to names needs keeping anyway |
+| The package file, plus corrections in `registry.yaml` | Correct quickly, and own packages still work | Two places, and the index has to say which won |
+
+**Recommended together:**
+
+- `built_with:` as a list of names, per package, in the package file,
+  with names only.
+- The list of names is kept by the registry, with each name's purls and
+  CPEs for the watcher.
+- Syft adds exact versions per image for registry packages.
+- The registry's pull-request checks compare the two, and say when Syft
+  finds something notable that `built_with:` doesn't name ("this image
+  has log4j-core 2.17.1; `built_with:` doesn't say log4j"). That keeps
+  the hand-written list honest without anyone remembering to.
 
 ## 5. Where advisories come from
 
@@ -782,47 +862,48 @@ second phase, since advisories need someone to write them:
 
 ## 12. Questions for the Owner
 
-Questions 14–17 were answered on 2026-10-22 (below, and §10.1); 1–13 are still open.
+All answered by the Owner on 2026-10-22 except question 12, which is
+open with its options in §4.1. Each answer took the recommendation.
 
-1. **Who:** Admins may pause, only the Owner lifts or keeps something
+1. **Answered: yes.** **Who:** Admins may pause, only the Owner lifts or keeps something
    public anyway? *(Recommended.)* Or the Owner only, for both?
-2. **The default for new labs:**
+2. **Answered: pause when it's being used in attacks.** **The default for new labs:**
    - "Block it when it's being used in attacks" *(recommended)*;
    - "Tell me";
    - "Block it for any critical problem".
-3. **The word:**
+3. **Answered: "Pause public access".** **The word:**
    - "Pause public access" *(recommended: it says temporary, and "block"
      sounds like a firewall rule)*;
    - "Block public access";
    - "Take off the internet".
-4. **What visitors see:**
+4. **Answered: a page that doesn't say why.** **What visitors see:**
    - a page that doesn't say why *(recommended)*;
    - or one that says it's closed while a security problem is fixed.
-5. **Roostack's own pages on a lab on the internet:** never paused by the
+5. **Answered: never paused by the button.** **Roostack's own pages on a lab on the internet:** never paused by the
    button *(recommended)*, with "closed" (SSH tunnel only) a separate,
    later choice?
-6. **Updating at once** when a fix arrives for a blocked service whose
+6. **Answered: yes, not on `notify`.** **Updating at once** when a fix arrives for a blocked service whose
    update policy allows it (as for registry stops)? *(Recommended: yes,
    not on `notify`.)*
-7. **A block by what services are built with covers services installed
+7. **Answered: yes.** **A block by what services are built with covers services installed
    later?** *(Recommended: yes.)*
-8. **Blocks placed by a person never expire** *(recommended)*, or end
+8. **Answered: they never expire.** **Blocks placed by a person never expire** *(recommended)*, or end
    after a time the Owner picks?
-9. **Fetching the registry hourly** instead of every 4 hours, and
+9. **Answered: both.** **Fetching the registry hourly** instead of every 4 hours, and
    advisories inside the index rather than a file of their own?
    *(Recommended: both. One signature, one serial to protect against
    replays, and an unchanged index costs one small request.)*
-10. **Syft in the registry's CI** for exact versions: worth a new tool
+10. **Answered: yes, in the registry's CI only.** **Syft in the registry's CI** for exact versions: worth a new tool
     there later? (Never on labs.)
-11. **Cloud:**
+11. **Answered: the nudge and pausing at the edges, yes, both later; Cloud asking labs that aren't relayed: definitely later.** **Cloud:**
     - the nudge for linked labs *(recommended)*;
     - pausing at the relay's edges from Cloud's website *(recommended)*;
     - letting Cloud ask labs that aren't relayed to pause themselves
       *(opt-in; recommend later, if at all)*.
-12. **`built_with`:** the field's name, per package rather than per
+12. **Open: the Owner asked for the options' pros and cons (§4.1).** **`built_with`:** the field's name, per package rather than per
     container, and its list of names kept by the registry rather than
     in Roostack's code?
-13. **The phases** as in §11: the button first, advisories second?
+13. **Answered: yes; building waits for the code-quality review.** **The phases** as in §11: the button first, advisories second?
 14. ~~**The watcher** (§10.1)~~ **Decided (2026-10-22): yes.** A
     scheduled job in the registry's CI drafts advisory pull requests and
     a weekly digest, a maintainer approves every one, and it's written
