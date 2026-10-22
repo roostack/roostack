@@ -121,6 +121,26 @@ func schemaJS(t *testing.T) []byte {
 	return out.Bytes()
 }
 
+// testPackages are the test packages (internal/testdata/packages) the
+// editor offers to start from, in the order it shows them, and the bases
+// the corpus changes. This is their one list: corpus.test.js finds them
+// in examples.js.
+var testPackages = []string{"vaultwarden", "forgejo", "immich"}
+
+// testPackage reads a test package's file, the one there is of it.
+func testPackage(t *testing.T, name string) (file string, data []byte) {
+	t.Helper()
+	files, _ := filepath.Glob(filepath.Join("..", "testdata", "packages", name, "*-roostack.*.yaml"))
+	if len(files) != 1 {
+		t.Fatalf("%s: want one package file, found %v", name, files)
+	}
+	data, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return files[0], data
+}
+
 // examplesJS is static/examples.js: the registry packages the editor
 // offers to start from, from this repository's copies of them.
 func examplesJS(t *testing.T) []byte {
@@ -137,20 +157,13 @@ func examplesJS(t *testing.T) []byte {
 		"immich":      "several containers, a GPU, media",
 	}
 	var examples []example
-	for _, name := range []string{"vaultwarden", "forgejo", "immich"} {
-		files, _ := filepath.Glob(filepath.Join("..", "testdata", "packages", name, "*-roostack.*.yaml"))
-		if len(files) != 1 {
-			t.Fatalf("%s: want one package file, found %v", name, files)
-		}
-		data, err := os.ReadFile(files[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, name := range testPackages {
+		file, data := testPackage(t, name)
 		p, err := pkgspec.Parse(data)
 		if err != nil {
 			t.Fatal(err)
 		}
-		examples = append(examples, example{name, p.Title, about[name], filepath.Base(files[0]), string(data)})
+		examples = append(examples, example{name, p.Title, about[name], filepath.Base(file), string(data)})
 	}
 	b, err := json.MarshalIndent(examples, "", " ")
 	if err != nil {
