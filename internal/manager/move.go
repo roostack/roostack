@@ -306,7 +306,7 @@ func (m *Manager) moveViaBackup(ctx context.Context, act *activity.Log, name, ti
 	b := m.node(from).Backups()
 	started := time.Now()
 	act.Step("Backing up %s on %s (only what changed since the last backup is uploaded)", title, m.nameOf(from))
-	if err := b.RunNow(); err != nil && !errors.Is(err, backup.ErrAlreadyQueued) {
+	if err := b.RunNow(ctx); err != nil && !errors.Is(err, backup.ErrAlreadyQueued) {
 		return err
 	}
 	run, err := waitBackup(ctx, b, started)

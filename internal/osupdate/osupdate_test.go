@@ -91,10 +91,10 @@ func TestJobRequestsReboot(t *testing.T) {
 	s, coord := newService(t, fakeAgent{out: "==> Installing updates\nPackages that will be upgraded: linux-image-amd64\n"})
 	s.Activity = activity.New()
 	ctx := context.Background()
-	if err := s.Submit(); err != nil {
+	if err := s.Submit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Submit(); !errors.Is(err, ErrAlreadyQueued) {
+	if err := s.Submit(ctx); !errors.Is(err, ErrAlreadyQueued) {
 		t.Errorf("second submit: %v", err)
 	}
 	// The kernel's postinst hook asks for a reboot.
@@ -103,8 +103,8 @@ func TestJobRequestsReboot(t *testing.T) {
 	if err := coord.jobs[0].Run(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
-	if coord.reboots != 1 || s.Pending() {
-		t.Errorf("reboots=%d pending=%v", coord.reboots, s.Pending())
+	if coord.reboots != 1 || s.pendingNow() {
+		t.Errorf("reboots=%d pending=%v", coord.reboots, s.pendingNow())
 	}
 	last, err := s.Last(ctx)
 	if err != nil || !last.OK || last.Summary != "Installed 1 update: linux-image-amd64." {
@@ -121,7 +121,7 @@ func TestJobRequestsReboot(t *testing.T) {
 	if got := LastBoot(); !got.Equal(time.Unix(1790467008, 0)) {
 		t.Errorf("LastBoot = %v", got)
 	}
-	if rs := s.RestartStatus(); !rs.Needed || rs.Since.IsZero() || rs.LastBoot.IsZero() {
+	if rs := s.restartNow(); !rs.Needed || rs.Since.IsZero() || rs.LastBoot.IsZero() {
 		t.Errorf("restart status = %+v", rs)
 	}
 	if need, pkgs := RebootNeeded(); !need || !slices.Equal(pkgs, []string{"linux-image-6.12.108+deb13-cloud-amd64"}) {
@@ -131,7 +131,7 @@ func TestJobRequestsReboot(t *testing.T) {
 
 func TestJobFailure(t *testing.T) {
 	s, coord := newService(t, fakeAgent{out: "E: Could not get lock", err: errors.New("exit status 100")})
-	s.Submit()
+	s.Submit(context.Background())
 	if err := coord.jobs[0].Run(context.Background(), nil); err == nil {
 		t.Fatal("want the error")
 	}
@@ -167,4 +167,16 @@ func TestHostChanges(t *testing.T) {
 	if c, _ := s.HostChanges(ctx); !c.Known {
 		t.Error("the Owner said they know")
 	}
+}
+
+// pendingNow and restartNow read Pending and RestartStatus, which can't
+// fail on this server.
+func (s *Service) pendingNow() bool {
+	p, _ := s.Pending(context.Background())
+	return p
+}
+
+func (s *Service) restartNow() RestartStatus {
+	rs, _ := s.RestartStatus(context.Background())
+	return rs
 }

@@ -24,7 +24,7 @@ import (
 type fakeBackups struct{ st backup.Status }
 
 func (f fakeBackups) Status(context.Context) (backup.Status, error) { return f.st, nil }
-func (f fakeBackups) RunNow() error                                 { return nil }
+func (f fakeBackups) RunNow(context.Context) error                  { return nil }
 
 // A server's junk in its repository on another server's disk is found
 // with the recovery key, removed through the store's admin access, and

@@ -384,10 +384,10 @@ func (f *fakeManager) ServiceBackups(ctx context.Context, name string) ([]manage
 	}
 	return append(out, f.otherBackups...), f.backupNotes, nil
 }
-func (f *fakeManager) RestoreService(_ context.Context, name, id, to string) error {
+func (f *fakeManager) RestoreService(ctx context.Context, name, id, to string) error {
 	ref, snap, _ := strings.Cut(id, "@")
 	if ref == "backup:n-0123456789" && cmp.Or(to, "n-0123456789") == "n-0123456789" {
-		return f.restores.Restore(name, snap)
+		return f.restores.Restore(ctx, name, snap)
 	}
 	f.labRestores = append(f.labRestores, name+" "+id+" → "+to)
 	return nil

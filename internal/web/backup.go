@@ -216,7 +216,7 @@ func (s *Server) backupRun(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	err := s.backups(r).RunNow()
+	err := s.backups(r).RunNow(r.Context())
 	if err != nil && !errors.Is(err, backup.ErrAlreadyQueued) {
 		s.serverError(w, fmt.Errorf("starting backup: %w", err))
 		return

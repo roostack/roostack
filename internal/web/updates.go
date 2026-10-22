@@ -44,12 +44,22 @@ func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
 	if err != nil {
 		s.Log.Error("reading the last OS update", "err", err)
 	}
-	v := &updatesView{Last: last, Pending: s.updates(r).Pending(), Restart: s.updates(r).RestartStatus(),
-		Mode: s.Maintenance.Restart, Hour: s.Maintenance.Hour(), ErrorMsg: errMsg,
+	v := &updatesView{Last: last, Mode: s.Maintenance.Restart, Hour: s.Maintenance.Hour(), ErrorMsg: errMsg,
 		Activity: s.activityFor(r, activity.OSUpdates)}
+	if v.Pending, err = s.updates(r).Pending(r.Context()); err != nil {
+		s.Log.Error("reading whether OS updates are queued", "err", err)
+	}
+	if v.Restart, err = s.updates(r).RestartStatus(r.Context()); err != nil {
+		s.Log.Error("reading whether a restart is needed", "err", err)
+	}
 	// Each server has its own policy.
 	if m := s.server(r); m != nil {
-		v.Mode, v.Hour = m.RestartPolicy()
+		mode, hour, err := m.RestartPolicy(r.Context())
+		if err != nil {
+			s.Log.Error("reading the restart policy", "err", err)
+		} else {
+			v.Mode, v.Hour = mode, hour
+		}
 	}
 	if a := v.Activity; a != nil && a.Running() {
 		v.Pending = true // queued runs show as pending too
@@ -78,7 +88,7 @@ func (s *Server) updateNowSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if err := s.updates(r).Submit(); err != nil && !errors.Is(err, osupdate.ErrAlreadyQueued) {
+	if err := s.updates(r).Submit(r.Context()); err != nil && !errors.Is(err, osupdate.ErrAlreadyQueued) {
 		s.serverError(w, err)
 		return
 	}

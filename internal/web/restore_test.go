@@ -29,15 +29,17 @@ type fakeRestores struct {
 func (f *fakeRestores) Snapshots(context.Context, string) ([]backup.Snapshot, error) {
 	return f.snaps, nil
 }
-func (f *fakeRestores) Restore(name, id string) error {
+func (f *fakeRestores) Restore(_ context.Context, name, id string) error {
 	if f.pending {
 		return backup.ErrRestoreQueued
 	}
 	f.restored = append(f.restored, name+" "+id)
 	return nil
 }
-func (f *fakeRestores) Pending() bool                          { return f.pending }
-func (f *fakeRestores) Kept(string) ([]backup.KeptCopy, error) { return f.kept, nil }
+func (f *fakeRestores) Pending(context.Context) (bool, error) { return f.pending, nil }
+func (f *fakeRestores) Kept(context.Context, string) ([]backup.KeptCopy, error) {
+	return f.kept, nil
+}
 func (f *fakeRestores) RemoveKept(_ context.Context, _, p string) error {
 	f.removed = append(f.removed, p)
 	return nil

@@ -42,7 +42,11 @@ func summarizeUpdates(r *http.Request, n ServiceNode) (string, string) {
 		return "Not available", ""
 	}
 	last, _ := u.Last(r.Context())
-	switch rs := u.RestartStatus(); {
+	rs, err := u.RestartStatus(r.Context())
+	if err != nil {
+		return "Unknown", ""
+	}
+	switch {
 	case last != nil && !last.OK:
 		return "The last update didn't finish", "problem"
 	case rs.Needed:
@@ -58,7 +62,7 @@ func summarizeTimezone(r *http.Request, n ServiceNode) (string, string) {
 	if set == nil {
 		return "Not available", ""
 	}
-	zone, _, err := set.Timezones()
+	zone, _, err := set.Timezones(r.Context())
 	if err != nil {
 		return "Unknown", ""
 	}
@@ -70,7 +74,7 @@ func summarizeSSH(r *http.Request, n ServiceNode) (string, string) {
 	if set == nil {
 		return "Not available", ""
 	}
-	a, err := set.SSHAccess(false)
+	a, err := set.SSHAccess(r.Context(), false)
 	if err != nil {
 		return "Unknown", ""
 	}

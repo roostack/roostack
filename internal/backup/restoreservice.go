@@ -44,14 +44,14 @@ func (r *Restores) Snapshots(ctx context.Context, name string) ([]Snapshot, erro
 }
 
 // Pending reports whether a restore is queued or running.
-func (r *Restores) Pending() bool {
+func (r *Restores) Pending(_ context.Context) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.pending
+	return r.pending, nil
 }
 
 // Restore queues restoring a service from a snapshot.
-func (r *Restores) Restore(name, snapshotID string) error {
+func (r *Restores) Restore(_ context.Context, name, snapshotID string) error {
 	svc, title, err := r.Lookup(name)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func (r *Restores) Restore(name, snapshotID string) error {
 }
 
 // Kept lists the copies restores left behind for a service.
-func (r *Restores) Kept(name string) ([]KeptCopy, error) {
+func (r *Restores) Kept(_ context.Context, name string) ([]KeptCopy, error) {
 	svc, _, err := r.Lookup(name)
 	if err != nil {
 		return nil, err

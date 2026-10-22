@@ -300,7 +300,7 @@ type realBackups struct {
 	last *store.BackupRun
 }
 
-func (b *realBackups) RunNow() error {
+func (b *realBackups) RunNow(context.Context) error {
 	started := time.Now()
 	sum, err := b.repo.Backup(context.Background(), backup.BackupOptions{Paths: []string{b.dir},
 		Tags: []string{backup.TagRoostack, backup.ServiceTag(filepath.Base(b.dir))}})

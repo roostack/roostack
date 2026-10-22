@@ -203,7 +203,7 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	}
 	if ref == "backup:"+to && to == host && !in.Waiting {
 		if x := m.node(to).Restores(); x != nil {
-			return x.Restore(name, snapID)
+			return x.Restore(ctx, name, snapID)
 		}
 	}
 	repos, err := m.keyRepos(ctx)

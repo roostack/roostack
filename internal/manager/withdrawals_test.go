@@ -33,7 +33,7 @@ func (b *stopBackups) Status(context.Context) (backup.Status, error) {
 	defer b.mu.Unlock()
 	return backup.Status{Configured: true, LastOK: b.lastOK}, nil
 }
-func (b *stopBackups) RunNow() error {
+func (b *stopBackups) RunNow(context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.runs++

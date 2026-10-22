@@ -607,7 +607,7 @@ func (m *Manager) MatchTimezone(ctx context.Context, id string) {
 	if m.Node == nil || m.Node.Settings() == nil {
 		return
 	}
-	zone, _, err := m.Node.Settings().Timezones()
+	zone, _, err := m.Node.Settings().Timezones(ctx)
 	if err != nil || zone == "" {
 		return
 	}

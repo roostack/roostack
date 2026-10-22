@@ -71,10 +71,10 @@ func (f *fakeSetup) Done(_ context.Context, step string) error {
 }
 
 // fakeSetup is also the server's settings (node.Settings).
-func (f *fakeSetup) Timezones() (string, []string, error) {
+func (f *fakeSetup) Timezones(context.Context) (string, []string, error) {
 	return f.zone, []string{"Australia/Melbourne", "Etc/UTC"}, nil
 }
-func (f *fakeSetup) SSHAccess(bool) (node.SSHAccess, error) {
+func (f *fakeSetup) SSHAccess(context.Context, bool) (node.SSHAccess, error) {
 	return node.SSHAccess{Choice: f.ssh, Login: f.sshLogin, Clients: f.clients, SSHD: f.sshd}, nil
 }
 func (f *fakeSetup) SetSSH(_ context.Context, c node.SSHChange) error {
@@ -92,8 +92,8 @@ func (f *fakeSetup) SetSSH(_ context.Context, c node.SSHChange) error {
 	f.ssh, f.sshLogin, f.restarted = c.Choice, c.Login, true
 	return nil
 }
-func (f *fakeSetup) RestartPolicy() (string, int) {
-	return cmp.Or(f.restartMode, config.RestartAuto), config.Maintenance{}.Hour()
+func (f *fakeSetup) RestartPolicy(context.Context) (string, int, error) {
+	return cmp.Or(f.restartMode, config.RestartAuto), config.Maintenance{}.Hour(), nil
 }
 func (f *fakeSetup) PendingRestart() bool { return f.pending }
 func (f *fakeSetup) BackupDrives(context.Context) ([]agent.Drive, error) {
@@ -626,9 +626,11 @@ func (f *fakeUpdates) AcceptSeries(_ context.Context, series string) error {
 }
 
 func (f *fakeUpdates) Last(context.Context) (*osupdate.Result, error) { return f.last, nil }
-func (f *fakeUpdates) Pending() bool                                  { return f.submitted > 0 }
-func (f *fakeUpdates) Submit() error                                  { f.submitted++; return nil }
-func (f *fakeUpdates) RestartStatus() osupdate.RestartStatus          { return f.restart }
+func (f *fakeUpdates) Pending(context.Context) (bool, error)          { return f.submitted > 0, nil }
+func (f *fakeUpdates) Submit(context.Context) error                   { f.submitted++; return nil }
+func (f *fakeUpdates) RestartStatus(context.Context) (osupdate.RestartStatus, error) {
+	return f.restart, nil
+}
 func (f *fakeUpdates) HostChanges(context.Context) (osupdate.HostCheck, error) {
 	c := f.changes
 	c.Known = f.known

@@ -132,8 +132,13 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 	pending := s.Manager.Restoring(svc.Name)
 	var kept []keptView
 	if x := s.restores(r); x != nil {
-		pending = pending || x.Pending()
-		copies, err := x.Kept(svc.Name)
+		p, err := x.Pending(r.Context())
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+		pending = pending || p
+		copies, err := x.Kept(r.Context(), svc.Name)
 		if err != nil {
 			s.serverError(w, err)
 			return

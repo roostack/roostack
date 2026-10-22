@@ -107,7 +107,9 @@ type fakeServerSettings struct {
 	zone     string // SetTimezone records it
 }
 
-func (f *fakeServerSettings) Timezones() (string, []string, error) { return "", nil, nil }
+func (f *fakeServerSettings) Timezones(context.Context) (string, []string, error) {
+	return "", nil, nil
+}
 func (f *fakeServerSettings) SetTimezone(_ context.Context, z string) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -115,12 +117,16 @@ func (f *fakeServerSettings) SetTimezone(_ context.Context, z string) (bool, err
 	f.zone = z
 	return changed, nil
 }
-func (f *fakeServerSettings) SSHAccess(bool) (node.SSHAccess, error)       { return node.SSHAccess{}, nil }
+func (f *fakeServerSettings) SSHAccess(context.Context, bool) (node.SSHAccess, error) {
+	return node.SSHAccess{}, nil
+}
 func (f *fakeServerSettings) SetSSH(context.Context, node.SSHChange) error { return nil }
 func (f *fakeServerSettings) SetRestartPolicy(context.Context, string, int) error {
 	return nil
 }
-func (f *fakeServerSettings) RestartPolicy() (string, int) { return "auto", 4 }
+func (f *fakeServerSettings) RestartPolicy(context.Context) (string, int, error) {
+	return "auto", 4, nil
+}
 func (f *fakeServerSettings) PromoteBackupCopy(_ context.Context, name string, old node.BackupCopy) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

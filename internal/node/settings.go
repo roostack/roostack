@@ -25,20 +25,20 @@ import (
 // on that server so every part picks it up.
 type Settings interface {
 	// Timezones returns the server's time zone and those it can use.
-	Timezones() (current string, zones []string, err error)
+	Timezones(ctx context.Context) (current string, zones []string, err error)
 	// SetTimezone returns true if the zone changed (Roostack then restarts:
 	// Go reads the local zone once, and schedules depend on it).
 	SetTimezone(ctx context.Context, name string) (changed bool, err error)
 	// SSHAccess reads who may log in over SSH, and how. fresh reads the SSH
 	// server's state again rather than one read up to sshCache ago.
-	SSHAccess(fresh bool) (SSHAccess, error)
+	SSHAccess(ctx context.Context, fresh bool) (SSHAccess, error)
 	// SetSSH refuses a choice that would cut off a current SSH connection
 	// unless confirmed, and keys only unless a key is known to work
 	// (SPEC.md §6.10).
 	SetSSH(ctx context.Context, c SSHChange) error
 	SetRestartPolicy(ctx context.Context, mode string, hour int) error
 	// RestartPolicy is when the server may restart after updates.
-	RestartPolicy() (mode string, hour int)
+	RestartPolicy(ctx context.Context) (mode string, hour int, err error)
 	// SetBackupDestination points the server's backups at a repository
 	// the controller created for it (SPEC.md §10.10).
 	SetBackupDestination(ctx context.Context, d BackupDestination) error
@@ -168,7 +168,7 @@ type HostSettings struct {
 // Settings is this server's settings, or nil.
 func (n *Local) Settings() Settings { return n.Host }
 
-func (h *HostSettings) Timezones() (string, []string, error) {
+func (h *HostSettings) Timezones(_ context.Context) (string, []string, error) {
 	zones, err := h.Zones()
 	return h.Zone(), zones, err
 }
@@ -197,9 +197,9 @@ func (h *HostSettings) SetTimezone(ctx context.Context, name string) (bool, erro
 	return true, nil
 }
 
-func (h *HostSettings) SSHAccess(fresh bool) (SSHAccess, error) {
+func (h *HostSettings) SSHAccess(ctx context.Context, fresh bool) (SSHAccess, error) {
 	clients, err := h.SSHClients()
-	sshd, serr := h.sshStatus(context.Background(), fresh)
+	sshd, serr := h.sshStatus(ctx, fresh)
 	h.mu.Lock()
 	a := SSHAccess{Choice: h.Lab.Firewall.SSH, Login: h.Lab.Firewall.SSHLogin, Clients: clients,
 		Controller: firewall.Controller(h.Lab), SSHD: sshd}
@@ -288,8 +288,8 @@ func (h *HostSettings) SetSSH(ctx context.Context, c SSHChange) error {
 	return nil
 }
 
-func (h *HostSettings) RestartPolicy() (string, int) {
-	return cmp.Or(h.Lab.Maintenance.Restart, config.RestartAuto), h.Lab.Maintenance.Hour()
+func (h *HostSettings) RestartPolicy(_ context.Context) (string, int, error) {
+	return cmp.Or(h.Lab.Maintenance.Restart, config.RestartAuto), h.Lab.Maintenance.Hour(), nil
 }
 
 func (h *HostSettings) SetRestartPolicy(ctx context.Context, mode string, hour int) error {

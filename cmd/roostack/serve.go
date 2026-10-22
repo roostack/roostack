@@ -800,7 +800,7 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 					log.Warn("nightly backup not started", "err", err)
 				}
 			}
-			if err := updates.Submit(); err != nil {
+			if err := updates.Submit(ctx); err != nil {
 				log.Warn("nightly OS updates not started", "err", err)
 			}
 		})
