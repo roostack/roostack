@@ -1,7 +1,3 @@
-// Package manager is the business logic behind managing services from the
-// UI: listing the catalog, installing and removing services, and applying
-// the result to the host. HTTP handlers stay thin (SPEC.md §6.3) and call
-// this package.
 package manager
 
 import (

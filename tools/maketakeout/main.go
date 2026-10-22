@@ -5,7 +5,7 @@
 // It writes the zips as Google names them (takeout-<stamp>-001.zip, …),
 // split at about -split bytes each, and a manifest.json saying exactly what
 // was generated and what Immich should show afterwards, so a test can check
-// the result against Immich's API. See ../README.md.
+// the result against Immich's API. See README.md beside this file.
 package main
 
 import (

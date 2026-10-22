@@ -688,7 +688,7 @@ without a second sign-in. It's its own piece of work, not part of this.
 ## 13. The test
 
 On VM 1 (`ROOSTACK_VM=1 scripts/dev-vm.sh`), destroyed afterwards. A
-**synthetic Takeout**, made by a script in `docs/immich-import-test/`
+**synthetic Takeout**, made by `tools/maketakeout`
 (never real photos): generated JPEGs, HEICs and short videos with and
 without EXIF dates and GPS; sidecars in both naming styles, with
 truncated names, "(1)" duplicates, edited copies, a Live Photo pair split

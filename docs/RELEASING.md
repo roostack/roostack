@@ -6,7 +6,7 @@ the key that signs it (TASKS 1.12, "Encryption anyone can check"). Written
 registry's keys are separate: [REGISTRY-KEYS.md](REGISTRY-KEYS.md).
 
 The names and addresses below (file names, `dl.roostack.cloud`,
-`apt.roostack.cloud`, the key's user ID) are placeholders until the Owner
+`apt.roostack.cloud`, the key's user ID) are placeholders until the maintainer
 confirms them.
 
 ## What a release is
@@ -172,7 +172,7 @@ built; and a `SHA256SUMS` signed with one file's sum changed said
 
 What it doesn't check: that the tag is the one on GitHub (it uses the
 tag in your checkout; fetch it from the repository yourself), and that the
-key is the Owner's (that's the fingerprint, compared by you). The source
+key is the maintainer's (that's the fingerprint, compared by you). The source
 must be public for "anyone" to do this: until then, people with access to
 the repository can (TASKS, "Encryption anyone can check").
 
@@ -284,8 +284,8 @@ You need:
 
 6. **Go online, and give CI the subkey.** On GitHub, the repository →
    Settings → Environments → New environment `release`:
-   - Required reviewers: the Owner (and anyone else who may release).
-     Leave "Prevent self-review" off while the Owner releases alone.
+   - Required reviewers: the maintainer (and anyone else who may release).
+     Leave "Prevent self-review" off while the maintainer releases alone.
    - Deployment branches and tags: Selected; add the tag rule `v*`.
    - Environment secret `ROOSTACK_RELEASE_SIGNING_KEY`: the whole of
      `signing-subkey.asc`.
