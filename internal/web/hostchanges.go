@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"sync"
@@ -29,7 +30,7 @@ type cachedHostCheck struct {
 }
 
 // hostChanges is a server's check, from the cache if it's recent.
-func (s *Server) hostChanges(r *http.Request, m serverRef, n ServiceNode) (osupdate.HostCheck, bool) {
+func (s *Server) hostChanges(ctx context.Context, m serverRef, n ServiceNode) (osupdate.HostCheck, bool) {
 	u := n.Updates()
 	if u == nil {
 		return osupdate.HostCheck{}, false
@@ -40,7 +41,7 @@ func (s *Server) hostChanges(r *http.Request, m serverRef, n ServiceNode) (osupd
 	if hit && time.Since(c.at) < hostCheckFor {
 		return c.check, c.ok
 	}
-	check, err := u.HostChanges(r.Context())
+	check, err := u.HostChanges(ctx)
 	c = cachedHostCheck{at: time.Now(), check: check, ok: err == nil}
 	s.hostChecks.mu.Lock()
 	if s.hostChecks.byID == nil {

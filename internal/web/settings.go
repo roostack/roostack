@@ -362,7 +362,7 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 	data["LinkAddrs"] = links
 	// Each server's latest apply: why it ran and what it did (SPEC.md §6.14).
 	applies := map[string]*activityView{}
-	for _, mn := range s.serverNodes(r) {
+	for _, mn := range s.serverNodes() {
 		if snap, ok := mn.node.LatestActivity(activity.Apply); ok {
 			v := &activityView{Kind: activity.Apply, Snapshot: snap}
 			if !mn.view.This {
@@ -526,7 +526,7 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 	if n := s.serverOf(r); n != nil {
 		m := s.serverRefOf(r)
 		s.forgetHostCheck(m.ID) // this page always checks afresh
-		if c, ok := s.hostChanges(r, m, n); ok && c.Any() {
+		if c, ok := s.hostChanges(r.Context(), m, n); ok && c.Any() {
 			data["HostChanges"] = c
 		}
 	}

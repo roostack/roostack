@@ -26,9 +26,6 @@ type Holds interface {
 	FailedMoves(ctx context.Context) map[string]manager.FailedMove
 }
 
-// StatusHeld is a service held stopped after a restore that didn't finish.
-const StatusHeld = "held"
-
 // heldView is a held service, for its page and Needs attention.
 type heldView struct {
 	instance.Hold
@@ -67,7 +64,7 @@ func (v *heldView) RestoreAgain(service string) string {
 
 // holdAttention is a problem for each held service, and a warning for
 // each move that didn't finish and went back.
-func (s *Server) holdAttention(r *http.Request, services []ServiceView, add func(item attentionItem)) {
+func (s *Server) holdAttention(ctx context.Context, services []ServiceView, l *attentionList) {
 	for _, svc := range services {
 		v := s.heldViewOf(svc)
 		if v == nil {
@@ -82,12 +79,12 @@ func (s *Server) holdAttention(r *http.Request, services []ServiceView, add func
 			item.Text = svc.Title + " is stopped: its files are back from the backup of " + v.TakenText +
 				", but its database couldn't be loaded."
 		}
-		add(item)
+		l.add(item)
 	}
-	moves := s.Manager.FailedMoves(r.Context())
+	moves := s.Manager.FailedMoves(ctx)
 	for _, svc := range services {
 		if f, ok := moves[svc.Name]; ok && svc.Held == nil {
-			add(attentionItem{Level: levelWarning, Link: "/services/" + svc.Name + "/move", LinkText: "See what went wrong",
+			l.add(attentionItem{Level: levelWarning, Link: "/services/" + svc.Name + "/move", LinkText: "See what went wrong",
 				Key:  "move-failed:" + svc.Name + ":" + f.At.Format(time.RFC3339),
 				Text: svc.Title + " couldn't be moved to " + f.ToName + ". It's running on " + f.FromName + ", as before."})
 		}

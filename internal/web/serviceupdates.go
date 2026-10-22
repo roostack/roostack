@@ -30,9 +30,6 @@ type ServiceUpdates interface {
 	SetUpdatePolicy(ctx context.Context, name, policy string) error
 }
 
-// StatusUpdating is a service updating to a newer version.
-const StatusUpdating = "updating"
-
 // updatePolicyText says how a service updates (its update policy), as
 // its settings page offers it.
 func updatePolicyText(policy string) string {
@@ -98,12 +95,12 @@ func lastUpdateShown(rec *manager.UpdateRecord, u *manager.Update) bool {
 	return (u != nil && u.To == rec.To) || (u == nil && recent)
 }
 
-// updateAttention adds "Needs attention" items for updates: a failed one
-// is a problem (emailed like the others); the services with an update
-// waiting for a person share one line.
-func (s *Server) updateAttention(r *http.Request, services []ServiceView, add func(item attentionItem)) {
-	ups := s.Manager.AvailableUpdates(r.Context())
-	ws := s.Manager.Withdrawals(r.Context())
+// serviceUpdatesAttention adds "Needs attention" items for updates to
+// services: a failed one is a problem (emailed like the others); the
+// services with an update waiting for a person share one line.
+func (s *Server) serviceUpdatesAttention(ctx context.Context, services []ServiceView, l *attentionList) {
+	ups := s.Manager.AvailableUpdates(ctx)
+	ws := s.Manager.Withdrawals(ctx)
 	var waiting []string
 	link := ""
 	for _, svc := range services {
@@ -111,7 +108,7 @@ func (s *Server) updateAttention(r *http.Request, services []ServiceView, add fu
 			continue
 		}
 		u := ups[svc.Name]
-		if rec := s.Manager.LastUpdate(r.Context(), svc.Name); rec != nil && rec.Result != manager.UpdateDone &&
+		if rec := s.Manager.LastUpdate(ctx, svc.Name); rec != nil && rec.Result != manager.UpdateDone &&
 			lastUpdateShown(rec, u) {
 			text := "Updating " + svc.Title + " to " + appVersion(rec.To, rec.From) + " didn't work"
 			if rec.Result == manager.UpdateRolledBack {
@@ -119,7 +116,7 @@ func (s *Server) updateAttention(r *http.Request, services []ServiceView, add fu
 			} else {
 				text += "."
 			}
-			add(attentionItem{Level: levelProblem, Text: text, Link: "/services/" + svc.Name + "#update",
+			l.add(attentionItem{Level: levelProblem, Text: text, Link: "/services/" + svc.Name + "#update",
 				LinkText: "See what happened", Key: "update:" + svc.Name + ":" + rec.To})
 			continue
 		}
@@ -133,9 +130,9 @@ func (s *Server) updateAttention(r *http.Request, services []ServiceView, add fu
 	case 0:
 		return
 	case 1:
-		add(attentionItem{Level: levelInfo, Text: "An update is available for " + waiting[0] + ".", Link: link, LinkText: "See it"})
+		l.add(attentionItem{Level: levelInfo, Key: "updates-available", Text: "An update is available for " + waiting[0] + ".", Link: link, LinkText: "See it"})
 	default:
-		add(attentionItem{Level: levelInfo, Text: "Updates are available for " + joinAnd(waiting) + ".", Link: "/services",
+		l.add(attentionItem{Level: levelInfo, Key: "updates-available", Text: "Updates are available for " + joinAnd(waiting) + ".", Link: "/services",
 			LinkText: "See them"})
 	}
 }

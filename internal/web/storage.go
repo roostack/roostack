@@ -64,7 +64,7 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 	}
 	data["AddressChoice"] = s.addressChoices(r, "Address their lab reaches "+hostName+" at", agent.GuestsPort, false, hostsHere, endpoint)
 	data["Offering"] = s.Manager.OfferStorage(r.Context())
-	for _, mn := range s.serverNodes(r) {
+	for _, mn := range s.serverNodes() {
 		if mn.view.ID == hostID {
 			if d := s.serverSpaces(r.Context(), mn.view, mn.node); d != nil {
 				data["HostSpace"] = d.store()

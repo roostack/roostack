@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -282,46 +281,21 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 	return "", "", ""
 }
 
-// variable parts of a needs-attention sentence (numbers, times, dates),
-// left out of its key so "3.0 GB free" and "2.9 GB free" are one problem.
-var noticeVariable = regexp.MustCompile(`\d+|\b(today|yesterday|tomorrow|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b`)
-
-// noticeKey is what makes two needs-attention items the same problem: the
-// item's own key when it has one (its words can change, e.g. an error's),
-// otherwise its link and words, numbers and times aside.
-func noticeKey(it attentionItem) string {
-	if it.Key != "" {
-		return it.Key
-	}
-	return it.Link + "|" + noticeVariable.ReplaceAllString(strings.ToLower(it.Text), "")
-}
-
-// waitingItem reports items that wait for a person rather than being
-// broken (the "Waiting for you" group).
-func waitingItem(it attentionItem) bool { return strings.Contains(it.Text, "needs a restart") }
-
 // followProblems compares what needs attention for u now with what was
 // seen before: new ones once they've lasted long enough, reminders, and
 // the ones that cleared.
 func (s *Server) followProblems(ctx context.Context, u *store.User, groups map[string]bool, now time.Time, m *notifyMail) error {
-	r, err := http.NewRequestWithContext(context.WithValue(ctx, userKey{}, u), http.MethodGet, "/", nil)
-	if err != nil {
-		return err
-	}
 	known, err := s.Store.Notices(ctx, u.ID)
 	if err != nil {
 		return err
 	}
 	seen := map[string]bool{}
-	for _, it := range s.attention(r) {
-		if it.Level != levelProblem && it.Level != levelWarning {
+	for _, it := range s.attention(ctx, u) {
+		if it.Level != levelProblem && it.Level != levelWarning || !groups[it.Group] {
 			continue
 		}
-		waiting := waitingItem(it)
-		if waiting && !groups[notifyWaiting] || !waiting && !groups[notifyProblems] {
-			continue
-		}
-		key := noticeKey(it)
+		waiting := it.Group == notifyWaiting
+		key := it.Key
 		seen[key] = true
 		n, ok := known[key]
 		if !ok {
@@ -429,12 +403,8 @@ func (s *Server) weeklySummary(ctx context.Context, u *store.User, now time.Time
 			return ""
 		}
 	}
-	r, err := http.NewRequestWithContext(context.WithValue(ctx, userKey{}, u), http.MethodGet, "/", nil)
-	if err != nil {
-		return ""
-	}
 	var b strings.Builder
-	for _, mn := range s.serverNodes(r) {
+	for _, mn := range s.serverNodes() {
 		fmt.Fprintf(&b, "%s:\n", mn.view.Label())
 		if st, err := mn.node.Backups().Status(ctx); err == nil && st.Configured {
 			if st.LastOK != nil {
@@ -489,7 +459,7 @@ func (s *Server) weeklySummary(ctx context.Context, u *store.User, now time.Time
 		}
 	}
 	var open []string
-	for _, it := range s.attention(r) {
+	for _, it := range s.attention(ctx, u) {
 		if it.Level == levelProblem || it.Level == levelWarning {
 			open = append(open, "- "+it.Text)
 		}

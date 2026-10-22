@@ -665,35 +665,25 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 	updates := mgr.AvailableUpdates(ctx)
 	var views []web.ServiceView
 	for _, s := range all {
-		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown", Package: s.Package.Name, Local: s.Instance.Local}
+		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Package: s.Package.Name, Local: s.Instance.Local, Held: s.Instance.Held}
+		facts := web.ServiceFacts{Reported: web.StatusUnknown}
 		if info, ok := infos[s.Name()]; ok {
-			v.ServiceDetail, v.Status, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
-		}
-		if w := withdrawn[s.Name()]; w != nil && w.Stopped {
-			// The registry withdrew it as dangerous (SPEC.md §8.3.4).
-			v.Status = web.StatusRegistryStop
+			v.ServiceDetail, facts.Reported, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
 		}
 		// Updates to newer versions (SPEC.md §7).
 		if u := updates[s.Name()]; u != nil {
 			v.Update = u.ToApp()
 		}
-		if mgr.Updating(s.Name()) != nil {
-			v.Status = web.StatusUpdating
-		}
-		if s.Instance.AwaitingData {
-			// Installed to wait for its data (SPEC.md §8.4).
-			v.Status = web.StatusAwaitingData
-		}
-		if mgr.Switching(s.Name()) {
-			v.Status = web.StatusSwitching
-		}
-		if s.Instance.Held != nil {
-			// Held after a restore that didn't finish (SPEC.md §6.9).
-			v.Status, v.Held = web.StatusHeld, s.Instance.Held
-		}
+		// What decides its status besides its server (web.ServiceStatus).
+		w := withdrawn[s.Name()]
+		facts.Stopped = w != nil && w.Stopped
+		facts.Updating = mgr.Updating(s.Name()) != nil
+		facts.AwaitingData, facts.Switching = s.Instance.AwaitingData, mgr.Switching(s.Name())
+		facts.Held, facts.Waiting = s.Instance.Held != nil, s.Instance.Waiting
+		v.Status = web.ServiceStatus(facts)
 		if s.Instance.Waiting {
 			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).
-			v.Status, v.Server = web.StatusWaiting, ""
+			v.Server = ""
 			if n := mgr.NodeByID(s.Instance.Host); n != nil {
 				v.WasOn = n.Identity().Name
 			}
@@ -701,7 +691,7 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
 			log.Error("generating service for status", "service", s.Name(), "err", err)
-			v.Status = "failed"
+			v.Status = web.StatusFailed
 			views = append(views, v)
 			continue
 		}

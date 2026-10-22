@@ -38,17 +38,6 @@ var templateFS embed.FS
 //go:embed static
 var staticFS embed.FS
 
-// StatusWaiting is a service waiting to be restored: its server is gone
-// (SPEC.md §10.10).
-const StatusWaiting = "waiting"
-
-// StatusAwaitingData is a service installed to wait for its data, and
-// StatusSwitching one being switched to it (SPEC.md §8.4).
-const (
-	StatusAwaitingData = "awaiting-data"
-	StatusSwitching    = "switching"
-)
-
 // ServiceView is one row on the dashboard.
 type ServiceView struct {
 	Name   string

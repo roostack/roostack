@@ -72,7 +72,7 @@ func (s *Server) registryView() *registryView {
 // registryAttention warns the Owner when the lab hasn't had a list from
 // the registry for a while (the Owner, 2026-10-14: a warning, not a
 // refusal): withdrawals since then are unknown to it.
-func (s *Server) registryAttention(add func(level, text, link, linkText string)) {
+func (s *Server) registryAttention(l *attentionList) {
 	v := s.registryView()
 	if v == nil || !v.On || !v.Stale {
 		return
@@ -82,7 +82,9 @@ func (s *Server) registryAttention(add func(level, text, link, linkText string))
 		text = "Roostack's list of services is from " + whenText(v.Status.Date) +
 			": it hasn't been able to get a newer one, so it doesn't know of fixes or withdrawn versions since."
 	}
-	add(levelWarning, text, "/settings/updates#registry", "See why")
+	l.add(attentionItem{Key: "registry-stale", Level: levelWarning,
+		Text: text,
+		Link: "/settings/updates#registry", LinkText: "See why"})
 }
 
 // registryOn says whether services can be installed from the registry:

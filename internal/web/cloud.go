@@ -336,27 +336,37 @@ func (s *Server) cloudDismissSubmit(w http.ResponseWriter, r *http.Request) {
 // the account suspended, names suspended, refused or waiting for
 // approval, and the relay suspended or turned off in Cloud (as Cloud last
 // said: its check-in, and the relay's answers).
-func (s *Server) cloudStanding(add func(level, text, link, linkText string)) {
+func (s *Server) cloudStanding(l *attentionList) {
 	st := s.Cloud.Status()
 	if !st.Linked {
 		return
 	}
 	// Cloud backup's space, at the levels Cloud emails about.
 	if text := cloudSpaceOf(st).Warning(); text != "" {
-		add(levelWarning, text, "/backups#plan", "Backups")
+		l.add(attentionItem{Key: "cloud-space", Level: levelWarning,
+			Text: text,
+			Link: "/backups#plan", LinkText: "Backups"})
 	}
 	if st.Suspended != "" {
-		add(levelProblem, "Roostack Cloud has suspended this lab's account: "+strings.TrimSuffix(st.Suspended, ".")+
-			". Its names and relay don't work until it's lifted.", "/settings/cloud", "Roostack Cloud")
+		l.add(attentionItem{Key: "cloud-suspended", Level: levelProblem,
+			Text: "Roostack Cloud has suspended this lab's account: " + strings.TrimSuffix(st.Suspended, ".") +
+				". Its names and relay don't work until it's lifted.",
+			Link: "/settings/cloud", LinkText: "Roostack Cloud"})
 	}
 	for _, n := range st.Names {
 		switch n.State {
 		case cloudapi.NameSuspended:
-			add(levelProblem, n.Host+" is suspended by Roostack Cloud: "+strings.TrimSuffix(n.Reason, ".")+".", "/settings/cloud#names", "Roostack Cloud")
+			l.add(attentionItem{Key: "cloud-name-suspended:" + n.Host, Level: levelProblem,
+				Text: n.Host + " is suspended by Roostack Cloud: " + strings.TrimSuffix(n.Reason, ".") + ".",
+				Link: "/settings/cloud#names", LinkText: "Roostack Cloud"})
 		case cloudapi.NameRefused:
-			add(levelProblem, n.Host+" wasn't approved by Roostack Cloud, so it doesn't work: choose another name.", "/settings/cloud#names", "Why")
+			l.add(attentionItem{Key: "cloud-name-refused:" + n.Host, Level: levelProblem,
+				Text: n.Host + " wasn't approved by Roostack Cloud, so it doesn't work: choose another name.",
+				Link: "/settings/cloud#names", LinkText: "Why"})
 		case cloudapi.NameWaiting:
-			add(levelInfo, n.Host+" is waiting for Roostack Cloud's approval: it works once approved.", "/settings/cloud#names", "Why")
+			l.add(attentionItem{Key: "cloud-name-waiting:" + n.Host, Level: levelInfo,
+				Text: n.Host + " is waiting for Roostack Cloud's approval: it works once approved.",
+				Link: "/settings/cloud#names", LinkText: "Why"})
 		}
 	}
 	if !s.Manager.RelayOn() {
@@ -364,11 +374,14 @@ func (s *Server) cloudStanding(add func(level, text, link, linkText string)) {
 	}
 	switch off, suspended := s.Cloud.RelayStanding(); {
 	case suspended != "":
-		add(levelProblem, "Roostack Cloud has suspended this lab's relay: "+strings.TrimSuffix(suspended, ".")+
-			". Public services don't come through it.", "/settings/public#way-in", "Public access")
+		l.add(attentionItem{Key: "cloud-relay-suspended", Level: levelProblem,
+			Text: "Roostack Cloud has suspended this lab's relay: " + strings.TrimSuffix(suspended, ".") +
+				". Public services don't come through it.",
+			Link: "/settings/public#way-in", LinkText: "Public access"})
 	case !off.IsZero():
-		add(levelWarning, "Public services don't come through Roostack Cloud's relay: it was turned off in Roostack Cloud.",
-			"/settings/public#way-in", "Turn it on")
+		l.add(attentionItem{Key: "cloud-relay-off", Level: levelWarning,
+			Text: "Public services don't come through Roostack Cloud's relay: it was turned off in Roostack Cloud.",
+			Link: "/settings/public#way-in", LinkText: "Turn it on"})
 	}
 }
 

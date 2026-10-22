@@ -15,10 +15,12 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/public"
+	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -125,6 +127,34 @@ func TestNotifyNoFlapping(t *testing.T) {
 	}
 	if apply != 1 {
 		t.Errorf("a changing error emailed %d times", apply)
+	}
+}
+
+// A restart to finish installing updates waits for a person: it's in the
+// "Waiting for you" group, emailed once it has waited a day, and not to
+// someone who chose only Problems.
+func TestNotifyWaiting(t *testing.T) {
+	h, fm, _ := notifyHarness(t, auth.RoleOwner)
+	ctx := context.Background()
+	t0 := time.Now()
+	h.node().updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}}
+	h.node().settings = &fakeSetup{restartMode: config.RestartNotify}
+	h.server.notify(ctx, t0)
+	if h.server.notify(ctx, t0.Add(11*time.Minute)); len(fm.sent) != 0 {
+		t.Fatalf("emailed like a problem: %+v", fm.sent)
+	}
+	if h.server.notify(ctx, t0.Add(25*time.Hour)); len(fm.sent) != 1 || !strings.Contains(fm.sent[0].Subject, "needs a restart") {
+		t.Fatalf("after a day: %+v", fm.sent)
+	}
+
+	o, om, _ := notifyHarness(t, auth.RoleOwner)
+	u, _ := o.store.UserByUsername(ctx, "u")
+	o.store.SetNotify(ctx, u.ID, notifyProblems)
+	o.node().updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}}
+	o.node().settings = &fakeSetup{restartMode: config.RestartNotify}
+	o.server.notify(ctx, t0)
+	if o.server.notify(ctx, t0.Add(25*time.Hour)); len(om.sent) != 0 {
+		t.Errorf("chose only Problems, and got: %+v", om.sent)
 	}
 }
 
@@ -301,5 +331,46 @@ func TestAttentionFirstErrorLine(t *testing.T) {
 	_, body = h.get("/backups")
 	if i := strings.Index(body, `class="plan-error"`); i < 0 || !strings.Contains(body[i:], "LoadUnpacked") {
 		t.Error("the backups page has no Details with the rest")
+	}
+}
+
+// Every item that needs attention has a key of its own and a group, so
+// email follows each problem whatever its words, and two problems are
+// never mistaken for one.
+func TestAttentionKeys(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	ctx := context.Background()
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainLater: true, BackupLater: true},
+		restartMode: config.RestartNotify, ssh: config.SSHFromAny})
+	fm.backups = &fakeBackups{status: backup.Status{Configured: true, Progress: -1, LocalOnly: true,
+		Last: &store.BackupRun{OK: false, Error: "boom"}}}
+	fm.updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}, last: &osupdate.Result{OK: false}}
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true},
+		{ID: "n-2", Name: "pi", Status: manager.ApplyStatus{Finished: true, LastErr: errors.New("restarting forgejo: exit status 1")},
+			CertExpires: time.Now().Add(time.Hour)},
+		{ID: "n-3", Name: "vps", Status: manager.ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach vps: %w", node.ErrUnreachable)}}}
+	fm.junk = []manager.JunkReport{{ServerID: "n-2", Server: "pi", Provider: "server:n-0123456789", Where: "nuc's disk",
+		Files: []backup.Junk{{Kind: "locks", Name: "ab", Removed: true}}},
+		{ServerID: "n-0123456789", Server: "nuc", Provider: "provider:3", Where: "Wasabi", Copy: true,
+			Files: []backup.Junk{{Kind: "index", Name: "cd"}}}}
+	h.server.DNS = &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateError, NotDeleted: []dnsrecords.PublicRecord{{}}}}
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "immich", Title: "Immich", Status: StatusWaiting, WasOn: "vps"},
+			{Name: "vaultwarden", Title: "Vaultwarden", Status: "failed"}}, nil
+	}
+	u, _ := h.store.UserByUsername(ctx, "u")
+	items := h.server.attention(ctx, u)
+	if len(items) < 12 {
+		t.Fatalf("only %d items: %+v", len(items), items)
+	}
+	keys := map[string]bool{}
+	for _, it := range items {
+		if it.Key == "" || it.Group != notifyProblems && it.Group != notifyWaiting {
+			t.Errorf("%q: key %q, group %q", it.Text, it.Key, it.Group)
+		}
+		if keys[it.Key] {
+			t.Errorf("two items have the key %q", it.Key)
+		}
+		keys[it.Key] = true
 	}
 }

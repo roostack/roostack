@@ -530,7 +530,7 @@ func (s *Server) statusPageSubmit(w http.ResponseWriter, r *http.Request) {
 // monitorAttention adds what monitoring found down to "needs attention"
 // (SPEC.md §6.15): a check down after three failures, a certificate not
 // being renewed. Servers aren't repeated: "can't reach" says so already.
-func (s *Server) monitorAttention(add func(attentionItem)) {
+func (s *Server) monitorAttention(l *attentionList) {
 	if s.Monitor == nil {
 		return
 	}
@@ -541,10 +541,10 @@ func (s *Server) monitorAttention(add func(attentionItem)) {
 		}
 		switch {
 		case st.State == monitor.StateDown:
-			add(attentionItem{Level: levelProblem, Key: "monitor:" + st.Key,
+			l.add(attentionItem{Level: levelProblem, Key: "monitor:" + st.Key,
 				Text: downText(st), Link: checkHref(st.Key), LinkText: "See what's wrong"})
 		case st.CertWarning && st.State == monitor.StateUp:
-			add(attentionItem{Level: levelWarning, Key: "monitor-cert:" + st.Key,
+			l.add(attentionItem{Level: levelWarning, Key: "monitor-cert:" + st.Key,
 				Text: capitalise(st.Name + "'s address: " + certWarningText(st, now) + "."), Link: checkHref(st.Key), LinkText: "Details"})
 		}
 	}
