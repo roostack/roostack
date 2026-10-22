@@ -1,0 +1,6 @@
+{
+  "scripts": ["yaml-2.9.1.min.js", "schema.js", "examples.js", "check.js", "compose.js", "suggest.js", "editor.js"],
+  "stylesheet": "editor.css",
+  "markup": "editor.html",
+  "vendored": ["yaml-2.9.1.min.js"]
+}
