@@ -38,16 +38,16 @@ func TestUsersAndSessions(t *testing.T) {
 		t.Fatalf("lookup: %+v %v", u, err)
 	}
 
-	if err := s.CreateSession(ctx, "tok", u.ID, time.Now().Add(time.Hour)); err != nil {
+	if err := s.CreateSessionRemember(ctx, "tok", u.ID, time.Now().Add(time.Hour), false); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := s.SessionUser(ctx, "tok"); err != nil || got.ID != u.ID {
+	if got, _, _, err := s.SessionInfo(ctx, "tok"); err != nil || got.ID != u.ID {
 		t.Errorf("session user: %+v %v", got, err)
 	}
-	if err := s.CreateSession(ctx, "old", u.ID, time.Now().Add(-time.Minute)); err != nil {
+	if err := s.CreateSessionRemember(ctx, "old", u.ID, time.Now().Add(-time.Minute), false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SessionUser(ctx, "old"); !errors.Is(err, ErrNotFound) {
+	if _, _, _, err := s.SessionInfo(ctx, "old"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("expired session should not be valid, got %v", err)
 	}
 
@@ -58,9 +58,6 @@ func TestUsersAndSessions(t *testing.T) {
 	}
 	if _, _, _, err := s.SessionInfo(ctx, "setup-tok"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("the setup pages' session on Roostack's own pages: %v", err)
-	}
-	if _, err := s.SessionUser(ctx, "setup-tok"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("the setup pages' session as a user's: %v", err)
 	}
 	if _, _, _, err := s.SessionInfoAt(ctx, OriginSetup, "tok"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Roostack's own session on the setup pages: %v", err)
@@ -74,7 +71,7 @@ func TestUsersAndSessions(t *testing.T) {
 	if _, _, _, err := s.SessionInfoAt(ctx, OriginSetup, "setup-tok"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("the setup pages' session after they closed: %v", err)
 	}
-	if _, err := s.SessionUser(ctx, "tok"); err != nil {
+	if _, _, _, err := s.SessionInfo(ctx, "tok"); err != nil {
 		t.Errorf("Roostack's own session after the setup pages closed: %v", err)
 	}
 	if at, ok, err := s.FirstUserCreated(ctx); err != nil || !ok || time.Since(at) > time.Minute {
@@ -88,7 +85,7 @@ func TestUsersAndSessions(t *testing.T) {
 	if u, _ := s.UserByUsername(ctx, "tyris"); !u.MustChangePassword {
 		t.Error("a temporary password must be changed at the next login")
 	}
-	if _, err := s.SessionUser(ctx, "tok"); !errors.Is(err, ErrNotFound) {
+	if _, _, _, err := s.SessionInfo(ctx, "tok"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("sessions should be cleared after a password reset, got %v", err)
 	}
 	if err := s.SetPassword(ctx, "nobody", "x", false); !errors.Is(err, ErrNotFound) {
@@ -331,14 +328,14 @@ func TestUserManagement(t *testing.T) {
 
 	// Resetting 2FA turns it off and logs the user out.
 	s.SetTOTP(ctx, mum, "SECRET", 5)
-	s.CreateSession(ctx, "mum-session", mum, time.Now().Add(time.Hour))
+	s.CreateSessionRemember(ctx, "mum-session", mum, time.Now().Add(time.Hour), false)
 	if err := s.ResetTOTP(ctx, mum); err != nil {
 		t.Fatal(err)
 	}
 	if u, _ := s.UserByID(ctx, mum); u.TOTPSecret != "" || u.TOTPLastStep != 0 {
 		t.Errorf("2FA not reset: %+v", u)
 	}
-	if _, err := s.SessionUser(ctx, "mum-session"); !errors.Is(err, ErrNotFound) {
+	if _, _, _, err := s.SessionInfo(ctx, "mum-session"); !errors.Is(err, ErrNotFound) {
 		t.Error("sessions should end when 2FA is reset")
 	}
 
