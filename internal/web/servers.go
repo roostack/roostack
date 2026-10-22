@@ -26,10 +26,8 @@ func (s *Server) serverOf(r *http.Request) ServiceNode {
 		return s.serverByID(id)
 	}
 	if name := r.PathValue("name"); name != "" {
-		if s.Manager != nil {
-			if n := s.Manager.NodeFor(name); n != nil {
-				return n
-			}
+		if n := s.Manager.NodeFor(name); n != nil {
+			return n
 		}
 	} else if id := r.URL.Query().Get("server"); id != "" {
 		return s.serverByID(id)
@@ -42,9 +40,6 @@ func (s *Server) serverOf(r *http.Request) ServiceNode {
 
 // serverByID is one of the lab's servers, or nil.
 func (s *Server) serverByID(id string) ServiceNode {
-	if s.Manager == nil {
-		return nil
-	}
 	if n := s.Manager.NodeByID(id); n != nil {
 		return n
 	}
@@ -64,7 +59,7 @@ func (s *Server) serverRefOf(r *http.Request) serverRef {
 		return serverRef{This: true}
 	}
 	// A requested server is named as the lab lists it.
-	if id := cmp.Or(r.PathValue("server"), r.URL.Query().Get("server")); id != "" && s.Manager != nil {
+	if id := cmp.Or(r.PathValue("server"), r.URL.Query().Get("server")); id != "" {
 		if ms, err := s.Manager.Servers(); err == nil {
 			for _, m := range ms {
 				if m.ID == id {
@@ -208,9 +203,6 @@ type serverView struct {
 // serverViews describes every server for the home page, asking each at
 // once.
 func (s *Server) serverViews(r *http.Request) []serverView {
-	if s.Manager == nil {
-		return nil
-	}
 	servers, err := s.Manager.Servers()
 	if err != nil {
 		return nil

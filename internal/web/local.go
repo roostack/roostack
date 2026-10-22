@@ -23,18 +23,10 @@ import (
 const localUploadMax = manager.LocalPackageMaxBytes + pkgspec.IconMaxBytes + 64<<10
 
 func (s *Server) localAddPage(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	s.render(w, "local-add", map[string]any{"User": currentUser(r), "Dir": s.Manager.LocalPackagesDir()})
 }
 
 func (s *Server) localAddSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	fail := func(msg string) {
 		w.WriteHeader(http.StatusBadRequest)
 		s.render(w, "local-add", map[string]any{"User": currentUser(r), "Dir": s.Manager.LocalPackagesDir(), "Error": msg})
@@ -81,10 +73,6 @@ func (s *Server) localAddSubmit(w http.ResponseWriter, r *http.Request) {
 // localEditorPage is the package editor (SPEC.md §8.3.7, "The package
 // editor"): its markup in the page, its scripts and styles from /editor/.
 func (s *Server) localEditorPage(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	markup := editor.Markup(editor.Options{Where: editor.InRoostack, Version: s.Version, Help: "/help/",
 		Check: "/catalog/editor/check", Add: "/catalog/add"})
 	s.render(w, "local-editor", map[string]any{"User": currentUser(r), "Editor": template.HTML(markup),
@@ -94,10 +82,6 @@ func (s *Server) localEditorPage(w http.ResponseWriter, r *http.Request) {
 // localEditorCheck is the package editor's Check with this Roostack: the
 // lab's own checks of the package sent (as YAML), without adding it.
 func (s *Server) localEditorCheck(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, manager.LocalPackageMaxBytes+1))
 	if err != nil {
 		http.Error(w, "That's too large for a package.", http.StatusRequestEntityTooLarge)
@@ -131,10 +115,6 @@ func uploaded(r *http.Request, field string) ([]byte, error) {
 }
 
 func (s *Server) localRemoveSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	err := s.Manager.RemoveLocalPackage(name)
 	if errors.Is(err, manager.ErrNotFound) {

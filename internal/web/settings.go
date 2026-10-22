@@ -153,7 +153,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 			set("remote-access", text, status)
 		}
 	}
-	if s.Domain != "" && s.Setup != nil && s.domainDone(r) {
+	if s.Domain != "" && s.domainDone(r) {
 		set("domain", s.Domain, "ok")
 	} else {
 		set("domain", "No address yet: services can't be reached", "problem")
@@ -189,15 +189,13 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	} else {
 		set("home-network", where+" · set up a domain first", "")
 	}
-	if s.Manager != nil {
-		if hosts := s.Manager.PublicHosts(); len(hosts) == 0 {
-			set("public", map[bool]string{true: "Nothing is public: services are only reachable through an SSH tunnel",
-				false: "Nothing is public: services are for your home network"}[internet], "")
-		} else if s.Protected != nil && !s.Protected(r.Context()) {
-			set("public", fmt.Sprintf("%d public; CrowdSec isn't running", len(hosts)), "problem")
-		} else {
-			set("public", fmt.Sprintf("%d public, protected by CrowdSec", len(hosts)), "ok")
-		}
+	if hosts := s.Manager.PublicHosts(); len(hosts) == 0 {
+		set("public", map[bool]string{true: "Nothing is public: services are only reachable through an SSH tunnel",
+			false: "Nothing is public: services are for your home network"}[internet], "")
+	} else if s.Protected != nil && !s.Protected(r.Context()) {
+		set("public", fmt.Sprintf("%d public; CrowdSec isn't running", len(hosts)), "problem")
+	} else {
+		set("public", fmt.Sprintf("%d public, protected by CrowdSec", len(hosts)), "ok")
 	}
 	if s.updates(r) != nil {
 		last, _ := s.updates(r).Last(r.Context())
@@ -216,19 +214,17 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	set("lab", s.labName(), "")
-	if s.Manager != nil {
-		if servers, err := s.Manager.Servers(); err == nil {
-			summary, level := fmt.Sprintf("%d servers", len(servers)), "ok"
-			if len(servers) == 1 {
-				summary = "1 server: " + servers[0].Name
-			}
-			for _, mc := range servers {
-				if mc.Status.LastErr != nil {
-					summary, level = "A change on "+mc.Name+" didn't finish", "problem"
-				}
-			}
-			set("servers", summary, level)
+	if servers, err := s.Manager.Servers(); err == nil {
+		summary, level := fmt.Sprintf("%d servers", len(servers)), "ok"
+		if len(servers) == 1 {
+			summary = "1 server: " + servers[0].Name
 		}
+		for _, mc := range servers {
+			if mc.Status.LastErr != nil {
+				summary, level = "A change on "+mc.Name+" didn't finish", "problem"
+			}
+		}
+		set("servers", summary, level)
 	}
 	clock := hosttime.Now()
 	set("time-zone", clock.Zone+" · "+clock.Time+" now", "")
@@ -237,7 +233,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		set("backups", sum, level)
 	}
 	set("storage", "Give family or friends space for their backups", "")
-	if s.Manager != nil && s.Manager.OfferStorage(r.Context()) {
+	if s.Manager.OfferStorage(r.Context()) {
 		if guests, err := s.Manager.StorageGuests(r.Context()); err == nil {
 			n := 0
 			for _, g := range guests {
@@ -302,7 +298,7 @@ func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
 	}
 	data["LabDomain"] = s.Domain
 	data["UIHost"] = s.uiHost()
-	data["DomainSet"] = s.Domain != "" && s.Setup != nil && s.domainDone(r)
+	data["DomainSet"] = s.Domain != "" && s.domainDone(r)
 	if p := dns.Get(s.DNSProvider); p != nil {
 		data["ProviderTitle"] = p.Title
 	}
@@ -357,10 +353,6 @@ const endpointKey = "network.endpoint"
 // renderServers shows the Servers page; extra is added to its data
 // (e.g. a new join code).
 func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map[string]any) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	data, err := s.pageData(r)
 	if err != nil {
 		s.serverError(w, err)
@@ -566,10 +558,6 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 }
 
 func (s *Server) renameServerSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	id, name := r.PathValue("server"), r.FormValue("name")
 	err := s.Manager.RenameServer(r.Context(), id, name)
 	if msg, ok := userMessage(err); ok {
@@ -593,10 +581,6 @@ func (s *Server) renameServerSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	id := r.PathValue("server")
 	// What it keeps for backups that others use too, said once it's gone
 	// so it can be changed (SPEC.md §10.10).
@@ -630,10 +614,6 @@ func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	id, path := r.PathValue("server"), r.FormValue("path")
 	err := s.Manager.RemoveKeptData(r.Context(), id, path)
 	if errors.Is(err, manager.ErrNotFound) {
@@ -651,10 +631,6 @@ func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
 // linkAddressSubmit sets where other servers reach a server directly
 // (SPEC.md §10.10).
 func (s *Server) linkAddressSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	id, addr := r.PathValue("server"), strings.TrimSpace(r.FormValue("address"))
 	err := s.Manager.SetLinkAddress(r.Context(), id, addr)
 	if msg, ok := userMessage(err); ok {

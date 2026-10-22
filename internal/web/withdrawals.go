@@ -70,10 +70,6 @@ func (s *Server) withdrawalAttention(r *http.Request, services []ServiceView, ad
 // startAnywaySubmit starts a service Roostack stopped, once the Owner has
 // confirmed the risk.
 func (s *Server) startAnywaySubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	private := r.FormValue("private") == "1"
 	err := s.Manager.StartAnyway(r.Context(), name, private)
@@ -100,10 +96,6 @@ func (s *Server) startAnywaySubmit(w http.ResponseWriter, r *http.Request) {
 // registryStopsSubmit saves the Owner's choice whether Roostack may stop
 // a service the registry says is dangerous.
 func (s *Server) registryStopsSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	on := r.FormValue("on") == "1"
 	if err := s.Manager.SetStops(on); err != nil {
 		s.serverError(w, err)

@@ -26,10 +26,6 @@ func (s *Server) storagePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map[string]any) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	data, err := s.pageData(r)
 	if err != nil {
 		s.serverError(w, err)
@@ -116,10 +112,6 @@ func gigabytes(v string) int64 {
 }
 
 func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name, endpoint := r.FormValue("name"), addressFromForm(r)
 	inv, err := s.Manager.InviteGuest(r.Context(), name, gigabytes(r.FormValue("quota")), endpoint)
 	if msg, ok := userMessage(err); ok {
@@ -144,10 +136,6 @@ func (s *Server) guestID(r *http.Request) int64 {
 }
 
 func (s *Server) guestServerSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	err := s.Manager.SetGuestServer(r.Context(), r.FormValue("server"))
 	if msg, ok := userMessage(err); ok {
 		s.renderStorage(w, r, map[string]any{"Error": msg})
@@ -166,10 +154,6 @@ func (s *Server) guestServerSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) removeGuestSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	if err := s.Manager.RemoveGuest(r.Context(), s.guestID(r)); err != nil {
 		s.serverError(w, err)
 		return
@@ -179,10 +163,6 @@ func (s *Server) removeGuestSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteRemovedGuestSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	err := s.Manager.DeleteRemovedGuest(r.Context(), s.guestID(r))
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
@@ -197,10 +177,6 @@ func (s *Server) deleteRemovedGuestSubmit(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) guestQuotaSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	err := s.Manager.SetGuestQuota(r.Context(), s.guestID(r), gigabytes(r.FormValue("quota")))
 	if msg, ok := userMessage(err); ok {
 		s.renderStorage(w, r, map[string]any{"Error": msg})
@@ -215,10 +191,6 @@ func (s *Server) guestQuotaSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteLeftoverSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	err := s.Manager.DeleteLeftoverGuest(r.Context(), r.PathValue("user"))
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)

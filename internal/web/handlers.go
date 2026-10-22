@@ -71,7 +71,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	if labName != "" && s.Setup != nil {
+	if labName != "" {
 		err := s.Setup.SetLabName(r.Context(), labName, false)
 		if msg, ok := userMessage(err); ok {
 			fail(msg)
@@ -81,9 +81,9 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, err)
 			return
 		}
-		s.mu.Lock()
+		s.labMu.Lock()
 		s.LabName = labName
-		s.mu.Unlock()
+		s.labMu.Unlock()
 	}
 	created, err := s.Store.CreateFirstUser(r.Context(), store.User{Username: username, PasswordHash: hash, Role: auth.RoleOwner, Email: email})
 	if err != nil {
@@ -95,9 +95,9 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mu.Lock()
+	s.setupMu.Lock()
 	s.setupToken = ""
-	s.mu.Unlock()
+	s.setupMu.Unlock()
 	if s.OnSetupComplete != nil {
 		s.OnSetupComplete()
 	}

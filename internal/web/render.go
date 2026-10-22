@@ -68,21 +68,19 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 		if an, ok := data["AreaNav"].(areaNav); ok && an.Label == "Settings" && inSettings {
 			n.Area = an.Active
 		}
-		if s.Manager != nil {
-			if servers, err := s.Manager.Servers(); err == nil {
-				for _, mc := range servers {
-					if mc.Status.LastErr != nil {
-						n.ServerIssues++
-					}
+		if servers, err := s.Manager.Servers(); err == nil {
+			for _, mc := range servers {
+				if mc.Status.LastErr != nil {
+					n.ServerIssues++
 				}
 			}
 		}
 		// What Home found lately counts too, while it's fresh.
-		s.mu.Lock()
-		if time.Since(s.serverIssuesAt) < serverIssuesFresh {
-			n.ServerIssues = max(n.ServerIssues, s.serverIssues)
+		s.issues.mu.Lock()
+		if time.Since(s.issues.at) < serverIssuesFresh {
+			n.ServerIssues = max(n.ServerIssues, s.issues.n)
 		}
-		s.mu.Unlock()
+		s.issues.mu.Unlock()
 		data["Nav"] = n
 	}
 	// Under Services, the sidebar lists them, for those who can open them.

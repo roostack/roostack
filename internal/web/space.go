@@ -154,7 +154,7 @@ func (s *Server) serverSpaces(ctx context.Context, m serverRef, n any) *serverDi
 	out := &serverDisks{ServerID: m.ID}
 	var promised, promisedLeft int64
 	// Other labs' quotas count on the server that stores their backups.
-	if s.Manager != nil && s.Manager.GuestServer(ctx) == m.ID {
+	if s.Manager.GuestServer(ctx) == m.ID {
 		if guests, err := s.Manager.StorageGuests(ctx); err == nil {
 			for _, g := range guests {
 				if g.Removed.IsZero() {

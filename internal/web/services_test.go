@@ -171,7 +171,7 @@ func TestNavigationByRole(t *testing.T) {
 
 func TestHomeAllGood(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner) // owners have 2FA in this harness
-	h.server.Manager, h.server.Node = nil, nil
+	h.server.Node = nil
 	_, body := h.get("/")
 	if !strings.Contains(body, "Everything&#39;s working") && !strings.Contains(body, "Everything's working") {
 		t.Error("with nothing to do, home should say everything's working")
@@ -697,6 +697,8 @@ func TestStorageForOthers(t *testing.T) {
 	fm.guestSpace = manager.GuestSpace{Free: 180 * units.GB, Total: 250 * units.GB, Promised: 40 * units.GB, Left: 16_300 * units.MB}
 	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 50 * units.GB, Joined: true},
 		Used: 3 * units.GB, LastSeen: time.Now()}}
+	// The lab's address isn't set up, so there's no name to offer.
+	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainLater: true, BackupLater: true}}
 	_, body := h.get("/settings/storage")
 	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821",
 		"Space on nuc", "<strong>180.0 GB free</strong> of 250.0 GB", "Backups of other labs",

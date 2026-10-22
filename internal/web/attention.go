@@ -65,17 +65,17 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			"", "")
 	}
 	// Files the controller found in backups and couldn't read (junk.go).
-	if owner && s.Manager != nil {
+	if owner {
 		s.junkAttention(r.Context(), add)
 	}
 	// Another lab that stopped storing this lab's backups (it said so).
-	if owner && s.Manager != nil {
+	if owner {
 		for _, e := range s.Manager.EndingStorages(r.Context()) {
 			add(levelWarning, e.HostName+" has stopped storing your backups. What's there is deleted on "+
 				e.DeleteOn.Local().Format("2 January")+": send them somewhere else.", "/backups#destination", "Choose where backups go")
 		}
 	}
-	if owner && s.Setup != nil {
+	if owner {
 		if p, err := s.Setup.Progress(r.Context()); err == nil && p.DomainLater && !p.DomainDone {
 			add(levelProblem, "Your lab has no address yet, so its services can't be reached on the web.",
 				"/setup/domain", "Give it an address")
@@ -114,7 +114,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		s.registryAttention(add)
 	}
 
-	if admin && s.Manager != nil {
+	if admin {
 		// Each server applies its own changes; name it once there are several.
 		servers, _ := s.Manager.Servers()
 		for _, mc := range servers {
@@ -299,7 +299,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 
 	// A server with a public address of its own, in a lab Roostack treats
 	// as at home: probably a cloud server nobody has told it about.
-	if owner && s.Setup != nil {
+	if owner {
 		if c := s.network(); c.Saved == "" && c.Detected == config.NetworkInternet {
 			add(levelWarning, "This server looks like a cloud server: it has a public address of its own. Tell Roostack, "+
 				"so private services and the public access checklist fit.", "/settings/home-network", "Where it is")
@@ -383,9 +383,6 @@ func (s *Server) serverNodes(r *http.Request) []serverNode {
 	if s.Node != nil {
 		out = append(out, serverNode{serverRef{ID: s.Node.Identity().ID, Name: s.Node.Identity().Name, This: true}, s.Node})
 	}
-	if s.Manager == nil {
-		return out
-	}
 	servers, _ := s.Manager.Servers()
 	for _, mc := range servers {
 		if mc.This {
@@ -426,12 +423,10 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 	// fail until it has a new place, so say why at once rather than each
 	// failure.
 	lost := false
-	if s.Manager != nil {
-		if l, ok := s.Manager.LostMainBackup(r.Context(), m.ID); ok {
-			lost = true
-			add(levelProblem, "The main backup"+m.on()+" was on "+l.HostName+"'s disk, and "+l.HostName+
-				" has left the lab. Choose a new place for it: until then, nightly backups there fail.", link+"#plan", "Choose a new place")
-		}
+	if l, ok := s.Manager.LostMainBackup(r.Context(), m.ID); ok {
+		lost = true
+		add(levelProblem, "The main backup"+m.on()+" was on "+l.HostName+"'s disk, and "+l.HostName+
+			" has left the lab. Choose a new place for it: until then, nightly backups there fail.", link+"#plan", "Choose a new place")
 	}
 	switch {
 	case !st.Configured && m.This:

@@ -167,10 +167,6 @@ func (s *Server) installSummaryPart(w http.ResponseWriter, r *http.Request) {
 // wants to read exactly what it asks for before installing (SPEC.md
 // §8.3.4).
 func (s *Server) packageFile(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	data, err := s.Manager.PackageFile(r.PathValue("name"))
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
@@ -186,10 +182,6 @@ func (s *Server) packageFile(w http.ResponseWriter, r *http.Request) {
 
 // packageIcon serves a catalog package's logo.
 func (s *Server) packageIcon(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	data, err := s.Manager.PackageIcon(r.PathValue("name"))
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)

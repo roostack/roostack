@@ -153,7 +153,7 @@ func (s *Server) withTiers(services []ServiceView) {
 // services) and the drawn icon of its first category otherwise.
 func (s *Server) withIcons(services []ServiceView, logos bool) {
 	items := map[string]manager.CatalogItem{}
-	if s.Manager != nil && len(services) > 0 {
+	if len(services) > 0 {
 		if catalog, err := s.Manager.Catalog(); err == nil {
 			for _, it := range catalog {
 				items[it.Name] = it
@@ -177,12 +177,12 @@ func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 		return nil, err
 	}
 	s.withTiers(services)
-	s.withIcons(services, s.Manager != nil && auth.Can(u.Role, auth.ManageServices))
+	s.withIcons(services, auth.Can(u.Role, auth.ManageServices))
 	services = s.usableBy(r.Context(), u, services)
 	return map[string]any{
 		"User":      u,
 		"Services":  services,
-		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
+		"CanManage": auth.Can(u.Role, auth.ManageServices),
 		"IsOwner":   auth.Can(u.Role, auth.ManageHost),
 		"Internet":  s.onInternet(),
 		"Apply":     s.applyStatus(),
@@ -249,9 +249,9 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 				f.ServerIssues++
 			}
 		}
-		s.mu.Lock()
-		s.serverIssues, s.serverIssuesAt = f.ServerIssues, time.Now()
-		s.mu.Unlock()
+		s.issues.mu.Lock()
+		s.issues.n, s.issues.at = f.ServerIssues, time.Now()
+		s.issues.mu.Unlock()
 		data["Figures"] = f
 		// Each server's disks together, for its row in the table.
 		perServer := map[string]diskSummary{}
@@ -280,6 +280,16 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 // serverIssuesFresh is how long Home's count of servers needing attention
 // shows in the sidebar.
 const serverIssuesFresh = 10 * time.Minute
+
+// serverIssues is how many servers needed attention when Home last asked
+// them all (a restart due, an OS update or change that didn't finish, a
+// disk running low, not answering), for the sidebar's count beside
+// Servers without asking each server on every page.
+type serverIssues struct {
+	mu sync.Mutex
+	n  int
+	at time.Time
+}
 
 // diskSummary is a server's disks together: used of total, and the
 // worst level among them.
@@ -428,7 +438,7 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 func (s *Server) addBuiltIns(r *http.Request, data map[string]any) {
 	show := r.URL.Query().Get("builtin") == "1"
 	data["ShowBuiltIn"] = show
-	if show && s.Manager != nil && data["CanManage"] == true {
+	if show && data["CanManage"] == true {
 		data["BuiltIns"] = s.Manager.AllBuiltIns(r.Context())
 	}
 }
@@ -459,8 +469,8 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	data["CanRestore"] = owner && s.labHasBackups(r)
 	// The recovery key is the lab's, kept by the controller (which serves
 	// this page).
-	data["RecoveryKey"] = s.Setup != nil && owner && s.hasRecoveryKey()
-	if data["RecoveryKey"] == true && s.Manager != nil {
+	data["RecoveryKey"] = owner && s.hasRecoveryKey()
+	if data["RecoveryKey"] == true {
 		if k, err := s.Manager.KeyChangeStatus(); err == nil {
 			data["KeyChange"] = k
 		}
@@ -473,7 +483,7 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	all, _ := data["Services"].([]ServiceView)
 	data["RestoreGroups"] = s.servicesByServer(all)
 	// Where backups go: the plan (SPEC.md §6.9).
-	if s.Manager != nil && auth.Can(currentUser(r).Role, auth.ManageHost) {
+	if auth.Can(currentUser(r).Role, auth.ManageHost) {
 		// Storage at other labs is the whole lab's, shown on every server's page.
 		remotes := s.remoteViews(r)
 		data["Remotes"] = remotes
@@ -501,11 +511,9 @@ type serviceGroup struct {
 // lab's order of servers (one unnamed group with a single server).
 func (s *Server) servicesByServer(services []ServiceView) []serviceGroup {
 	var order []string
-	if s.Manager != nil {
-		if ms, err := s.Manager.Servers(); err == nil && len(ms) > 1 {
-			for _, m := range ms {
-				order = append(order, m.Name)
-			}
+	if ms, err := s.Manager.Servers(); err == nil && len(ms) > 1 {
+		for _, m := range ms {
+			order = append(order, m.Name)
 		}
 	}
 	this := ""
@@ -549,9 +557,6 @@ func (s *Server) servicesByServer(services []ServiceView) []serviceGroup {
 func (s *Server) labHasBackups(r *http.Request) bool {
 	if s.restores(r) != nil || (s.Node != nil && s.Node.Restores() != nil) {
 		return true
-	}
-	if s.Manager == nil {
-		return false
 	}
 	servers, err := s.Manager.Servers()
 	if err != nil {
@@ -694,9 +699,6 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) applyStatus() *manager.ApplyStatus {
-	if s.Manager == nil {
-		return nil
-	}
 	st := s.Manager.Status()
 	return &st
 }

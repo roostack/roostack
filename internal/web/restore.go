@@ -18,10 +18,6 @@ import (
 
 // restoreService finds the installed service named in the URL.
 func (s *Server) restoreService(w http.ResponseWriter, r *http.Request) (ServiceView, bool) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return ServiceView{}, false
-	}
 	services, err := s.Services(r.Context())
 	if err != nil {
 		s.serverError(w, err)

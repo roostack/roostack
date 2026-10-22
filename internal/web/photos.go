@@ -216,9 +216,6 @@ func (s *Server) photosHome(w http.ResponseWriter, r *http.Request) {
 // photoHosts are each Immich's address, by name, for the choice.
 func (s *Server) photoHosts(list []manager.PhotoService) map[string]string {
 	out := map[string]string{}
-	if s.Services == nil {
-		return out
-	}
 	views, err := s.Services(context.Background())
 	if err != nil {
 		return out
@@ -342,9 +339,6 @@ func (s *Server) renderPhotosPage(w http.ResponseWriter, data map[string]any, pa
 
 // serviceURL is a service's own address ("" if it has none).
 func (s *Server) serviceURL(ctx context.Context, name string) string {
-	if s.Services == nil {
-		return ""
-	}
 	views, err := s.Services(ctx)
 	if err != nil {
 		return ""

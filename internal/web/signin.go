@@ -452,16 +452,8 @@ func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, err)
 			return
 		}
-		now := time.Now()
-		s.mu.Lock()
-		for k, p := range s.pending {
-			if now.After(p.expires) {
-				delete(s.pending, k)
-			}
-		}
-		s.pending[pendingSignIn+authkit.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration), remember: remember,
-			pagesOnly: blocked != ""}
-		s.mu.Unlock()
+		s.pending.put(pendingSignIn+authkit.HashToken(token), &pendingLogin{userID: u.ID, remember: remember,
+			pagesOnly: blocked != ""}, time.Now().Add(pendingDuration))
 		http.SetCookie(w, &http.Cookie{Name: signInPendingCookie, Value: token, Path: "/sign-in", MaxAge: int(pendingDuration.Seconds()),
 			HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})
 		s.renderSignIn(w, r, http.StatusOK, signInView{State: "code", Next: next})
@@ -489,14 +481,8 @@ func (s *Server) signInCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := pendingSignIn + authkit.HashToken(c.Value)
-	s.mu.Lock()
-	p := s.pending[key]
-	if p != nil && time.Now().After(p.expires) {
-		delete(s.pending, key)
-		p = nil
-	}
-	s.mu.Unlock()
-	if p == nil {
+	p, ok := s.pending.get(key)
+	if !ok {
 		s.renderSignIn(w, r, http.StatusOK, signInView{State: "sign-in", Next: next, Error: "That took too long. Please sign in again.",
 			Remember: s.signInRememberDefault(r.Context())})
 		return
@@ -509,9 +495,7 @@ func (s *Server) signInCode(w http.ResponseWriter, r *http.Request) {
 	if res != codeOK {
 		time.Sleep(failedLoginDelay)
 		if res == codeLocked {
-			s.mu.Lock()
-			delete(s.pending, key)
-			s.mu.Unlock()
+			s.pending.delete(key)
 			s.renderSignIn(w, r, http.StatusTooManyRequests, signInView{State: "sign-in", Next: next, Error: lockedMessage(until)})
 			return
 		}
@@ -519,9 +503,7 @@ func (s *Server) signInCode(w http.ResponseWriter, r *http.Request) {
 			Error: "That code didn't work. Check your authenticator app and try again."})
 		return
 	}
-	s.mu.Lock()
-	delete(s.pending, key)
-	s.mu.Unlock()
+	s.pending.delete(key)
 	http.SetCookie(w, &http.Cookie{Name: signInPendingCookie, Value: "", Path: "/sign-in", MaxAge: -1, HttpOnly: true})
 	u, err := s.Store.UserByID(r.Context(), p.userID)
 	if err != nil {

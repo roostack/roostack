@@ -130,7 +130,7 @@ func (s *Server) cloudView(r *http.Request, setup bool) cloudView {
 			}
 		}
 	}
-	v.Relayed = v.Linked && s.Manager != nil && s.Manager.RelayOn()
+	v.Relayed = v.Linked && s.Manager.RelayOn()
 	if !setup {
 		v.Requests = s.Cloud.Requests()
 		if len(v.Requests) > 30 {
@@ -363,7 +363,7 @@ func (s *Server) cloudStanding(add func(level, text, link, linkText string)) {
 			add(levelInfo, n.Host+" is waiting for Roostack Cloud's approval: it works once approved.", "/settings/cloud#names", "Why")
 		}
 	}
-	if s.Manager == nil || !s.Manager.RelayOn() {
+	if !s.Manager.RelayOn() {
 		return
 	}
 	switch off, suspended := s.Cloud.RelayStanding(); {

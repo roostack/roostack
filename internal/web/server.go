@@ -25,13 +25,10 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/pkgspec"
-	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/setup"
-	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -93,96 +90,49 @@ type ServiceView struct {
 }
 
 // Server serves the web UI.
+//
+// What every page relies on comes to NewServer, so it's always there (the
+// quality review's S1, decided by the Owner on 2026-10-22): the store, the
+// log, the lab's services and its manager, the setup steps and the lab's
+// settings. What comes with a feature is in that feature's group, or a
+// field of its own, and nil hides the feature.
 type Server struct {
 	Store *store.Store
+	Log   *slog.Logger
 	// Services lists installed services and their status. It is a function
 	// so the UI doesn't depend on systemd directly (and tests can fake it).
 	Services func(ctx context.Context) ([]ServiceView, error)
-	Log      *slog.Logger
-
-	mu sync.Mutex
-	// serverIssues is how many servers needed attention when Home last
-	// asked them all (a restart due, an OS update or change that didn't
-	// finish, a disk running low, not answering), for the sidebar's count
-	// beside Servers without asking each server on every page.
-	serverIssues   int
-	serverIssuesAt time.Time
-	// setupToken must be entered to create the first Owner, so whoever
-	// reaches the UI first on the network can't claim the lab. Empty once
-	// setup is done.
-	setupToken string
-	// OnSetupComplete is called after the first Owner is created (e.g. to
-	// delete the token file).
-	OnSetupComplete func()
-	// FirstRunAddress is the lab's address for Roostack's own pages
-	// ("https://…"), as saved now, or "" without one: where the setup
-	// listener sends the Owner once setup is finished (SPEC.md §6.3.2).
-	FirstRunAddress func() string
-
-	// pending holds logins that passed the password check and are waiting
-	// for a 2FA code, keyed by token hash. In memory: a restart just means
-	// logging in again.
-	pending map[string]*pendingLogin
-	// handoffs are sign-ins at login.<domain> on their way to Roostack's
-	// own pages, keyed by the one-time code's hash (pagessignin.go).
-	handoffs map[string]*pagesHandoff
-	// served is the last answer to whether Caddy serves the sign-in page
-	// (signInServed), and servedToken what the sign-in listener answers
-	// the question with, so the answer can only come from it.
-	served      servedCheck
-	servedToken string
-	// stepUpFailures counts wrong passwords or codes per user when showing
-	// the recovery key (recoverykey.go).
-	stepUpFailures map[int64]int
-	// codeMu makes two-factor checks run one at a time (checkCode).
-	codeMu sync.Mutex
-
-	// Manager installs and removes services. Nil disables those pages.
+	// Manager installs and removes services.
 	Manager ServiceManager
+	// Setup is the first-run setup wizard's steps.
+	Setup LabSetup
+	// LabSettings are the lab's settings, as Roostack started with them;
+	// labMu guards LabName, which first-run setup changes while pages are
+	// being served (labName).
+	LabSettings
+	labMu sync.Mutex
+	// Version is Roostack's version, shown in every page's footer and on
+	// the About page.
+	Version string
+	// Node is the server running the services. Set with Manager.
+	Node ServiceNode
+
+	// The features that come and go, each nil (or empty) when it isn't
+	// there.
+	FirstRun
+	Monitoring
+	SingleSignOn
+	PublicAddresses
 	// Libraries are the media libraries (media.go); nil: none.
 	Libraries LibraryManager
 	// Photos migrates photos into Immich (photos.go, SPEC.md §8.5); nil:
 	// none.
 	Photos PhotoMigrations
-	// Monitor runs monitoring's checks (monitor.go, SPEC.md §6.15); nil:
-	// none (a server that isn't the controller). AutoChecks are the
-	// manager's (services and servers). StatusPage switches the public
-	// status page (the manager), which is written to StatusPageDir.
-	Monitor       *monitor.Monitor
-	AutoChecks    func(ctx context.Context) []monitor.Check
-	StatusPage    StatusPageSwitch
-	StatusPageDir string
-	// Node is the server running the services. Set with Manager.
-	Node ServiceNode
-	// SignIn is the identity provider (internal/sso, SPEC.md §5.2),
-	// served on its own listener (SignInHandler); nil: none. SSO turns
-	// single sign-on on and off for services. SignInHost is
-	// login.<domain>, and SSODir holds the sign-in page's logo.
-	SignIn     *sso.Provider
-	SSO        SSOServices
-	SignInHost string
-	// SignInServed asks whether Caddy serves the sign-in page yet
-	// (CaddyServesSignIn); nil: never, so Roostack's own pages keep their
-	// own login.
-	SignInServed func(context.Context) bool
-	SSODir       string
-	signInPages  *template.Template
 	// Network adds servers to the lab (SPEC.md §10.2). Nil hides it.
 	Network LabNetwork
-	// LabName is what people call the lab (config.Lab.DisplayName).
-	LabName string
-	// Domain is the lab's base domain, shown next to subdomain fields.
-	Domain string
-	// UIHost is where Roostack's own pages are (config.Lab.UIHost).
-	UIHost string
 	// DetectNetwork guesses where the lab is from this server's addresses
 	// (public.DetectNetwork; SPEC.md §6.12). Nil guesses nothing.
 	DetectNetwork func() string
-	// DNSProvider is the lab's current DNS provider ID (wizard default).
-	DNSProvider string
-	// OldAddress is the lab's previous address, still served for a while
-	// after switching (config.Lab.OldAddress; SPEC.md §6.6).
-	OldAddress *config.OldAddress
 	// Cloud is the controller's link to Roostack Cloud (SPEC.md §6.6). Nil
 	// when Cloud is turned off (config.Cloud): nothing about it is offered.
 	Cloud CloudLink
@@ -190,52 +140,26 @@ type Server struct {
 	// (SPEC.md §8.3.3): the controller's only. Nil on other servers and in
 	// tests that don't need it.
 	Registry RegistryUpdater
-	// BackupRepo is the backup destination, shown on the Backups page.
-	BackupRepo string
-	// HasGPU pre-ticks settings whose default is "auto".
-	HasGPU bool
-	// Setup is the first-run setup wizard. Nil disables it.
-	Setup LabSetup
-	// LabRestore rebuilds a lab from its backups on a fresh install. Nil
-	// hides it.
-	LabRestore LabRestorer
-	restore    *restoreSession
-	// setupPasses are browsers that entered the setup code (setup.go):
-	// token hash → until when.
-	setupPasses map[string]time.Time
-	hostChecks  hostCheckCache
-	// RestorePending reports a restored lab whose services' databases are
-	// still being put back (optional).
-	RestorePending func() bool
 	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
 	DNS DNSStatus
-	// Checks are the outside check links for public addresses, and
-	// Protected says whether CrowdSec is running, AppSec with it (SPEC.md
-	// §6.10, §6.11; public.go).
-	Checks    *public.Checks
-	Protected func(ctx context.Context) bool
-	// JoinLab adds this fresh server to an existing lab, named name, and
-	// restarts Roostack as part of it once the page has been sent; it
-	// returns this server's address on the lab's network. Undone if it
-	// fails. Nil hides the choice (SPEC.md §10.2).
-	JoinLab func(ctx context.Context, code labnet.JoinCode, name string) (string, error)
 	// Mail sends email (SPEC.md §6.13). Nil hides Settings → Email.
 	Mail MailSender
-	// Attacks says what CrowdSec saw on the public addresses over a while,
-	// for the weekly summary (optional).
-	Attacks func(ctx context.Context, since time.Duration) (public.Attacks, error)
-	// Blocks are the requests CrowdSec's AppSec refused over a while, for
-	// the service pages and the weekly summary (optional; waf.go).
-	Blocks func(ctx context.Context, since time.Duration) ([]public.Block, error)
-	waf    wafCache
-	// Version is Roostack's version, shown in every page's footer and on
-	// the About page.
-	Version string
-	// Maintenance is the lab's restart policy, shown in Settings.
-	Maintenance config.Maintenance
 	// RunningJob names a maintenance job running on this server, which a
 	// restart waits for ("" if none; optional).
 	RunningJob func() string
+
+	// What the pages keep in memory, each with its own lock. pending holds
+	// logins that passed the password check and are waiting for a 2FA
+	// code, keyed by token hash; handoffs are sign-ins at login.<domain>
+	// on their way to Roostack's own pages, keyed by the one-time code's
+	// hash (pagessignin.go).
+	pending  expiring[string, *pendingLogin]
+	handoffs expiring[string, *pagesHandoff]
+	stepUps  stepUpFailures
+	// codeMu makes two-factor checks run one at a time (checkCode).
+	codeMu     sync.Mutex
+	issues     serverIssues
+	hostChecks hostCheckCache
 	// bootID changes each time Roostack starts; the "restarting" page waits
 	// for a new one.
 	bootID string
@@ -243,6 +167,27 @@ type Server struct {
 	help *helpSite
 
 	pages map[string]*template.Template
+}
+
+// LabSettings are the lab's settings the pages show (config.Lab).
+type LabSettings struct {
+	// LabName is what people call the lab (config.Lab.DisplayName).
+	LabName string
+	// Domain is the lab's base domain, shown next to subdomain fields.
+	Domain string
+	// UIHost is where Roostack's own pages are (config.Lab.UIHost).
+	UIHost string
+	// DNSProvider is the lab's current DNS provider ID (wizard default).
+	DNSProvider string
+	// OldAddress is the lab's previous address, still served for a while
+	// after switching (config.Lab.OldAddress; SPEC.md §6.6).
+	OldAddress *config.OldAddress
+	// BackupRepo is the backup destination, shown on the Backups page.
+	BackupRepo string
+	// HasGPU pre-ticks settings whose default is "auto".
+	HasGPU bool
+	// Maintenance is the lab's restart policy, shown in Settings.
+	Maintenance config.Maintenance
 }
 
 // ServiceManager is what the UI needs from internal/manager, by area.
@@ -508,11 +453,13 @@ func (s *Server) updates(r *http.Request) HostUpdates {
 	return nil
 }
 
-// NewServer prepares templates. setupToken is empty if users already exist.
-func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, error), setupToken string, log *slog.Logger) (*Server, error) {
-	s := &Server{Store: st, Services: services, Log: log, setupToken: setupToken,
-		pending: map[string]*pendingLogin{}, handoffs: map[string]*pagesHandoff{}, stepUpFailures: map[int64]int{}, pages: map[string]*template.Template{},
-		setupPasses: map[string]time.Time{}}
+// NewServer prepares the pages, with what every page relies on: none of
+// these may be nil. setupToken is empty if users already exist.
+func NewServer(st *store.Store, log *slog.Logger, services func(context.Context) ([]ServiceView, error), mgr ServiceManager,
+	wizard LabSetup, lab LabSettings, setupToken string) (*Server, error) {
+	s := &Server{Store: st, Log: log, Services: services, Manager: mgr, Setup: wizard, LabSettings: lab,
+		stepUps: stepUpFailures{byUser: map[int64]int{}}, pages: map[string]*template.Template{}}
+	s.setupToken = setupToken
 	var err error
 	if s.bootID, err = authkit.NewToken(); err != nil {
 		return nil, err
@@ -820,13 +767,13 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 // labName is LabName, which first-run setup may change while pages are
 // being served.
 func (s *Server) labName() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.labMu.Lock()
+	defer s.labMu.Unlock()
 	return s.LabName
 }
 
 func (s *Server) needsSetup() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.setupMu.Lock()
+	defer s.setupMu.Unlock()
 	return s.setupToken != ""
 }

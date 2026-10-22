@@ -39,17 +39,15 @@ const wizardStepCount = 5
 
 // wizardNext is the setup wizard's next step, or Home once it's finished.
 func (s *Server) wizardNext(r *http.Request) string {
-	if s.Setup != nil {
-		if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
-			return p.Next()
-		}
+	if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
+		return p.Next()
 	}
 	return "/"
 }
 
 // wizardOpen reports whether this server's setup wizard has steps left.
 func (s *Server) wizardOpen(r *http.Request) bool {
-	return s.Setup != nil && s.inWizard(r)
+	return s.inWizard(r)
 }
 
 // twoFactorInWizard reports whether u turns on two-factor as a step of
@@ -233,10 +231,8 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 		clients = append(clients, sshClient{Addr: c.String(), Where: sshClientWhere(c, a.Controller, internet)})
 	}
 	multi := false
-	if s.Manager != nil {
-		ms, err := s.Manager.Servers()
-		multi = err == nil && len(ms) > 1
-	}
+	ms, err := s.Manager.Servers()
+	multi = err == nil && len(ms) > 1
 	if choice == "" {
 		choice = cmp.Or(a.Choice, map[bool]string{true: config.SSHFromAny, false: config.SSHFromLAN}[internet])
 	}

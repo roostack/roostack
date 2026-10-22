@@ -89,7 +89,7 @@ func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
 			return
 		}
 		// Owners finish the setup wizard next.
-		if u.Role == auth.RoleOwner && s.Setup != nil {
+		if u.Role == auth.RoleOwner {
 			if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
 				redirect(w, r, p.Next())
 				return
@@ -219,10 +219,6 @@ func (s *Server) recoverPanics(next http.Handler) http.Handler {
 // requireWizard allows the setup wizard to the Owner.
 func (s *Server) requireWizard(h http.HandlerFunc) http.Handler {
 	return s.requireOwner(func(w http.ResponseWriter, r *http.Request) {
-		if s.Setup == nil {
-			http.NotFound(w, r)
-			return
-		}
 		h(w, r)
 	})
 }

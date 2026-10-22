@@ -67,10 +67,8 @@ func (s *Server) addPeopleSSO(ctx context.Context, data map[string]any) {
 			continue
 		}
 		t := ssoServiceTick{Name: c.ID, Title: c.Title, Everyone: !a.Chosen}
-		if s.Manager != nil {
-			if p, err := s.Manager.ServicePackage(c.ID); err == nil && p.About.Icon != "" {
-				t.Logo = "/install/" + p.Name + "/icon.png"
-			}
+		if p, err := s.Manager.ServicePackage(c.ID); err == nil && p.About.Icon != "" {
+			t.Logo = "/install/" + p.Name + "/icon.png"
 		}
 		ticks = append(ticks, t)
 		titles[c.ID] = c.Title

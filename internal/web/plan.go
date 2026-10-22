@@ -155,9 +155,6 @@ func kindTitle(kind string) string {
 // backupPlan builds a server's plan. adding and replacing open the
 // chooser (from the page's query).
 func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView {
-	if s.Manager == nil {
-		return nil
-	}
 	ctx := r.Context()
 	p := &planView{Server: m, Wizard: wizard, Back: m.Backups(), Action: m.path("/backups/plan", "/backups/plan"),
 		Internet: m.This && s.onInternet()}
@@ -173,7 +170,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	}
 	// This server's drives, for the free space on them.
 	drives := map[string]agent.Drive{}
-	if m.This && s.Setup != nil {
+	if m.This {
 		if ds, err := s.Setup.BackupDrives(ctx); err == nil {
 			for _, d := range ds {
 				drives[d.ID] = d
@@ -412,7 +409,7 @@ func (s *Server) planOptions(r *http.Request, m serverRef, main store.BackupTarg
 	ctx := r.Context()
 	var o planOptions
 	// Drives: this server's own (roostack-agent sees only its server's).
-	if m.This && s.Setup != nil {
+	if m.This {
 		if drives, err := s.backupDrives(r, r.FormValue("drive")); err == nil {
 			o = drives
 		}
@@ -449,10 +446,6 @@ func (s *Server) planOptions(r *http.Request, m serverRef, main store.BackupTarg
 // backup 1): the chooser's kind picks where.
 func (s *Server) planAddSubmit(wizard bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.Manager == nil {
-			http.NotFound(w, r)
-			return
-		}
 		m := s.serverRefOf(r)
 		if !wizard && s.serverOf(r) == nil {
 			http.NotFound(w, r)
@@ -479,7 +472,7 @@ func (s *Server) planAddSubmit(wizard bool) http.HandlerFunc {
 		_, _, hasMain := s.Manager.BackupTargetOf(ctx, m.ID)
 		// The lab's first backup makes the recovery key (manager), which the
 		// Owner must then see and save, wherever the backup was added.
-		keyIsNew := s.Setup != nil && !s.hasRecoveryKey()
+		keyIsNew := !s.hasRecoveryKey()
 		if !hasMain || r.FormValue("replace") == "1" {
 			err = s.Manager.SetBackupDestination(ctx, m.ID, ref)
 		} else {
@@ -495,7 +488,7 @@ func (s *Server) planAddSubmit(wizard bool) http.HandlerFunc {
 		}
 		// In the wizard, backup 1 shows the key (the same one, if backups
 		// were set up before); anywhere, a key made just now is shown.
-		if s.Setup != nil && (wizard || keyIsNew) {
+		if wizard || keyIsNew {
 			if err := s.Setup.BackupAdded(ctx, (wizard && !hasMain) || keyIsNew); err != nil {
 				s.serverError(w, err)
 				return
@@ -576,7 +569,7 @@ func newChoice(before, after []manager.BackupChoice) string {
 
 // planPromoteSubmit makes a copy backup 1.
 func (s *Server) planPromoteSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil || s.serverOf(r) == nil {
+	if s.serverOf(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -601,7 +594,7 @@ func (s *Server) planPromoteSubmit(w http.ResponseWriter, r *http.Request) {
 // planRemoveSubmit stops one of a server's backups (not backup 1: another
 // takes its place first). What's there already stays.
 func (s *Server) planRemoveSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil || s.serverOf(r) == nil {
+	if s.serverOf(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -628,7 +621,7 @@ func (s *Server) planRemoveSubmit(w http.ResponseWriter, r *http.Request) {
 // one of this server's backups uses; every server backing up there gets
 // its new credentials in the background (SPEC.md §10.10).
 func (s *Server) planKeySubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil || s.serverOf(r) == nil {
+	if s.serverOf(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -706,7 +699,7 @@ func (s *Server) planRollback(r *http.Request, m serverRef, e *planEntry) {
 // as it was at a time changes ("check"), or, once checked, does it
 // ("run"), in the background.
 func (s *Server) planRollbackSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil || s.serverOf(r) == nil {
+	if s.serverOf(r) == nil {
 		http.NotFound(w, r)
 		return
 	}

@@ -28,6 +28,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/fsutil"
+	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/trust"
@@ -62,6 +63,39 @@ import (
 //   - Anyone outside the home network: connections from addresses outside
 //     trust.HomeRanges are closed before TLS, and the firewall
 //     (roostack-agent) drops them, also before the Owner has chosen one.
+
+// FirstRun is first-run setup (SPEC.md §6.3.2): the setup code, and
+// what a fresh install can become instead of a new lab.
+type FirstRun struct {
+	// OnSetupComplete is called after the first Owner is created (e.g. to
+	// delete the token file).
+	OnSetupComplete func()
+	// FirstRunAddress is the lab's address for Roostack's own pages
+	// ("https://…"), as saved now, or "" without one: where the setup
+	// listener sends the Owner once setup is finished (SPEC.md §6.3.2).
+	FirstRunAddress func() string
+	// JoinLab adds this fresh server to an existing lab, named name, and
+	// restarts Roostack as part of it once the page has been sent; it
+	// returns this server's address on the lab's network. Undone if it
+	// fails. Nil hides the choice (SPEC.md §10.2).
+	JoinLab func(ctx context.Context, code labnet.JoinCode, name string) (string, error)
+	// LabRestore rebuilds a lab from its backups on a fresh install. Nil
+	// hides it. RestorePending reports a restored lab whose services'
+	// databases are still being put back (optional).
+	LabRestore     LabRestorer
+	RestorePending func() bool
+
+	// setupMu guards setupToken and restore. setupToken must be entered
+	// to create the first Owner, so whoever reaches the UI first on the
+	// network can't claim the lab; it's empty once setup is done. restore
+	// is a lab restore's search (labrestore.go).
+	setupMu    sync.Mutex
+	setupToken string
+	restore    *restoreSession
+	// setupPasses are browsers that entered the setup code (setup.go), by
+	// where it was entered and the token's hash.
+	setupPasses expiring[string, struct{}]
+}
 
 // setupCertLife is how long a setup certificate lasts: under browsers'
 // limit for certificates people trust by hand (825 days), and long enough
@@ -210,9 +244,6 @@ func ownerTooLong(ctx context.Context, st *store.Store, now time.Time) bool {
 
 // setupOpen is FirstRunOpen for this server.
 func (s *Server) setupOpen(ctx context.Context) bool {
-	if s.Setup == nil {
-		return s.needsSetup()
-	}
 	return FirstRunOpen(ctx, s.Store, s.needsSetup(), s.Setup, time.Now())
 }
 
@@ -227,22 +258,14 @@ func EndSetupPages(ctx context.Context, st *store.Store) error {
 // setup pages' browsers: the setup code's passes, logins waiting for a
 // two-factor code and a restore's search.
 func (s *Server) EndSetupPages(ctx context.Context) error {
-	prefix := originSetup
-	s.mu.Lock()
-	for k := range s.setupPasses {
-		if strings.HasPrefix(k, prefix) {
-			delete(s.setupPasses, k)
-		}
-	}
-	for k := range s.pending {
-		if strings.HasPrefix(k, prefix) {
-			delete(s.pending, k)
-		}
-	}
-	if s.restore != nil && s.restore.origin == prefix {
+	setupOrigin := func(k string) bool { return strings.HasPrefix(k, originSetup) }
+	s.setupPasses.deleteIf(setupOrigin)
+	s.pending.deleteIf(setupOrigin)
+	s.setupMu.Lock()
+	if s.restore != nil && s.restore.origin == originSetup {
 		s.restore = nil
 	}
-	s.mu.Unlock()
+	s.setupMu.Unlock()
 	return EndSetupPages(ctx, s.Store)
 }
 
@@ -398,10 +421,8 @@ func (s *Server) SetupHandler(done func()) http.Handler {
 // SSH: the setup listener closes.
 func (s *Server) setupFinished(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{"Host": r.Host, "Hours": int(SetupOwnerLimit.Hours())}
-	if s.Setup != nil {
-		if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
-			data["Unfinished"] = true
-		}
+	if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
+		data["Unfinished"] = true
 	}
 	if s.FirstRunAddress != nil && data["Unfinished"] == nil {
 		data["Address"] = s.FirstRunAddress()

@@ -107,9 +107,9 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 		t.Errorf("creating an Owner during a restore: %d", code)
 	}
 	// Roostack restarts as the restored lab: the page moves on to logging in.
-	h.server.mu.Lock()
+	h.server.setupMu.Lock()
 	h.server.setupToken = ""
-	h.server.mu.Unlock()
+	h.server.setupMu.Unlock()
 	h.server.LabRestore = nil
 	req, _ := http.NewRequest(http.MethodGet, h.srv.URL+"/setup/restore/progress", nil)
 	req.Header.Set("HX-Request", "true")

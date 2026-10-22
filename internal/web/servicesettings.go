@@ -124,10 +124,6 @@ func routeURL(svc ServiceView, route string, p *pkgspec.Package) string {
 }
 
 func (s *Server) settingsSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad form.", http.StatusBadRequest)

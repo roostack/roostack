@@ -15,10 +15,6 @@ func (s *Server) labNamePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) labNameSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Setup == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.FormValue("name")
 	err := s.Setup.SetLabName(r.Context(), name, true)
 	if msg, ok := userMessage(err); ok {

@@ -51,10 +51,8 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	for _, svc := range data["Services"].([]ServiceView) {
 		if svc.Name == name {
 			data["Service"] = svc
-			if s.Manager != nil {
-				if ms, err := s.Manager.Servers(); err == nil && len(ms) > 1 {
-					data["MultiServer"] = true
-				}
+			if ms, err := s.Manager.Servers(); err == nil && len(ms) > 1 {
+				data["MultiServer"] = true
 			}
 		}
 	}
@@ -71,73 +69,71 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	} else if r.URL.Query().Get("installing") == "1" && r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Refresh", "true")
 	}
-	if s.Manager != nil {
-		if p, err := s.Manager.ServicePackage(name); err == nil {
-			data["Package"] = p
-			// Who makes it, for the About card (the logo is the page's own).
-			if c := newProjectCredit(p); c != nil {
-				c.IconURL = ""
-				data["Credit"] = c
-			}
-			var actions []serviceAction
-			for _, h := range p.HooksOn(pkgspec.HookAction) {
-				actions = append(actions, serviceAction{Name: h.Name, Title: h.Title, Description: h.Description, Fields: inputFields(h)})
-			}
-			data["Actions"] = actions
-			// ?action=connect opens that action: single sign-on's Connect
-			// prompt links to it.
-			data["OpenAction"] = r.URL.Query().Get("action")
-			s.addSettingsData(data, name, p, nil)
-			if access, err := s.Manager.Access(name); err == nil {
-				data["Access"] = access
-				if v := s.wafCard(r.Context(), access); v != nil {
-					data["WAF"] = v
-				}
-			}
-			// Migrating photos into Immich (SPEC.md §8.5): the call to
-			// action at the top and the card.
-			if c := s.photoCardFor(r.Context(), currentUser(r), name); c != nil {
-				c.Saved = photoSaved[r.URL.Query().Get("photos")]
-				data["PhotoCard"] = c
-			}
-			// The registry withdrew its version (SPEC.md §8.3.4).
-			if wd := s.Manager.Withdrawals(r.Context())[name]; wd != nil {
-				data["Withdrawal"] = wd
-			}
-			// Held after a restore that didn't finish (SPEC.md §6.9).
-			if v := s.heldViewOf(data["Service"].(ServiceView)); v != nil {
-				data["Held"] = v
-			}
-			// A newer version (SPEC.md §7).
-			s.addUpdateData(r, data, name)
-			if data["UpdateDone"] == true {
-				w.Header().Set("HX-Refresh", "true")
+	if p, err := s.Manager.ServicePackage(name); err == nil {
+		data["Package"] = p
+		// Who makes it, for the About card (the logo is the page's own).
+		if c := newProjectCredit(p); c != nil {
+			c.IconURL = ""
+			data["Credit"] = c
+		}
+		var actions []serviceAction
+		for _, h := range p.HooksOn(pkgspec.HookAction) {
+			actions = append(actions, serviceAction{Name: h.Name, Title: h.Title, Description: h.Description, Fields: inputFields(h)})
+		}
+		data["Actions"] = actions
+		// ?action=connect opens that action: single sign-on's Connect
+		// prompt links to it.
+		data["OpenAction"] = r.URL.Query().Get("action")
+		s.addSettingsData(data, name, p, nil)
+		if access, err := s.Manager.Access(name); err == nil {
+			data["Access"] = access
+			if v := s.wafCard(r.Context(), access); v != nil {
+				data["WAF"] = v
 			}
 		}
-		if n := s.serverOf(r); n != nil {
-			st := n.InstallStatus(r.Context(), name)
-			data["Setup"] = st
-			if st.Failed != "" && auth.Can(currentUser(r).Role, auth.ManageServices) {
-				if p, ok := data["Package"].(*pkgspec.Package); ok {
-					data["InstallFields"] = s.installFields(name, p)
-				}
-			}
+		// Migrating photos into Immich (SPEC.md §8.5): the call to
+		// action at the top and the card.
+		if c := s.photoCardFor(r.Context(), currentUser(r), name); c != nil {
+			c.Saved = photoSaved[r.URL.Query().Get("photos")]
+			data["PhotoCard"] = c
 		}
-		// The latest setup log, if it's this service's.
-		if a := s.activityFor(r, activity.Setup); a != nil && a.Title == "Setting up "+data["Service"].(ServiceView).Title {
-			data["SetupActivity"] = a
+		// The registry withdrew its version (SPEC.md §8.3.4).
+		if wd := s.Manager.Withdrawals(r.Context())[name]; wd != nil {
+			data["Withdrawal"] = wd
 		}
-		data["DataDirs"] = s.Manager.DataDirs(name)
-		if files, err := s.Manager.ServiceFiles(name); err == nil {
-			data["Files"] = files
+		// Held after a restore that didn't finish (SPEC.md §6.9).
+		if v := s.heldViewOf(data["Service"].(ServiceView)); v != nil {
+			data["Held"] = v
 		}
-		ports, err := s.Manager.Ports(name)
-		if err != nil && !errors.Is(err, manager.ErrNotFound) {
-			s.serverError(w, err)
-			return
+		// A newer version (SPEC.md §7).
+		s.addUpdateData(r, data, name)
+		if data["UpdateDone"] == true {
+			w.Header().Set("HX-Refresh", "true")
 		}
-		data["Ports"] = ports
 	}
+	if n := s.serverOf(r); n != nil {
+		st := n.InstallStatus(r.Context(), name)
+		data["Setup"] = st
+		if st.Failed != "" && auth.Can(currentUser(r).Role, auth.ManageServices) {
+			if p, ok := data["Package"].(*pkgspec.Package); ok {
+				data["InstallFields"] = s.installFields(name, p)
+			}
+		}
+	}
+	// The latest setup log, if it's this service's.
+	if a := s.activityFor(r, activity.Setup); a != nil && a.Title == "Setting up "+data["Service"].(ServiceView).Title {
+		data["SetupActivity"] = a
+	}
+	data["DataDirs"] = s.Manager.DataDirs(name)
+	if files, err := s.Manager.ServiceFiles(name); err == nil {
+		data["Files"] = files
+	}
+	ports, err := s.Manager.Ports(name)
+	if err != nil && !errors.Is(err, manager.ErrNotFound) {
+		s.serverError(w, err)
+		return
+	}
+	data["Ports"] = ports
 	if urls := data["Service"].(ServiceView).URLs; len(urls) > 0 {
 		data["Host"] = strings.TrimPrefix(urls[0], "https://")
 	}

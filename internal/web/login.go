@@ -27,7 +27,6 @@ const (
 
 type pendingLogin struct {
 	userID   int64
-	expires  time.Time
 	remember bool   // "keep me signed in" was ticked
 	next     string // the page to go to afterwards (localNext)
 	// pagesOnly: a sign-in at login.<domain> that the sign-in page itself
@@ -107,16 +106,8 @@ func (s *Server) startPending(w http.ResponseWriter, r *http.Request, u *store.U
 		s.serverError(w, err)
 		return
 	}
-	now := time.Now()
-	s.mu.Lock()
-	for k, p := range s.pending { // drop expired entries
-		if now.After(p.expires) {
-			delete(s.pending, k)
-		}
-	}
-	s.pending[originOf(r)+authkit.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration),
-		remember: r.FormValue("remember") == "on", next: localNext(r.FormValue("next"))}
-	s.mu.Unlock()
+	s.pending.put(originOf(r)+authkit.HashToken(token), &pendingLogin{userID: u.ID,
+		remember: r.FormValue("remember") == "on", next: localNext(r.FormValue("next"))}, time.Now().Add(pendingDuration))
 	http.SetCookie(w, &http.Cookie{
 		Name: pendingCookie, Value: token, Path: "/login", MaxAge: int(pendingDuration.Seconds()),
 		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r),
@@ -131,14 +122,8 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := originOf(r) + authkit.HashToken(c.Value)
-	s.mu.Lock()
-	p := s.pending[key]
-	if p != nil && time.Now().After(p.expires) {
-		delete(s.pending, key)
-		p = nil
-	}
-	s.mu.Unlock()
-	if p == nil {
+	p, ok := s.pending.get(key)
+	if !ok {
 		s.renderLogin(w, r, map[string]any{"Error": "That took too long. Please log in again."})
 		return
 	}
@@ -158,9 +143,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(failedLoginDelay)
 		if res == codeLocked {
 			s.Store.Audit(r.Context(), u, auditLocked, "at login")
-			s.mu.Lock()
-			delete(s.pending, key)
-			s.mu.Unlock()
+			s.pending.delete(key)
 			w.WriteHeader(http.StatusTooManyRequests)
 			s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until)})
 			return
@@ -170,9 +153,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mu.Lock()
-	delete(s.pending, key)
-	s.mu.Unlock()
+	s.pending.delete(key)
 	http.SetCookie(w, &http.Cookie{Name: pendingCookie, Value: "", Path: "/login", MaxAge: -1, HttpOnly: true})
 	if err := s.startSession(w, r, u, p.remember); err != nil {
 		s.serverError(w, err)

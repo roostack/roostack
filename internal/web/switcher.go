@@ -129,7 +129,7 @@ func summarizeBackups(r *http.Request, n ServiceNode) (string, string) {
 // the lab has one server (nothing to switch).
 func (s *Server) serverTabs(r *http.Request, area string) []serverTab {
 	a, ok := perServerAreas[area]
-	if !ok || s.Manager == nil {
+	if !ok {
 		return nil
 	}
 	servers, err := s.Manager.Servers()

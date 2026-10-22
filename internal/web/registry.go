@@ -62,7 +62,7 @@ func (s *Server) registryView() *registryView {
 	if st.Commit != "" && v.URL == registry.DefaultURL {
 		v.CommitURL = registry.SourceRepo + "/tree/" + st.Commit
 	}
-	v.StopsOn = s.Manager == nil || s.Manager.StopsOn()
+	v.StopsOn = s.Manager.StopsOn()
 	for _, name := range slices.Sorted(maps.Keys(st.Skipped)) {
 		v.Skipped = append(v.Skipped, skippedPackage{name, st.Skipped[name]})
 	}

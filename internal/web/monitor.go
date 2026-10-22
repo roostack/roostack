@@ -23,6 +23,18 @@ import (
 // internal/monitor; the services' and servers' come from the manager
 // (AutoChecks), the lab's address and people's own from here.
 
+// Monitoring is monitoring's part of the server: nil Monitor hides it (a
+// server that isn't the controller).
+type Monitoring struct {
+	// Monitor runs monitoring's checks. AutoChecks are the manager's
+	// (services and servers). StatusPage switches the public status page
+	// (the manager), which is written to StatusPageDir.
+	Monitor       *monitor.Monitor
+	AutoChecks    func(ctx context.Context) []monitor.Check
+	StatusPage    StatusPageSwitch
+	StatusPageDir string
+}
+
 // Runtime settings.
 const (
 	monitorOffKey  = "monitor.off"       // "yes": monitoring switched off
@@ -383,7 +395,7 @@ func (s *Server) monitorCheckPage(w http.ResponseWriter, r *http.Request) {
 		data["CheckedFrom"] = s.Node.Identity().Name
 	}
 	data["CertDays"] = st.CertDaysLeft(now)
-	if st.Kind == monitor.KindService && s.Manager != nil {
+	if st.Kind == monitor.KindService {
 		data["ServiceHref"] = "/services/" + st.Service
 	}
 	s.render(w, "monitoring-check", data)

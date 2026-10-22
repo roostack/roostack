@@ -176,10 +176,6 @@ func joinOr(names []string) string {
 
 // updateSubmit starts updating a service (Admins).
 func (s *Server) updateSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name, to := r.PathValue("name"), r.FormValue("to")
 	// Only the Owner accepts what a package of their own asks for, as when
 	// installing (SPEC.md §8.3.4).
@@ -210,10 +206,6 @@ var updatePolicies = []string{"notify", "patch", "minor", "all"}
 
 // updatePolicySubmit saves how a service updates (Admins).
 func (s *Server) updatePolicySubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name, policy := r.PathValue("name"), r.FormValue("updates")
 	if !slices.Contains(updatePolicies, policy) {
 		http.Error(w, "unknown update policy", http.StatusBadRequest)

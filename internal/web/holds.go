@@ -47,7 +47,7 @@ func (s *Server) heldViewOf(svc ServiceView) *heldView {
 	}
 	v := &heldView{Hold: *svc.Held, On: svc.Server, TakenText: svc.Held.Taken.Local().Format("Mon 2 Jan 15:04"),
 		AtText: svc.Held.At.Local().Format("Mon 2 Jan 15:04")}
-	if svc.Held.MovedFrom != "" && s.Manager != nil {
+	if svc.Held.MovedFrom != "" {
 		v.From = svc.Held.MovedFrom
 		if n := s.Manager.NodeByID(svc.Held.MovedFrom); n != nil {
 			v.From = n.Identity().Name
@@ -109,10 +109,6 @@ func (s *Server) heldPutBackSubmit(w http.ResponseWriter, r *http.Request) {
 // heldChoice carries out one of the Owner's choices for a held service and
 // records it in the audit log.
 func (s *Server) heldChoice(w http.ResponseWriter, r *http.Request, do func(context.Context, string) error, audit string) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	title := name
 	if p, err := s.Manager.ServicePackage(name); err == nil {

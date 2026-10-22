@@ -54,20 +54,12 @@ func orList(names []string) string {
 }
 
 func (s *Server) junkPage(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	s.render(w, "backups-junk", map[string]any{"User": currentUser(r), "Reports": s.Manager.JunkReports(r.Context()),
 		"OrList": orList})
 }
 
 // junkDismissSubmit clears the list: the Owner has seen it.
 func (s *Server) junkDismissSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	if err := s.Manager.DismissJunk(r.Context()); err != nil {
 		s.serverError(w, err)
 		return

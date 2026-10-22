@@ -45,7 +45,11 @@ func newHarness(t *testing.T, setupToken string) *harness {
 		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running",
 			URLs: []string{"https://passwords.lab.example.com"}}}, nil
 	}
-	s, err := NewServer(st, services, setupToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	// The manager and the setup steps are always there: a fake manager
+	// with nothing to say, and a setup wizard that's finished. Tests that
+	// need them otherwise replace them.
+	s, err := NewServer(st, slog.New(slog.NewTextHandler(io.Discard, nil)), services, &fakeManager{}, &fakeSetup{p: allDone},
+		LabSettings{}, setupToken)
 	if err != nil {
 		t.Fatal(err)
 	}

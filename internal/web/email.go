@@ -47,7 +47,7 @@ func (s *Server) renderEmail(w http.ResponseWriter, r *http.Request, extra map[s
 		m.Port, m.Security = 587, config.MailSTARTTLS
 	}
 	// Suggested sender: an address on the lab's own domain.
-	if m.From == "" && s.Domain != "" && s.Setup != nil && s.domainDone(r) {
+	if m.From == "" && s.Domain != "" && s.domainDone(r) {
 		m.From = "no_reply@" + s.Domain
 	}
 	data["Mail"], data["HasPassword"] = m, hasPassword

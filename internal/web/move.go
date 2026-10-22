@@ -18,10 +18,6 @@ func (s *Server) movePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderMove(w http.ResponseWriter, r *http.Request, errMsg string) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	p, err := s.Manager.ServicePackage(name)
 	if err != nil {
@@ -72,10 +68,6 @@ func (s *Server) renderMove(w http.ResponseWriter, r *http.Request, errMsg strin
 }
 
 func (s *Server) moveSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name, to := r.PathValue("name"), r.FormValue("to")
 	err := s.Manager.MoveService(r.Context(), name, to, r.FormValue("way"))
 	if msg, ok := userMessage(err); ok {

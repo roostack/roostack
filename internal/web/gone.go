@@ -32,10 +32,6 @@ func (s *Server) serverGonePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderServerGone(w http.ResponseWriter, r *http.Request, errMsg string, status int) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	id := r.PathValue("server")
 	data, err := s.pageData(r)
 	if err != nil {
@@ -109,10 +105,6 @@ func (s *Server) goneActivity(name string) *activityView {
 func goneTitle(name string) string { return "Restoring " + name + "'s services" }
 
 func (s *Server) serverGoneSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	id := r.PathValue("server")
 	if r.FormValue("confirm") != "on" {
 		s.renderServerGone(w, r, "Tick the box to confirm.", http.StatusBadRequest)
@@ -152,10 +144,6 @@ func (s *Server) serverGoneSubmit(w http.ResponseWriter, r *http.Request) {
 // removeWaitingSubmit removes a service waiting to be restored, with its
 // backups.
 func (s *Server) removeWaitingSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	err := s.Manager.RemoveWaiting(r.Context(), name)
 	if errors.Is(err, manager.ErrNotFound) {
