@@ -61,13 +61,20 @@ curl -fsSL https://dl.roostack.cloud/install.sh | sudo sh
 
 ## Development
 
-You need Go 1.26 or newer, and [uv](https://docs.astral.sh/uv/) to build the help site (without it, Roostack builds without its help pages).
+[CONTRIBUTING.md](CONTRIBUTING.md) has the whole of it: building, testing, the dev VM, the conventions, and where to start reading. In short, you need:
+
+- Go 1.26 or newer (the module's minimum; CI and releases build with Go 1.27.2);
+- Node 20 or newer for the package editor's tests, which `make test` runs;
+- [uv](https://docs.astral.sh/uv/) to build the help site (without it, Roostack builds without its help pages);
+- restic, so the backup tests run rather than skip (CI uses 0.18.0).
 
 ```bash
 make build   # builds the help site, then bin/roostack and bin/roostack-agent
-make test    # runs the tests
+make test    # runs the editor's tests, then go test ./...
 make golden  # rewrites generator golden files after an intended change
 ```
+
+**Platforms.** Roostack runs on Debian 13 (x86_64 or ARM64), but you can work on it from Linux or a Mac: the code builds, vets and tests natively on both, and the tests that need Linux skip on a Mac and say why. `make build` always writes Linux binaries (for your machine's processor, or `GOARCH=arm64` or `amd64`), so on a Mac use `go run ./cmd/roostack …` for the commands below. Anything about Podman, systemd, networking, drives or Roostack's sandbox needs a real Debian 13 host, which `scripts/dev-vm.sh` gives you as a VM under QEMU on Linux or macOS: `scripts/dev-vm.sh up`, then `install` to build and install Roostack in it, `ui` to reach its pages, and `test` to run the whole suite there (CONTRIBUTING.md has the details).
 
 The help site is in [help/](help/): Markdown pages built with [Zensical](https://zensical.org), embedded in Roostack at `/help/`. Preview it while writing with `cd help && uv run zensical serve`.
 
@@ -82,9 +89,9 @@ bin/roostack validate internal/testdata/packages/*/*-roostack.*.yaml
 bin/roostack render -package internal/testdata/packages/immich/2.1.0-roostack.1.yaml
 ```
 
-Run the web UI locally against a throwaway state directory: point `paths` in a copy of `docs/examples/lab.yaml` at a temp dir and run `bin/roostack serve -lab <file> -listen 127.0.0.1:8480`.
+Run the web UI locally against a throwaway state directory: point `paths` in a copy of `docs/examples/lab.yaml` at a temp dir and run `bin/roostack serve -lab <file> -listen 127.0.0.1:8480` (Linux).
 
-To try it on a Debian 13 VM, see [scripts/dev-install.sh](scripts/dev-install.sh) (development only; the real installer is [scripts/install.sh](scripts/install.sh), which can be pointed at a test repository with `ROOSTACK_REPO`, `ROOSTACK_SUITE` and `ROOSTACK_KEY_SHA256`).
+To try it on a Debian 13 VM, use `scripts/dev-vm.sh` as above; it runs [scripts/dev-install.sh](scripts/dev-install.sh) in the VM (development only; the real installer is [scripts/install.sh](scripts/install.sh), which can be pointed at a test repository with `ROOSTACK_REPO`, `ROOSTACK_SUITE` and `ROOSTACK_KEY_SHA256`).
 
 ### Continuous integration
 
@@ -103,10 +110,13 @@ The release workflow then calls [.github/workflows/apt-publish.yml](.github/work
 
 ## Project documents
 
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to build, test and change Roostack, and what to read first
+- [SECURITY.md](SECURITY.md): how to report a vulnerability, in Roostack or Roostack Cloud
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): how we treat each other
 - [PLAN.md](PLAN.md): the project brief
-- [CLAUDE.md](CLAUDE.md): how to work on the project (for agents, and a quick start for people)
+- [CLAUDE.md](CLAUDE.md): how AI agents work on the project
 - [SPEC.md](SPEC.md): decisions, with rationale
-- [TASKS.md](TASKS.md): what's done and what's next
+- [TASKS.md](TASKS.md): what's next ([TASKS-DONE.md](TASKS-DONE.md): what's done)
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the code fits together
 - [help/](help/): the help site, for people running Roostack
 - [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md): things the code assumes that haven't been verified on a real host yet
