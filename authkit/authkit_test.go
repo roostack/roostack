@@ -44,7 +44,7 @@ func TestTokens(t *testing.T) {
 	if a == b || len(a) < 40 {
 		t.Errorf("weak tokens: %q %q", a, b)
 	}
-	if HashToken(a) == a || HashToken(a) != HashToken(a) {
+	if h := HashToken(a); h == a || HashToken(a) != h {
 		t.Error("HashToken must be a deterministic transform")
 	}
 }

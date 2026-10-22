@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/cloud/cloudtest"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // newCloudWith is a real link to a fake Roostack Cloud.
@@ -40,10 +43,18 @@ func TestCloudLinking(t *testing.T) {
 	h.server.Cloud = link
 	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
 	// The name becomes the lab's address (setup.UseRoostAc, faked), and
-	// goes with the link.
+	// goes with the link. The link uses it in its own goroutine, after it
+	// has saved the address, so claims() is what to wait for.
+	var mu sync.Mutex
 	var used []cloudapi.NameClaim
+	claims := func() []cloudapi.NameClaim { mu.Lock(); defer mu.Unlock(); return slices.Clone(used) }
 	dropped := 0
-	link.UseName = func(_ context.Context, c cloudapi.NameClaim) error { used = append(used, c); return nil }
+	link.UseName = func(_ context.Context, c cloudapi.NameClaim) error {
+		mu.Lock()
+		defer mu.Unlock()
+		used = append(used, c)
+		return nil
+	}
 	link.Dropped = func(context.Context) { dropped++ }
 
 	if _, body := h.get("/settings"); !strings.Contains(body, "Roostack Cloud") || !strings.Contains(body, "Not linked") {
@@ -76,9 +87,7 @@ func TestCloudLinking(t *testing.T) {
 	// the name that was typed.
 	h.post("/settings/cloud/link", url.Values{"name": {"smiths"}, "in": {"setup"}}, h.srv.URL)
 	f.Decline(f.Codes()[0])
-	for i := 0; i < 300 && link.Status().Waiting != nil; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool { return link.Status().Waiting == nil })
 	if _, body := h.get("/setup/domain"); !strings.Contains(body, `<input name="name" value="smiths"`) ||
 		!strings.Contains(body, "Linking was cancelled, or the code expired, in Roostack Cloud") {
 		t.Errorf("the address step after linking was cancelled in Cloud: %.3000s", body)
@@ -109,13 +118,8 @@ func TestCloudLinking(t *testing.T) {
 	if err := f.Confirm(m[1]); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 300 && !link.Status().Linked; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
-	for i := 0; i < 300 && link.Status().Address == ""; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if len(used) != 1 || used[0].Name != "smiths.roost.test" || used[0].Credentials["password"] == "" {
+	testwait.For(t, 10*time.Second, func() bool { return len(claims()) > 0 })
+	if used := claims(); len(used) != 1 || used[0].Name != "smiths.roost.test" || used[0].Credentials["password"] == "" {
 		t.Fatalf("name used: %+v", used)
 	}
 	// Done: the page moves on by itself, to the wizard's next step (all
@@ -152,9 +156,7 @@ func TestCloudLinking(t *testing.T) {
 	// Unlinked from Cloud's side: the next check forgets it, and Home says so.
 	h.post("/settings/cloud/link", nil, h.srv.URL)
 	f.Confirm(f.Codes()[0])
-	for i := 0; i < 300 && !link.Status().Linked; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool { return link.Status().Linked })
 	// Linked without a name: the address step then claims one directly.
 	if _, body := h.get("/setup/domain"); !strings.Contains(body, `action="/setup/address/roost-ac"`) || !strings.Contains(body, "Use this address") {
 		t.Error("linked: the address step uses a name directly")
@@ -163,10 +165,12 @@ func TestCloudLinking(t *testing.T) {
 		!strings.Contains(body, "taken.roost.ac is taken") {
 		t.Errorf("taken: %d", code)
 	}
+	mu.Lock()
 	used = nil
+	mu.Unlock()
 	if code, _ := h.post("/setup/address/roost-ac", url.Values{"name": {"jones"}}, h.srv.URL); code != http.StatusOK ||
-		len(used) != 1 || used[0].Name != "jones.roost.test" {
-		t.Errorf("claim: %d %+v", code, used)
+		len(claims()) != 1 || claims()[0].Name != "jones.roost.test" {
+		t.Errorf("claim: %d %+v", code, claims())
 	}
 	// Its own name, which anyone else is told is taken: shown as the lab's,
 	// and claimed again (back from an own domain, found on VM3 2026-10-14).
@@ -174,9 +178,11 @@ func TestCloudLinking(t *testing.T) {
 	if _, body := h.get("/settings/cloud/name?name=jones"); !strings.Contains(body, "jones.roost.test is this lab's name") {
 		t.Errorf("own name check:\n%s", body)
 	}
+	mu.Lock()
 	used = nil
-	if code, _ := h.post("/setup/address/roost-ac", url.Values{"name": {"jones"}}, h.srv.URL); code != http.StatusOK || len(used) != 1 {
-		t.Errorf("claiming its own name again: %d %+v", code, used)
+	mu.Unlock()
+	if code, _ := h.post("/setup/address/roost-ac", url.Values{"name": {"jones"}}, h.srv.URL); code != http.StatusOK || len(claims()) != 1 {
+		t.Errorf("claiming its own name again: %d %+v", code, claims())
 	}
 	f.Unlink(link.Status().LabID)
 	link.Check(context.Background())

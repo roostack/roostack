@@ -2,7 +2,8 @@
 # Builds the help (strict: a broken link fails) and publishes it on
 # Cloudflare (SPEC.md §6.3.1), as the preview on workers.dev, marked not to
 # be indexed. Needs uv (the build) and Node (Wrangler, run with npx at the
-# website's pinned version), and a Cloudflare login (npx wrangler login).
+# version in .github/versions.env), and a Cloudflare login (npx wrangler
+# login).
 #
 #   scripts/help-deploy.sh                # build and publish the preview
 #   scripts/help-deploy.sh --production   # build and publish help.roostack.cloud
@@ -11,6 +12,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../help"
 mode=${1:-preview}
+wrangler=wrangler@$(sed -n 's/^WRANGLER_VERSION=//p' ../.github/versions.env)
 uv run zensical build --strict
 
 # Security headers for every page, served by Cloudflare from site/_headers.
@@ -49,6 +51,6 @@ PY
 
 case $mode in
 --build-only) ;;
---production) npx --yes wrangler@4.143.0 deploy --env production ;;
-*) npx --yes wrangler@4.143.0 deploy ;;
+--production) npx --yes "$wrangler" deploy --env production ;;
+*) npx --yes "$wrangler" deploy ;;
 esac

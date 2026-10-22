@@ -208,11 +208,7 @@ func TestRemoveWaiting(t *testing.T) {
 	if err := m.RemoveWaiting(ctx, "forgejo"); err != nil {
 		t.Fatal(err)
 	}
-	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if l, _ = m.Activity.Latest(activity.Restore); !l.Running() {
-			break
-		}
-	}
+	l = waitDone(t, m, activity.Restore)
 	if l.Err != "" {
 		t.Fatalf("remove: %s\n%s", l.Err, strings.Join(l.Lines, "\n"))
 	}

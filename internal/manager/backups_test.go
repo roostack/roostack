@@ -72,12 +72,7 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 	if err := m.SetBackupDestination(ctx, "n-0000000002", "server:n-0000000001"); err != nil {
 		t.Fatal(err)
 	}
-	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if l, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002")); !l.Running() {
-			break
-		}
-	}
-	if l, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002")); l.Err == "" {
+	if l := waitDone(t, m, activity.BackupSetupFor("n-0000000002")); l.Err == "" {
 		t.Fatal("setting up should have failed")
 	}
 	if _, _, ok := m.BackupTargetOf(ctx, "n-0000000002"); ok || m.storageFor(ctx, "n-0000000001") != nil && m.storageFor(ctx, "n-0000000001").Users["n-0000000002"] != "" {
@@ -88,13 +83,7 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 	if err := m.SetBackupDestination(ctx, "n-0000000002", "server:n-0000000001"); err != nil {
 		t.Fatal(err)
 	}
-	var log activity.Snapshot
-	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if log, _ = m.Activity.Latest(activity.BackupSetupFor("n-0000000002")); !log.Running() {
-			break
-		}
-	}
-	if log.Err != "" || log.Running() {
+	if log := waitDone(t, m, activity.BackupSetupFor("n-0000000002")); log.Err != "" {
 		t.Fatalf("setup: %q\n%s", log.Err, strings.Join(log.Lines, "\n"))
 	}
 
@@ -206,13 +195,8 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	if err := m.SetBackupDestination(ctx, "n-0000000002", "provider:1"); err != nil {
 		t.Fatal(err)
 	}
-	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if l, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002")); !l.Running() {
-			if l.Err != "" {
-				t.Fatalf("setup: %s", l.Err)
-			}
-			break
-		}
+	if l := waitDone(t, m, activity.BackupSetupFor("n-0000000002")); l.Err != "" {
+		t.Fatalf("setup: %s", l.Err)
 	}
 	d := vps.settings.dest
 	env := strings.Join(d.Env, " ")
@@ -554,13 +538,7 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 	ctx := context.Background()
 	wait := func() {
 		t.Helper()
-		var log activity.Snapshot
-		for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-			if log, _ = m.Activity.Latest(activity.BackupSetupFor("n-0000000001")); !log.Running() {
-				break
-			}
-		}
-		if log.Err != "" {
+		if log := waitDone(t, m, activity.BackupSetupFor("n-0000000001")); log.Err != "" {
 			t.Fatalf("setup: %s\n%s", log.Err, strings.Join(log.Lines, "\n"))
 		}
 	}
@@ -750,13 +728,8 @@ func TestCloudBackupDestination(t *testing.T) {
 	if err := m.SetBackupDestination(ctx, "n-0000000002", CloudChoice); err != nil {
 		t.Fatal(err)
 	}
-	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if l, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002")); !l.Running() {
-			if l.Err != "" {
-				t.Fatalf("setup: %s", l.Err)
-			}
-			break
-		}
+	if l := waitDone(t, m, activity.BackupSetupFor("n-0000000002")); l.Err != "" {
+		t.Fatalf("setup: %s", l.Err)
 	}
 	d := vps.settings.dest
 	if d == nil || !d.Cloud || len(d.Env) != 0 || d.Repository != "s3:https://s3.example/backups/labs/lab_x/n-0000000002" || d.Key == "" || !d.PrunedByController {

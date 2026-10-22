@@ -56,6 +56,9 @@ echo
 
 go version -m bin/roostack bin/roostack-agent | awk '$1 == "dep" { print $2, $3 }' | sort -u | while read -r mod ver; do
     dir=$(go mod download -json "$mod@$ver" | sed -n 's/^[[:space:]]*"Dir": "\(.*\)",$/\1/p')
+    # ls sorts the names together, as before; they're a module's own
+    # licence files, with plain names.
+    # shellcheck disable=SC2012
     lic=$(ls "$dir"/LICENSE* "$dir"/LICENCE* "$dir"/COPYING* 2>/dev/null | head -1 || true)
     [[ -n $lic ]] || { echo "copyright.sh: no licence file for $mod@$ver" >&2; exit 1; }
     echo "Files: usr/bin/roostack usr/bin/roostack-agent"

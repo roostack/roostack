@@ -182,7 +182,7 @@ func startFakeGandi(t *testing.T) *fakeGandi {
 			}
 			json.NewDecoder(r.Body).Decode(&b)
 			if typ == "CNAME" && g.getType(name, "A") != "" || typ != "CNAME" && g.getType(name, "CNAME") != "" {
-				http.Error(w, `{"message":"a CNAME can't be with other records"}`, 409)
+				http.Error(w, `{"message":"a CNAME can't be with other records"}`, http.StatusConflict)
 				return
 			}
 			g.putType(name, typ, b.Values[0])

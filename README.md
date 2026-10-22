@@ -98,11 +98,14 @@ To try it on a Debian 13 VM, use `scripts/dev-vm.sh` as above; it runs [scripts/
 GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) checks every pull request and every push to `main`, on Ubuntu 24.04 with Go 1.27.2:
 
 - `make vet`: `go vet` and gofmt;
-- `go test ./...` with restic 0.18.0 (Debian 13's, downloaded from restic's release and checked against its SHA-256), so the backup tests run rather than skip;
-- govulncheck, which fails only on a vulnerability the code can reach; it also runs every Monday on `main`, as new vulnerabilities are found in code that hasn't changed;
-- actionlint, on the workflows themselves.
+- staticcheck, with its default checks less ST1005 ([staticcheck.conf](staticcheck.conf)), since errors people can fix are whole sentences;
+- `go test ./...` with restic 0.18.0 (Debian 13's, downloaded from restic's release and checked against its SHA-256), so the backup tests run rather than skip, and the package editor's JavaScript tests;
+- `make help`, the help site's strict build, so a broken link will fail a pull request rather than a release;
+- the files Python generates (CONTRIBUTING.md, "Regenerating files"), made again and compared with what's committed;
+- shellcheck on every shell script, and actionlint on the workflows;
+- govulncheck, which fails only on a vulnerability the code can reach; it also runs every Monday on `main`, as new vulnerabilities are found in code that hasn't changed.
 
-It needs no secrets. The help site isn't built: no test needs it. Actions are pinned by commit, with the release beside each in a comment.
+It needs no secrets. The tools' versions, Go's among them, are in [.github/versions.env](.github/versions.env), which every job reads, as do the release scripts. Actions are pinned by commit, with the release beside each in a comment. Dependabot ([.github/dependabot.yml](.github/dependabot.yml)) will propose updates to the actions and Go's modules once a month, one pull request for each; the versions file is updated by hand.
 
 Pushing a tag like `v1.2.3` runs the release workflow ([.github/workflows/release.yml](.github/workflows/release.yml)): it builds the release twice, in a pinned Debian 13 image, checks both builds are identical, and, once a reviewer approves, signs `SHA256SUMS` with the release key's subkey. `make release` builds the same files from a checkout of the tag, and `make verify-release VERSION=1.2.3` checks a published release against its tag: its signature, then a rebuild in the same image, file by file. See [docs/RELEASING.md](docs/RELEASING.md).
 

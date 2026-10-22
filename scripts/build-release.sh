@@ -11,7 +11,7 @@
 # signs SHA256SUMS only if both builds agree. It's reproducible: anyone can
 # run it on Linux (Debian 13 or Ubuntu 24.04) from the same tag and get
 # the same SHA256SUMS. It needs git, uv, dpkg-deb and Go 1.21 or newer,
-# which fetches the Go below by itself.
+# which fetches the release's Go (.github/versions.env) by itself.
 #
 # ROOSTACK_RELEASE_TAG, if set, is the tag this must be (the workflow sets
 # the one that was pushed).
@@ -20,11 +20,13 @@ set -euo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 cd "$REPO"
 
-# The Go a release is built with: the release workflow's GO_VERSION, and
-# CI's. Update all three together.
-GO_RELEASE=go1.27.2
-
 fail() { echo "build-release.sh: $*" >&2; exit 1; }
+
+# The Go a release is built with, as CI's: GO_VERSION in
+# .github/versions.env, as the tag has it.
+GO_RELEASE=go$(sed -n 's/^GO_VERSION=//p' .github/versions.env)
+[[ $GO_RELEASE =~ ^go[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail ".github/versions.env doesn't say which Go to build with"
+
 # make build and build-deb.sh take a VERSION from the environment; a
 # release's comes from its tag alone.
 unset VERSION

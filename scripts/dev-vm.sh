@@ -103,6 +103,8 @@ bytes() {
 
 log() { printf '==> %s\n' "$*" >&2; }
 running() { [[ -f $PIDFILE ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
+# The command runs in the VM's shell, so callers quote it for there.
+# shellcheck disable=SC2029
 vm_ssh() { ssh "${ssh_opts[@]}" dev@127.0.0.1 "$@"; }
 
 # qmp sends QMP commands (JSON, one per argument) to the running QEMU. Used
@@ -274,7 +276,9 @@ test_repo() {
     local tag out
     tag=test-$(basename "$REPO" | tr -c 'A-Za-z0-9._-\n' -)
     out=$(mktemp -d)
-    trap "rm -rf '$out'" EXIT # expanded now: out is gone by exit
+    # Expanded now, on purpose: out is a local, gone by the time of exit.
+    # shellcheck disable=SC2064
+    trap "rm -rf '$out'" EXIT
     log "Building the tests for linux/$ARCH"
     mkdir "$out/bin"
     (cd "$REPO" && GOOS=linux GOARCH=$ARCH CGO_ENABLED=0 go test -c -o "$out/bin/" ./... >/dev/null)
@@ -352,7 +356,7 @@ ui) log "Roostack UI: http://127.0.0.1:$UI_PORT (Ctrl-C to stop)"
     # connection drops; notice a dead connection within ~15s.
     while true; do
         vm_ssh -N -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes \
-            -L 127.0.0.1:$UI_PORT:127.0.0.1:8480 || true
+            -L "127.0.0.1:$UI_PORT:127.0.0.1:8480" || true
         log "Tunnel closed; reconnecting…"
         sleep 3
     done ;;
@@ -360,5 +364,5 @@ down) stop ;;
 destroy) stop; rm -rf "$DISK" "$VM_DIR/arch" "$VM_DIR/seed" "$VM_DIR/console.log"; log "Disk deleted" ;;
 status) if running; then echo "running ($ARCH, pid $(cat "$PIDFILE"))"; else echo "stopped"; fi ;;
 usb) usb_drive "${2:-}" "${3:-}" "${4:-8G}" ;;
-*) sed -n '2,30p' "$0"; exit 2 ;;
+*) sed -n '/^[^#]/q; 2,$p' "$0"; exit 2 ;;  # the whole comment above
 esac

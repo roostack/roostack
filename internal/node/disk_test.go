@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // Each disk Roostack uses is reported once, with the parts on it: here
@@ -56,11 +57,10 @@ func TestDiskSpaces(t *testing.T) {
 		t.Errorf("no services: %d", d.Services)
 	}
 	// Counted in the background (du, at idle priority).
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if disks, _ = n.DiskSpaces(context.Background()); !disks[0].Counting && !disks[0].Counted.IsZero() {
-			break
-		}
-	}
+	testwait.For(t, 10*time.Second, func() bool {
+		disks, _ = n.DiskSpaces(context.Background())
+		return !disks[0].Counting && !disks[0].Counted.IsZero()
+	})
 	d, _ = StoreDisk(disks)
 	// Space on the disk: whole blocks, at least the files' sizes; the
 	// drive's backups count with the store's.

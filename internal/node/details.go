@@ -271,9 +271,7 @@ func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 		userUnit("Store for another lab ("+g.User+")", "store", "roostack-guest-"+g.User+".service",
 			"Up to "+gbText(g.Quota)+" of encrypted backups")
 	}
-	for _, l := range n.links(ctx) {
-		out = append(out, l)
-	}
+	out = append(out, n.links(ctx)...)
 	return out, nil
 }
 

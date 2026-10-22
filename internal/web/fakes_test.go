@@ -1417,7 +1417,6 @@ type fakeSetup struct {
 	policy      string
 	clients     []netip.Addr
 	domainErr   error
-	backupErr   error
 	// network is where the lab is (as saved), uiTunnelOnly its UI choice.
 	network      string
 	uiTunnelOnly bool
