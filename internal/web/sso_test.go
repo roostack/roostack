@@ -574,7 +574,7 @@ func TestPeopleSSO(t *testing.T) {
 	if groups, _ := h.store.Groups(ctx); len(groups[0].Members) != 0 {
 		t.Error("details without groups ticked takes her out of them")
 	}
-	if code, body := h.post("/users/"+itoa64(mum)+"/details", url.Values{"email": {"not an address"}}, h.srv.URL); code != 400 || !strings.Contains(body, "isn&#39;t an email address") {
+	if code, body := h.post("/users/"+itoa64(mum)+"/details", url.Values{"email": {"not an address"}}, h.srv.URL); code != 400 || !strings.Contains(body, "Enter an email address, such as sam@example.com.") {
 		t.Errorf("bad email: %d", code)
 	}
 	_, body = h.get("/settings/people")

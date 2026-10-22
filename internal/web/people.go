@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/mail"
 	"os"
 	"slices"
 	"strconv"
@@ -271,8 +270,8 @@ func (s *Server) userDetailsSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if email != "" {
-		if a, err := mail.ParseAddress(email); err != nil || a.Address != email {
-			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": email + " isn't an email address.", "OpenPerson": u.ID})
+		if msg := emailProblem(email); msg != "" {
+			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": msg, "OpenPerson": u.ID})
 			return
 		}
 	}

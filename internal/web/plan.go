@@ -222,7 +222,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		e.Access = s.Manager.BackupAccess(ctx, m.ID, e.Ref)
 		if id, ok := strings.CutPrefix(e.Ref, "provider:"); ok && e.Kind == manager.KindOnline && !wizard {
 			e.KeyAction, e.KeyOpen = p.Action+"/key", r.FormValue("key") == e.Ref
-			if a := s.activityFor(r, activity.BackupKeyFor(id)); a != nil && (a.Running() || time.Since(a.Finished) < time.Hour) {
+			if a := s.activityFor(r, activity.BackupKeyFor(id)); a != nil && a.Recent(time.Hour) {
 				e.KeyChange = a
 			}
 		}
@@ -357,7 +357,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	}
 	// Setting a backup up: while it runs, and if it failed lately (so the
 	// reason stays in view).
-	if a := s.activityFor(r, activity.BackupSetupFor(m.ID)); a != nil && (a.Running() || a.Err != "" && time.Since(a.Finished) < time.Hour) {
+	if a := s.activityFor(r, activity.BackupSetupFor(m.ID)); a != nil && a.Recent(time.Hour) && (a.Running() || a.Err != "") {
 		p.Busy = a
 		if n, _ := strconv.Atoi(r.FormValue("setting")); a.Running() && n >= 2 && n <= p.More && p.Adding == 0 {
 			p.BusyIn = n
@@ -678,7 +678,7 @@ func rollbackBefore(r *http.Request) (time.Time, error) {
 func (s *Server) planRollback(r *http.Request, m serverRef, e *planEntry) {
 	e.RollbackAction = m.path("/backups/plan", "/backups/plan") + "/rollback"
 	e.RollbackOpen = r.FormValue("rollback") == e.Ref
-	if a := s.activityFor(r, activity.BackupRollbackFor(m.ID, e.Ref)); a != nil && (a.Running() || time.Since(a.Finished) < time.Hour) {
+	if a := s.activityFor(r, activity.BackupRollbackFor(m.ID, e.Ref)); a != nil && a.Recent(time.Hour) {
 		e.RollbackLog = a
 		e.RollbackOpen = e.RollbackOpen || a.Running()
 	}
