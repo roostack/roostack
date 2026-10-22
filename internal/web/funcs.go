@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // templateFuncs are the functions every template can call. It's a
@@ -58,7 +59,7 @@ func templateFuncs() template.FuncMap {
 		"stale":     isStale,
 		// firstLine and otherLines split an error: restic's own first line,
 		// then what follows (a stack trace, at worst), shown under Details.
-		"firstLine":  firstLine,
+		"firstLine":  words.FirstLine,
 		"otherLines": otherLines,
 		// shownRepo is a backup's address without its password.
 		"shownRepo": labrestore.Shown,
@@ -67,10 +68,10 @@ func templateFuncs() template.FuncMap {
 		// has says whether a list has an item.
 		"has": func(list []string, item string) bool { return slices.Contains(list, item) },
 		// joinAnd lists names for people: "Films, TV and Music".
-		"joinAnd": joinAnd,
+		"joinAnd": words.And,
 		// list makes a slice, e.g. {{range list "light" "dark"}}.
 		"list": func(items ...string) []string { return items },
-		"size": sizeText,
+		"size": units.Bytes,
 		"gb":   func(b int64) int64 { return b / units.GB },
 		// image is a container image without its digest (shown in full on
 		// hover): docker.io/vaultwarden/server:1.34.3.
@@ -106,9 +107,9 @@ func templateFuncs() template.FuncMap {
 			return "?"
 		},
 		// roleName shows a role as people say it ("Owner").
-		"roleName": capitalise,
+		"roleName": words.Capitalise,
 		// capitalise starts a word with a capital ("running" → "Running").
-		"capitalise": capitalise,
+		"capitalise": words.Capitalise,
 		// whenParts is a time as when shows it, split into its day and its
 		// clock time ("today", "02:00"), for a big figure.
 		"whenParts": func(t time.Time) [2]string {
@@ -162,7 +163,8 @@ func templateFuncs() template.FuncMap {
 		"immichMore": func(before, after node.PhotoAccount) int64 {
 			return after.Photos + after.Videos - before.Photos - before.Videos
 		},
-		"durationText":     func(from, to time.Time) string { return roughDuration(to.Sub(from)) },
+		// roughDuration is how long a run took, roughly ("25 minutes").
+		"roughDuration":    func(from, to time.Time) string { return words.RoughDuration(to.Sub(from)) },
 		"add":              func(a, b int64) int64 { return a + b },
 		"sub":              func(a, b int64) int64 { return max(0, a-b) },
 		"runPercent":       func(r *node.PhotoRun) int { return photoProgressOf(r).Percent },
@@ -203,7 +205,7 @@ func firstSentence(text string) [2]string {
 	return [2]string{text, ""}
 }
 
-// otherLines is what follows text's first line (notify.go's firstLine),
+// otherLines is what follows text's first line (words.FirstLine),
 // or "": restic's stack trace after its error, at worst, which has no
 // break points and widens a phone's page, so it's shown under Details.
 func otherLines(text string) string {

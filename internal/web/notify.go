@@ -17,6 +17,8 @@ import (
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Email notifications (SPEC.md §6.13): what needs a person, or happened
@@ -330,7 +332,7 @@ func (s *Server) followProblems(ctx context.Context, u *store.User, groups map[s
 			if now.Sub(n.GoneSince) < notifyDelay {
 				continue
 			}
-			m.fixed = append(m.fixed, firstLine(n.Text))
+			m.fixed = append(m.fixed, words.FirstLine(n.Text))
 		}
 		if err := s.Store.DeleteNotice(ctx, u.ID, key); err != nil {
 			return err
@@ -356,18 +358,6 @@ func (s *Server) markSent(ctx context.Context, u *store.User, now time.Time, m *
 	if m.weekly != "" {
 		s.Store.SetSetting(ctx, weeklyKey+strconv.FormatInt(u.ID, 10), strconv.FormatInt(now.Unix(), 10))
 	}
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
-}
-
-func firstLine(s string) string {
-	line, _, _ := strings.Cut(s, "\n")
-	return line
 }
 
 // uiURL is Roostack's own address, for links in emails.
@@ -411,7 +401,7 @@ func (s *Server) weeklySummary(ctx context.Context, u *store.User, now time.Time
 		}
 		if d := s.serverSpaces(ctx, mn.view, mn.node); d != nil {
 			for _, v := range d.Disks {
-				fmt.Fprintf(&b, "- %s: %s free of %s\n", v.Title, sizeText(v.Free), sizeText(v.Total))
+				fmt.Fprintf(&b, "- %s: %s free of %s\n", v.Title, units.Bytes(v.Free), units.Bytes(v.Total))
 			}
 		}
 		// A new release series, which only the Owner can accept (SPEC.md
@@ -441,7 +431,7 @@ func (s *Server) weeklySummary(ctx context.Context, u *store.User, now time.Time
 				b.WriteString("CrowdSec " + refused + "\n")
 			default:
 				fmt.Fprintf(&b, "CrowdSec saw %d %s from %d %s, and blocked %d.",
-					a.Alerts, plural(a.Alerts, "attack", "attacks"), a.Addresses, plural(a.Addresses, "address", "addresses"), a.Blocked)
+					a.Alerts, words.Plural(a.Alerts, "attack", "attacks"), a.Addresses, words.Plural(a.Addresses, "address", "addresses"), a.Blocked)
 				if len(a.Kinds) > 0 {
 					b.WriteString(" Most were: " + strings.Join(a.Kinds, ", ") + ".")
 				}
@@ -498,7 +488,7 @@ func (s *Server) composeNotification(u *store.User, m *notifyMail) (subject, bod
 	b.WriteString("\n")
 
 	headline := func(prefix string, lines []string) string {
-		t := firstLine(lines[0])
+		t := words.FirstLine(lines[0])
 		if len(t) > 80 {
 			t = t[:77] + "…"
 		}

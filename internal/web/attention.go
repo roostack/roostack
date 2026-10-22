@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Attention item levels.
@@ -176,7 +177,7 @@ func (s *Server) attention(ctx context.Context, u *store.User) []attentionItem {
 				l.add(item)
 			case st.LastErr != nil:
 				l.add(attentionItem{Level: levelProblem, Key: "apply:" + mc.ID,
-					Text: "The last change" + on + " didn't finish: " + firstLine(st.LastErr.Error()), Link: "/services", LinkText: "View services"})
+					Text: "The last change" + on + " didn't finish: " + words.FirstLine(st.LastErr.Error()), Link: "/services", LinkText: "View services"})
 			}
 			// A server that joined has no firewall until the Owner chooses
 			// who can log in over SSH (this server's is a setup step).
@@ -284,7 +285,7 @@ func (s *Server) attention(ctx context.Context, u *store.User) []attentionItem {
 					if c, err := s.Libraries.ServiceLibraries(ctx, svc.Name); err == nil && len(c.Gone) > 0 {
 						l.add(attentionItem{Key: "library-gone:" + svc.Name, Level: levelWarning,
 							Text: fmt.Sprintf("%s can't see %s: %s isn't connected. Plug it back in, and Roostack restarts %s by itself.",
-								svc.Title, joinAnd(c.Gone), plural(len(c.Gone), "its drive", "their drives"), svc.Title),
+								svc.Title, words.And(c.Gone), words.Plural(len(c.Gone), "its drive", "their drives"), svc.Title),
 							Link: "/services/" + svc.Name, LinkText: "View"})
 					}
 				}
@@ -500,7 +501,7 @@ func (s *Server) backupAttention(ctx context.Context, m serverRef, n ServiceNode
 	case lost:
 	case st.Last != nil && !st.Last.OK:
 		l.add(attentionItem{Key: "backup-failed:" + m.ID, Level: levelProblem,
-			Text: "The last backup" + m.on() + " didn't finish: " + firstLine(st.Last.Error) + retryText(st.Retry),
+			Text: "The last backup" + m.on() + " didn't finish: " + words.FirstLine(st.Last.Error) + retryText(st.Retry),
 			Link: link, LinkText: "View backups"})
 	}
 	// Extra copies (a first one is made with the next backup).
@@ -510,7 +511,7 @@ func (s *Server) backupAttention(ctx context.Context, m serverRef, n ServiceNode
 		case c.Last != nil && !c.Last.OK && retrySoon(c.Retry):
 		case c.Last != nil && !c.Last.OK:
 			l.add(attentionItem{Key: "copy-failed:" + m.ID + ":" + c.Name, Level: levelWarning,
-				Text: "The last copy of backups" + m.on() + " to " + c.Title + " didn't finish: " + firstLine(c.Last.Error) + retryText(c.Retry),
+				Text: "The last copy of backups" + m.on() + " to " + c.Title + " didn't finish: " + words.FirstLine(c.Last.Error) + retryText(c.Retry),
 				Link: link, LinkText: "View backups"})
 		case c.LastOK != nil && isStale(c.LastOK.Finished):
 			l.add(attentionItem{Key: "copy-stale:" + m.ID + ":" + c.Name, Level: levelWarning,

@@ -7,12 +7,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/monitor"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // The public status page (SPEC.md §6.15): Roostack writes it every minute,
@@ -83,7 +83,7 @@ func (s *Server) renderStatusPage(ctx context.Context, now time.Time) ([]byte, e
 	case len(down) == 1:
 		data["Down"] = down[0] + " isn't working at the moment. Everything else is."
 	default:
-		data["Down"] = strings.Join(down[:len(down)-1], ", ") + " and " + down[len(down)-1] + " aren't working at the moment. Everything else is."
+		data["Down"] = words.And(down) + " aren't working at the moment. Everything else is."
 	}
 	t, err := statusPageTemplate()
 	if err != nil {

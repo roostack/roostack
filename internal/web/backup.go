@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -14,14 +13,6 @@ import (
 
 // backupStale is when the dashboard warns that backups aren't happening.
 const backupStale = 48 * time.Hour
-
-// capitalise starts s with a capital letter (ASCII; roles and states).
-func capitalise(s string) string {
-	if s == "" {
-		return ""
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
 
 // whenText formats a time for people, e.g. "today 02:00" or "Mon 3 Oct 02:00".
 func whenText(t time.Time) string {

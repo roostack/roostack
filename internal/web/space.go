@@ -183,17 +183,17 @@ func (s *Server) serverSpaces(ctx context.Context, m serverRef, n ServiceNode) *
 		switch v.Level = lowSpace(ds.Free, ds.Total); {
 		case v.Level != "":
 			v.Warning = fmt.Sprintf("%s is running out of disk space: %s free of %s. Services can stop working, and backups kept there fail, when it's full.",
-				subject, sizeText(ds.Free), sizeText(ds.Total))
+				subject, units.Bytes(ds.Free), units.Bytes(ds.Total))
 		case v.PromisedLeft > ds.Free:
 			v.Level = levelWarning
 			v.Warning = fmt.Sprintf("Other labs could fill %s: they've been promised %s more space for their backups, but only %s is free.",
-				disk, sizeText(v.PromisedLeft), sizeText(ds.Free))
+				disk, units.Bytes(v.PromisedLeft), units.Bytes(ds.Free))
 		case v.PromisedLeft > 0 && v.PromisedLeft > ds.Free-ds.Total*manager.GuestHeadroom/100:
 			// Promised space now reaches into what's kept free for the lab's
 			// own use: warn before other labs could fill the disk.
 			v.Level = levelWarning
 			v.Warning = fmt.Sprintf("Space promised to other labs now takes some of what's kept free on %s for your own services and backups: they can still add %s, and %s is free. Free up space, or give them less.",
-				disk, sizeText(v.PromisedLeft), sizeText(ds.Free))
+				disk, units.Bytes(v.PromisedLeft), units.Bytes(ds.Free))
 		}
 		out.Disks = append(out.Disks, v)
 	}

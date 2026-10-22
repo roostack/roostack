@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Bringing a service's data in from the person's own copy (SPEC.md §8.4):
@@ -496,13 +497,13 @@ func (s *Server) importRows(r *http.Request, pg *importPage) {
 	if cp := v.Copy; cp != nil {
 		total := max(cp.Bytes, 1)
 		pg.CopyPercent = int(min(100, cp.Progress.Bytes*100/total))
-		pg.CopyText = fmt.Sprintf("%s of %s · %s of %s files", sizeText(cp.Progress.Bytes), sizeText(cp.Bytes),
+		pg.CopyText = fmt.Sprintf("%s of %s · %s of %s files", units.Bytes(cp.Progress.Bytes), units.Bytes(cp.Bytes),
 			units.Count(cp.Progress.Files), units.Count(cp.Files))
 		if cp.Running && cp.Progress.Copied > 0 {
 			elapsed := time.Since(cp.Started)
 			rate := float64(cp.Progress.Copied) / elapsed.Seconds()
 			if left := time.Duration(float64(cp.Bytes-cp.Progress.Bytes)/rate) * time.Second; rate > 0 && left > 0 {
-				pg.CopyLeft = "about " + roughDuration(left) + " left"
+				pg.CopyLeft = "about " + words.RoughDuration(left) + " left"
 			}
 		}
 	}
@@ -580,17 +581,6 @@ func (s *Server) dumpChoices(r *http.Request, pg *importPage) []string {
 	}
 	slices.Sort(out)
 	return out
-}
-
-// roughDuration says how long, roughly: "25 minutes", "3 hours".
-func roughDuration(d time.Duration) string {
-	switch {
-	case d < 90*time.Second:
-		return "a minute"
-	case d < 90*time.Minute:
-		return fmt.Sprintf("%d minutes", int(d.Minutes()+0.5))
-	}
-	return fmt.Sprintf("%d hours", int(d.Hours()+0.5))
 }
 
 // importFoldersPage is the folder picker for step 1 (a drive's folders, or
@@ -743,7 +733,7 @@ func (s *Server) importSetupSubmit(w http.ResponseWriter, r *http.Request) {
 	case "inspect":
 		got, err := importer.ParseInspect([]byte(r.FormValue("inspect")))
 		if err != nil {
-			s.renderImport(w, r, capitalise(err.Error())+".", http.StatusBadRequest)
+			s.renderImport(w, r, words.Capitalise(err.Error())+".", http.StatusBadRequest)
 			return
 		}
 		setup = &got
@@ -892,7 +882,7 @@ func (s *Server) importCancelSubmit(w http.ResponseWriter, r *http.Request) {
 func importUnderway(v node.ImportView) string {
 	switch {
 	case v.Copy != nil && v.Copy.Running:
-		return fmt.Sprintf("copying, %s of %s", sizeText(v.Copy.Progress.Bytes), sizeText(v.Copy.Bytes))
+		return fmt.Sprintf("copying, %s of %s", units.Bytes(v.Copy.Progress.Bytes), units.Bytes(v.Copy.Bytes))
 	case v.Copy != nil && v.Copy.Passes > 0:
 		return "copied, ready to switch"
 	case v.Checking:

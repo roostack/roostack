@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // hostname is this server's name as the system knows it: the suggested
@@ -115,7 +116,7 @@ func (s *Server) setupJoinSubmit(w http.ResponseWriter, r *http.Request) {
 	c, err := labnet.ParseJoinCode(code)
 	switch {
 	case err != nil:
-		fail(http.StatusBadRequest, capitalize(err.Error())+". Copy it again from your lab's Settings → Servers → Add a server.")
+		fail(http.StatusBadRequest, words.Capitalise(err.Error())+". Copy it again from your lab's Settings → Servers → Add a server.")
 		return
 	case name == "" || len([]rune(name)) > 40 || strings.ContainsFunc(name, unicode.IsControl):
 		fail(http.StatusBadRequest, "Give this server a name of up to 40 characters, such as nas or vps.")
@@ -125,7 +126,7 @@ func (s *Server) setupJoinSubmit(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	addr, err := s.JoinLab(ctx, c, name)
 	if err != nil {
-		fail(http.StatusBadGateway, capitalize(err.Error())+". Nothing was changed here: fix it and try again, or make a new code if this one has expired.")
+		fail(http.StatusBadGateway, words.Capitalise(err.Error())+". Nothing was changed here: fix it and try again, or make a new code if this one has expired.")
 		return
 	}
 	s.render(w, "setup-joined", map[string]any{"Lab": c.LabName, "UI": c.UI, "Endpoint": c.Endpoint, "Addr": addr, "Name": name})

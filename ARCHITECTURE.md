@@ -181,6 +181,7 @@ Grouped by layer, from the commands down. Sub-packages that exist only for tests
 | Package | Purpose |
 |---|---|
 | `internal/units` | The one size formatter (decimal units: 1 GB = 1000³ bytes) |
+| `internal/words` | The small pieces of sentences: a capital first letter, "a, b and c" and "a, b or c", counts with their nouns, an error's first line, and lengths of time, rough ("25 minutes") or exact ("1 h 5 min") |
 | `internal/fsutil` | Writing a file atomically: a unique temporary file in the same folder, its mode set, synced, then renamed. `WritePrivate` (0600) is how secrets and private state are written, and `CopyFile` streams a copy the same way. `Within` is the one "is this path inside that folder?" |
 | `internal/sleep` | The waits loops share: `For` (gives up when the context ends) and `Every`; `maintenance.Every` is for wall-clock schedules |
 | `internal/usererr` | The one error a person can fix: a sentence saying what to change, which the web layer shows as it is (`usererr.Message`); any other error is a server error |

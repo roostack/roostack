@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Bringing your own data into a service (SPEC.md §8.4): the server the
@@ -291,7 +292,7 @@ func (n *Local) SetImportSetup(ctx context.Context, service string, setup *impor
 	}
 	if setup != nil {
 		if err := setup.Clean(); err != nil {
-			return usererr.New("%s.", capitalise(strings.TrimSuffix(err.Error(), ".")))
+			return usererr.New("%s.", words.Capitalise(strings.TrimSuffix(err.Error(), ".")))
 		}
 	}
 	n.forgetSamples(service)
@@ -603,14 +604,6 @@ func findSQLite(files fs.FS, limit int) []string {
 		return nil
 	})
 	return out
-}
-
-// capitalise makes a sentence start with a capital.
-func capitalise(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // liveOutput is what runs of a service now: all of it, or only its

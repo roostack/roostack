@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -128,7 +129,7 @@ func (n *Local) copyImport(ctx context.Context, s state.Service, st ImportState,
 		if err != nil {
 			return err
 		}
-		act.Printf("%s: %d files looked at, %s copied, %d removed", sp.Title, got.Files, gbText(got.Copied), got.Removed)
+		act.Printf("%s: %d files looked at, %s copied, %d removed", sp.Title, got.Files, units.Bytes(got.Copied), got.Removed)
 		if err := n.chownStorage(ctx, p, sp.Name, dst); err != nil {
 			return err
 		}

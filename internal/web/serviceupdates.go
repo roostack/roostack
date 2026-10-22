@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // ServiceUpdates are updates of installed services to newer versions
@@ -133,7 +134,7 @@ func (s *Server) serviceUpdatesAttention(ctx context.Context, services []Service
 	case 1:
 		l.add(attentionItem{Level: levelInfo, Key: "updates-available", Text: "An update is available for " + waiting[0] + ".", Link: link, LinkText: "See it"})
 	default:
-		l.add(attentionItem{Level: levelInfo, Key: "updates-available", Text: "Updates are available for " + joinAnd(waiting) + ".", Link: "/services",
+		l.add(attentionItem{Level: levelInfo, Key: "updates-available", Text: "Updates are available for " + words.And(waiting) + ".", Link: "/services",
 			LinkText: "See them"})
 	}
 }
@@ -154,22 +155,6 @@ func appVersion(v string, other ...string) string {
 		return upstream(v)
 	}
 	return upstream(v) + ", package revision " + strings.TrimPrefix(v[len(upstream(v)):], "-roostack.")
-}
-
-// joinAnd joins names as "a, b and c".
-func joinAnd(names []string) string {
-	if len(names) < 2 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
-}
-
-// joinOr joins names as "a, b or c".
-func joinOr(names []string) string {
-	if len(names) < 2 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
 }
 
 // updateSubmit starts updating a service (Admins).

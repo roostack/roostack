@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // formField is one input on the install form.
@@ -412,7 +413,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 				its = "their"
 			}
 			noBuildText = fmt.Sprintf("%s can't run on %s: it has no version for %s kind of processor (%s).",
-				p.Title, joinOr(names), its, joinAnd(arches))
+				p.Title, words.Or(names), its, words.And(arches))
 		}
 		chosen := host
 		for _, m := range servers {

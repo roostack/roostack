@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Extra copies of a server's backups (SPEC.md §6.9, 3-2-1): somewhere
@@ -135,7 +136,7 @@ func (m *Manager) backupsOf(serverID string) string {
 // capital, a server's own name stays as it is ("nas", not "Nas").
 func capital(s string) string {
 	if s == "the" || strings.HasPrefix(s, "the ") || strings.HasPrefix(s, "this ") {
-		return strings.ToUpper(s[:1]) + s[1:]
+		return words.Capitalise(s)
 	}
 	return s
 }

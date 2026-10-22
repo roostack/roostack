@@ -5,10 +5,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // serverArchKey + server ID is the processor a server last said it has
@@ -143,15 +143,7 @@ func (m *Manager) noBuildText(ctx context.Context, title, host, arch string, arc
 		}
 	}
 	if len(can) > 0 {
-		msg += " It can run on " + orList(can) + "."
+		msg += " It can run on " + words.Or(can) + "."
 	}
 	return msg
-}
-
-// orList joins names as "a, b or c".
-func orList(names []string) string {
-	if len(names) < 2 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
 }

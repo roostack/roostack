@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // nav is the sidebar (docs/DESIGN.md "Layout"), shown to logged-in users.
@@ -736,7 +737,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := authkit.CheckPasswordPolicy(pw); err != nil {
-		fail(capitalize(err.Error()) + ".")
+		fail(words.Capitalise(err.Error()) + ".")
 		return
 	}
 	hash, err := authkit.HashPassword(pw)

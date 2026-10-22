@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Blocking known exploits (SPEC.md §6.10 item 4): CrowdSec's AppSec
@@ -176,5 +177,5 @@ func wafSummary(blocks []public.Block, titles map[string]string) string {
 		parts = append(parts, fmt.Sprintf("%s %d", t, counts[t]))
 	}
 	return fmt.Sprintf("refused %d %s that tried a known exploit (%s).",
-		len(blocks), plural(len(blocks), "request", "requests"), strings.Join(parts, ", "))
+		len(blocks), words.Plural(len(blocks), "request", "requests"), strings.Join(parts, ", "))
 }

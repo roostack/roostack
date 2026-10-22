@@ -193,13 +193,6 @@ func (s *Server) endSession(w http.ResponseWriter, r *http.Request) bool {
 	return signedIn
 }
 
-func capitalize(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
 // startSession signs u in. remember ("keep me signed in", if offered)
 // makes it last rememberDuration on this browser without the idle limit;
 // otherwise the cookie ends with the browser (session.go).

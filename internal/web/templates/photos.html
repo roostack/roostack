@@ -277,7 +277,7 @@
 <section class="card step-card step-result" id="step-7">
   <div class="card-head"><h2><span class="step-num">{{icon "check"}}</span>Migrated</h2></div>
   <div class="notice notice-ok" role="status"><p><strong>{{photoTotals (sentPhotos .) 0}} migrated into {{with $v.Account}}{{or .Name .Email}}'s{{end}} account.</strong>
-    Took {{durationText .Began .Finished}}{{if gt .Passes 1}}, in {{.Passes}} goes{{end}}, finished {{when .Finished}}.</p></div>
+    Took {{roughDuration .Began .Finished}}{{if gt .Passes 1}}, in {{.Passes}} goes{{end}}, finished {{when .Finished}}.</p></div>
   <ul class="check-list">
     {{if and .Before.ID .After.ID}}{{$more := immichMore .Before .After}}<li class="check-{{if eq $more (sentPhotos .)}}ok{{else}}warn{{end}}">{{if eq $more (sentPhotos .)}}{{icon "check"}}{{else}}{{icon "warn"}}{{end}}<div><strong>Immich counts {{count $more}} more</strong> in the account{{if eq $more (sentPhotos .)}}: the same as Roostack migrated{{else}}, and Roostack migrated {{count (sentPhotos .)}}: Immich may still be processing some{{end}}.</div></li>{{end}}
     {{with .HadBefore}}<li class="check-info">{{icon "spark"}}<div><strong>Already there, skipped:</strong> {{count .}}.</div></li>{{end}}

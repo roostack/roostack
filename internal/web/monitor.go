@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Monitoring (SPEC.md §6.15): the Monitoring page, a check's Details,
@@ -186,7 +187,9 @@ func daysText(d int) string {
 }
 
 // durationText is a length of time for people: "6 minutes", "3 hours",
-// "2 days".
+// "2 days". It rounds down and counts days, where words.RoughDuration
+// rounds to the nearest and stops at hours, so it stays until the
+// wording pass (quality review wave 4) chooses one.
 func durationText(d time.Duration) string {
 	plural := func(n int, unit string) string {
 		if n == 1 {
@@ -541,7 +544,7 @@ func (s *Server) monitorAttention(l *attentionList) {
 				Text: downText(st), Link: checkHref(st.Key), LinkText: "See what's wrong"})
 		case st.CertWarning && st.State == monitor.StateUp:
 			l.add(attentionItem{Level: levelWarning, Key: "monitor-cert:" + st.Key,
-				Text: capitalise(st.Name + "'s address: " + certWarningText(st, now) + "."), Link: checkHref(st.Key), LinkText: "Details"})
+				Text: words.Capitalise(st.Name + "'s address: " + certWarningText(st, now) + "."), Link: checkHref(st.Key), LinkText: "Details"})
 		}
 	}
 }

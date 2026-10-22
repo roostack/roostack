@@ -21,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Wizard progress, stored as runtime settings.
@@ -185,7 +186,7 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 	}
 	set, err := p.Validate(clean)
 	if err != nil {
-		return &usererr.Error{Msg: capitalize(err.Error()) + "."}
+		return &usererr.Error{Msg: words.Capitalise(err.Error()) + "."}
 	}
 	check := s.CheckDNS
 	if check == nil {
@@ -199,7 +200,7 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 	zone, err := check(ctx, p, clean, domain)
 	if err != nil {
 		return &usererr.Error{Msg: fmt.Sprintf("Roostack couldn't create a test DNS record for %s with those details. "+
-			"Check them and the permissions they have. %s said: %s", domain, p.Title, firstLine(err.Error()))}
+			"Check them and the permissions they have. %s said: %s", domain, p.Title, words.FirstLine(err.Error()))}
 	}
 	old, err := s.keepOldAddress(ctx, domain)
 	if err != nil {
@@ -487,13 +488,6 @@ func (s *Setup) DropRoostAc(ctx context.Context) error {
 	return nil
 }
 
-func capitalize(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
 // DomainLater skips the domain step for now. Services can't get HTTPS
 // certificates until it's done, so the dashboard keeps reminding.
 func (s *Setup) DomainLater(ctx context.Context) error {
@@ -551,11 +545,6 @@ func (s *Setup) ConfirmRecoveryKey(ctx context.Context) error {
 	return nil
 }
 
-func firstLine(s string) string {
-	s, _, _ = strings.Cut(s, "\n")
-	return s
-}
-
 // SetLabName names the lab. With restart, Roostack restarts so every part
 // (the network, storage shared with other labs) uses the new name.
 func (s *Setup) SetLabName(ctx context.Context, name string, restart bool) error {
@@ -608,7 +597,7 @@ func (s *Setup) EraseDrive(ctx context.Context, disk string) error {
 		return &usererr.Error{Msg: "Roostack can't see this server's drives."}
 	}
 	if err := s.Drives.EraseDrive(ctx, disk, "ROOSTACK"); err != nil {
-		return &usererr.Error{Msg: fmt.Sprintf("Couldn't prepare the disk: %s", firstLine(err.Error()))}
+		return &usererr.Error{Msg: fmt.Sprintf("Couldn't prepare the disk: %s", words.FirstLine(err.Error()))}
 	}
 	return nil
 }

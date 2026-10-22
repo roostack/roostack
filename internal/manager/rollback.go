@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/s3api"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Rolling a server's backups back (SPEC.md §10.10). A server that's taken
@@ -84,7 +85,7 @@ func (p *RollbackPlan) lines() []string {
 				then = map[string]string{"come back": "comes back", "are put back as they were": "is put back as it was",
 					"are hidden": "is hidden"}[then]
 			}
-			out = append(out, fmt.Sprintf("%s %s %s.", upperFirst(what), k.since, then))
+			out = append(out, fmt.Sprintf("%s %s %s.", words.Capitalise(what), k.since, then))
 		}
 	}
 	return out
@@ -130,14 +131,7 @@ func (p *RollbackPlan) describe(kind string) (string, int) {
 	if config {
 		n++
 	}
-	return joinNames(parts), n
-}
-
-func upperFirst(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
+	return words.And(parts), n
 }
 
 // rollbackChecks are the latest checks, by activity.BackupRollbackFor: a
@@ -300,7 +294,7 @@ func (m *Manager) rollbackJob(serverID, ref string, before time.Time) maintenanc
 		}
 		act.Step("Checking the backups there")
 		if n, err := repo.Unlock(ctx); err != nil {
-			act.Printf("Couldn't clear old locks: %s", firstLine(err.Error()))
+			act.Printf("Couldn't clear old locks: %s", words.FirstLine(strings.TrimSpace(err.Error())))
 		} else if n > 0 {
 			act.Printf("Cleared %d old %s", n, map[bool]string{true: "lock", false: "locks"}[n == 1])
 		}
