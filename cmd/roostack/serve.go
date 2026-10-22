@@ -11,12 +11,10 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
-	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
@@ -24,7 +22,6 @@ import (
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
-	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
@@ -131,7 +128,7 @@ func serve(args []string) error {
 		return serveNode(ctx, lab, local, agentClient, restart, log)
 	}
 
-	token, err := setupToken(ctx, lab, st, log)
+	token, err := web.SetupToken(ctx, st, lab.Paths.SetupTokenFile(), log)
 	if err != nil {
 		return err
 	}
@@ -190,7 +187,11 @@ func serve(args []string) error {
 	// address stops when its time is up (SPEC.md §6.6), checked once its
 	// DNS records can be deleted (below).
 	srv, err := web.NewServer(st, log, func(ctx context.Context) ([]web.ServiceView, error) {
-		return serviceViews(ctx, lab, mgr, log)
+		services, err := state.LoadServices(lab)
+		if err != nil {
+			return nil, err
+		}
+		return web.ServiceViews(ctx, lab, services, mgr, log), nil
 	}, mgr, wiz, web.LabSettings{LabName: lab.DisplayName(), Domain: lab.Domain, UIHost: lab.UIHost(), DNSProvider: lab.DNS.Provider,
 		OldAddress: lab.OldAddress, BackupRepo: lab.Backup.Repository, HasGPU: lab.HasGPU, Maintenance: lab.Maintenance}, token)
 	if err != nil {
@@ -611,86 +612,6 @@ func serve(args []string) error {
 		return err
 	}
 	return nil
-}
-
-// setupToken returns the first-run setup code, or "" if an account exists.
-// The code is kept in a file readable only by roostack (and root), so it
-// survives restarts until setup is done.
-func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger) (string, error) {
-	path := lab.Paths.SetupTokenFile()
-	n, err := st.CountUsers(ctx)
-	if err != nil || n > 0 {
-		if n > 0 { // e.g. a lab restored from its backups
-			os.Remove(path)
-		}
-		return "", err
-	}
-	if data, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(data))) > 0 {
-		token := strings.TrimSpace(string(data))
-		log.Info("waiting for first-run setup", "setup_code", token, "file", path)
-		return token, nil
-	}
-	token, err := authkit.NewToken()
-	if err != nil {
-		return "", err
-	}
-	if err := fsutil.WritePrivate(path, []byte(token+"\n")); err != nil {
-		return "", err
-	}
-	log.Info("waiting for first-run setup", "setup_code", token, "file", path)
-	return token, nil
-}
-
-// serviceViews builds the dashboard list from desired state plus live
-// systemd status.
-func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log *slog.Logger) ([]web.ServiceView, error) {
-	all, err := state.LoadServices(lab)
-	if err != nil {
-		return nil, err
-	}
-	// Each server reports its own services (SPEC.md §10.3).
-	infos := mgr.ServiceInfos(ctx)
-	withdrawn := mgr.Withdrawals(ctx)
-	updates := mgr.AvailableUpdates(ctx)
-	var views []web.ServiceView
-	for _, s := range all {
-		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Package: s.Package.Name, Local: s.Instance.Local, Held: s.Instance.Held}
-		facts := web.ServiceFacts{Reported: web.StatusUnknown}
-		if info, ok := infos[s.Name()]; ok {
-			v.ServiceDetail, facts.Reported, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
-		}
-		// Updates to newer versions (SPEC.md §7).
-		if u := updates[s.Name()]; u != nil {
-			v.Update = u.ToApp()
-		}
-		// What decides its status besides its server (web.ServiceStatus).
-		w := withdrawn[s.Name()]
-		facts.Stopped = w != nil && w.Stopped
-		facts.Updating = mgr.Updating(s.Name()) != nil
-		facts.AwaitingData, facts.Switching = s.Instance.AwaitingData, mgr.Switching(s.Name())
-		facts.Held, facts.Waiting = s.Instance.Held != nil, s.Instance.Waiting
-		v.Status = web.ServiceStatus(facts)
-		if s.Instance.Waiting {
-			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).
-			v.Server = ""
-			if n := mgr.NodeByID(s.Instance.Host); n != nil {
-				v.WasOn = n.Identity().Name
-			}
-		}
-		out, err := generate.Service(lab, s.Package, s.Instance)
-		if err != nil {
-			log.Error("generating service for status", "service", s.Name(), "err", err)
-			v.Status = web.StatusFailed
-			views = append(views, v)
-			continue
-		}
-		for _, h := range out.Hosts {
-			v.URLs = append(v.URLs, "https://"+h)
-		}
-		v.NoAddress = !lab.HasAddress() && len(s.Package.Routes) > 0
-		views = append(views, v)
-	}
-	return views, nil
 }
 
 // startMaintenance runs this server's maintenance coordinator with the
