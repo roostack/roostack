@@ -32,9 +32,6 @@ func importSpot(service string) mountSpot {
 // login, which is kept root's only until it's unmounted), read-only at
 // ImportRoot/<service>, replacing what was there. It returns the path.
 func (h LinuxHost) MountImport(service string, l Library) (string, error) {
-	if !serviceName.MatchString(service) {
-		return "", fmt.Errorf("%q isn't a service's name", printable(service))
-	}
 	return h.mountPlace(importSpot(service), l)
 }
 
@@ -65,9 +62,6 @@ func (h LinuxHost) mountPlace(spot mountSpot, l Library) (string, error) {
 // forgets it, with its login; a drive mounted for it goes too once nothing
 // else mounts from it.
 func (h LinuxHost) UnmountImport(service string) error {
-	if !serviceName.MatchString(service) {
-		return fmt.Errorf("%q isn't a service's name", printable(service))
-	}
 	return unmountPlace(importSpot(service))
 }
 

@@ -51,38 +51,38 @@ var (
 // checkShare says what's wrong with a share, in words.
 func checkShare(s Share) error {
 	if !shareServer.MatchString(s.Server) {
-		return fmt.Errorf("%q isn't a server's name or address", printable(s.Server))
+		return refuse("%q isn't a server's name or address", printable(s.Server))
 	}
 	switch s.Type {
 	case "smb":
 		if !smbShareName.MatchString(s.Path) || strings.TrimSpace(s.Path) != s.Path {
-			return fmt.Errorf("%q isn't a share's name: just its name, e.g. media", printable(s.Path))
+			return refuse("%q isn't a share's name: just its name, e.g. media", printable(s.Path))
 		}
 		if s.Username != "" && !shareUser.MatchString(s.Username) {
-			return errors.New("that username has characters a login can't")
+			return refuse("that username has characters a login can't")
 		}
 		if strings.ContainsAny(s.Password, "\r\n\x00") {
-			return errors.New("that password has a line break in it")
+			return refuse("that password has a line break in it")
 		}
 		if _, err := os.Stat("/usr/sbin/mount.cifs"); err != nil {
 			if _, err := os.Stat("/sbin/mount.cifs"); err != nil {
-				return errors.New("this server can't mount SMB shares yet: it needs the cifs-utils package")
+				return refuse("this server can't mount SMB shares yet: it needs the cifs-utils package")
 			}
 		}
 	case "nfs":
 		if !nfsExport.MatchString(s.Path) {
-			return fmt.Errorf("%q isn't an NFS export: its path, e.g. /volume1/media", printable(s.Path))
+			return refuse("%q isn't an NFS export: its path, e.g. /volume1/media", printable(s.Path))
 		}
 		if s.Username != "" || s.Password != "" {
-			return errors.New("an NFS share has no login: it trusts the server's address")
+			return refuse("an NFS share has no login: it trusts the server's address")
 		}
 		if _, err := os.Stat("/usr/sbin/mount.nfs"); err != nil {
 			if _, err := os.Stat("/sbin/mount.nfs"); err != nil {
-				return errors.New("this server can't mount NFS shares yet: it needs the nfs-common package")
+				return refuse("this server can't mount NFS shares yet: it needs the nfs-common package")
 			}
 		}
 	default:
-		return errors.New("a share is SMB or NFS")
+		return refuse("a share is SMB or NFS")
 	}
 	return nil
 }
@@ -142,7 +142,7 @@ func (h LinuxHost) CheckShare(s Share) (FolderList, error) {
 				out = append(out, log...)
 			}
 		}
-		return FolderList{}, fmt.Errorf("Roostack couldn't open the share: %s", shareFailure(string(out)))
+		return FolderList{}, refuse("Roostack couldn't open the share: %s", shareFailure(string(out)))
 	}
 	defer exec.Command("systemd-umount", mp).Run()
 	return listFolders(mp, "", h.UID, h.groups())
@@ -150,9 +150,6 @@ func (h LinuxHost) CheckShare(s Share) (FolderList, error) {
 
 // SaveShareLogin keeps an SMB share's login for a library, root's only.
 func (h LinuxHost) SaveShareLogin(name string, s Share) error {
-	if !ValidLibraryName(name) {
-		return fmt.Errorf("%q can't name a library", printable(name))
-	}
 	if err := checkShare(s); err != nil {
 		return err
 	}
@@ -189,7 +186,7 @@ func (h LinuxHost) mountShare(l Library, spot mountSpot) error {
 	if s.Type == "smb" && s.Username != "" {
 		login = spot.login
 		if _, err := os.Stat(login); err != nil {
-			return errors.New("the share's login isn't on this server: add the library again")
+			return refuse("the share's login isn't on this server: add the library again")
 		}
 	}
 	target := spot.target
