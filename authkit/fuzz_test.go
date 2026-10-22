@@ -64,3 +64,27 @@ func FuzzOpen(f *testing.F) {
 		}
 	})
 }
+
+func FuzzOpenFor(f *testing.F) {
+	s, _ := NewSealer([]byte(strings.Repeat("k", 32)))
+	// Sealed once with that key, as FuzzOpen's: SealFor("usr_a", …), and
+	// the old way, Seal("usr_a\n…").
+	const sealed = "sealedfor1:nB2BY6rpY6rRJdDgVXDatalbZQjHbYypqQbjP1GebCXZlxn1neghJ2WYfa4"
+	const old = "sealed1:r+xBvbnuw7m4jCnvGiSQDw21hCy1+9TumQgW6w252GNYdrlqieEz0MaYct45gvIBOIs"
+	f.Add("usr_a", sealed)
+	f.Add("usr_b", sealed)
+	f.Add("usr_a", old)
+	f.Add("", sealed)
+	f.Add("usr_a", "sealed1:"+strings.TrimPrefix(sealed, "sealedfor1:"))
+	f.Add("usr_a", "sealedfor1:"+strings.TrimPrefix(old, "sealed1:"))
+	f.Add("usr_a", "sealedfor1:AAAA")
+	f.Fuzz(func(t *testing.T, owner, in string) {
+		out, err := s.OpenFor(owner, in)
+		if err == nil && (owner != "usr_a" || in != sealed) {
+			t.Errorf("%q for %q opened (to %q): only what SealFor made for usr_a may", in, owner, out)
+		}
+		if out, err := s.Open(in); err == nil && in != old {
+			t.Errorf("%q opened (to %q): only what Seal made may", in, out)
+		}
+	})
+}
