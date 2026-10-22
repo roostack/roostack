@@ -27,7 +27,9 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/systemd"
 )
 
@@ -116,10 +118,8 @@ func (r *Reconciler) start(ctx context.Context, log *activity.Log, units ...stri
 	log.Printf("Starting failed; waiting for systemd to try again: %v", err)
 	deadline := time.Now().Add(cmp.Or(r.Settle, 30*time.Second))
 	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 2*time.Second) {
 			return err
-		case <-time.After(2 * time.Second):
 		}
 		states, serr := st.Status(ctx, units...)
 		if serr == nil && len(states) == len(units) && !slices.ContainsFunc(states, func(s systemd.UnitStatus) bool {
@@ -617,9 +617,7 @@ func (r *Reconciler) hasUserSecret(name string) bool {
 func (r *Reconciler) secretValue(s generate.Secret) ([]byte, error) {
 	if s.Generate {
 		buf := make([]byte, 32)
-		if _, err := rand.Read(buf); err != nil {
-			return nil, err
-		}
+		rand.Read(buf) // never fails (Go 1.24)
 		return []byte(base64.RawURLEncoding.EncodeToString(buf)), nil
 	}
 	if r.UserSecret != nil {
@@ -703,27 +701,11 @@ func readOwned(dir string, owned func(string) bool) (map[string]string, error) {
 	return files, nil
 }
 
-// writeAtomic writes a file via a temporary file and rename, so readers
-// never see a partial file.
+// writeAtomic writes a generated file atomically, so readers never see a
+// partial file.
 func writeAtomic(path, content string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".roostack-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name()) // no-op after a successful rename
-	if _, err := tmp.WriteString(content); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Chmod(0o644); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
+	return fsutil.WriteFile(path, []byte(content), 0o644)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Single sign-on's hooks (SPEC.md §5.2, "Connecting the remaining apps"):
@@ -58,20 +58,15 @@ func (n *Local) ssoRecord(ctx context.Context, name string) *ssoRecord {
 	if n.State == nil {
 		return nil
 	}
-	v, err := n.State.Setting(ctx, ssoKey(name))
-	if err != nil || v == "" {
+	rec, err := store.GetJSON[*ssoRecord](ctx, n.State, ssoKey(name))
+	if err != nil {
 		return nil
 	}
-	var rec ssoRecord
-	if json.Unmarshal([]byte(v), &rec) != nil {
-		return nil
-	}
-	return &rec
+	return rec
 }
 
 func (n *Local) saveSSORecord(ctx context.Context, name string, rec *ssoRecord) {
-	b, _ := json.Marshal(rec)
-	if err := n.State.SetSetting(ctx, ssoKey(name), string(b)); err != nil {
+	if err := store.PutJSON(ctx, n.State, ssoKey(name), rec); err != nil {
 		n.Log.Error("recording single sign-on's hooks", "service", name, "err", err)
 	}
 }

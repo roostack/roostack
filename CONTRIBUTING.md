@@ -126,7 +126,7 @@ Two checks ask the outside world, so they don't run with the tests: `make check-
 - `gofmt`, and imports in three groups: the standard library, third party, then `roostack.cloud/roostack/...`.
 - Small packages and plain functions, with interfaces where a test needs a fake (`node.Node`, `web.ServiceManager`, `web.LabSetup`, `manager.BackupStore`).
 - A doc comment on every exported name and most unexported ones, saying *why*, and citing the SPEC section it follows: `// ... (SPEC.md §6.9)`. No commented-out code.
-- **Errors people can fix** are `FormError` (`manager.formErrorf`, `setup.CheckError`), with a sentence saying what to do; the web layer shows them through `userMessage`. Anything else is a server error, which is logged.
+- **Errors people can fix** are `usererr.Error`, made with `usererr.New`, with a sentence saying what to do; the web layer shows them through `usererr.Message`. Anything else is a server error, which is logged.
 - **Long work** runs in the background with an `activity` log (`Step` for the status line, `Printf` for the details), shown with the `activity` component, so people can watch what's happening.
 - **Paths** come from `config.Paths`: never write `/srv/roostack` or `/var/lib/roostack` outside `internal/config`.
 - **Sizes** go through `units.Bytes` in Go and `size` or `bytes` in templates (decimal units: 1 GB is 1000³ bytes); never format bytes by hand.
@@ -137,7 +137,7 @@ Two checks ask the outside world, so they don't run with the tests: `make check-
 ### The web UI
 
 - Pages use only the design system ([docs/DESIGN.md](docs/DESIGN.md)): purpose tokens, never raw colours, and the components in `components.go` (`notice`, `status`, `badge`, `back`, `confirm`, `activity`, `icon`). A new component goes into the gallery (`gallery.go`) in the same change.
-- Handlers are thin, and business logic stays in the packages under them. Each POST redirects (post, redirect, get) or shows the form again with a `FormError`. Routes that change something use `requireOwner` or the right `require(auth.…)`.
+- Handlers are thin, and business logic stays in the packages under them. Each POST redirects (post, redirect, get) or shows the form again with a `usererr.Error`'s sentence. Routes that change something use `requireOwner` or the right `require(auth.…)`.
 - htmx attributes are inherited: a container with `hx-select` or `hx-swap` needs `hx-disinherit="*"`, or its children's requests break.
 
 ### Writing

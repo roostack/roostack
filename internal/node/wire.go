@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // What crosses Roostack's network between the controller and a node (SPEC.md
@@ -207,7 +208,7 @@ func wireError(err error) error {
 	case kindNotFound:
 		return ErrNotFound
 	case kindForm:
-		return &FormError{Msg: re.Msg}
+		return &usererr.Error{Msg: re.Msg}
 	case kindAction:
 		return &ActionError{Title: re.Title, Output: re.Output, Err: errors.New(re.Msg)}
 	}

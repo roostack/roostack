@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Storage for other labs (SPEC.md §10.10): this lab keeps other labs'
@@ -110,7 +111,7 @@ func gigabytes(v string) int64 {
 func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {
 	name, endpoint := r.FormValue("name"), addressFromForm(r)
 	inv, err := s.Manager.InviteGuest(r.Context(), name, gigabytes(r.FormValue("quota")), endpoint)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderStorage(w, r, map[string]any{"Error": msg, "Endpoint": endpoint, "Name": name, "Quota": r.FormValue("quota"), "Adding": true})
 		return
 	}
@@ -133,7 +134,7 @@ func (s *Server) guestID(r *http.Request) int64 {
 
 func (s *Server) guestServerSubmit(w http.ResponseWriter, r *http.Request) {
 	err := s.Manager.SetGuestServer(r.Context(), r.FormValue("server"))
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderStorage(w, r, map[string]any{"Error": msg})
 		return
 	}
@@ -174,7 +175,7 @@ func (s *Server) deleteRemovedGuestSubmit(w http.ResponseWriter, r *http.Request
 
 func (s *Server) guestQuotaSubmit(w http.ResponseWriter, r *http.Request) {
 	err := s.Manager.SetGuestQuota(r.Context(), s.guestID(r), gigabytes(r.FormValue("quota")))
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderStorage(w, r, map[string]any{"Error": msg})
 		return
 	}

@@ -21,11 +21,6 @@ var whoName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$`)
 // (service names have none).
 func PhotoSpotName(service, who string) string { return service + ".photos." + who }
 
-// photoTag marks a person's export in fstab.
-func photoTag(service, who string) string {
-	return "# Added by Roostack: migrating photos into " + service + " for " + who
-}
-
 // photoSpot is a person's place to migrate photos from.
 func photoSpot(service, who string) mountSpot {
 	tag := photoTag(service, who)

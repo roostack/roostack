@@ -132,6 +132,7 @@ Grouped by layer, from the commands down. Sub-packages that exist only for tests
 | Package | Purpose |
 |---|---|
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |
+| `internal/destination` | A backup destination's reference (`server:<id>`, `drive:<id>`, `provider:<id>`, `cloud`…), parsed and written in one place |
 | `internal/b2` | Backblaze B2 application keys limited to one server's folder, made and deleted over B2's native API |
 | `internal/s3api` | The few S3 calls Roostack makes beside restic (path-style, signed with `awssig`): a bucket's versioning and lifecycle rules, the probe that shows a key can't erase old versions, and listing and copying back old versions to roll a server's folder back (Backblaze's S3-compatible API too); `s3api/s3fake` is an in-memory versioned bucket for tests |
 | `internal/cloudkeys` | Roostack Cloud backup's short-lived keys on a server (SPEC.md §6.9): kept 0600 in the state folder, renewed with under an hour left, passed to restic as environment variables. The controller's come from Cloud, other servers' from the controller (`POST /v1/storage-keys` on the lab API) |
@@ -180,7 +181,9 @@ Grouped by layer, from the commands down. Sub-packages that exist only for tests
 | Package | Purpose |
 |---|---|
 | `internal/units` | The one size formatter (decimal units: 1 GB = 1000³ bytes) |
-| `internal/fsutil` | Writing a file atomically: a unique temporary file in the same folder, its mode set, synced, then renamed. `WritePrivate` (0600) is how secrets and private state are written |
+| `internal/fsutil` | Writing a file atomically: a unique temporary file in the same folder, its mode set, synced, then renamed. `WritePrivate` (0600) is how secrets and private state are written, and `CopyFile` streams a copy the same way. `Within` is the one "is this path inside that folder?" |
+| `internal/sleep` | The waits loops share: `For` (gives up when the context ends) and `Every`; `maintenance.Every` is for wall-clock schedules |
+| `internal/usererr` | The one error a person can fix: a sentence saying what to change, which the web layer shows as it is (`usererr.Message`); any other error is a server error |
 | `tools/maketakeout` | Writes a synthetic Google Photos Takeout, never real photos, for testing photo migration on a VM ([its README](tools/maketakeout/README.md)) |
 
 Rules that keep this maintainable:

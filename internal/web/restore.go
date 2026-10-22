@@ -10,6 +10,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Restoring a service (SPEC.md §6.9, §10.10 "Restoring across the lab"):
@@ -272,7 +273,7 @@ func (s *Server) restoreSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderRestore(w, r, svc, "Another restore is already running. Wait until it has finished.", http.StatusConflict)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderRestore(w, r, svc, msg, http.StatusBadRequest)
 		return
 	}
@@ -305,7 +306,7 @@ func (s *Server) putBackKeptSubmit(w http.ResponseWriter, r *http.Request) {
 	default:
 		err = node.ErrNotFound
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderRestore(w, r, svc, msg, http.StatusBadRequest)
 		return
 	}

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // People's single sign-on parts (SPEC.md §5.2; docs/mockups/sso): each
@@ -130,7 +131,7 @@ func formIDs(r *http.Request, key string) []int64 {
 func groupName(r *http.Request) (string, error) {
 	name := strings.Join(strings.Fields(r.FormValue("name")), " ")
 	if name == "" || len(name) > 60 || strings.ContainsAny(name, "<>\"") {
-		return "", errors.New("Give the group a name of up to 60 characters, such as Family.")
+		return "", usererr.New("Give the group a name of up to 60 characters, such as Family.")
 	}
 	return name, nil
 }
@@ -146,14 +147,14 @@ func (s *Server) groupAddSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if errors.Is(err, store.ErrGroupExists) {
-		err = errors.New("There's already a group called " + name + ".")
+		err = usererr.New("There's already a group called %s.", name)
 	}
 	s.groupError(w, r, err)
 }
 
 func (s *Server) groupError(w http.ResponseWriter, r *http.Request, err error) {
-	if strings.HasSuffix(err.Error(), ".") && !strings.Contains(err.Error(), ": ") {
-		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"GroupError": err.Error()})
+	if msg, ok := usererr.Message(err); ok {
+		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"GroupError": msg})
 		return
 	}
 	s.serverError(w, err)
@@ -193,7 +194,7 @@ func (s *Server) groupSaveSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if name != g.Name {
 		if err := s.Store.RenameGroup(ctx, g.ID, name); errors.Is(err, store.ErrGroupExists) {
-			s.groupError(w, r, errors.New("There's already a group called "+name+"."))
+			s.groupError(w, r, usererr.New("There's already a group called %s.", name))
 			return
 		} else if err != nil {
 			s.serverError(w, err)
@@ -305,8 +306,8 @@ func (s *Server) lookSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.saveLook(r); err != nil {
-		if strings.HasSuffix(err.Error(), ".") && !strings.Contains(err.Error(), ": ") {
-			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"LookError": err.Error()})
+		if msg, ok := usererr.Message(err); ok {
+			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"LookError": msg})
 			return
 		}
 		s.serverError(w, err)

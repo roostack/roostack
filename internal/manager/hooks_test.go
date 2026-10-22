@@ -14,6 +14,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 type memKV struct {
@@ -70,7 +71,7 @@ func TestInstallHook(t *testing.T) {
 	ctx := context.Background()
 	ex.fail = func(n int) bool { return n == 1 } // not ready at first
 
-	var fe *FormError
+	var fe *usererr.Error
 	short := forgejoRequest()
 	short.Secrets["admin_password"] = "short"
 	if err := m.Install(ctx, "forgejo", short); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "at least 8") {
@@ -161,7 +162,7 @@ func TestRetryInstallWithNewValues(t *testing.T) {
 	if got := InstallSettings(m.mustPackage(t, "forgejo")); len(got) != 3 {
 		t.Errorf("install settings = %+v", got)
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.RetryInstallWith(ctx, "forgejo", map[string]string{"admin_username": "", "admin_email": "x@example.com"}, nil); !errors.As(err, &fe) {
 		t.Errorf("an empty username: %v", err)
 	}
@@ -191,7 +192,7 @@ func TestRunAction(t *testing.T) {
 	m.Wait()
 	local(m).WaitHooks()
 
-	var fe *FormError
+	var fe *usererr.Error
 	if _, err := local(m).RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": "mum", "password": "short"}); !errors.As(err, &fe) {
 		t.Errorf("short password: %v", err)
 	}
@@ -231,7 +232,7 @@ func TestUpdateSettingsAndReveal(t *testing.T) {
 	if err != nil || sub != "git" || values["signups_allowed"] != false {
 		t.Fatalf("current = %v %q %v", values, sub, err)
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.UpdateSettings(ctx, "forgejo", SettingsRequest{Subdomain: "vault"}); !errors.As(err, &fe) {
 		t.Errorf("taking vaultwarden's address: %v", err)
 	}
@@ -275,7 +276,7 @@ func (m *Manager) mustPackage(t *testing.T, name string) *pkgspec.Package {
 func TestInstallOverLeftData(t *testing.T) {
 	m, _, kv, ex := newHookManager(t)
 	ctx := context.Background()
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.Install(ctx, "forgejo", InstallRequest{}); !errors.As(err, &fe) {
 		t.Fatalf("no data from before, setup left empty: %v", err)
 	}

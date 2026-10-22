@@ -61,7 +61,12 @@ type Drive struct {
 	Backup bool `json:"backup,omitempty"`
 }
 
-// SystemBackupDir is where backups go on the server's own disk.
+// SystemBackupDir is where backups go on the server's own disk: the
+// default config.Paths.BackupStoreDir, which a test keeps it equal to.
+// It's fixed here rather than sent by roostack, so the agent (as root)
+// never makes a folder the roostack user's at a path it was handed. If a
+// lab.yaml moves media_dir, the two will differ: backups on the server's
+// own disk will still go here.
 const SystemBackupDir = "/srv/roostack/backups"
 
 // usableFS are filesystems backups can go on as they are.
@@ -410,11 +415,7 @@ func (h LinuxHost) mountForGood(d Drive) (string, error) {
 			// A line Roostack wrote before is brought up to date.
 			return updateFstab(tab, d.UUID, line), nil
 		}
-		prefix := ""
-		if len(tab) > 0 && !strings.HasSuffix(tab, "\n") {
-			prefix = "\n"
-		}
-		return tab + fmt.Sprintf("%s# Added by Roostack: a backup drive (%s)\n%s\n", prefix, printable(d.Name), line), nil
+		return withBlock(tab, backupDriveTag(d.Name), line), nil
 	})
 	if err != nil {
 		return "", err
@@ -435,10 +436,9 @@ func (h LinuxHost) mountForGood(d Drive) (string, error) {
 // updateFstab replaces the line for uuid with line, if Roostack added it.
 func updateFstab(fstab, uuid, line string) string {
 	lines := strings.Split(fstab, "\n")
-	for i, l := range lines {
-		if f := strings.Fields(l); len(f) >= 2 && f[0] == "UUID="+uuid && i > 0 &&
-			strings.HasPrefix(lines[i-1], "# Added by Roostack") {
-			lines[i] = line
+	for _, b := range fstabBlocks(fstab) {
+		if len(b.fields) >= 2 && b.fields[0] == "UUID="+uuid {
+			lines[b.at+1] = line
 		}
 	}
 	return strings.Join(lines, "\n")

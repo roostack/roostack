@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -23,8 +22,11 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/photoimport"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Migrating photos into Immich from other platforms (SPEC.md §8.5): the
@@ -325,7 +327,12 @@ func (n *Local) photoService(service string) (state.Service, error) {
 
 func (n *Local) loadPhotos(ctx context.Context, service string) photoSet {
 	var set photoSet
-	n.loadSetting(ctx, photoKey(service), &set)
+	if n.State != nil {
+		var err error
+		if set, err = store.GetJSON[photoSet](ctx, n.State, photoKey(service)); err != nil {
+			n.Log.Error("reading a service's photo migrations", "service", service, "err", err)
+		}
+	}
 	if set.People == nil {
 		set.People = map[string]*PhotoState{}
 	}
@@ -346,17 +353,13 @@ func (n *Local) updatePhotos(ctx context.Context, service, who string, change fu
 		return err
 	}
 	st.Updated = time.Now()
-	b, err := json.Marshal(set)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, photoKey(service), string(b))
+	return store.PutJSON(ctx, n.State, photoKey(service), set)
 }
 
 // checkWho refuses a name that isn't a Roostack account's.
 func checkWho(who string) error {
 	if !auth.ValidUsername(who) {
-		return formErrorf("Sign in to migrate photos.")
+		return usererr.New("Sign in to migrate photos.")
 	}
 	return nil
 }
@@ -437,7 +440,7 @@ func (n *Local) SetPhotoKind(ctx context.Context, service, who, kind string) err
 		return err
 	}
 	if !slices.Contains(photoimport.Kinds, kind) {
-		return formErrorf("Choose where your photos are now.")
+		return usererr.New("Choose where your photos are now.")
 	}
 	return n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		if err := notRunning(st); err != nil {
@@ -470,7 +473,7 @@ func (n *Local) photoReady(service, who string) error {
 
 func notRunning(st *PhotoState) error {
 	if st.Run != nil && st.Run.Running {
-		return formErrorf("Your migration is running: stop it first.")
+		return usererr.New("Your migration is running: stop it first.")
 	}
 	return nil
 }
@@ -499,7 +502,7 @@ func (n *Local) SetPhotoSource(ctx context.Context, service, who string, src Pho
 	switch src.Kind {
 	case "drive", "folder", "share":
 		if _, err := n.PhotoAgent.MountPhotos(ctx, service, who, src.Library); err != nil {
-			return formErrorf("Roostack couldn't open that folder: %v.", strings.TrimSuffix(err.Error(), "."))
+			return usererr.New("Roostack couldn't open that folder: %v.", strings.TrimSuffix(err.Error(), "."))
 		}
 		if src.Library.Share != nil {
 			share := *src.Library.Share
@@ -508,13 +511,13 @@ func (n *Local) SetPhotoSource(ctx context.Context, service, who string, src Pho
 		}
 	case "location":
 		if !agent.ValidLibraryName(src.Location) || (src.Sub != "" && !fs.ValidPath(src.Sub)) {
-			return formErrorf("Choose one of the locations, and a folder in it.")
+			return usererr.New("Choose one of the locations, and a folder in it.")
 		}
 		if st != nil && st.Source != nil && st.Source.Kind != "location" {
 			n.PhotoAgent.UnmountPhotos(ctx, service, who)
 		}
 	default:
-		return formErrorf("Choose a drive, a folder or a share.")
+		return usererr.New("Choose a drive, a folder or a share.")
 	}
 	if err := n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		st.Source, st.Scan, st.ScanErr, st.Check, st.Scanning = &src, nil, "", nil, true
@@ -565,7 +568,7 @@ func (n *Local) SetPhotoKey(ctx context.Context, service, who, key string) error
 	}
 	key = strings.TrimSpace(key)
 	if key == "" || len(key) > 200 || strings.ContainsAny(key, " \t\r\n\x00") {
-		return formErrorf("Paste the key Immich showed you: one long line of letters and digits.")
+		return usererr.New("Paste the key Immich showed you: one long line of letters and digits.")
 	}
 	if st := n.loadPhotos(ctx, service).People[who]; st != nil {
 		if err := notRunning(st); err != nil {
@@ -607,7 +610,7 @@ func (n *Local) CheckPhotos(ctx context.Context, service, who string) error {
 			return err
 		}
 		if st.Source == nil || !st.HasKey {
-			return formErrorf("Choose where your export is, and give your key, first.")
+			return usererr.New("Choose where your export is, and give your key, first.")
 		}
 		st.Checking, st.CheckErr = true, ""
 		return nil
@@ -684,14 +687,14 @@ func (n *Local) StartPhotos(ctx context.Context, service, who string) error {
 		if b.Service == service && b.Who == who {
 			return nil
 		}
-		return formErrorf("%s is migrating photos now: one migration runs at a time. Come back once it's done.", b.Who)
+		return usererr.New("%s is migrating photos now: one migration runs at a time. Come back once it's done.", b.Who)
 	}
 	st := n.loadPhotos(ctx, service).People[who]
 	if st == nil || st.Check == nil || st.Scan == nil {
-		return formErrorf("Check first: it says whether everything's there and there's room.")
+		return usererr.New("Check first: it says whether everything's there and there's room.")
 	}
 	if p := st.Problems(); len(p) > 0 {
-		return formErrorf("%s", p[0])
+		return usererr.New("%s", p[0])
 	}
 	before := st.Check.Account
 	if r := st.Run; r != nil && !r.Started.IsZero() && (r.Stopped || r.Interrupted || r.Err != "") {
@@ -831,17 +834,13 @@ func (n *Local) SetPhotoMemory(ctx context.Context, service, share string) error
 		return err
 	}
 	if _, ok := photoimport.MemoryShares[share]; !ok {
-		return formErrorf("Choose how much memory migrations may use.")
+		return usererr.New("Choose how much memory migrations may use.")
 	}
 	n.pho.mu.Lock()
 	defer n.pho.mu.Unlock()
 	set := n.loadPhotos(ctx, service)
 	set.Memory = share
-	b, err := json.Marshal(set)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, photoKey(service), string(b))
+	return store.PutJSON(ctx, n.State, photoKey(service), set)
 }
 
 func (n *Local) PhotoMemory(ctx context.Context, service string) (limit, total int64) {
@@ -921,10 +920,8 @@ func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activ
 			}
 			return
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, photoPoll) {
 			return
-		case <-time.After(photoPoll):
 		}
 	}
 }
@@ -957,10 +954,8 @@ func (n *Local) carryOnAfterRestart(ctx context.Context, service, who string) bo
 			n.Log.Warn("Immich isn't answering: not carrying on a photo migration", "service", service, "who", who, "err", err)
 			return false
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, photoPoll) {
 			return false
-		case <-time.After(photoPoll):
 		}
 	}
 	// Ended quietly (no email: it goes on), then started again.
@@ -1101,11 +1096,7 @@ func (n *Local) ForgetPhotos(ctx context.Context, service, who string) error {
 	defer n.pho.mu.Unlock()
 	set := n.loadPhotos(ctx, service)
 	delete(set.People, who)
-	b, err := json.Marshal(set)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, photoKey(service), string(b))
+	return store.PutJSON(ctx, n.State, photoKey(service), set)
 }
 
 // resumePhotos, once after Roostack starts, follows any run that was
@@ -1180,10 +1171,6 @@ func (n *Local) immichAccount(ctx context.Context, service, key string) (PhotoAc
 	}
 	a, err := photoimport.ParseAccount(out)
 	if err != nil {
-		var ke *photoimport.KeyError
-		if errors.As(err, &ke) {
-			return PhotoAccount{}, formErrorf("%s", ke.Msg)
-		}
 		return PhotoAccount{}, err
 	}
 	return PhotoAccount{ID: a.ID, Name: a.Name, Email: a.Email, Missing: a.Missing, All: a.All, Photos: a.Photos, Videos: a.Videos}, nil
@@ -1196,7 +1183,7 @@ func (n *Local) PhotoFolders(ctx context.Context, location, sub string) ([]Photo
 	dir := filepath.Join(photoLibRoot, location, filepath.FromSlash(sub))
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, formErrorf("Roostack couldn't open that location: %s", userError(err))
+		return nil, usererr.New("Roostack couldn't open that location: %s", userError(err))
 	}
 	var out []PhotoFolder
 	for _, e := range entries {

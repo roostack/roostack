@@ -155,13 +155,6 @@ type Storage struct {
 // ErrNotFound means no such service or action on this node.
 var ErrNotFound = errors.New("not found")
 
-// FormError is a problem the user can fix in a form.
-type FormError struct{ Msg string }
-
-func (e *FormError) Error() string { return e.Msg }
-
-func formErrorf(format string, args ...any) error { return &FormError{fmt.Sprintf(format, args...)} }
-
 // ApplyStatus is shown on the dashboard.
 type ApplyStatus struct {
 	Running  bool

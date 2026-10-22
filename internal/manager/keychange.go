@@ -13,9 +13,11 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Changing the recovery key (SPEC.md §6.9): a new key is made and shown,
@@ -105,15 +107,12 @@ func (m *Manager) StartKeyChange(ctx context.Context) error {
 	m.keyMu.Lock()
 	defer m.keyMu.Unlock()
 	if k, err := m.KeyChangeStatus(); err != nil || k != nil {
-		return cmpErr(err, formErrorf("A recovery key change is already under way."))
+		return cmpErr(err, usererr.New("A recovery key change is already under way."))
 	}
 	if _, err := os.Stat(backup.KeyFile(m.Lab.Paths)); err != nil {
-		return formErrorf("The lab has no recovery key yet: it's made with the first backup.")
+		return usererr.New("The lab has no recovery key yet: it's made with the first backup.")
 	}
-	key, err := backup.NewRecoveryKey()
-	if err != nil {
-		return err
-	}
+	key := backup.NewRecoveryKey()
 	if err := fsutil.WritePrivate(m.newKeyFile(), []byte(key+"\n")); err != nil {
 		return err
 	}
@@ -136,7 +135,7 @@ func (m *Manager) CancelKeyChange() error {
 	defer m.keyMu.Unlock()
 	k, err := m.KeyChangeStatus()
 	if err != nil || k == nil || k.Phase != KeyConfirm {
-		return cmpErr(err, formErrorf("Only a change that hasn't started can be cancelled."))
+		return cmpErr(err, usererr.New("Only a change that hasn't started can be cancelled."))
 	}
 	os.Remove(m.newKeyFile())
 	return os.Remove(m.keyChangeFile())
@@ -150,7 +149,7 @@ func (m *Manager) ConfirmKeyChange(ctx context.Context) error {
 	m.keyMu.Lock()
 	k, err := m.KeyChangeStatus()
 	if err == nil && (k == nil || k.Phase != KeyConfirm) {
-		err = formErrorf("There's no new recovery key waiting to be confirmed.")
+		err = usererr.New("There's no new recovery key waiting to be confirmed.")
 	}
 	var repos []keyRepo
 	if err == nil {
@@ -389,7 +388,7 @@ func (m *Manager) keyRepos(ctx context.Context) ([]keyRepo, error) {
 		out = append(out, keyRepo{Ref: ref, ServerID: t.ServerID, Repository: t.Repository,
 			open: func(keyFile string) (*backup.Repo, error) {
 				var r *backup.Repo
-				if strings.HasPrefix(t.Provider, "setup") {
+				if destination.Parse(t.Provider).Kind == destination.Setup {
 					// Set up by this server's wizard: its own main backup.
 					if t.ServerID != m.Lab.NodeID {
 						return nil, fmt.Errorf("%s's backup was set up on that server", m.nameOf(t.ServerID))

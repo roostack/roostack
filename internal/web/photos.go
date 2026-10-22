@@ -21,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Migrating photos into Immich (SPEC.md §8.5, docs/mockups/immich-import):
@@ -259,7 +260,7 @@ func (s *Server) renderPhotos(w http.ResponseWriter, r *http.Request, panel bool
 		return
 	}
 	x, err := s.Photos.PhotosOf(name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		pg.Error = msg
 		data["Own"], data["Photos"], data["Unavailable"] = !panel, pg, true
 		s.renderPhotosPage(w, data, panel, http.StatusOK)
@@ -427,7 +428,7 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 	// Drives, for those who may use one.
 	if f.CanDrive {
 		drives, err := s.Photos.PhotoDrives(ctx, ps.Name, pg.Admin)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			f.DriveError = msg
 		} else if err != nil {
 			return err
@@ -479,7 +480,7 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 				return err
 			}
 			folders, err := x.PhotoFolders(ctx, f.Location, f.LocationSub)
-			if msg, ok := userMessage(err); ok {
+			if msg, ok := usererr.Message(err); ok {
 				f.LocationError = msg
 			} else if err != nil {
 				return err
@@ -583,7 +584,7 @@ func (s *Server) photoPost(w http.ResponseWriter, r *http.Request) (string, *sto
 		return "", nil, nil, false
 	}
 	x, err := s.Photos.PhotosOf(name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPhotos(w, r, r.FormValue("panel") == "1", msg, http.StatusBadRequest)
 		return "", nil, nil, false
 	} else if err != nil {
@@ -597,7 +598,7 @@ func (s *Server) photoPost(w http.ResponseWriter, r *http.Request) (string, *sto
 // it at the next step.
 func (s *Server) photoDone(w http.ResponseWriter, r *http.Request, err error, what, anchor string) {
 	panel := r.FormValue("panel") == "1"
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPhotos(w, r, panel, msg, http.StatusBadRequest)
 		return
 	}
@@ -772,7 +773,7 @@ func (s *Server) photoSettingsSubmit(w http.ResponseWriter, r *http.Request) {
 		set.Memory = photoimport.MemoryHalf
 	}
 	if err := s.Photos.SetPhotoSettings(r.Context(), name, set); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
@@ -856,7 +857,7 @@ func (s *Server) photoCardFor(ctx context.Context, u *store.User, name string) *
 		Locations: s.Photos.PhotoLocations(ctx, name), CanSettings: u.Role == auth.RoleOwner,
 		Address: "https://" + s.UIHost + "/immich-photos", Host: ps.Host, Me: u.Username}
 	x, err := s.Photos.PhotosOf(name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		c.Error = msg
 		return c
 	} else if err != nil {

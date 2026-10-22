@@ -17,11 +17,13 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // The check before anything is copied (SPEC.md §8.4, docs/MIGRATION-PLAN.md
@@ -39,7 +41,7 @@ func (n *Local) CheckImport(ctx context.Context, service string) error {
 		return err
 	}
 	if st := n.loadImport(ctx, service); st.Source == nil {
-		return formErrorf("Say where your files are first.")
+		return usererr.New("Say where your files are first.")
 	}
 	if err := n.updateImport(ctx, service, func(st *ImportState) error {
 		st.Checking, st.CheckErr = true, ""
@@ -187,7 +189,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		if m.Part == "" {
 			continue
 		}
-		oc := oldContainer(st.Setup, m.Old)
+		oc := st.Setup.Container(m.Old)
 		newImage := p.Containers[m.Part].Image
 		switch importer.CompareImages(oc.Image, newImage) {
 		case importer.SameImage:
@@ -389,7 +391,7 @@ func oldPaths(p *pkgspec.Package, setup *importer.Setup, plan importer.Plan) ([]
 		if m.Part == "" {
 			continue
 		}
-		oc := oldContainer(setup, m.Old)
+		oc := setup.Container(m.Old)
 		for _, mt := range oc.Mounts {
 			t := strings.TrimSuffix(mt.Target, "/")
 			if strings.HasPrefix(t, "/etc/") || t == "" || slices.Contains(out, t+"/") {
@@ -398,7 +400,7 @@ func oldPaths(p *pkgspec.Package, setup *importer.Setup, plan importer.Plan) ([]
 			kept := shown[t] != ""
 			for _, c := range p.Containers {
 				for _, pm := range c.Mounts {
-					kept = kept || t == pm.Path || strings.HasPrefix(t, pm.Path+"/")
+					kept = kept || fsutil.Within(t, pm.Path)
 				}
 			}
 			if !kept || shown[t] != "" {
@@ -408,18 +410,6 @@ func oldPaths(p *pkgspec.Package, setup *importer.Setup, plan importer.Plan) ([]
 	}
 	slices.Sort(out)
 	return out, shown
-}
-
-// oldContainer finds an old container by name.
-func oldContainer(s *importer.Setup, name string) importer.Container {
-	if s != nil {
-		for _, c := range s.Containers {
-			if c.Name == name {
-				return c
-			}
-		}
-	}
-	return importer.Container{}
 }
 
 // imageEnv is an image's own environment, KEY → value (empty if it isn't

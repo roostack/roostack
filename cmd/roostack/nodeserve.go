@@ -21,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/web"
 )
 
@@ -122,10 +123,8 @@ func pullAssignments(ctx context.Context, lab config.Lab, m labnet.Membership, a
 			log.Warn("fetching this server's assignment", "err", err)
 			wait = pullRetry
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, wait) {
 			return
-		case <-time.After(wait):
 		}
 	}
 }
@@ -177,10 +176,8 @@ func serveGuestAPI(ctx context.Context, local *node.Local, m labnet.Membership, 
 				serveWhile(ctx, ln, mux, func() bool { return local.GuestAddr() == addr }, log)
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 10*time.Second) {
 			return
-		case <-time.After(10 * time.Second):
 		}
 	}
 }

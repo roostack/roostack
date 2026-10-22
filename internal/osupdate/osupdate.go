@@ -27,6 +27,8 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/maintenance"
+	"roostack.cloud/roostack/internal/sleep"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // JobName is the coordinator job name, shown in the UI ("waiting for OS
@@ -230,10 +232,8 @@ func (s *Service) record(ctx context.Context, act *activity.Log, res Result, err
 		act.Step("%s", res.Summary)
 	}
 	ctx = context.WithoutCancel(ctx)
-	if data, jerr := json.Marshal(res); jerr == nil {
-		if serr := s.Store.SetSetting(ctx, lastKey, string(data)); serr != nil {
-			s.Log.Error("recording OS update result", "err", serr)
-		}
+	if serr := store.PutJSON(ctx, s.Store, lastKey, res); serr != nil {
+		s.Log.Error("recording OS update result", "err", serr)
 	}
 	s.setMark(ctx, nil)
 	if s.CheckReboot() {
@@ -271,10 +271,8 @@ func (s *Service) follow(ctx context.Context, mark runMark) (Result, error) {
 			return Result{At: s.Now(), Summary: "Roostack stopped waiting for the OS updates started " +
 				mark.Started.Local().Format("2 January 15:04") + ": " + why + ". Its log is " + agent.UpdatesLog + "."}, nil
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, every) {
 			return Result{}, ctx.Err()
-		case <-time.After(every):
 		}
 	}
 }
@@ -349,15 +347,11 @@ func (s *Service) Resume(ctx context.Context) {
 
 // Last returns the last update run, or nil if there hasn't been one.
 func (s *Service) Last(ctx context.Context) (*Result, error) {
-	v, err := s.Store.Setting(ctx, lastKey)
-	if err != nil || v == "" {
+	r, err := store.GetJSON[*Result](ctx, s.Store, lastKey)
+	if err != nil {
 		return nil, err
 	}
-	var r Result
-	if err := json.Unmarshal([]byte(v), &r); err != nil {
-		return nil, err
-	}
-	return &r, nil
+	return r, nil
 }
 
 // CheckReboot asks the coordinator for a reboot if updates need one.

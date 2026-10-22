@@ -2,7 +2,6 @@ package web
 
 import (
 	"bytes"
-	"errors"
 	"hash/fnv"
 	"net/http"
 	"strconv"
@@ -11,8 +10,6 @@ import (
 
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/hosttime"
-	"roostack.cloud/roostack/internal/node"
-	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -45,6 +42,10 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 		if page != "setup-timezone" && page != "restarting" && !(page == "twofactor" && data["Wizard"] == true) {
 			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
 		}
+	}
+	// The setup code's pages say where it's kept.
+	if page == "setup" || page == "setup-restore" {
+		data["SetupTokenFile"] = s.SetupTokenFile
 	}
 	// The setup wizard's steps show only themselves, and how far along
 	// they are (wizardSteps).
@@ -175,18 +176,4 @@ func (s *Server) renderLive(w http.ResponseWriter, r *http.Request, page, name s
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(buf.Bytes())
-}
-
-// userMessage returns an error's message if it is one the user can act on
-// (a problem with what they entered), rather than a server error.
-func userMessage(err error) (string, bool) {
-	var ce *setup.CheckError
-	var fe *node.FormError
-	switch {
-	case errors.As(err, &ce):
-		return ce.Msg, true
-	case errors.As(err, &fe):
-		return fe.Msg, true
-	}
-	return "", false
 }

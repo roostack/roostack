@@ -3,6 +3,7 @@ package importer
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"errors"
 	"io"
 	"maps"
@@ -181,7 +182,7 @@ func versionOf(tag string) []int {
 func TagVersion(image string) string {
 	v := versionOf(Tag(image))
 	if v == nil {
-		return cmpOr(Tag(image), "latest")
+		return cmp.Or(Tag(image), "latest")
 	}
 	var parts []string
 	for _, n := range v {

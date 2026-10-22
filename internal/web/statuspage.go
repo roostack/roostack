@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/monitor"
 )
 
@@ -115,11 +116,7 @@ func (s *Server) writeStatusFiles(page []byte) error {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return err
 		}
-		tmp := path + ".new"
-		if err := os.WriteFile(tmp, b, 0o644); err != nil {
-			return err
-		}
-		if err := os.Rename(tmp, path); err != nil {
+		if err := fsutil.WriteFile(path, b, 0o644); err != nil {
 			return err
 		}
 	}

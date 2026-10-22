@@ -8,8 +8,10 @@ import (
 	"slices"
 	"strings"
 
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // serviceLink is a link into the app's own settings pages.
@@ -37,7 +39,7 @@ func linkPrivate(access []manager.RouteAccess, l pkgspec.Link, internet bool) st
 		}
 		closed := !ra.Public
 		for _, pp := range ra.PrivatePaths {
-			if !pp.Open && (l.Path == pp.Path || strings.HasPrefix(l.Path, pp.Path+"/")) {
+			if !pp.Open && fsutil.Within(l.Path, pp.Path) {
 				closed = true
 			}
 		}
@@ -170,7 +172,7 @@ func (s *Server) settingsSubmit(w http.ResponseWriter, r *http.Request) {
 			err = s.Libraries.SetServiceLibraries(r.Context(), name, chosen, paths)
 		}
 	}
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	switch {
 	case errors.Is(err, manager.ErrNotFound):
 		http.NotFound(w, r)

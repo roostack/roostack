@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"roostack.cloud/roostack/internal/osupdate"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // OS updates and restarts (maintenance.go) on the lab API.
@@ -106,7 +107,7 @@ func (s *Server) osUpdateRoutes(handle handleFunc) {
 		}
 		err = u.AcceptSeries(r.Context(), req.Series)
 		if errors.Is(err, osupdate.ErrNoSuchSeries) {
-			return nil, &FormError{SeriesGoneMsg}
+			return nil, &usererr.Error{Msg: SeriesGoneMsg}
 		}
 		return nil, err
 	})

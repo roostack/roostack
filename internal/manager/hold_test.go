@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // ownRestores is a server's own restores (node.Restores): each queued job
@@ -127,7 +128,7 @@ func TestOwnRestoreHeld(t *testing.T) {
 	m.RestoreService(ctx, "forgejo", "backup:n-0000000002@9a6817f7aaaa", "")
 	home.restores.end(backup.RestoreOutcome{Finished: true, DumpsFailed: true, Err: "pg_restore: disk full", Taken: taken})
 	waitHeld(t, m, true)
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.PutBackHeld(ctx, "forgejo"); !errors.As(err, &fe) {
 		t.Errorf("nothing kept to put back: %v", err)
 	}

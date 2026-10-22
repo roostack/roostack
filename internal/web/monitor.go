@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
@@ -15,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Monitoring (SPEC.md §6.15): the Monitoring page, a check's Details,
@@ -235,10 +235,7 @@ type statusChoice struct {
 // statusShown is which checks the status page shows: what the Owner chose,
 // otherwise services open to the internet (SPEC.md §6.15).
 func (s *Server) statusShown(ctx context.Context, statuses []monitor.Status) map[string]bool {
-	chosen := map[string]bool{}
-	if v, _ := s.Store.Setting(ctx, statusShownKey); v != "" {
-		json.Unmarshal([]byte(v), &chosen)
-	}
+	chosen, _ := store.GetJSON[map[string]bool](ctx, s.Store, statusShownKey)
 	out := map[string]bool{}
 	for _, st := range statuses {
 		if v, ok := chosen[st.Key]; ok {
@@ -505,15 +502,14 @@ func (s *Server) statusPageSubmit(w http.ResponseWriter, r *http.Request) {
 		for _, c := range s.statusChoices(ctx, s.Monitor.Statuses()) {
 			shown[c.Key] = slices.Contains(r.Form["show"], c.Key)
 		}
-		b, _ := json.Marshal(shown)
-		if err := s.Store.SetSetting(ctx, statusShownKey, string(b)); err != nil {
+		if err := store.PutJSON(ctx, s.Store, statusShownKey, shown); err != nil {
 			s.serverError(w, err)
 			return
 		}
 	}
 	if s.StatusPage != nil && on != s.StatusPage.StatusPageOn() {
 		err := s.StatusPage.SetStatusPage(on)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderMonitoring(w, r, msg, nil)
 			return
 		}

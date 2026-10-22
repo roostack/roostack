@@ -627,7 +627,7 @@ type LinuxHost struct {
 func (h LinuxHost) SetUnprivilegedPortStart() error {
 	const conf = "# Managed by roostack-agent: lets rootless containers bind ports 80 and 443.\n" +
 		"net.ipv4.ip_unprivileged_port_start = 80\n"
-	if err := os.WriteFile(sysctlFile, []byte(conf), 0o644); err != nil {
+	if err := fsutil.WriteFile(sysctlFile, []byte(conf), 0o644); err != nil {
 		return err
 	}
 	return os.WriteFile(unprivPortProc, []byte("80\n"), 0o644)
@@ -670,7 +670,7 @@ func (h LinuxHost) ApplyFirewall(ruleset string) error {
 	if err := os.MkdirAll(filepath.Dir(h.FirewallFile), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(h.FirewallFile, []byte(ruleset), 0o644)
+	return fsutil.WriteFile(h.FirewallFile, []byte(ruleset), 0o644)
 }
 
 // SetTimezone runs timedatectl, which also checks the zone exists.

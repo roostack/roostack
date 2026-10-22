@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Changing the recovery key (SPEC.md §6.9, internal/manager keychange.go):
@@ -62,7 +63,7 @@ func (s *Server) keyChangeSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if k == nil {
 		if err := s.Manager.StartKeyChange(r.Context()); err != nil {
-			if msg, ok := userMessage(err); ok {
+			if msg, ok := usererr.Message(err); ok {
 				again(http.StatusBadRequest, msg)
 				return
 			}
@@ -89,7 +90,7 @@ func (s *Server) keyChangeConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Manager.ConfirmKeyChange(r.Context()); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderKeyChange(w, r, http.StatusBadRequest, msg)
 			return
 		}
@@ -102,7 +103,7 @@ func (s *Server) keyChangeConfirm(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) keyChangeCancel(w http.ResponseWriter, r *http.Request) {
 	if err := s.Manager.CancelKeyChange(); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderKeyChange(w, r, http.StatusBadRequest, msg)
 			return
 		}

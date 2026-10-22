@@ -8,6 +8,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // InstallSettings are a package's settings asked for at install and used
@@ -57,14 +58,14 @@ func (m *Manager) RetryInstallWith(ctx context.Context, name string, settings, s
 		case v == "":
 			continue // keep what was typed before
 		case s.MinLength > 0 && len([]rune(v)) < s.MinLength:
-			return formErrorf("%s must be at least %d characters.", s.Title, s.MinLength)
+			return usererr.New("%s must be at least %d characters.", s.Title, s.MinLength)
 		case strings.ContainsAny(v, "\n\r\x00"):
-			return formErrorf("%s can't contain line breaks.", s.Title)
+			return usererr.New("%s can't contain line breaks.", s.Title)
 		}
 		typed[node.SecretName(name, s.Key)] = []byte(v)
 	}
 	if err := in.Validate(p); err != nil {
-		return formErrorf("%s", err)
+		return usererr.New("%s", err)
 	}
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err

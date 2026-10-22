@@ -12,10 +12,13 @@ import (
 	"unicode"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A lab's servers (SPEC.md §10): this one, the controller, which keeps
@@ -129,7 +132,7 @@ func (m *Manager) onNode(services []state.Service, id string) []state.Service {
 			continue
 		}
 		// The controller also runs any with no host yet.
-		if s.Instance.Host == id || (id == m.Lab.NodeID && s.Instance.Host == "") {
+		if s.Instance.HostOr(m.Lab.NodeID) == id {
 			out = append(out, s)
 		}
 	}
@@ -455,12 +458,12 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 		return err
 	}
 	if on := m.onNode(all, id); len(on) > 0 {
-		return formErrorf("%s still runs %s. Remove it first, or move it to another server.",
+		return usererr.New("%s still runs %s. Remove it first, or move it to another server.",
 			r.Identity().Name, on[0].Title())
 	}
 	if w := waitingOn(all, id); len(w) > 0 {
 		// Its backups are how they come back: keep it until they have.
-		return formErrorf("%s waits to be restored from %s's backups. Restore it or remove it first.",
+		return usererr.New("%s waits to be restored from %s's backups. Restore it or remove it first.",
 			w[0].Title(), r.Identity().Name)
 	}
 	reachable := r.Settings() != nil
@@ -491,7 +494,7 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 func (m *Manager) RenameServer(ctx context.Context, id, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 40 || strings.ContainsFunc(name, unicode.IsControl) {
-		return formErrorf("Choose a name of up to 40 characters.")
+		return usererr.New("Choose a name of up to 40 characters.")
 	}
 	if id == m.Lab.NodeID {
 		if m.RenameSelf == nil {
@@ -625,10 +628,8 @@ func (m *Manager) MatchTimezone(ctx context.Context, id string) {
 				return
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 5*time.Second) {
 			return
-		case <-time.After(5 * time.Second):
 		}
 	}
 	m.Log.Warn("a new server didn't answer, so it keeps its own time zone", "server", m.nameOf(id))
@@ -643,7 +644,7 @@ func (m *Manager) markRemoved(ctx context.Context, id string) {
 	targets, _ := m.BackupStore.BackupTargets(ctx)
 	copies, _ := m.BackupStore.BackupCopies(ctx)
 	for _, t := range append(targets, copies...) {
-		if t.ServerID != id || strings.HasPrefix(t.Provider, "setup") {
+		if t.ServerID != id || destination.Parse(t.Provider).Kind == destination.Setup {
 			continue
 		}
 		repo, err := m.adminRepo(ctx, t)
@@ -681,7 +682,7 @@ func (m *Manager) ServiceFiles(name string) (*ServiceFiles, error) {
 	}
 	f := &ServiceFiles{QuadletDir: m.Lab.Paths.QuadletDir(), CaddySitesDir: m.Lab.Paths.CaddySitesDir(),
 		Quadlets: out.Quadlets, CaddySite: out.CaddySite}
-	if in.Host != "" && in.Host != m.Lab.NodeID {
+	if in.HostOr(m.Lab.NodeID) != m.Lab.NodeID {
 		f.CaddySite = nil
 		for _, r := range m.others() {
 			if r.Identity().ID == in.Host {

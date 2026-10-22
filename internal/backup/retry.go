@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // Trying failed backups again (SPEC.md §6.9): only the destinations that
@@ -144,14 +146,5 @@ func (s *Service) RetryDue(now time.Time) {
 
 // WatchRetries calls RetryDue every minute until ctx ends.
 func (s *Service) WatchRetries(ctx context.Context) {
-	t := time.NewTicker(time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case now := <-t.C:
-			s.RetryDue(now)
-		}
-	}
+	sleep.Every(ctx, time.Minute, func() { s.RetryDue(time.Now()) })
 }

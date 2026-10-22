@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/reconcile"
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // CaddyBuildUnit builds Roostack's Caddy image (generate.System).
@@ -131,10 +132,8 @@ func (n *Local) copyBuildLog(ctx context.Context, logFile string, w io.Writer) e
 				}
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, buildPoll) {
 			return ctx.Err()
-		case <-time.After(buildPoll):
 		}
 	}
 }

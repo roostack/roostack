@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/hosttime"
@@ -24,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/trust"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // wizardSteps numbers the setup wizard's pages, by template, for the
@@ -301,7 +303,7 @@ func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 	if err == nil && m.This {
 		err = s.Setup.Done(r.Context(), setup.StepSSH)
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		data, derr := s.sshData(r, choice, login, msg)
 		if derr != nil {
 			s.serverError(w, derr)
@@ -458,12 +460,12 @@ func (s *Server) backupDrives(r *http.Request, chosen string) (planOptions, erro
 	// This server's own disk counts once, however its backup got there.
 	for ref := range used {
 		if s.Manager.BackupKind(r.Context(), m.ID, ref) == manager.KindSystem {
-			used["drive:system"] = true
+			used[destination.New(destination.Drive, "system")] = true
 		}
 	}
 	o := planOptions{CanDrives: true}
 	for _, d := range drives {
-		if !used["drive:"+d.ID] {
+		if !used[destination.New(destination.Drive, d.ID)] {
 			o.Drives = append(o.Drives, d)
 		}
 	}
@@ -497,7 +499,7 @@ func (s *Server) eraseDriveSubmit(w http.ResponseWriter, r *http.Request) {
 	disk := r.FormValue("disk")
 	wizard := s.inWizard(r)
 	err := s.Setup.EraseDrive(r.Context(), disk)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPlanPage(w, r, wizard, msg)
 		return
 	}
@@ -643,7 +645,7 @@ func (s *Server) wizardError(w http.ResponseWriter, r *http.Request, err error, 
 	if err == nil {
 		return false
 	}
-	msg, ok := userMessage(err)
+	msg, ok := usererr.Message(err)
 	if !ok {
 		s.serverError(w, err)
 		return true

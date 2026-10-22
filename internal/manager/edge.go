@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // EdgeServer is a server that can be the lab's edge (SPEC.md §10.5): one
@@ -102,7 +103,7 @@ func (m *Manager) SetEdge(ctx context.Context, id string) error {
 		return errors.New("manager: UpdateLab is not set")
 	}
 	if id != "" && !slices.ContainsFunc(m.EdgeServers(ctx), func(e EdgeServer) bool { return e.ID == id }) {
-		return formErrorf("That server can't be the way in: it needs a public address (a cloud server in this lab).")
+		return usererr.New("That server can't be the way in: it needs a public address (a cloud server in this lab).")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -197,7 +198,7 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 		return errors.New("manager: UpdateLab is not set")
 	}
 	if m.Relay.Set == nil {
-		return formErrorf("Roostack Cloud isn't set up on this lab.")
+		return usererr.New("Roostack Cloud isn't set up on this lab.")
 	}
 	m.relayMu.Lock()
 	defer m.relayMu.Unlock()
@@ -276,7 +277,7 @@ func ownDomain(lab config.Lab) string {
 // domain's proof (a "Check now").
 func (m *Manager) CheckRelay(ctx context.Context) error {
 	if !m.RelayOn() || m.Relay.Set == nil {
-		return formErrorf("Public visitors don't come in through Roostack Cloud's relay.")
+		return usererr.New("Public visitors don't come in through Roostack Cloud's relay.")
 	}
 	services, err := state.LoadServices(m.Lab)
 	if err != nil {
@@ -307,7 +308,7 @@ func (m *Manager) SetCountries(ctx context.Context, c config.Countries) error {
 		return errors.New("manager: UpdateLab is not set")
 	}
 	if len(c.Allow) > 0 && len(c.Block) > 0 {
-		return formErrorf("Choose either the countries let in or those kept out, not both.")
+		return usererr.New("Choose either the countries let in or those kept out, not both.")
 	}
 	if !c.Limited() {
 		c.OpenUntil = time.Time{}

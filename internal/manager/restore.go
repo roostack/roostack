@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -15,8 +14,10 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Restoring a service from any of the lab's backups, onto any server
@@ -186,21 +187,21 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	if err != nil {
 		return err
 	}
-	host := cmp.Or(in.Host, m.Lab.NodeID)
+	host := in.HostOr(m.Lab.NodeID)
 	to = cmp.Or(to, host)
 	if in.Waiting && to == host {
 		to = m.Lab.NodeID // its server is gone: here, unless chosen
 	}
 	ref, snapID, ok := strings.Cut(id, "@")
 	if !ok || snapID == "" {
-		return formErrorf("Choose a backup to restore.")
+		return usererr.New("Choose a backup to restore.")
 	}
 	dst := node.Capability(m.node(to), node.Node.Mover)
 	if dst == nil {
-		return formErrorf("Choose a server in this lab.")
+		return usererr.New("Choose a server in this lab.")
 	}
 	if r, ok := m.node(to).(RemoteServer); ok && r.Settings() == nil {
-		return formErrorf("Roostack can't reach %s right now.", r.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", r.Identity().Name)
 	}
 	if ref == "backup:"+to && to == host && !in.Waiting {
 		if x := m.node(to).Restores(); x != nil {
@@ -218,7 +219,7 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	}
 	kr, ok := findRepo(repos, ref)
 	if !ok {
-		return formErrorf("That backup isn't there any more. Choose another.")
+		return usererr.New("That backup isn't there any more. Choose another.")
 	}
 	repo, err := kr.open(backup.KeyFile(m.Lab.Paths))
 	if err != nil {
@@ -226,7 +227,7 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	}
 	snap, err := repo.ServiceSnapshot(ctx, name, snapID)
 	if err != nil {
-		return formErrorf("That backup isn't there any more. Choose another.")
+		return usererr.New("That backup isn't there any more. Choose another.")
 	}
 	m.mu.Lock()
 	if m.restoring == nil {
@@ -308,8 +309,8 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 	} else {
 		act.Step("Copying %s's data from the backup to %s", j.title, m.nameOf(j.to))
 	}
-	for dir, path := range []string{filepath.Join(m.Lab.Paths.ServicesDir, j.name), filepath.Join(m.Lab.Paths.MediaDir, j.name)} {
-		if !slices.ContainsFunc(j.snap.Paths, func(p string) bool { return p == path || strings.HasPrefix(p, path+"/") }) {
+	for dir, path := range m.Lab.Paths.ServiceDataDirs(j.name) {
+		if !slices.ContainsFunc(j.snap.Paths, func(p string) bool { return fsutil.Within(p, path) }) {
 			continue // e.g. no media folder
 		}
 		// Anything left from an earlier attempt goes first.

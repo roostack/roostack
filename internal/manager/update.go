@@ -3,7 +3,6 @@ package manager
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,11 +12,15 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Updating a service to a newer package version (SPEC.md §7). The
@@ -199,12 +202,12 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 		// build for the one this service's server has (SPEC.md §8.3.3).
 		if a, _ := m.noBuildFor(ctx, p.Name, p.Version, in.Host); a != "" && u.Blocked == "" {
 			u.Blocked = fmt.Sprintf("This version has no build for %s's kind of processor (%s), so it can't run there. "+
-				"Roostack offers it once it has one.", m.serverName(cmp.Or(in.Host, m.Lab.NodeID)), a)
+				"Roostack offers it once it has one.", m.serverName(in.HostOr(m.Lab.NodeID)), a)
 		}
 		if rec := m.LastUpdate(ctx, s.Name()); rec != nil && rec.To == p.Version && rec.Result != UpdateDone {
 			u.FailedBefore = true
 		}
-		u.NoBackups = !m.backupsOn(ctx, cmp.Or(in.Host, m.Lab.NodeID))
+		u.NoBackups = !m.backupsOn(ctx, in.HostOr(m.Lab.NodeID))
 		u.Auto = in.AllowsUpdate(u.Kind) && len(u.Notes) == 0 && len(u.NewRisks) == 0 && !u.FailedBefore && !u.NoBackups &&
 			u.Blocked == ""
 		out[s.Name()] = u
@@ -269,7 +272,7 @@ func (m *Manager) backupsOn(ctx context.Context, host string) bool {
 		return false
 	}
 	t, _, ok := m.BackupTargetOf(ctx, host)
-	return ok && t.Provider != "setup"
+	return ok && t.Provider != destination.Setup
 }
 
 // updatedInstance is a service's instance for a newer package: the same
@@ -320,11 +323,11 @@ func updatedInstance(in *instance.Instance, old, p *pkgspec.Package) (*instance.
 		}
 	}
 	if len(needs) > 0 {
-		return nil, nil, formErrorf("%s %s needs something set that this version didn't (%s), and Roostack can't ask for it yet.",
+		return nil, nil, usererr.New("%s %s needs something set that this version didn't (%s), and Roostack can't ask for it yet.",
 			p.Title, pkgspec.Upstream(p.Version), strings.Join(needs, ", "))
 	}
 	if err := cp.Validate(p); err != nil {
-		return nil, nil, formErrorf("%s %s doesn't fit this service's settings: %v", p.Title, pkgspec.Upstream(p.Version), err)
+		return nil, nil, usererr.New("%s %s doesn't fit this service's settings: %v", p.Title, pkgspec.Upstream(p.Version), err)
 	}
 	slices.Sort(dropped)
 	return &cp, dropped, nil
@@ -335,23 +338,18 @@ func (m *Manager) LastUpdate(ctx context.Context, name string) *UpdateRecord {
 	if m.Settings == nil {
 		return nil
 	}
-	v, err := m.Settings.Setting(ctx, updateKey+name)
-	if err != nil || v == "" {
+	rec, err := store.GetJSON[*UpdateRecord](ctx, m.Settings, updateKey+name)
+	if err != nil {
 		return nil
 	}
-	var rec UpdateRecord
-	if json.Unmarshal([]byte(v), &rec) != nil {
-		return nil
-	}
-	return &rec
+	return rec
 }
 
 func (m *Manager) saveUpdate(ctx context.Context, name string, rec UpdateRecord) {
 	if m.Settings == nil {
 		return
 	}
-	data, _ := json.Marshal(rec)
-	if err := m.Settings.SetSetting(ctx, updateKey+name, string(data)); err != nil {
+	if err := store.PutJSON(ctx, m.Settings, updateKey+name, rec); err != nil {
 		m.Log.Error("recording an update", "service", name, "err", err)
 	}
 }
@@ -384,7 +382,7 @@ func (m *Manager) keptVersions() map[string]string {
 // UpdatePolicy is how a service updates (instance.Updates*; notify if
 // it can't be read).
 func (m *Manager) UpdatePolicy(name string) string {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return instance.UpdatesNotify
 	}
 	in, err := instance.Load(state.InstanceFile(m.Lab, name))
@@ -397,12 +395,12 @@ func (m *Manager) UpdatePolicy(name string) string {
 // SetUpdatePolicy changes how a service updates (SPEC.md §7).
 func (m *Manager) SetUpdatePolicy(ctx context.Context, name, policy string) error {
 	if !instance.ValidUpdates(policy) {
-		return formErrorf("Choose how %s updates.", name)
+		return usererr.New("Choose how %s updates.", name)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	path := state.InstanceFile(m.Lab, name)
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return ErrNotFound
 	}
 	in, err := instance.Load(path)
@@ -424,16 +422,16 @@ func (m *Manager) UpdateService(ctx context.Context, name, to, by string, accept
 	u := m.AvailableUpdates(ctx)[name]
 	switch {
 	case u == nil:
-		if !validName(name) {
+		if !instance.ValidName(name) {
 			return ErrNotFound
 		}
-		return formErrorf("There's no update for this service now.")
+		return usererr.New("There's no update for this service now.")
 	case u.To != to:
-		return formErrorf("The update on offer has changed to %s: have a look, then update again.", u.ToApp())
+		return usererr.New("The update on offer has changed to %s: have a look, then update again.", u.ToApp())
 	case u.Blocked != "":
-		return formErrorf("%s", u.Blocked)
+		return usererr.New("%s", u.Blocked)
 	case len(u.NewRisks) > 0 && !acceptRisks:
-		return formErrorf("%s %s asks for things the version it runs didn't. Read them, and tick the box if you want to update anyway.", u.Title, u.ToApp())
+		return usererr.New("%s %s asks for things the version it runs didn't. Read them, and tick the box if you want to update anyway.", u.Title, u.ToApp())
 	case len(u.NewRisks) > 0:
 		m.Log.Warn("updating to a package of your own with new risks, as the Owner confirmed",
 			"service", name, "version", to, "risks", u.NewRisks)
@@ -450,7 +448,7 @@ func (m *Manager) startUpdate(u *Update, why string, automatic bool, by string, 
 	}
 	if m.upd.active[u.Service] != nil {
 		m.upd.mu.Unlock()
-		return formErrorf("%s is already updating.", u.Title)
+		return usererr.New("%s is already updating.", u.Title)
 	}
 	backup = backup && !u.NoBackups
 	steps := []node.InstallStep{{Key: "download", Title: "Downloading the new version"}}
@@ -546,7 +544,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		err = fmt.Errorf("%s changed to %s meanwhile", u.Title, old.Instance.Version)
 		return rec
 	}
-	host := cmp.Or(old.Instance.Host, m.Lab.NodeID)
+	host := old.Instance.HostOr(m.Lab.NodeID)
 	rec.Server = host
 	n := m.node(host)
 	up := node.Capability(n, node.Node.Updater)
@@ -730,10 +728,8 @@ func (m *Manager) awaitHold(ctx context.Context, act *activity.Log, u *Update, u
 				return st, errors.New("its server let go of the update")
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, statusEvery) {
 			return st, ctx.Err()
-		case <-time.After(statusEvery):
 		}
 	}
 }
@@ -801,10 +797,8 @@ func (m *Manager) checkHealth(ctx context.Context, act *activity.Log, up node.Up
 				failedSince = time.Now()
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, healthEvery) {
 			return ctx.Err()
-		case <-time.After(healthEvery):
 		}
 	}
 	return fmt.Errorf("It still wasn't working after %s: %s", minutes(healthWait), problem)

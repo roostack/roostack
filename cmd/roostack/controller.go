@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/web"
 )
@@ -119,10 +120,8 @@ func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maint
 			if err := mgr.PurgeRemovedGuests(ctx, time.Now()); err != nil {
 				log.Error("deleting removed guest labs' backups", "err", err)
 			}
-			select {
-			case <-ctx.Done():
+			if !sleep.For(ctx, time.Hour) {
 				return
-			case <-time.After(time.Hour):
 			}
 		}
 	}()

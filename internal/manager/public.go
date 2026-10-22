@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Making services public (SPEC.md §6.11). The Owner makes one of a
@@ -94,7 +95,7 @@ func (m *Manager) SetPublic(ctx context.Context, name string, req PublicRequest)
 		return ErrNotFound
 	}
 	if req.Public && r.Public.Unsafe != "" && !req.AcceptUnsafe {
-		return formErrorf("Tick the box to confirm you understand why this address isn't safe to make public.")
+		return usererr.New("Tick the box to confirm you understand why this address isn't safe to make public.")
 	}
 	if in.Routes == nil {
 		in.Routes = map[string]instance.RouteOverride{}
@@ -111,7 +112,7 @@ func (m *Manager) SetPublic(ctx context.Context, name string, req PublicRequest)
 	}
 	in.Routes[req.Route] = o
 	if err := in.Validate(p); err != nil {
-		return formErrorf("%s", err)
+		return usererr.New("%s", err)
 	}
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err

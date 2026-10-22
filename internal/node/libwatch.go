@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // Libraries bound one by one at paths of their own (SPEC.md §8.4, "Media
@@ -42,16 +44,8 @@ type libraryWatch struct {
 // WatchLibraries looks at libraries bound at their own paths every minute
 // until ctx ends.
 func (n *Local) WatchLibraries(ctx context.Context) {
-	t := time.NewTicker(libraryWatchEvery)
-	defer t.Stop()
-	for {
-		n.checkLibraryMounts(ctx, readMountinfo)
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-		}
-	}
+	n.checkLibraryMounts(ctx, readMountinfo)
+	sleep.Every(ctx, libraryWatchEvery, func() { n.checkLibraryMounts(ctx, readMountinfo) })
 }
 
 // readMountinfo reads this process's mount table.
@@ -170,14 +164,9 @@ func mountID(table, path string) string {
 	id := ""
 	for _, l := range strings.Split(table, "\n") {
 		f := strings.Fields(l)
-		if len(f) > 4 && fstabUnescape(f[4]) == path && !slices.Contains(f, "autofs") {
+		if len(f) > 4 && agent.FstabUnescape(f[4]) == path && !slices.Contains(f, "autofs") {
 			id = f[0]
 		}
 	}
 	return id
-}
-
-// fstabUnescape reads an escaped mount table field (spaces as \040).
-func fstabUnescape(s string) string {
-	return strings.NewReplacer(`\040`, " ", `\011`, "\t", `\134`, `\`).Replace(s)
 }

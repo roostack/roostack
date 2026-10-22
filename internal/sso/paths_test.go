@@ -1,7 +1,6 @@
 package sso
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -25,8 +24,5 @@ func TestPathsMatch(t *testing.T) {
 	}
 	if !strings.HasPrefix(PathCallback, caddy.WallCallbackPath+"/") {
 		t.Errorf("callback %q isn't under %q", PathCallback, caddy.WallCallbackPath)
-	}
-	if !slices.Equal(caddy.RemoteHeaders, Headers) {
-		t.Errorf("%v != %v", caddy.RemoteHeaders, Headers)
 	}
 }

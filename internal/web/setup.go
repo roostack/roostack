@@ -64,7 +64,7 @@ func (s *Server) setupCodeSubmit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		time.Sleep(failedLoginDelay)
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "setup", map[string]any{"Error": "That setup code isn't right. Copy it again from what the installer showed, or from /var/lib/roostack/setup-token on the server."})
+		s.render(w, "setup", map[string]any{"Error": "That setup code isn't right. Copy it again from what the installer showed, or from " + s.SetupTokenFile + " on the server."})
 		return
 	}
 	token, err := authkit.NewToken()

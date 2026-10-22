@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // linkKV is settings in memory.
@@ -142,7 +143,7 @@ func TestEdge(t *testing.T) {
 	if _, ok := m.Edge(ctx); ok {
 		t.Error("an edge before choosing one")
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.SetEdge(ctx, "n-0000000002"); !errors.As(err, &fe) {
 		t.Errorf("a server without a public address: %v", err)
 	}

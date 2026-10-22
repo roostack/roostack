@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -107,10 +106,7 @@ func backupCmd(args []string) error {
 func backupInit(ctx context.Context, lab config.Lab, repo *backup.Repo) error {
 	keyFile := backup.KeyFile(lab.Paths)
 	if _, err := os.Stat(keyFile); errors.Is(err, os.ErrNotExist) {
-		key, err := backup.NewRecoveryKey()
-		if err != nil {
-			return err
-		}
+		key := backup.NewRecoveryKey()
 		if err := fsutil.WritePrivate(keyFile, []byte(key+"\n")); err != nil {
 			return err
 		}
@@ -129,7 +125,7 @@ func backupInit(ctx context.Context, lab config.Lab, repo *backup.Repo) error {
 }
 
 func backupRun(ctx context.Context, lab config.Lab, repo *backup.Repo, launch backupLaunch) error {
-	st, err := store.Open(dbPath(lab))
+	st, err := store.Open(lab.Paths.DatabaseFile())
 	if err != nil {
 		return err
 	}
@@ -309,13 +305,10 @@ func backupRestore(ctx context.Context, lab config.Lab, repo *backup.Repo, launc
 
 type backupLaunch = func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
 
-var unitSeq atomic.Int64
-
 // userLaunch runs a command through the roostack user's systemd manager, so
 // podman never runs inside roostack's sandbox (SPEC.md §6.1).
 func userLaunch(ctx context.Context, env []string, name string, args ...string) *exec.Cmd {
-	unit := fmt.Sprintf("roostack-backup-%d-%d", os.Getpid(), unitSeq.Add(1))
-	return systemd.UserCommand(ctx, unit, env, name, args...)
+	return systemd.UserCommand(ctx, systemd.TransientUnit(name, args...), env, name, args...)
 }
 
 // unshared runs commands inside podman unshare, so restic can read (and

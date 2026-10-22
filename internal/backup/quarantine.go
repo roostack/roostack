@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // Junk in a repository (SPEC.md §10.10, docs/ASSUMPTIONS.md O). An
@@ -307,10 +309,8 @@ func FindJunk(ctx context.Context, r *Repo, files Files, good map[string]bool) (
 	if len(suspects) == 0 {
 		return nil, nil
 	}
-	select {
-	case <-ctx.Done():
+	if !sleep.For(ctx, JunkRecheck) {
 		return nil, ctx.Err()
-	case <-time.After(JunkRecheck):
 	}
 	var junk []Junk
 	for _, s := range suspects {

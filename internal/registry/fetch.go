@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
 
@@ -511,11 +512,7 @@ func (f *Fetcher) writeStatus(st Status) error {
 // writeFile replaces a file in one step, so the catalog never reads half
 // of one. Not secret: 0644, so people can read what the lab fetched.
 func writeFile(path string, data []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return fsutil.WriteFile(path, data, 0o644)
 }
 
 func sum(data []byte) string {

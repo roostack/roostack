@@ -2,8 +2,9 @@ package manager
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // A server's backup plan (SPEC.md §6.9): backup 1 (its main backup, which
@@ -54,7 +55,7 @@ func (m *Manager) BackupKind(ctx context.Context, serverID, ref string) string {
 		// A folder in Roostack's own data (the default on the server's
 		// disk) is the server's disk; every server has the same layout.
 		for _, dir := range []string{m.Lab.Paths.BackupStoreDir(), m.Lab.Paths.StateDir} {
-			if dir != "" && dir != "." && strings.HasPrefix(filepath.Clean(id)+"/", filepath.Clean(dir)+"/") {
+			if dir != "" && dir != "." && fsutil.Within(id, dir) {
 				return KindSystem
 			}
 		}

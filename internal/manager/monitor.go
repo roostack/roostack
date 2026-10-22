@@ -10,6 +10,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // CaddyLocal is where the controller reaches its own Caddy, which serves
@@ -116,7 +117,7 @@ func (m *Manager) StatusPageOn() bool {
 // records, edges, Roostack Cloud's relay) or stops.
 func (m *Manager) SetStatusPage(on bool) error {
 	if on && !m.Lab.HasAddress() {
-		return formErrorf("The status page needs your lab to have an address first.")
+		return usererr.New("The status page needs your lab to have an address first.")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()

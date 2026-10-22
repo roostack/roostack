@@ -12,12 +12,15 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Moving a service to another server by copying its data directly
@@ -58,10 +61,7 @@ func (m *Manager) MoveInfo(ctx context.Context, name string) (MoveInfo, error) {
 	if err != nil {
 		return info, err
 	}
-	host := in.Host
-	if host == "" {
-		host = m.Lab.NodeID
-	}
+	host := in.HostOr(m.Lab.NodeID)
 	for _, mc := range servers {
 		if mc.ID == host {
 			info.From = mc
@@ -72,7 +72,7 @@ func (m *Manager) MoveInfo(ctx context.Context, name string) (MoveInfo, error) {
 			info.Size = size
 		}
 	}
-	if t, _, ok := m.BackupTargetOf(ctx, host); ok && t.Provider != "setup" {
+	if t, _, ok := m.BackupTargetOf(ctx, host); ok && t.Provider != destination.Setup {
 		info.ViaBackup = true
 	}
 	info.Suggested = MoveCopy
@@ -95,23 +95,20 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	if err != nil {
 		return err
 	}
-	from := in.Host
-	if from == "" {
-		from = m.Lab.NodeID
-	}
+	from := in.HostOr(m.Lab.NodeID)
 	if to == from {
-		return formErrorf("%s already runs there.", p.Title)
+		return usererr.New("%s already runs there.", p.Title)
 	}
 	if err := m.checkArch(ctx, p, cmp.Or(in.Title, p.Title), to); err != nil {
 		return err
 	}
 	src, dst := node.Capability(m.node(from), node.Node.Mover), node.Capability(m.node(to), node.Node.Mover)
 	if src == nil || dst == nil {
-		return formErrorf("Choose a server in this lab.")
+		return usererr.New("Choose a server in this lab.")
 	}
 	for _, id := range []string{from, to} {
 		if r, ok := m.node(id).(RemoteServer); ok && r.Settings() == nil {
-			return formErrorf("Roostack can't reach %s right now.", r.Identity().Name)
+			return usererr.New("Roostack can't reach %s right now.", r.Identity().Name)
 		}
 	}
 	var target store.BackupTarget
@@ -119,13 +116,13 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	case MoveCopy:
 	case MoveBackup:
 		t, _, ok := m.BackupTargetOf(ctx, from)
-		if !ok || t.Provider == "setup" || m.node(from).Backups() == nil {
-			return formErrorf("%s's backups aren't set up through Roostack yet, so this way isn't available. Copy it directly instead.",
+		if !ok || t.Provider == destination.Setup || m.node(from).Backups() == nil {
+			return usererr.New("%s's backups aren't set up through Roostack yet, so this way isn't available. Copy it directly instead.",
 				m.nameOf(from))
 		}
 		target = t
 	default:
-		return formErrorf("Choose how to move it.")
+		return usererr.New("Choose how to move it.")
 	}
 	m.forgetFailedMove(ctx, name)
 	act := m.Activity.Start(activity.Move, fmt.Sprintf("Moving %s to %s", p.Title, m.nameOf(to)))
@@ -281,10 +278,8 @@ func waitApplied(ctx context.Context, n node.Node, t time.Time) error {
 		if st := n.Status(); !st.Running && st.LastRun.After(t) {
 			return st.LastErr
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 2*time.Second) {
 			return ctx.Err()
-		case <-time.After(2 * time.Second):
 		}
 	}
 	return fmt.Errorf("%s didn't finish applying in time", n.Identity().Name)
@@ -340,7 +335,7 @@ func (m *Manager) moveViaBackup(ctx context.Context, act *activity.Log, name, ti
 	}
 	stopped = true
 	act.Step("Copying %s's data from the backup to %s", title, m.nameOf(to))
-	for dir, path := range []string{filepath.Join(m.Lab.Paths.ServicesDir, name), filepath.Join(m.Lab.Paths.MediaDir, name)} {
+	for dir, path := range m.Lab.Paths.ServiceDataDirs(name) {
 		strip := len(strings.Split(strings.Trim(path, "/"), "/"))
 		err := pipe(ctx, func(w io.Writer) error { return repo.Dump(ctx, snap.ID, path, w) },
 			func(r io.Reader) error { return dst.ImportData(ctx, name, dir, r, strip) })
@@ -368,10 +363,8 @@ func waitBackup(ctx context.Context, b node.Backups, t time.Time) (*store.Backup
 			}
 			return st.Last, nil
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 5*time.Second) {
 			return nil, ctx.Err()
-		case <-time.After(5 * time.Second):
 		}
 	}
 }

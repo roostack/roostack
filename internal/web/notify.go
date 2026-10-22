@@ -15,6 +15,7 @@ import (
 
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/mail"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -121,18 +122,11 @@ func userGroups(u *store.User) map[string]bool {
 
 // RunNotifier sends notifications every minute until ctx ends.
 func (s *Server) RunNotifier(ctx context.Context) {
-	t := time.NewTicker(time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case now := <-t.C:
-			if err := s.notify(ctx, now); err != nil {
-				s.Log.Error("notifications", "err", err)
-			}
+	sleep.Every(ctx, time.Minute, func() {
+		if err := s.notify(ctx, time.Now()); err != nil {
+			s.Log.Error("notifications", "err", err)
 		}
-	}
+	})
 }
 
 // notifyMail is what one person is told in one email.

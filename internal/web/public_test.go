@@ -19,6 +19,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/testwait"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // TestPublicEdge: at home, the Owner chooses how visitors come in: port
@@ -250,7 +251,7 @@ func TestPublicRelay(t *testing.T) {
 	if !strings.Contains(body, "Through Roostack Cloud's relay") || !strings.Contains(body, `value="cloud"`) {
 		t.Fatal("the relay isn't offered to a linked lab with its roost.ac name")
 	}
-	fm.relayErr = &manager.FormError{Msg: "Roostack Cloud's relay isn't open for this account yet."}
+	fm.relayErr = &usererr.Error{Msg: "Roostack Cloud's relay isn't open for this account yet."}
 	if _, body := h.post("/settings/public/edge", url.Values{"edge": {"cloud"}}, h.srv.URL); !strings.Contains(body, "isn&#39;t open for this account") || fm.relay {
 		t.Error("Cloud's refusal isn't shown")
 	}

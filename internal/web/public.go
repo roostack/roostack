@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/public"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Public access (SPEC.md §6.11): the Owner makes a service's address
@@ -213,7 +214,7 @@ func (s *Server) publicSubmit(w http.ResponseWriter, r *http.Request) {
 	req := manager.PublicRequest{Route: ra.Route, Public: makePublic,
 		AcceptUnsafe: r.FormValue("accept_unsafe") == "on", OpenPaths: r.Form["open"]}
 	if err := s.Manager.SetPublic(r.Context(), name, req); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderPublic(w, r, msg)
 			return
 		}
@@ -400,7 +401,7 @@ func (s *Server) publicEdgeSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := s.Manager.SetEdge(r.Context(), id); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}

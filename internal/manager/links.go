@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/trust"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Direct links between servers (SPEC.md §10.10): servers dial only the
@@ -97,11 +99,11 @@ func (m *Manager) linkPairs(ctx context.Context) [][2]string {
 	seen := map[string]bool{}
 	var out [][2]string
 	for _, t := range append(targets, copies...) {
-		kind, store, _ := strings.Cut(t.Provider, ":")
-		if kind != "server" {
+		r := destination.Parse(t.Provider)
+		if r.Kind != destination.Server {
 			continue
 		}
-		from := t.ServerID
+		from, store := t.ServerID, r.ID
 		if from == store || from == m.Lab.NodeID || store == m.Lab.NodeID || from == "" || store == "" {
 			continue
 		}
@@ -305,7 +307,7 @@ func (m *Manager) SetLinkAddress(ctx context.Context, id, addr string) error {
 		host, port, err := net.SplitHostPort(addr)
 		if n, perr := strconv.Atoi(port); err != nil || perr != nil || n < 1 || n > 65535 || host == "" ||
 			strings.ContainsAny(host, " /") {
-			return formErrorf("Enter the address as host:port, e.g. 192.168.1.20:%d.", agent.WireGuardPort)
+			return usererr.New("Enter the address as host:port, e.g. 192.168.1.20:%d.", agent.WireGuardPort)
 		}
 	}
 	if err := m.Settings.SetSetting(ctx, linkAddrKey+id, addr); err != nil {

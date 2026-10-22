@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Hook progress, stored as runtime settings (hookKey). A service installed
@@ -396,11 +397,11 @@ func (n *Local) RunAction(ctx context.Context, name, action string, inputs map[s
 		}
 		switch {
 		case v == "":
-			return "", formErrorf("%s is required.", i.Title)
+			return "", usererr.New("%s is required.", i.Title)
 		case i.MinLength > 0 && len([]rune(v)) < i.MinLength:
-			return "", formErrorf("%s must be at least %d characters.", i.Title, i.MinLength)
+			return "", usererr.New("%s must be at least %d characters.", i.Title, i.MinLength)
 		case strings.ContainsAny(v, "\n\r\x00"):
-			return "", formErrorf("%s can't contain line breaks.", i.Title)
+			return "", usererr.New("%s can't contain line breaks.", i.Title)
 		}
 		values[i.Key] = v
 	}

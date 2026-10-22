@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 func TestWizardFlow(t *testing.T) {
@@ -93,7 +94,7 @@ func TestWizardFlow(t *testing.T) {
 		}
 	}
 
-	fs.domainErr = &setup.CheckError{Msg: "Route 53 didn't accept those details."}
+	fs.domainErr = &usererr.Error{Msg: "Route 53 didn't accept those details."}
 	code, body := h.post("/setup/domain", url.Values{"domain": {"home.example.com"}, "email": {"a@b.c"}, "provider": {"route53"},
 		"dns.route53.access_key_id": {"AKIAEXAMPLE"}, "dns.route53.secret_access_key": {"secret-value"},
 		"dns.cloudflare.api_token": {"ignored"}}, h.srv.URL)

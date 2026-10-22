@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A server that's gone (SPEC.md §10.10, "Restoring across the lab"): the
@@ -95,7 +96,7 @@ func (m *Manager) lostServer(id string) (Server, error) {
 			continue
 		}
 		if s.Reachable {
-			return s, formErrorf("%s is connected: its services are running there.", s.Name)
+			return s, usererr.New("%s is connected: its services are running there.", s.Name)
 		}
 		return s, nil
 	}
@@ -147,10 +148,10 @@ func (m *Manager) RestoreLostServer(ctx context.Context, id string, names []stri
 	}
 	if len(names) > 0 {
 		if to == id || !m.reachable(to) {
-			return formErrorf("Choose a server that's connected to restore onto.")
+			return usererr.New("Choose a server that's connected to restore onto.")
 		}
 		if node.Capability(m.node(to), node.Node.Mover) == nil {
-			return formErrorf("Choose a server in this lab.")
+			return usererr.New("Choose a server in this lab.")
 		}
 	}
 	all, err := state.LoadServices(m.Lab)
@@ -161,7 +162,7 @@ func (m *Manager) RestoreLostServer(ctx context.Context, id string, names []stri
 	for _, name := range names {
 		i := slices.IndexFunc(all, func(s state.Service) bool { return s.Name() == name && s.Instance.Host == id })
 		if i < 0 {
-			return formErrorf("%s didn't run on %s.", name, srv.Name)
+			return usererr.New("%s didn't run on %s.", name, srv.Name)
 		}
 		titles = append(titles, all[i].Title())
 	}
@@ -290,7 +291,7 @@ func (m *Manager) RemoveWaiting(ctx context.Context, name string) error {
 		return err
 	}
 	if !in.Waiting {
-		return formErrorf("%s isn't waiting to be restored.", p.Title)
+		return usererr.New("%s isn't waiting to be restored.", p.Title)
 	}
 	host := in.Host
 	act := m.Activity.Start(activity.Restore, "Removing "+p.Title+" and its backups")

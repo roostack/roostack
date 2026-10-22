@@ -40,6 +40,7 @@ import (
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/systemd"
@@ -72,7 +73,7 @@ func serve(args []string) error {
 	} else if restored {
 		log.Info("starting as the restored lab", "domain", lab.Domain)
 	}
-	st, err := store.Open(dbPath(lab))
+	st, err := store.Open(lab.Paths.DatabaseFile())
 	if err != nil {
 		return err
 	}
@@ -195,8 +196,9 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
+	srv.SetupTokenFile = lab.Paths.SetupTokenFile()
 	srv.OnSetupComplete = func() {
-		os.Remove(setupTokenPath(lab))
+		os.Remove(lab.Paths.SetupTokenFile())
 		// A restore that wasn't finished, and the recovery key typed for it
 		// (with the key hints it learned).
 		os.Remove(backup.RestoreKeyFile(lab.Paths))
@@ -506,16 +508,7 @@ func serve(args []string) error {
 	go srv.RunHistoryCull(ctx)
 	// Direct links between servers that don't connect fall back to the
 	// controller (SPEC.md §10.10).
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Minute):
-				mgr.CheckLinks(ctx)
-			}
-		}
-	}()
+	go sleep.Every(ctx, time.Minute, func() { mgr.CheckLinks(ctx) })
 	srv.DetectNetwork = public.DetectNetwork
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.
@@ -620,15 +613,11 @@ func serve(args []string) error {
 	return nil
 }
 
-func dbPath(lab config.Lab) string { return filepath.Join(lab.Paths.StateDir, "roostack.db") }
-
-func setupTokenPath(lab config.Lab) string { return filepath.Join(lab.Paths.StateDir, "setup-token") }
-
 // setupToken returns the first-run setup code, or "" if an account exists.
 // The code is kept in a file readable only by roostack (and root), so it
 // survives restarts until setup is done.
 func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger) (string, error) {
-	path := setupTokenPath(lab)
+	path := lab.Paths.SetupTokenFile()
 	n, err := st.CountUsers(ctx)
 	if err != nil || n > 0 {
 		if n > 0 { // e.g. a lab restored from its backups
@@ -823,18 +812,7 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 	// Debian's own apt timers may also install an update that needs a
 	// restart; notice it.
 	updates.CheckReboot()
-	go func() {
-		t := time.NewTicker(30 * time.Minute)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				updates.CheckReboot()
-			}
-		}
-	}()
+	go sleep.Every(ctx, 30*time.Minute, func() { updates.CheckReboot() })
 	// Failed backups are tried again (backup/retry.go).
 	go svc.WatchRetries(ctx)
 	// A night the server was off is caught up, and a new lab's first
@@ -844,10 +822,8 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		wait := catchUpDelay
 		for {
 			svc.CatchUpAt(time.Now().Add(wait))
-			select {
-			case <-ctx.Done():
+			if !sleep.For(ctx, wait) {
 				return
-			case <-time.After(wait):
 			}
 			wait = time.Hour
 			why, err := svc.CatchUp(ctx)

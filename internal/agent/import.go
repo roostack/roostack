@@ -21,9 +21,6 @@ import (
 // service: root's, like LibraryRoot.
 const ImportRoot = config.ImportRoot
 
-// importTag marks a place to bring data in from in fstab.
-func importTag(service string) string { return "# Added by Roostack: bringing data into " + service }
-
 // importSpot is a service's place to bring data in from.
 func importSpot(service string) mountSpot {
 	return mountSpot{target: filepath.Join(ImportRoot, service), folderTag: importTag(service), shareTag: importTag(service),

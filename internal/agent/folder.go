@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Backup folders: the setup wizard offers "a disk or folder on this
@@ -26,7 +28,9 @@ import (
 // Checking a path first isn't enough: a symlink can appear between the
 // check and the change.
 
-// FolderRoots are where backup folders may be prepared.
+// FolderRoots are where a backup folder may be prepared, and where a
+// library can be a folder already on the server (the agent can't see
+// /home: its sandbox hides it).
 var FolderRoots = []string{"/mnt", "/media", "/srv"}
 
 // BackupFolderName is the folder Roostack keeps its backups in.
@@ -86,7 +90,7 @@ func prepareFolder(dir string, roots []string, uid, gid int) (string, error) {
 // rootOf returns the root in roots that p is in (or is), or "".
 func rootOf(p string, roots []string) string {
 	for _, r := range roots {
-		if p == r || strings.HasPrefix(p, r+"/") {
+		if fsutil.Within(p, r) {
 			return r
 		}
 	}

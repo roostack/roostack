@@ -3,7 +3,6 @@ package manager
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"slices"
 
 	"roostack.cloud/roostack/internal/agent"
@@ -11,6 +10,7 @@ import (
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Migrating photos into Immich (SPEC.md §8.5): the server Immich runs on
@@ -52,7 +52,7 @@ func (m *Manager) PhotoServices(ctx context.Context) []PhotoService {
 	var out []PhotoService
 	for _, s := range services {
 		if photoimport.Supports(s.Package) {
-			out = append(out, PhotoService{Name: s.Name(), Title: s.Title(), Host: cmp.Or(s.Instance.Host, m.Lab.NodeID)})
+			out = append(out, PhotoService{Name: s.Name(), Title: s.Title(), Host: s.Instance.HostOr(m.Lab.NodeID)})
 		}
 	}
 	return out
@@ -67,7 +67,7 @@ func (m *Manager) photoService(service string) (PhotoService, error) {
 	if !photoimport.Supports(p) {
 		return PhotoService{}, ErrNotFound
 	}
-	return PhotoService{Name: service, Title: cmp.Or(in.Title, p.Title), Host: cmp.Or(in.Host, m.Lab.NodeID)}, nil
+	return PhotoService{Name: service, Title: cmp.Or(in.Title, p.Title), Host: in.HostOr(m.Lab.NodeID)}, nil
 }
 
 // PhotosOf is migrating photos into a service, on its server.
@@ -78,15 +78,15 @@ func (m *Manager) PhotosOf(service string) (node.Photos, error) {
 	}
 	n := m.node(ps.Host)
 	if n == nil {
-		return nil, formErrorf("Roostack can't reach the server %s runs on.", ps.Title)
+		return nil, usererr.New("Roostack can't reach the server %s runs on.", ps.Title)
 	}
 	// Not on the lab API yet: another server's Photos is nil.
 	if n != m.Node {
-		return nil, formErrorf("Photos can be migrated only into an Immich on %s for now.", m.nameOf(m.Lab.NodeID))
+		return nil, usererr.New("Photos can be migrated only into an Immich on %s for now.", m.nameOf(m.Lab.NodeID))
 	}
 	x := n.Photos()
 	if x == nil {
-		return nil, formErrorf("Photos can't be migrated into services on that server.")
+		return nil, usererr.New("Photos can't be migrated into services on that server.")
 	}
 	return x, nil
 }
@@ -95,9 +95,7 @@ func (m *Manager) PhotosOf(service string) (node.Photos, error) {
 func (m *Manager) PhotoSettings(ctx context.Context, service string) PhotoSettings {
 	var s PhotoSettings
 	if m.Settings != nil {
-		if v, err := m.Settings.Setting(ctx, photoSettingsKey(service)); err == nil && v != "" {
-			json.Unmarshal([]byte(v), &s)
-		}
+		s, _ = store.GetJSON[PhotoSettings](ctx, m.Settings, photoSettingsKey(service))
 	}
 	return s
 }
@@ -108,7 +106,7 @@ func (m *Manager) SetPhotoSettings(ctx context.Context, service string, s PhotoS
 		return err
 	}
 	if m.Settings == nil {
-		return formErrorf("Settings can't be kept here.")
+		return usererr.New("Settings can't be kept here.")
 	}
 	if s.Memory == "" {
 		s.Memory = photoimport.MemoryHalf
@@ -120,11 +118,7 @@ func (m *Manager) SetPhotoSettings(ctx context.Context, service string, s PhotoS
 	if err := x.SetPhotoMemory(ctx, service, s.Memory); err != nil {
 		return err
 	}
-	b, err := json.Marshal(s)
-	if err != nil {
-		return err
-	}
-	return m.Settings.SetSetting(ctx, photoSettingsKey(service), string(b))
+	return store.PutJSON(ctx, m.Settings, photoSettingsKey(service), s)
 }
 
 // PhotoLocations are the Owner's additional locations for a service.
@@ -231,10 +225,10 @@ func (m *Manager) CheckPhotoSource(ctx context.Context, service string, src node
 				return nil
 			}
 		}
-		return formErrorf("That location isn't there any more: choose another.")
+		return usererr.New("That location isn't there any more: choose another.")
 	case "drive":
 		if !admin && set.NoDrives {
-			return formErrorf("Drives can't be used here: choose one of the other places.")
+			return usererr.New("Drives can't be used here: choose one of the other places.")
 		}
 		drives, err := m.PhotoDrives(ctx, service, admin)
 		if err != nil {
@@ -242,22 +236,22 @@ func (m *Manager) CheckPhotoSource(ctx context.Context, service string, src node
 		}
 		i := slices.IndexFunc(drives, func(d PhotoDrive) bool { return d.UUID == src.Library.Drive })
 		if i < 0 {
-			return formErrorf("That drive isn't plugged in: plug it in and look again.")
+			return usererr.New("That drive isn't plugged in: plug it in and look again.")
 		}
 		if drives[i].Why != "" {
-			return formErrorf("%s can't be used for migrating photos: choose another drive.", drives[i].Name)
+			return usererr.New("%s can't be used for migrating photos: choose another drive.", drives[i].Name)
 		}
 		return nil
 	case "share":
 		if !admin && set.NoShares {
-			return formErrorf("Shares can't be used here: choose one of the other places.")
+			return usererr.New("Shares can't be used here: choose one of the other places.")
 		}
 		return nil
 	case "folder":
 		if !admin {
-			return formErrorf("Only Owners and Admins can choose a folder on the server.")
+			return usererr.New("Only Owners and Admins can choose a folder on the server.")
 		}
 		return nil
 	}
-	return formErrorf("Choose where your export is.")
+	return usererr.New("Choose where your export is.")
 }

@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Media is what the controller's pages ask a server about its media
@@ -87,7 +88,7 @@ func (s *Server) mediaRoutes(handle func(string, func(r *http.Request) (any, err
 		}
 		list, err := m.LibraryFolders(r.Context(), l)
 		if err != nil {
-			return nil, &FormError{Msg: err.Error()}
+			return nil, &usererr.Error{Msg: err.Error()}
 		}
 		return list, nil
 	})
@@ -102,7 +103,7 @@ func (s *Server) mediaRoutes(handle func(string, func(r *http.Request) (any, err
 		}
 		list, err := m.CheckShare(r.Context(), sh)
 		if err != nil {
-			return nil, &FormError{Msg: err.Error()}
+			return nil, &usererr.Error{Msg: err.Error()}
 		}
 		return list, nil
 	})
@@ -116,7 +117,7 @@ func (s *Server) mediaRoutes(handle func(string, func(r *http.Request) (any, err
 			return nil, err
 		}
 		if err := m.SaveShareLogin(r.Context(), r.PathValue("name"), sh); err != nil {
-			return nil, &FormError{Msg: err.Error()}
+			return nil, &usererr.Error{Msg: err.Error()}
 		}
 		return nil, nil
 	})

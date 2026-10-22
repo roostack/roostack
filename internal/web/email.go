@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Email (SPEC.md §6.13): the SMTP server Roostack sends through (Settings
@@ -105,9 +106,8 @@ func (s *Server) emailSubmit(w http.ResponseWriter, r *http.Request) {
 	m := config.Mail{Host: strings.TrimSpace(r.FormValue("host")), Port: port, Security: r.FormValue("security"),
 		Username: strings.TrimSpace(r.FormValue("username")), From: strings.TrimSpace(r.FormValue("from"))}
 	err := s.Mail.Save(m, r.FormValue("password"), r.FormValue("clear_password") == "on")
-	var fe *mail.FormError
-	if errors.As(err, &fe) {
-		s.renderEmail(w, r, map[string]any{"Error": fe.Msg, "Mail": m})
+	if msg, ok := usererr.Message(err); ok {
+		s.renderEmail(w, r, map[string]any{"Error": msg, "Mail": m})
 		return
 	}
 	if err != nil {
@@ -134,11 +134,9 @@ func (s *Server) emailTestSubmit(w http.ResponseWriter, r *http.Request) {
 			"It worked: Roostack can send email through this server. Nothing else to do.\n"})
 	if err != nil {
 		msg := "Couldn't send it: " + err.Error()
-		var fe *mail.FormError
-		switch {
-		case errors.As(err, &fe):
-			msg = fe.Msg
-		case errors.Is(err, mail.ErrNotConfigured):
+		if m, ok := usererr.Message(err); ok {
+			msg = m
+		} else if errors.Is(err, mail.ErrNotConfigured) {
 			msg = "Save the SMTP server's settings first."
 		}
 		s.renderEmail(w, r, map[string]any{"TestError": msg, "TestTo": to})

@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A restore that didn't finish (SPEC.md §6.9): a restore, or a move through
@@ -89,7 +90,7 @@ func (m *Manager) heldService(name string) (string, *instance.Hold, error) {
 		return "", nil, err
 	}
 	if in.Held == nil {
-		return "", nil, formErrorf("%s isn't stopped any more, so there's nothing to choose: reload the page to see how it's doing.", cmp.Or(in.Title, p.Title))
+		return "", nil, usererr.New("%s isn't stopped any more, so there's nothing to choose: reload the page to see how it's doing.", cmp.Or(in.Title, p.Title))
 	}
 	return cmp.Or(in.Title, p.Title), in.Held, nil
 }
@@ -114,13 +115,13 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 		return err
 	}
 	if h.Kept == "" {
-		return formErrorf("There's no data from before the restore to put back, so restore it again or start it anyway instead.")
+		return usererr.New("There's no data from before the restore to put back, so restore it again or start it anyway instead.")
 	}
 	_, in, err := m.installedService(name)
 	if err != nil {
 		return err
 	}
-	host := cmp.Or(in.Host, m.Lab.NodeID)
+	host := in.HostOr(m.Lab.NodeID)
 	if !h.KeptByRestore {
 		mv := node.Capability(m.node(host), node.Node.Mover)
 		if mv == nil {
@@ -136,7 +137,7 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 	// maintenance there, in the background.
 	x := m.node(host).Restores()
 	if x == nil {
-		return formErrorf("Roostack can't reach %s right now, so it can't put the data back yet: try again once %s is back on.",
+		return usererr.New("Roostack can't reach %s right now, so it can't put the data back yet: try again once %s is back on.",
 			m.nameOf(host), m.nameOf(host))
 	}
 	if err := x.PutBack(ctx, name, h.Kept); err != nil {
@@ -250,7 +251,7 @@ func (m *Manager) FailedMoves(ctx context.Context) map[string]FailedMove {
 			continue
 		}
 		unix, _ := strconv.ParseInt(at, 10, 64)
-		out[s.Name()] = FailedMove{To: to, ToName: m.nameOf(to), FromName: m.nameOf(cmp.Or(s.Instance.Host, m.Lab.NodeID)),
+		out[s.Name()] = FailedMove{To: to, ToName: m.nameOf(to), FromName: m.nameOf(s.Instance.HostOr(m.Lab.NodeID)),
 			At: time.Unix(unix, 0)}
 	}
 	return out

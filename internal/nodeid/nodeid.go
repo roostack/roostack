@@ -51,9 +51,7 @@ func LoadOrCreate(stateDir string) (Identity, error) {
 		return Identity{}, err
 	}
 	b := make([]byte, 5)
-	if _, err := rand.Read(b); err != nil {
-		return Identity{}, err
-	}
+	rand.Read(b) // never fails (Go 1.24)
 	name, _ := os.Hostname()
 	id := Identity{ID: "n-" + hex.EncodeToString(b), Name: name}
 	return id, id.Save(stateDir)

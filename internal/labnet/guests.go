@@ -22,8 +22,10 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -224,10 +226,8 @@ func (h *GuestHub) Start(ctx context.Context) {
 					wait = 10 * time.Second
 				}
 			}
-			select {
-			case <-ctx.Done():
+			if !sleep.For(ctx, wait) {
 				return
-			case <-time.After(wait):
 			}
 		}
 	}()
@@ -269,7 +269,7 @@ func (h *GuestHub) NewInvite(ctx context.Context, name string, quota int64, endp
 	}
 	pub, _ := agent.WireGuardPublicKey(key)
 	token, tokenHash := NewToken()
-	adminPW, adminHash, err := password()
+	adminPW, adminHash, err := NewPassword()
 	if err != nil {
 		return StorageInvite{}, err
 	}
@@ -326,7 +326,7 @@ func (h *GuestHub) Handler() http.Handler {
 			WriteError(w, http.StatusBadRequest, errors.New("invalid WireGuard key"))
 			return
 		}
-		g, err := h.Store.JoinGuest(r.Context(), HashToken(req.Token), req.PublicKey, h.Now())
+		g, err := h.Store.JoinGuest(r.Context(), authkit.HashToken(req.Token), req.PublicKey, h.Now())
 		if err != nil {
 			WriteError(w, http.StatusForbidden, err)
 			return
@@ -450,10 +450,8 @@ func (h *GuestHub) ServeGuests(ctx context.Context) {
 				}
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 10*time.Second) {
 			return
-		case <-time.After(10 * time.Second):
 		}
 	}
 	srv := &http.Server{Handler: h.Handler(), ReadHeaderTimeout: 10 * time.Second}
@@ -557,7 +555,7 @@ func Usage(ctx context.Context, hostAddr netip.Addr, user, adminPassword string)
 }
 
 // SetGuestUser gives one of this lab's servers its own user at the
-// host's store, with a password's bcrypt hash (NewStorePassword).
+// host's store, with a password's bcrypt hash (NewPassword).
 func SetGuestUser(ctx context.Context, hostAddr netip.Addr, user, adminPassword, name, hash string) error {
 	body, _ := json.Marshal(map[string]string{"hash": hash})
 	return guestCall(ctx, http.MethodPut, hostAddr, user, adminPassword, "/v1/guest/users/"+url.PathEscape(name), body)
@@ -585,22 +583,16 @@ func guestCall(ctx context.Context, method string, hostAddr netip.Addr, user, ad
 	return DecodeResponse(resp, nil)
 }
 
-// NewStorePassword returns a random password for a store user, and its
-// bcrypt hash.
-func NewStorePassword() (string, string, error) { return password() }
-
 // HashPassword is a password's bcrypt hash, for a store user.
 func HashPassword(pw string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
 	return string(hash), err
 }
 
-// password returns a random password and its bcrypt hash.
-func password() (string, string, error) {
+// NewPassword returns a random password and its bcrypt hash.
+func NewPassword() (string, string, error) {
 	b := make([]byte, 24)
-	if _, err := rand.Read(b); err != nil {
-		return "", "", err
-	}
+	rand.Read(b) // never fails (Go 1.24)
 	pw := hex.EncodeToString(b)
 	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
 	return pw, string(hash), err

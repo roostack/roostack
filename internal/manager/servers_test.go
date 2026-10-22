@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // fakeRemote is another server that records its assignments.
@@ -223,7 +224,7 @@ func TestAssignmentsPerServer(t *testing.T) {
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	ctx := context.Background()
 
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.Install(ctx, "forgejo", InstallRequest{Host: "n-0000000009"}); !errors.As(err, &fe) {
 		t.Errorf("unknown server: %v", err)
 	}
@@ -294,7 +295,7 @@ func TestRemoveAndRenameServer(t *testing.T) {
 	}
 	m.Wait()
 
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.RemoveServer(ctx, "n-0000000002"); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "still runs Forgejo") {
 		t.Errorf("removing a server with services: %v", err)
 	}

@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // TestSchemaMatchesOldMigrations proves the squashed schema makes the same
@@ -71,7 +73,7 @@ func TestOpenRefusesOlderDatabase(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "older.db")
 	oldDatabaseAt(t, path, 30).Close()
 	_, err := Open(path)
-	var fe *FormError
+	var fe *usererr.Error
 	if !errors.As(err, &fe) || !strings.Contains(fe.Msg, "fresh install") || !strings.Contains(fe.Msg, "version 30") {
 		t.Fatalf("opening a database at version 30: %v", err)
 	}

@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Wizard progress, stored as runtime settings.
@@ -30,11 +31,6 @@ const (
 	keyBackup   = "setup.backup"   // "done" or "later"
 	keyRecovery = "setup.recovery" // "confirmed" once the key was saved
 )
-
-// CheckError is a problem with what the user entered, safe to show them.
-type CheckError struct{ Msg string }
-
-func (e *CheckError) Error() string { return e.Msg }
 
 // Secrets handles Podman secrets: the DNS provider's credentials.
 type Secrets interface {
@@ -174,14 +170,14 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	email = strings.TrimSpace(email)
 	if !domainRe.MatchString(domain) {
-		return &CheckError{"Enter a domain like lab.example.com."}
+		return &usererr.Error{Msg: "Enter a domain like lab.example.com."}
 	}
 	if _, err := mail.ParseAddress(email); err != nil || strings.ContainsAny(email, " <>") {
-		return &CheckError{"Enter an email address. Let's Encrypt uses it to warn about certificate problems."}
+		return &usererr.Error{Msg: "Enter an email address. Let's Encrypt uses it to warn about certificate problems."}
 	}
 	p := dns.Get(providerID)
 	if p == nil {
-		return &CheckError{"Choose who manages your domain's DNS."}
+		return &usererr.Error{Msg: "Choose who manages your domain's DNS."}
 	}
 	clean := map[string]string{}
 	for _, f := range p.Fields {
@@ -189,7 +185,7 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 	}
 	set, err := p.Validate(clean)
 	if err != nil {
-		return &CheckError{capitalize(err.Error()) + "."}
+		return &usererr.Error{Msg: capitalize(err.Error()) + "."}
 	}
 	check := s.CheckDNS
 	if check == nil {
@@ -198,11 +194,11 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 		}
 	}
 	if opts.ManageRecords && p.RiskyRecords() && !opts.AcceptRisk {
-		return &CheckError{"To let Roostack manage " + p.Title + " records, tick the box confirming you understand the risk, or untick \"Create DNS records for me\"."}
+		return &usererr.Error{Msg: "To let Roostack manage " + p.Title + " records, tick the box confirming you understand the risk, or untick \"Create DNS records for me\"."}
 	}
 	zone, err := check(ctx, p, clean, domain)
 	if err != nil {
-		return &CheckError{fmt.Sprintf("Roostack couldn't create a test DNS record for %s with those details. "+
+		return &usererr.Error{Msg: fmt.Sprintf("Roostack couldn't create a test DNS record for %s with those details. "+
 			"Check them and the permissions they have. %s said: %s", domain, p.Title, firstLine(err.Error()))}
 	}
 	old, err := s.keepOldAddress(ctx, domain)
@@ -565,7 +561,7 @@ func firstLine(s string) string {
 func (s *Setup) SetLabName(ctx context.Context, name string, restart bool) error {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 60 || strings.ContainsFunc(name, unicode.IsControl) {
-		return &CheckError{Msg: "Give the lab a name of up to 60 characters, such as \"The Smiths' lab\"."}
+		return &usererr.Error{Msg: "Give the lab a name of up to 60 characters, such as \"The Smiths' lab\"."}
 	}
 	if err := config.Update(s.LabPath, func(lab *config.Lab) { lab.Name = name }); err != nil {
 		return err
@@ -609,10 +605,10 @@ func (s *Setup) BackupDrives(ctx context.Context) ([]agent.Drive, error) {
 // EraseDrive erases a disk and prepares it for backups.
 func (s *Setup) EraseDrive(ctx context.Context, disk string) error {
 	if s.Drives == nil {
-		return &CheckError{"Roostack can't see this server's drives."}
+		return &usererr.Error{Msg: "Roostack can't see this server's drives."}
 	}
 	if err := s.Drives.EraseDrive(ctx, disk, "ROOSTACK"); err != nil {
-		return &CheckError{fmt.Sprintf("Couldn't prepare the disk: %s", firstLine(err.Error()))}
+		return &usererr.Error{Msg: fmt.Sprintf("Couldn't prepare the disk: %s", firstLine(err.Error()))}
 	}
 	return nil
 }
@@ -624,11 +620,7 @@ func EnsureRecoveryKey(paths config.Paths) error {
 	if _, err := os.Stat(keyFile); !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	key, err := backup.NewRecoveryKey()
-	if err != nil {
-		return err
-	}
-	return fsutil.WritePrivate(keyFile, []byte(key+"\n"))
+	return fsutil.WritePrivate(keyFile, []byte(backup.NewRecoveryKey()+"\n"))
 }
 
 // BackupAdded records the wizard's backup step done once a backup is set

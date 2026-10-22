@@ -14,15 +14,18 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/b2"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 func TestBackupDestinationOnAServersDisk(t *testing.T) {
@@ -313,7 +316,7 @@ func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
 		return &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache")}
 	}
 	ctx := context.Background()
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.AddBackupCopy(ctx, "n-0000000002", "server:n-0000000001"); !errors.As(err, &fe) {
 		t.Errorf("a copy needs a main destination first: %v", err)
 	}
@@ -409,7 +412,7 @@ func TestRemovedGuestGrace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.JoinGuest(ctx, labnet.HashToken(inv.Token), "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", time.Now()); err != nil {
+	if _, err := st.JoinGuest(ctx, authkit.HashToken(inv.Token), "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	guests, _ := st.Guests(ctx, time.Now())
@@ -542,7 +545,7 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 			t.Fatalf("setup: %s\n%s", log.Err, strings.Join(log.Lines, "\n"))
 		}
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.SetBackupDestination(ctx, "n-0000000002", "drive:uuid:64B1"); !errors.As(err, &fe) {
 		t.Errorf("another server can't use this server's drive: %v", err)
 	}
@@ -709,23 +712,23 @@ func TestCloudBackupDestination(t *testing.T) {
 	cloud := &fakeCloudBackup{}
 	m.CloudBackup = cloud
 	choices, _ := m.BackupChoices(ctx)
-	if slices.ContainsFunc(choices, func(c BackupChoice) bool { return c.Ref == CloudChoice }) {
+	if slices.ContainsFunc(choices, func(c BackupChoice) bool { return c.Ref == destination.Cloud }) {
 		t.Error("offered without a quota")
 	}
 	cloud.quota = 500_000_000_000
 	choices, _ = m.BackupChoices(ctx)
-	i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == CloudChoice })
+	i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == destination.Cloud })
 	if i < 0 || !strings.Contains(choices[i].Note, "120.0 GB of 500.0 GB") || !strings.Contains(choices[i].Note, "can't read it") {
 		t.Fatalf("choices: %+v", choices)
 	}
 	// With the account's other labs: their total, and this lab's share.
 	cloud.accountUsed = 300_000_000_000
 	choices, _ = m.BackupChoices(ctx)
-	if i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == CloudChoice }); i < 0 ||
+	if i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == destination.Cloud }); i < 0 ||
 		!strings.Contains(choices[i].Note, "Your account's labs use 300.0 GB of 500.0 GB; this lab 120.0 GB.") {
 		t.Fatalf("choices with the account's labs: %+v", choices)
 	}
-	if err := m.SetBackupDestination(ctx, "n-0000000002", CloudChoice); err != nil {
+	if err := m.SetBackupDestination(ctx, "n-0000000002", destination.Cloud); err != nil {
 		t.Fatal(err)
 	}
 	if l := waitDone(t, m, activity.BackupSetupFor("n-0000000002")); l.Err != "" {
@@ -747,7 +750,7 @@ func TestCloudBackupDestination(t *testing.T) {
 	if len(cloud.asked) != n {
 		t.Errorf("prune keys asked again while fresh: %+v", cloud.asked[n:])
 	}
-	if t2, _, ok := m.BackupTargetOf(ctx, "n-0000000002"); !ok || t2.Provider != CloudChoice {
+	if t2, _, ok := m.BackupTargetOf(ctx, "n-0000000002"); !ok || t2.Provider != destination.Cloud {
 		t.Errorf("target: %+v", t2)
 	}
 }

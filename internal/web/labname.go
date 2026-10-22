@@ -1,6 +1,10 @@
 package web
 
-import "net/http"
+import (
+	"net/http"
+
+	"roostack.cloud/roostack/internal/usererr"
+)
 
 // The lab's name (Settings → Lab name): shown on every page and to other
 // labs sharing storage.
@@ -13,7 +17,7 @@ func (s *Server) labNamePage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) labNameSubmit(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	err := s.Setup.SetLabName(r.Context(), name, true)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		data := s.pageData(r)
 		data["Error"], data["LabName"] = msg, name
 		w.WriteHeader(http.StatusBadRequest)

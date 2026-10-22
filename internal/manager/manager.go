@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"maps"
 	"os"
@@ -30,12 +29,12 @@ import (
 	"roostack.cloud/roostack/internal/s3api"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Types shared with the node that does the work (internal/node), under
 // the names the web layer uses.
 type (
-	FormError     = node.FormError
 	ApplyStatus   = node.ApplyStatus
 	HookStatus    = node.HookStatus
 	SSOHookStatus = node.SSOHookStatus
@@ -257,7 +256,7 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 // installed service uses the lab's own copy (ServicePackage, SPEC.md
 // §8.3.1).
 func (m *Manager) Package(name string) (*pkgspec.Package, error) {
-	if !validName(name) {
+	if !pkgspec.ValidName(name) {
 		return nil, ErrNotFound
 	}
 	p, err := state.LoadLocalPackage(m.Lab.Paths, name)
@@ -317,19 +316,15 @@ func clashError(err error) error {
 	var pe *state.PortInUseError
 	switch {
 	case errors.As(err, &he):
-		return formErrorf("That web address is already used by another service, so choose a different one.")
+		return usererr.New("That web address is already used by another service, so choose a different one.")
 	case errors.As(err, &pe) && pe.UsedBy == "":
-		return formErrorf("%s would use port %d, but that's one of the ports Roostack is keeping for its web services (%d-%d), so its package needs a different port.",
+		return usererr.New("%s would use port %d, but that's one of the ports Roostack is keeping for its web services (%d-%d), so its package needs a different port.",
 			pe.Service, pe.Port, config.DefaultRoutePortMin, config.DefaultRoutePortMax)
 	case errors.As(err, &pe):
-		return formErrorf("%s would use port %d, but %s is already using it, so change the port on that service's page and try again.",
+		return usererr.New("%s would use port %d, but %s is already using it, so change the port on that service's page and try again.",
 			pe.Service, pe.Port, pe.UsedBy)
 	}
 	return err
-}
-
-func formErrorf(format string, args ...any) error {
-	return &FormError{Msg: fmt.Sprintf(format, args...)}
 }
 
 // Install adds a service to desired state and starts applying it. It's
@@ -368,13 +363,13 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		}
 		v := req.Secrets[s.Key]
 		if v == "" {
-			return formErrorf("%s is required.", s.Title)
+			return usererr.New("%s is required.", s.Title)
 		}
 		if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
-			return formErrorf("%s must be at least %d characters.", s.Title, s.MinLength)
+			return usererr.New("%s must be at least %d characters.", s.Title, s.MinLength)
 		}
 		if strings.ContainsAny(v, "\n\r\x00") {
-			return formErrorf("%s can't contain line breaks.", s.Title)
+			return usererr.New("%s can't contain line breaks.", s.Title)
 		}
 		secrets[node.SecretName(id, s.Key)] = []byte(v)
 	}
@@ -388,9 +383,9 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	for _, s := range services {
 		switch {
 		case s.Name() == id && id == p.Name:
-			return formErrorf("%s is already installed. To add another copy, give it a name of its own.", p.Title)
+			return usererr.New("%s is already installed. To add another copy, give it a name of its own.", p.Title)
 		case s.Name() == id:
-			return formErrorf("A service called %s is already installed. Choose another name.", id)
+			return usererr.New("A service called %s is already installed. Choose another name.", id)
 		}
 	}
 	services = append(services, state.Service{Instance: in, Package: p})
@@ -437,7 +432,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bool) (*instance.Instance, string, error) {
 	host := cmp.Or(req.Host, m.Lab.NodeID)
 	if m.node(host) == nil {
-		return nil, "", formErrorf("Choose which server runs %s.", p.Title)
+		return nil, "", usererr.New("Choose which server runs %s.", p.Title)
 	}
 	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
 		Settings: map[string]any{}}
@@ -457,7 +452,7 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 	id := p.Name
 	if n := strings.ToLower(strings.TrimSpace(req.Name)); n != "" && n != p.Name {
 		if !strings.HasPrefix(n, p.Name+"-") || !instance.ValidName(n) {
-			return nil, "", formErrorf("Its name is %s, or %s- and then lowercase letters, digits and dashes (up to %d in all), e.g. %s-work.",
+			return nil, "", usererr.New("Its name is %s, or %s- and then lowercase letters, digits and dashes (up to %d in all), e.g. %s-work.",
 				p.Name, p.Name, instance.MaxName, p.Name)
 		}
 		id, in.Name = n, n
@@ -479,7 +474,7 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 	if sub := strings.ToLower(strings.TrimSpace(req.Subdomain)); sub != "" {
 		route := MainRoute(p)
 		if route == "" {
-			return nil, "", formErrorf("%s has no web address to choose.", p.Title)
+			return nil, "", usererr.New("%s has no web address to choose.", p.Title)
 		}
 		in.Routes = map[string]instance.RouteOverride{route: {Subdomain: sub}}
 	}
@@ -497,7 +492,7 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 		}
 	}
 	if err := in.Validate(p); err != nil {
-		return nil, "", formErrorf("%s", err)
+		return nil, "", usererr.New("%s", err)
 	}
 	return in, id, nil
 }
@@ -615,7 +610,7 @@ func (m *Manager) PackageIcon(name string) ([]byte, error) {
 	path := filepath.Join(m.Lab.Paths.CatalogPackageDir(name), "icon.png")
 	p, err := m.Package(name)
 	switch {
-	case errors.Is(err, ErrNotFound) && validName(name):
+	case errors.Is(err, ErrNotFound) && pkgspec.ValidName(name):
 	case err != nil:
 		return nil, err
 	case m.IsLocal(name):
@@ -676,7 +671,7 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 		return ErrNotFound
 	}
 	if hostPort < pkgspec.MinHostPort || hostPort > 65535 {
-		return formErrorf("Choose a port number from %d to 65535.", pkgspec.MinHostPort)
+		return usererr.New("Choose a port number from %d to 65535.", pkgspec.MinHostPort)
 	}
 	if in.Ports == nil {
 		in.Ports = map[string]instance.PortOverride{}
@@ -691,10 +686,10 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 		var pe *state.PortInUseError
 		switch {
 		case errors.As(err, &pe) && pe.UsedBy == "":
-			return formErrorf("Roostack keeps ports %d-%d for its web services. Choose another port.",
+			return usererr.New("Roostack keeps ports %d-%d for its web services. Choose another port.",
 				config.DefaultRoutePortMin, config.DefaultRoutePortMax)
 		case errors.As(err, &pe):
-			return formErrorf("Port %d is already used by %s. Choose another port.", pe.Port, pe.UsedBy)
+			return usererr.New("Port %d is already used by %s. Choose another port.", pe.Port, pe.UsedBy)
 		}
 		return clashError(err)
 	}
@@ -711,7 +706,7 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 func checkTitle(title string, p *pkgspec.Package) (string, error) {
 	title = strings.TrimSpace(title)
 	if len([]rune(title)) > 60 || strings.ContainsAny(title, "\n\r\x00") {
-		return "", formErrorf("Choose a shorter title, on one line.")
+		return "", usererr.New("Choose a shorter title, on one line.")
 	}
 	if title == p.Title {
 		return "", nil
@@ -723,7 +718,7 @@ func checkTitle(title string, p *pkgspec.Package) (string, error) {
 // SPEC.md §8.2). Empty goes back to its package's title. Only the pages
 // change: nothing is applied.
 func (m *Manager) SetTitle(ctx context.Context, name, title string) error {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return ErrNotFound
 	}
 	m.mu.Lock()
@@ -756,7 +751,7 @@ func (m *Manager) ServicePackage(name string) (*pkgspec.Package, error) {
 // package's for a first copy) and its package. The package's Title is
 // the service's own, if it has one, for the messages that use it.
 func (m *Manager) installedService(name string) (*pkgspec.Package, *instance.Instance, error) {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return nil, nil, ErrNotFound
 	}
 	in, err := instance.Load(state.InstanceFile(m.Lab, name))
@@ -788,16 +783,16 @@ func parseSetting(s pkgspec.Setting, raw string, given bool) (any, error) {
 	case pkgspec.SettingInt:
 		n, err := strconv.Atoi(strings.TrimSpace(raw))
 		if err != nil {
-			return nil, formErrorf("%s must be a whole number.", title)
+			return nil, usererr.New("%s must be a whole number.", title)
 		}
 		return n, nil
 	}
 	v := strings.TrimSpace(raw)
 	if s.Required && v == "" {
-		return nil, formErrorf("%s is required.", title)
+		return nil, usererr.New("%s is required.", title)
 	}
 	if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
-		return nil, formErrorf("%s must be at least %d characters.", title, s.MinLength)
+		return nil, usererr.New("%s must be at least %d characters.", title, s.MinLength)
 	}
 	return v, nil
 }
@@ -867,7 +862,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 		}
 	}
 	if err := in.Validate(p); err != nil {
-		return formErrorf("%s", err)
+		return usererr.New("%s", err)
 	}
 	if _, err := state.Desired(m.Lab, state.OnNode(services, in.Host)); err != nil {
 		return clashError(err)
@@ -883,7 +878,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 // Remove takes a service out of desired state and applies the change. Its
 // data stays on disk (SPEC.md: the reconciler never deletes data).
 func (m *Manager) Remove(ctx context.Context, name string) error {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return ErrNotFound
 	}
 	m.mu.Lock()
@@ -903,10 +898,7 @@ func (m *Manager) Remove(ctx context.Context, name string) error {
 // DataDirs lists where a service keeps data, to tell the user what
 // removing it leaves behind.
 func (m *Manager) DataDirs(name string) []string {
-	return []string{
-		filepath.Join(m.Lab.Paths.ServicesDir, name),
-		filepath.Join(m.Lab.Paths.MediaDir, name),
-	}
+	return m.Lab.Paths.ServiceDataDirs(name)
 }
 
 // leftData lists a service's data folders from before on a server (it was
@@ -984,17 +976,4 @@ func MainRoute(p *pkgspec.Package) string {
 		return ""
 	}
 	return names[0]
-}
-
-// validName guards against path tricks in names taken from URLs.
-func validName(name string) bool {
-	if name == "" || len(name) > instance.MaxName {
-		return false
-	}
-	for _, c := range name {
-		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
-			return false
-		}
-	}
-	return true
 }

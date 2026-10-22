@@ -1,6 +1,7 @@
 package public
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -76,7 +77,7 @@ func parseBlocks(out []byte) ([]Block, error) {
 			continue
 		}
 		at, _ := time.Parse(time.RFC3339, al.StartAt)
-		b := Block{At: at, Rule: shortName(al.Scenario), From: cmpOr(al.Source.IP, al.Source.Value)}
+		b := Block{At: at, Rule: shortName(al.Scenario), From: cmp.Or(al.Source.IP, al.Source.Value)}
 		// The event of the rule the alert is named after, or the first.
 		for i, ev := range al.Events {
 			meta := map[string]string{}
@@ -86,7 +87,7 @@ func parseBlocks(out []byte) ([]Block, error) {
 			if i > 0 && meta["rule_name"] != al.Scenario {
 				continue
 			}
-			b.What, b.Host = meta["message"], hostOnly(meta["target_fqdn"])
+			b.What, b.Host = meta["message"], HostOnly(meta["target_fqdn"])
 			b.Path, _, _ = strings.Cut(meta["uri"], "?")
 			if meta["rule_name"] == al.Scenario {
 				break
@@ -107,8 +108,8 @@ func shortName(name string) string {
 	return name
 }
 
-// hostOnly drops a port from a Host header, and lowers its case.
-func hostOnly(h string) string {
+// HostOnly drops a port from a Host header, and lowers its case.
+func HostOnly(h string) string {
 	if host, _, err := net.SplitHostPort(h); err == nil {
 		h = host
 	}

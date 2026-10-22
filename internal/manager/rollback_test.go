@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/s3api"
 	"roostack.cloud/roostack/internal/s3api/s3fake"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // s3Lab is a manager with an online storage account (provider:1, not
@@ -182,7 +183,7 @@ func testRollBack(t *testing.T, markersFirst bool) {
 	// Nothing to roll back to before backups started, or in the future;
 	// and not without a check first.
 	for _, before := range []time.Time{time.Now().Add(-48 * time.Hour), time.Now().Add(time.Hour)} {
-		var fe *FormError
+		var fe *usererr.Error
 		if err := m.CheckRollback(ctx, "n-0000000002", "provider:1", before); !errors.As(err, &fe) {
 			t.Errorf("before %v: %v", before, err)
 		}

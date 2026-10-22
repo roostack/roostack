@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 )
 
@@ -41,4 +42,38 @@ func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
 	return err
+}
+
+// SettingGetter and SettingSetter are the settings table: the Store, or
+// what stands in for it where a package keeps to an interface (node.KV,
+// osupdate.KV, a test's map).
+type (
+	SettingGetter interface {
+		Setting(ctx context.Context, key string) (string, error)
+	}
+	SettingSetter interface {
+		SetSetting(ctx context.Context, key, value string) error
+	}
+)
+
+// GetJSON reads a setting that holds JSON as a T: T's zero value if the
+// setting isn't set. If the JSON doesn't fit a T, the error comes with
+// whatever could be read.
+func GetJSON[T any](ctx context.Context, kv SettingGetter, key string) (T, error) {
+	var v T
+	s, err := kv.Setting(ctx, key)
+	if err != nil || s == "" {
+		return v, err
+	}
+	err = json.Unmarshal([]byte(s), &v)
+	return v, err
+}
+
+// PutJSON writes v to a setting as JSON.
+func PutJSON(ctx context.Context, kv SettingSetter, key string, v any) error {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return kv.SetSetting(ctx, key, string(data))
 }

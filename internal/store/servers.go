@@ -151,9 +151,7 @@ func (s *Store) LabID(ctx context.Context) (string, error) {
 		return id, err
 	}
 	b := make([]byte, 5)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
+	rand.Read(b) // never fails (Go 1.24)
 	id = "lab-" + hex.EncodeToString(b)
 	return id, s.SetSetting(ctx, "lab.id", id)
 }

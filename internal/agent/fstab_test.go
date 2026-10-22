@@ -44,7 +44,7 @@ func TestEditFstabConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			err := editFstab(func(tab string) (string, error) {
-				return withBlock(tab, fmt.Sprintf("# Added by Roostack: media library l%d", i), fmt.Sprintf("/a /b%d none bind 0 0", i)), nil
+				return withBlock(tab, libraryTag(fmt.Sprintf("l%d", i)), fmt.Sprintf("/a /b%d none bind 0 0", i)), nil
 			})
 			if err != nil {
 				t.Error(err)
@@ -79,7 +79,7 @@ func TestEditFstab(t *testing.T) {
 		t.Error("nothing changed, so nothing is kept")
 	}
 	if err := editFstab(func(tab string) (string, error) {
-		return withBlock(tab, "# Added by Roostack: x", "/a /b none bind 0 0"), nil
+		return withBlock(tab, libraryTag("x"), "/a /b none bind 0 0"), nil
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -136,5 +136,33 @@ func TestRenameSynced(t *testing.T) {
 	}
 	if err := renameSynced(from, to); err == nil {
 		t.Error("nothing to rename: want an error")
+	}
+}
+
+// Roostack's blocks are read back from what the tags wrote, and nothing
+// else in fstab counts (P5's follow-up).
+func TestFstabBlocks(t *testing.T) {
+	tab := "# a comment of the Owner's\nUUID=1 / ext4 defaults 0 1\n"
+	tab = withBlock(tab, backupDriveTag("BACKUP"), "UUID=2 /mnt/roostack-backup ext4 defaults,nofail 0 2")
+	tab = withBlock(tab, viewTag("plex", "films"), "/mnt/roostack-library/films /v/plex/films none bind,ro 0 0")
+	tab += backupDriveTag("LAST").line() // a tag with no line after it
+	blocks := fstabBlocks(tab)
+	if len(blocks) != 3 {
+		t.Fatalf("%d blocks, want 3: %+v", len(blocks), blocks)
+	}
+	if b := blocks[0]; b.tag != backupDriveTag("BACKUP") || b.at != 2 || len(b.fields) != 6 || b.fields[0] != "UUID=2" {
+		t.Errorf("first block: %+v", b)
+	}
+	if b := blocks[2]; b.tag != backupDriveTag("LAST") || b.fields != nil {
+		t.Errorf("last block: %+v", b)
+	}
+	if !backupDrive(tab, "2") || backupDrive(tab, "1") {
+		t.Error("backupDrive: want UUID 2 only")
+	}
+	if got := viewEntries(tab); len(got) != 1 || got[0] != (viewEntry{"plex", "films"}) {
+		t.Errorf("viewEntries = %v", got)
+	}
+	if got := removeBlock(tab, viewTag("plex", "films")); strings.Contains(got, "plex") || !strings.Contains(got, "UUID=2") {
+		t.Errorf("removeBlock left:\n%s", got)
 	}
 }

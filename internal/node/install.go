@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // A new service's install, step by step (SPEC.md §6.3.3): downloading and
@@ -309,12 +309,8 @@ func (n *Local) loadInstallsLocked() {
 		return
 	}
 	n.installsLoaded = true
-	v, err := n.State.Setting(context.Background(), installsKey)
-	if err != nil || v == "" {
-		return
-	}
-	var saved map[string]*InstallProgress
-	if err := json.Unmarshal([]byte(v), &saved); err != nil {
+	saved, err := store.GetJSON[map[string]*InstallProgress](context.Background(), n.State, installsKey)
+	if err != nil {
 		n.Log.Error("reading the installs in progress", "err", err)
 		return
 	}
@@ -333,15 +329,13 @@ func (n *Local) saveInstallsLocked() {
 	if n.State == nil {
 		return
 	}
-	v := ""
+	var err error
 	if len(n.installs) > 0 {
-		data, err := json.Marshal(n.installs)
-		if err != nil {
-			return
-		}
-		v = string(data)
+		err = store.PutJSON(context.Background(), n.State, installsKey, n.installs)
+	} else {
+		err = n.State.SetSetting(context.Background(), installsKey, "")
 	}
-	if err := n.State.SetSetting(context.Background(), installsKey, v); err != nil {
+	if err != nil {
 		n.Log.Error("keeping the installs in progress", "err", err)
 	}
 }
