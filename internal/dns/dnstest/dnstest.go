@@ -5,6 +5,7 @@
 package dnstest
 
 import (
+	"bytes"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -81,6 +82,47 @@ func (s *Fake) FailWrites(provider string, after int) {
 	s.failing[prefixes[provider]] = after
 }
 
+// Requests is every request the fake APIs have had, in order, each as
+// its method, path and query on the fake server, the credentials it gave
+// in its headers (an AWS signature's key ID) and its body.
+func (s *Fake) Requests() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.requests...)
+}
+
+// log notes each request (Requests).
+func (s *Fake) log(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		line := r.Method + " " + r.URL.RequestURI()
+		if auth := credentials(r); auth != "" {
+			line += " auth=" + auth
+		}
+		if len(body) > 0 {
+			line += " " + string(body)
+		}
+		s.mu.Lock()
+		s.requests = append(s.requests, line)
+		s.mu.Unlock()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// credentials are what a request's headers authenticate with.
+func credentials(r *http.Request) string {
+	auth := r.Header.Get("Authorization")
+	if sig, ok := strings.CutPrefix(auth, "AWS4-HMAC-SHA256 Credential="); ok {
+		key, _, _ := strings.Cut(sig, "/")
+		return "AWS4-HMAC-SHA256 " + key // the rest changes with the time
+	}
+	if k := r.Header.Get("X-API-Key"); k != "" {
+		return k + "/" + r.Header.Get("X-API-Secret")
+	}
+	return auth
+}
+
 // check answers refused and failing requests before the APIs see them.
 func (s *Fake) check(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +135,12 @@ func (s *Fake) check(next http.Handler) http.Handler {
 			s.failing[prefix] = left - 1
 		}
 		s.mu.Unlock()
+		if refused && prefix == "/nc" {
+			// Namecheap answers 200, with its error, to a key or IP it
+			// doesn't accept.
+			fmt.Fprint(w, `<ApiResponse Status="ERROR"><Errors><Error Number="1011150">Invalid request IP</Error></Errors></ApiResponse>`)
+			return
+		}
 		if refused {
 			http.Error(w, `{"message":"invalid credentials"}`, http.StatusForbidden)
 			return
@@ -102,6 +150,40 @@ func (s *Fake) check(next http.Handler) http.Handler {
 			return
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+// zones answers a request for a zone other than Zone as each API does.
+// Cloudflare's and Route 53's fakes look a zone up by name instead.
+func zones(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.Path, "/")
+		var zone string
+		switch {
+		case parts[1] == "pb" && len(parts) > 4:
+			zone = parts[4] // /pb/dns/<command>/<zone>/…
+		case parts[1] == "gandi" && len(parts) > 3:
+			zone = parts[3] // /gandi/domains/<zone>/…
+		case parts[1] == "gd" && len(parts) > 4:
+			zone = parts[4] // /gd/v1/domains/<zone>/…
+		case parts[1] == "ss" && len(parts) > 5:
+			zone = parts[5] // /ss/v1/dns/records/<zone>
+		case parts[1] == "nc":
+			r.ParseForm()
+			zone = r.Form.Get("SLD") + "." + r.Form.Get("TLD")
+		}
+		if zone == "" || zone == Zone {
+			next.ServeHTTP(w, r)
+			return
+		}
+		switch parts[1] {
+		case "pb":
+			http.Error(w, `{"status":"ERROR","message":"Invalid domain."}`, 400)
+		case "nc":
+			fmt.Fprint(w, `<ApiResponse Status="ERROR"><Errors><Error Number="2019166">Domain not found</Error></Errors></ApiResponse>`)
+		default:
+			http.Error(w, `{"message":"domain not found"}`, http.StatusNotFound)
+		}
 	})
 }
 
@@ -119,8 +201,9 @@ func isWrite(prefix string, r *http.Request) bool {
 
 // Fake is a fake DNS provider backend shared by every fake API:
 // (zone, name, type) -> values. Namecheap also keeps other records and the
-// domain's email setting, to prove its full rewrite preserves them.
-// Cloudflare's and Route 53's fakes have the one zone, example.com.
+// domain's email setting, to prove its full rewrite preserves them. Every
+// API has the one zone, Zone, and every one but Namecheap's refuses a
+// CNAME beside another record of the same name, as DNS does.
 type Fake struct {
 	// URL is the fake server's; Paths says where each API is under it.
 	URL       string
@@ -132,8 +215,12 @@ type Fake struct {
 	refused   map[string]bool
 	// failing is how many more changes each API makes before it fails
 	// them (absent: none fail).
-	failing map[string]int
+	failing  map[string]int
+	requests []string
 }
+
+// Zone is the one zone every fake API has.
+const Zone = "example.com"
 
 // NCHost is a Namecheap host record, as its API lists them.
 type NCHost struct{ Name, Type, Address, MXPref, TTL string }
@@ -154,6 +241,21 @@ func (s *Fake) Set(zone, name, typ string, vals []string) {
 	s.recs[key(zone, name, typ)] = vals
 }
 
+// clashes reports whether a record would break DNS's rule that a name
+// with a CNAME has no other record.
+func (s *Fake) clashes(zone, name, typ string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k, vals := range s.recs {
+		z, rest, _ := strings.Cut(k, "|")
+		n, t, _ := strings.Cut(rest, "|")
+		if z == zone && n == name && t != typ && len(vals) > 0 && (t == "CNAME" || typ == "CNAME") {
+			return true
+		}
+	}
+	return false
+}
+
 // Start runs every provider's fake API until the test ends.
 func Start(t testing.TB) *Fake {
 	t.Helper()
@@ -166,6 +268,10 @@ func Start(t testing.TB) *Fake {
 
 	// Cloudflare
 	mux.HandleFunc("GET /cf/zones", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("name") != Zone {
+			fmt.Fprint(w, `{"result":[]}`)
+			return
+		}
 		fmt.Fprint(w, `{"result":[{"id":"z1"}]}`)
 	})
 	// Record IDs are the name and type, so a DELETE says which.
@@ -180,6 +286,10 @@ func Start(t testing.TB) *Fake {
 	cfWrite := func(w http.ResponseWriter, r *http.Request) {
 		var rec map[string]any
 		readJSON(r, &rec)
+		if st.clashes(Zone, rel(rec["name"].(string)), rec["type"].(string)) {
+			http.Error(w, `{"errors":[{"code":81053,"message":"An A, AAAA, or CNAME record with that host already exists."}]}`, 400)
+			return
+		}
 		st.Set("example.com", rel(rec["name"].(string)), rec["type"].(string), []string{rec["content"].(string)})
 		st.CFComment, _ = rec["comment"].(string)
 		fmt.Fprint(w, `{"result":{"id":"r1"}}`)
@@ -194,7 +304,12 @@ func Start(t testing.TB) *Fake {
 
 	// Route 53
 	mux.HandleFunc("GET /r53/2013-04-01/hostedzonesbyname", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `<R><HostedZones><HostedZone><Id>/hostedzone/Z9</Id><Name>example.com.</Name></HostedZone></HostedZones></R>`)
+		// Route 53 lists from the name given: the zone itself, or the next.
+		name := "example.com."
+		if r.URL.Query().Get("dnsname") != Zone {
+			name = "zzz.org."
+		}
+		fmt.Fprintf(w, `<R><HostedZones><HostedZone><Id>/hostedzone/Z9</Id><Name>%s</Name></HostedZone></HostedZones></R>`, name)
 	})
 	mux.HandleFunc("GET /r53/2013-04-01/hostedzone/Z9/rrset", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
@@ -228,6 +343,10 @@ func Start(t testing.TB) *Fake {
 			}
 			st.Set("example.com", name, typ, nil)
 		} else {
+			if st.clashes(Zone, name, typ) {
+				http.Error(w, "InvalidChangeBatch", 400)
+				return
+			}
 			st.Set("example.com", name, typ, []string{val.V})
 		}
 		fmt.Fprint(w, `<ok/>`)
@@ -246,6 +365,10 @@ func Start(t testing.TB) *Fake {
 		readJSON(r, &b)
 		if len(st.Get(r.PathValue("zone"), b["name"].(string), b["type"].(string))) > 0 {
 			fmt.Fprint(w, `{"status":"ERROR","message":"duplicate"}`)
+			return
+		}
+		if st.clashes(r.PathValue("zone"), b["name"].(string), b["type"].(string)) {
+			fmt.Fprint(w, `{"status":"ERROR","message":"a CNAME can't be with other records"}`)
 			return
 		}
 		st.Set(r.PathValue("zone"), b["name"].(string), b["type"].(string), []string{b["content"].(string)})
@@ -269,6 +392,10 @@ func Start(t testing.TB) *Fake {
 				Values []string `json:"rrset_values"`
 			}
 			readJSON(r, &b)
+			if st.clashes(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ")) {
+				http.Error(w, `{"message":"a CNAME can't be with other records"}`, http.StatusConflict)
+				return
+			}
 			st.Set(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ"), b.Values)
 			w.WriteHeader(201)
 			return
@@ -293,6 +420,10 @@ func Start(t testing.TB) *Fake {
 		if r.Method == "PUT" {
 			var b []struct{ Data string }
 			readJSON(r, &b)
+			if st.clashes(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ")) {
+				http.Error(w, `{"code":"CONFLICTING_RECORD"}`, http.StatusConflict)
+				return
+			}
 			st.Set(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ"), []string{b[0].Data})
 			return
 		}
@@ -326,7 +457,7 @@ func Start(t testing.TB) *Fake {
 			}
 			readJSON(r, &b)
 			it := b.Items[0]
-			if !b.Force && len(st.Get(r.PathValue("zone"), it.Name, it.Type)) > 0 {
+			if !b.Force && len(st.Get(r.PathValue("zone"), it.Name, it.Type)) > 0 || st.clashes(r.PathValue("zone"), it.Name, it.Type) {
 				http.Error(w, "conflict", http.StatusConflict)
 				return
 			}
@@ -380,7 +511,7 @@ func Start(t testing.TB) *Fake {
 	})
 	mux.HandleFunc("GET /ip", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "203.0.113.7\n") })
 
-	srv := httptest.NewServer(st.check(mux))
+	srv := httptest.NewServer(st.log(st.check(zones(mux))))
 	t.Cleanup(srv.Close)
 	st.URL = srv.URL
 	return st
