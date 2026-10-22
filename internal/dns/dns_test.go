@@ -13,14 +13,14 @@ import (
 func TestCheckFindsParentZone(t *testing.T) {
 	var tried []string
 	deleted := false
-	pr := func(_ context.Context, _ *http.Client, _ map[string]string, zone, name, value string) (func(context.Context) error, error) {
-		tried = append(tried, zone+" "+name)
-		if zone != "example.com" {
+	pr := func(_ context.Context, c conn, name, value string) (func(context.Context) error, error) {
+		tried = append(tried, c.zone+" "+name)
+		if c.zone != "example.com" {
 			return nil, errors.New("zone not found")
 		}
 		return func(context.Context) error { deleted = true; return nil }, nil
 	}
-	zone, err := check(context.Background(), http.DefaultClient, pr, nil, "Lab.Example.com")
+	zone, err := check(context.Background(), http.DefaultClient, pr, nil, "Lab.Example.com", "x")
 	if err != nil || zone != "example.com" {
 		t.Fatalf("zone %q err %v", zone, err)
 	}
@@ -33,17 +33,17 @@ func TestCheckFindsParentZone(t *testing.T) {
 }
 
 func TestCheckErrors(t *testing.T) {
-	fail := func(context.Context, *http.Client, map[string]string, string, string, string) (func(context.Context) error, error) {
+	fail := func(context.Context, conn, string, string) (func(context.Context) error, error) {
 		return nil, errors.New("403 Forbidden")
 	}
-	if _, err := check(context.Background(), http.DefaultClient, fail, nil, "lab.example.com"); err == nil ||
+	if _, err := check(context.Background(), http.DefaultClient, fail, nil, "lab.example.com", "x"); err == nil ||
 		!strings.Contains(err.Error(), "example.com: 403 Forbidden") {
 		t.Errorf("no zone worked: %v", err)
 	}
-	undoFails := func(context.Context, *http.Client, map[string]string, string, string, string) (func(context.Context) error, error) {
+	undoFails := func(context.Context, conn, string, string) (func(context.Context) error, error) {
 		return func(context.Context) error { return errors.New("permission denied") }, nil
 	}
-	if _, err := check(context.Background(), http.DefaultClient, undoFails, nil, "example.com"); err == nil ||
+	if _, err := check(context.Background(), http.DefaultClient, undoFails, nil, "example.com", "x"); err == nil ||
 		!strings.Contains(err.Error(), "remove _roostack-check.example.com by hand") {
 		t.Errorf("delete failure: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestRegistry(t *testing.T) {
 		if p == nil {
 			t.Fatalf("missing provider %s", id)
 		}
-		if p.probe == nil {
+		if p.probe == nil && !p.CanDeleteRecords() {
 			t.Errorf("%s: no check", id)
 		}
 	}

@@ -2,19 +2,15 @@ package dnsrecords
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns/dnstest"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -24,21 +20,21 @@ func (f fakeSecrets) Read(_ context.Context, name string) ([]byte, error) {
 	return []byte(f[name]), nil
 }
 
-// newManager uses the real Gandi record code against a fake Gandi API, with
-// fake LAN IP and DNS lookups.
-func newManager(t *testing.T, dnsCfg config.DNS, local, public []string) (*Manager, *fakeGandi) {
+// newManager uses the real Gandi record code against the fake APIs
+// (dnstest), with fake LAN IP and DNS lookups.
+func newManager(t *testing.T, dnsCfg config.DNS, local, public []string) (*Manager, gandi) {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	g := startFakeGandi(t)
+	g := gandi{dnstest.Start(t)}
 	lab := config.Default()
 	lab.Domain = "lab.example.com"
 	lab.DNS = dnsCfg
 	m := &Manager{
-		Lab: lab, Secrets: fakeSecrets{"roostack-caddy-dns-bearer_token": "pat"}, Store: st, HTTP: g.client,
+		Lab: lab, Secrets: fakeSecrets{"roostack-caddy-dns-bearer_token": "pat"}, Store: st, HTTP: g.Client(),
 		Log:          slog.New(slog.NewTextHandler(io.Discard, nil)),
 		LANIP:        func() (string, error) { return "192.168.1.20", nil },
 		LocalLookup:  func(context.Context, string) ([]string, error) { return local, nil },
@@ -59,8 +55,8 @@ func TestCreatesWildcardAndChecks(t *testing.T) {
 	if got := g.get("*.lab"); got != "192.168.1.20" {
 		t.Errorf("record = %q", got)
 	}
-	if g.auth != "Bearer pat" {
-		t.Errorf("credentials not read from secrets: %q", g.auth)
+	if reqs := strings.Join(g.Requests(), "\n"); !strings.Contains(reqs, "auth=Bearer pat") {
+		t.Errorf("credentials not read from secrets:\n%s", reqs)
 	}
 
 	// The LAN IP changes: Roostack updates its own record.
@@ -137,88 +133,19 @@ func TestManualAndRisky(t *testing.T) {
 	}
 }
 
-// fakeGandi is a tiny Gandi LiveDNS API for zone example.com. Its client
-// sends every request to the fake server, whatever the host.
-type fakeGandi struct {
-	mu     sync.Mutex
-	recs   map[string]string
-	auth   string
-	client *http.Client
+// gandi is the fake APIs' zone (dnstest), as these tests read and change
+// it at Gandi: a name's value of a type as Gandi holds it, "" if none.
+type gandi struct{ *dnstest.Fake }
+
+// get is a name's A record; getType any type's.
+func (g gandi) get(name string) string { return g.getType(name, "A") }
+
+func (g gandi) getType(name, typ string) string {
+	return strings.Join(g.Get(dnstest.Zone, name, typ), ",")
 }
 
-// get is a name's A record ("" if none); getType any type's, as Gandi
-// holds it.
-func (g *fakeGandi) get(name string) string { return g.getType(name, "A") }
-
-func (g *fakeGandi) getType(name, typ string) string {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return g.recs[name+"/"+typ]
-}
-
-func (g *fakeGandi) put(name, ip string) { g.putType(name, "A", ip) }
-
-func (g *fakeGandi) putType(name, typ, v string) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if v == "" {
-		delete(g.recs, name+"/"+typ)
-		return
-	}
-	g.recs[name+"/"+typ] = v
-}
-
-func startFakeGandi(t *testing.T) *fakeGandi {
-	g := &fakeGandi{recs: map[string]string{}}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v5/livedns/domains/example.com/records/{name}/{typ}", func(w http.ResponseWriter, r *http.Request) {
-		g.mu.Lock()
-		g.auth = r.Header.Get("Authorization")
-		g.mu.Unlock()
-		name, typ := r.PathValue("name"), r.PathValue("typ")
-		if r.Method == "PUT" {
-			var b struct {
-				Values []string `json:"rrset_values"`
-			}
-			json.NewDecoder(r.Body).Decode(&b)
-			if typ == "CNAME" && g.getType(name, "A") != "" || typ != "CNAME" && g.getType(name, "CNAME") != "" {
-				http.Error(w, `{"message":"a CNAME can't be with other records"}`, http.StatusConflict)
-				return
-			}
-			g.putType(name, typ, b.Values[0])
-			w.WriteHeader(201)
-			return
-		}
-		if r.Method == "DELETE" {
-			if g.getType(name, typ) == "" {
-				http.Error(w, `{"message":"not found"}`, 404)
-				return
-			}
-			g.putType(name, typ, "")
-			w.WriteHeader(204)
-			return
-		}
-		if v := g.getType(name, typ); v != "" {
-			json.NewEncoder(w).Encode(map[string]any{"rrset_values": []string{v}})
-			return
-		}
-		http.Error(w, `{"message":"not found"}`, 404)
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	target, _ := url.Parse(srv.URL)
-	g.client = &http.Client{Transport: rewriteHost{target}}
-	return g
-}
-
-// rewriteHost sends requests to a test server, keeping path and query.
-type rewriteHost struct{ target *url.URL }
-
-func (rt rewriteHost) RoundTrip(r *http.Request) (*http.Response, error) {
-	r = r.Clone(r.Context())
-	r.URL.Scheme, r.URL.Host = rt.target.Scheme, rt.target.Host
-	return http.DefaultTransport.RoundTrip(r)
-}
+// put sets a name's A record behind Roostack's back.
+func (g gandi) put(name, ip string) { g.Set(dnstest.Zone, name, "A", []string{ip}) }
 
 func TestTakeOver(t *testing.T) {
 	m, g := newManager(t, managed, []string{"192.168.1.20"}, []string{"192.168.1.20"})

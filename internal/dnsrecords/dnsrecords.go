@@ -469,7 +469,7 @@ func (m *Manager) ensure(ctx context.Context, p *dns.Provider, values map[string
 
 // ensureRecord is ensure for a record of any type.
 func (m *Manager) ensureRecord(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, typ, value string) error {
-	fqdn := fqdnOf(zone, name)
+	fqdn := dns.FQDN(zone, name)
 	key := ownerKey(fqdn, typ)
 	owned, err := m.Store.Setting(ctx, key)
 	if err != nil {
@@ -517,7 +517,7 @@ func (m *Manager) disown(ctx context.Context, fqdn, typ string) error {
 // or none of Roostack's: nothing to do. Only a delete that failed keeps
 // the record Roostack's, to try again.
 func (m *Manager) removeOwned(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, typ string) error {
-	fqdn := fqdnOf(zone, name)
+	fqdn := dns.FQDN(zone, name)
 	key := ownerKey(fqdn, typ)
 	owned, err := m.Store.Setting(ctx, key)
 	if err != nil || owned == "" {
@@ -580,14 +580,6 @@ func zoneName(host, zone string) (string, bool) {
 		return "", true
 	}
 	return relName(host, zone)
-}
-
-// fqdnOf joins a zone-relative name and the zone ("" is the zone itself).
-func fqdnOf(zone, name string) string {
-	if name == "" {
-		return zone
-	}
-	return name + "." + zone
 }
 
 // check looks up a random name under the wildcard through a public
