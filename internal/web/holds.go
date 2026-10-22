@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A restore that didn't finish (SPEC.md §6.9): a service whose files are
@@ -116,7 +117,7 @@ func (s *Server) heldChoice(w http.ResponseWriter, r *http.Request, do func(cont
 		http.NotFound(w, r)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"HeldError": msg}, true)
 		return
 	}

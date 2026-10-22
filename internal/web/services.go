@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/registry"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // formField is one input on the install form.
@@ -243,7 +244,7 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := s.Manager.Install(r.Context(), p.Name, req)
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	switch {
 	case isForm:
 		w.WriteHeader(http.StatusBadRequest)
@@ -534,11 +535,11 @@ func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
 	enabled := r.FormValue("enabled") == "on"
 	hostPort, err := strconv.Atoi(strings.TrimSpace(r.FormValue("host_port")))
 	if err != nil {
-		err = &manager.FormError{Msg: "Enter a port number, such as 2222."}
+		err = &usererr.Error{Msg: "Enter a port number, such as 2222."}
 	} else {
 		err = s.Manager.SetPort(r.Context(), name, port, enabled, hostPort)
 	}
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	switch {
 	case errors.Is(err, manager.ErrNotFound):
 		http.NotFound(w, r)
@@ -625,7 +626,7 @@ func (s *Server) retryWithSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	err := s.Manager.RetryInstallWith(r.Context(), name, settings, secrets)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"RetryError": msg}, true)
 		return
 	}
@@ -659,7 +660,7 @@ func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out, err := n.RunAction(r.Context(), name, action, inputs)
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	var ae *manager.ActionError
 	result := map[string]string{"action": action}
 	switch {
@@ -739,7 +740,7 @@ func (s *Server) titleSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"TitleError": msg, "EditSettings": true}, true)
 		return
 	}

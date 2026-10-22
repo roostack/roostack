@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 type file struct {
@@ -222,7 +223,7 @@ func TestMoveService(t *testing.T) {
 	a.secrets["roostack-forgejo-db-main-password"] = []byte("generated")
 	// Only the service's own secrets are brought (review M20).
 	a.secrets["roostack-caddy-dns-api_token"] = []byte("planted")
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.MoveService(ctx, "forgejo", "n-0000000002", MoveCopy); !errors.As(err, &fe) {
 		t.Errorf("moving to where it runs: %v", err)
 	}
@@ -451,7 +452,7 @@ func TestMoveThroughBackupGoesBack(t *testing.T) {
 	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Held != nil {
 		t.Error("still held")
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.StartHeld(ctx, "forgejo"); !errors.As(err, &fe) {
 		t.Errorf("starting one that isn't held: %v", err)
 	}

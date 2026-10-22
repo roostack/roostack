@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Storage for other labs (SPEC.md §10.10). As host, this lab keeps other
@@ -119,15 +120,15 @@ func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, end
 	name = strings.TrimSpace(name)
 	switch {
 	case name == "" || len([]rune(name)) > 60:
-		return labnet.StorageInvite{}, formErrorf("Give it a name, such as \"Sam's lab\".")
+		return labnet.StorageInvite{}, usererr.New("Give it a name, such as \"Sam's lab\".")
 	case quota < units.GB:
-		return labnet.StorageInvite{}, formErrorf("Offer at least 1 GB.")
+		return labnet.StorageInvite{}, usererr.New("Offer at least 1 GB.")
 	}
 	if host, port, err := splitEndpoint(endpoint); err != nil || host == "" || port == 0 {
-		return labnet.StorageInvite{}, formErrorf("Enter the address and port the other lab reaches this one at, such as 203.0.113.7:51821.")
+		return labnet.StorageInvite{}, usererr.New("Enter the address and port the other lab reaches this one at, such as 203.0.113.7:51821.")
 	}
 	if m.guestHost(ctx) == nil {
-		return labnet.StorageInvite{}, formErrorf("Roostack can't reach %s, which offers the storage, right now.", m.nameOf(m.GuestServer(ctx)))
+		return labnet.StorageInvite{}, usererr.New("Roostack can't reach %s, which offers the storage, right now.", m.nameOf(m.GuestServer(ctx)))
 	}
 	if err := m.quotaFits(ctx, quota, 0); err != nil {
 		return labnet.StorageInvite{}, err
@@ -197,7 +198,7 @@ func (m *Manager) spaceLeft(ctx context.Context, except int64) (GuestSpace, bool
 // isn't refused.
 func (m *Manager) quotaFits(ctx context.Context, quota, except int64) error {
 	if sp, ok := m.spaceLeft(ctx, except); ok && quota > sp.Left {
-		return formErrorf("That doesn't fit: this disk can offer about %s more (after what's promised already and some room to spare).", sizeGB(sp.Left))
+		return usererr.New("That doesn't fit: this disk can offer about %s more (after what's promised already and some room to spare).", sizeGB(sp.Left))
 	}
 	return nil
 }
@@ -276,7 +277,7 @@ func (m *Manager) SetGuestQuota(ctx context.Context, id, quota int64) error {
 		return ErrNotFound
 	}
 	if quota < units.GB {
-		return formErrorf("Offer at least 1 GB.")
+		return usererr.New("Offer at least 1 GB.")
 	}
 	if err := m.quotaFits(ctx, quota, id); err != nil {
 		return err
@@ -345,7 +346,7 @@ func (m *Manager) AddRemoteStorage(ctx context.Context, code string) error {
 	}
 	inv, err := labnet.ParseStorageInvite(code)
 	if err != nil {
-		return formErrorf("%s", err)
+		return usererr.New("%s", err)
 	}
 	remotes, err := m.remoteStorage(ctx)
 	if err != nil {
@@ -359,12 +360,12 @@ func (m *Manager) AddRemoteStorage(ctx context.Context, code string) error {
 	for ; n <= 9 && used["roostack-st"+strconv.Itoa(n)]; n++ {
 	}
 	if n > 9 {
-		return formErrorf("This lab already stores at 9 other labs.")
+		return usererr.New("This lab already stores at 9 other labs.")
 	}
 	iface := "roostack-st" + strconv.Itoa(n)
 	if err := labnet.JoinStorage(ctx, inv, iface, m.LinkAgent); err != nil {
 		m.LinkAgent.RemoveWireGuard(ctx, iface)
-		return formErrorf("%s", err)
+		return usererr.New("%s", err)
 	}
 	r := RemoteStorage{HostName: inv.HostName, Iface: iface, HostAddr: inv.HostAddr, User: inv.User,
 		StorePassword: inv.StorePassword, AdminPassword: inv.AdminPassword, Port: inv.Port, Quota: inv.Quota,
@@ -544,7 +545,7 @@ func (m *Manager) remoteServerUser(ctx context.Context, ref, serverID string) (R
 		return r, err
 	}
 	if err := labnet.SetGuestUser(ctx, r.HostAddr, r.User, r.AdminPassword, serverID, hash); err != nil {
-		return r, formErrorf("%s didn't take a user for %s: %v. Check their lab is running, and try again.", r.HostName, m.nameOf(serverID), err)
+		return r, usererr.New("%s didn't take a user for %s: %v. Check their lab is running, and try again.", r.HostName, m.nameOf(serverID), err)
 	}
 	if r.Servers[serverID] == pw {
 		return r, nil

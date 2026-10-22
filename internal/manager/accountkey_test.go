@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/b2"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A new key for an account: on Backblaze, a key that can make keys gives
@@ -118,7 +119,7 @@ func TestChangeS3Key(t *testing.T) {
 
 	// A wrong key is refused, and nothing changes.
 	err = m.ChangeS3Key(ctx, "provider:1", "new-id", "typo")
-	var fe *FormError
+	var fe *usererr.Error
 	if !errors.As(err, &fe) || !strings.Contains(err.Error(), "Backblaze didn't accept this key") {
 		t.Errorf("wrong key: %v", err)
 	}

@@ -5,6 +5,7 @@ import (
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Where the lab is (SPEC.md §6.12): at home behind a router, or on the
@@ -30,7 +31,7 @@ func (s *Server) networkSubmit(w http.ResponseWriter, r *http.Request) {
 	network := r.FormValue("network")
 	tunnelOnly := network == config.NetworkInternet && r.FormValue("ui") == "tunnel"
 	if err := s.Setup.SetNetwork(network, tunnelOnly); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}

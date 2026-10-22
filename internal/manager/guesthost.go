@@ -7,6 +7,7 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Storage for other labs is offered by one of the lab's servers (SPEC.md
@@ -71,7 +72,7 @@ func (m *Manager) SetGuestServer(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	if n.GuestHost() == nil || (n != m.Node && n.Settings() == nil) {
-		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	old := m.GuestServer(ctx)
 	if old == n.Identity().ID {
@@ -83,7 +84,7 @@ func (m *Manager) SetGuestServer(ctx context.Context, id string) error {
 	}
 	left, _ := m.LeftoverGuests(ctx)
 	if len(guests) > 0 || len(left) > 0 {
-		return formErrorf("Other labs store backups on %s: remove them (and delete their backups) before offering storage elsewhere.",
+		return usererr.New("Other labs store backups on %s: remove them (and delete their backups) before offering storage elsewhere.",
 			m.nameOf(old))
 	}
 	if h := m.guestHost(ctx); h != nil && m.GuestHub.Enabled(ctx) {

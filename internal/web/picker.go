@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // mediaCrumb is one step of the folders opened so far ("" Href: the one
@@ -128,7 +129,7 @@ func (s *Server) pickFolders(ctx context.Context, server string, pl pickerPlace,
 	}
 	p.UseHref = links.back(pl, true)
 	list, err := s.Libraries.LibraryFolders(ctx, server, l)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		p.Error, p.UseHref = msg, ""
 	} else if err != nil {
 		return p, err

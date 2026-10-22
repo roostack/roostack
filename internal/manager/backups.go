@@ -27,6 +27,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Backups across servers (SPEC.md §10.10): each server chooses where it
@@ -167,10 +168,10 @@ func (m *Manager) AddS3Provider(ctx context.Context, name string, p S3Provider) 
 	p = p.Clean()
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return formErrorf("Give it a name, such as \"Backblaze\".")
+		return usererr.New("Give it a name, such as \"Backblaze\".")
 	}
 	if msg := p.Problem(); msg != "" {
-		return formErrorf("%s", msg)
+		return usererr.New("%s", msg)
 	}
 	cfg, _ := json.Marshal(p)
 	_, err := m.BackupStore.AddBackupProvider(ctx, store.BackupProvider{Kind: "s3", Name: name, Config: string(cfg)})
@@ -189,7 +190,7 @@ func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	if err := m.recoveryKey(); err != nil {
 		return err
@@ -199,7 +200,7 @@ func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string
 		return err
 	}
 	if choice == nil {
-		return formErrorf("Choose where backups go.")
+		return usererr.New("Choose where backups go.")
 	}
 	name := n.Identity().Name
 	title := "Setting up backups for " + name
@@ -877,7 +878,7 @@ func (m *Manager) recoveryKey() error {
 	if m.EnsureRecoveryKey != nil {
 		return m.EnsureRecoveryKey()
 	}
-	return formErrorf("Set up this server's backups first: that creates the recovery key every backup can be read with.")
+	return usererr.New("Set up this server's backups first: that creates the recovery key every backup can be read with.")
 }
 
 // choiceFor finds a place a server can back up: one of BackupChoices, or a
@@ -887,7 +888,7 @@ func (m *Manager) choiceFor(ctx context.Context, serverID, ref string) (*BackupC
 	switch kind {
 	case "drive":
 		if serverID != m.Lab.NodeID || m.Drives == nil {
-			return nil, formErrorf("A drive can only hold backups of the server it's in.")
+			return nil, usererr.New("A drive can only hold backups of the server it's in.")
 		}
 		drives, err := m.Drives.Drives(ctx)
 		if err != nil {
@@ -898,10 +899,10 @@ func (m *Manager) choiceFor(ctx context.Context, serverID, ref string) (*BackupC
 				return &BackupChoice{Ref: ref, Title: DriveTitle(d)}, nil
 			}
 		}
-		return nil, formErrorf("That drive isn't connected any more.")
+		return nil, usererr.New("That drive isn't connected any more.")
 	case "folder":
 		if serverID != m.Lab.NodeID || m.Drives == nil || !filepath.IsAbs(id) {
-			return nil, formErrorf("Enter a full folder path, starting with /.")
+			return nil, usererr.New("Enter a full folder path, starting with /.")
 		}
 		return &BackupChoice{Ref: "folder:" + filepath.Clean(id), Title: "The folder " + filepath.Clean(id)}, nil
 	}

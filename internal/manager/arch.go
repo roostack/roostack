@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // serverArchKey + server ID is the processor a server last said it has
@@ -122,7 +123,7 @@ func (m *Manager) noBuildFor(ctx context.Context, name, version, host string) (s
 // (SPEC.md §8.3.3).
 func (m *Manager) checkArch(ctx context.Context, p *pkgspec.Package, title, host string) error {
 	if a, arches := m.noBuildFor(ctx, p.Name, p.Version, host); a != "" {
-		return formErrorf("%s", m.noBuildText(ctx, title, host, a, arches))
+		return usererr.New("%s", m.noBuildText(ctx, title, host, a, arches))
 	}
 	return nil
 }

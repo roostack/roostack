@@ -9,6 +9,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Single sign-on (SPEC.md §5.2): turning it on for a service, and the
@@ -39,9 +40,9 @@ func (m *Manager) SetSSO(ctx context.Context, name string, on bool) error {
 	if on {
 		if ok, why := m.SSOAvailable(name); !ok {
 			if why == "" {
-				return formErrorf("This service can't use single sign-on: its package doesn't say how.")
+				return usererr.New("This service can't use single sign-on: its package doesn't say how.")
 			}
-			return formErrorf("%s", why)
+			return usererr.New("%s", why)
 		}
 	}
 	m.mu.Lock()

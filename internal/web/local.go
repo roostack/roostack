@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/editor"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // The Owner's own packages ("Add your own", SPEC.md §8.3.4 and §8.3.6):
@@ -58,7 +59,7 @@ func (s *Server) localAddSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := s.Manager.AddLocalPackage(data, icon)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		fail(msg)
 		return
 	}

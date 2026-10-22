@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 func TestInstallFlow(t *testing.T) {
@@ -75,7 +76,7 @@ func TestInstallFlow(t *testing.T) {
 	}
 
 	// A form error re-renders the form with the user's values.
-	fm.failWith = &manager.FormError{Msg: "That web address is already used"}
+	fm.failWith = &usererr.Error{Msg: "That web address is already used"}
 	code, body = h.post("/install/immich", url.Values{"subdomain": {"pics"}}, h.srv.URL)
 	if code != http.StatusBadRequest || !strings.Contains(body, "already used") || !strings.Contains(body, `value="pics"`) {
 		t.Errorf("form error: %d", code)
@@ -107,7 +108,7 @@ func TestInstallFlow(t *testing.T) {
 
 func TestSecretFieldsAreNotEchoed(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
-	fm.failWith = &manager.FormError{Msg: "nope"}
+	fm.failWith = &usererr.Error{Msg: "nope"}
 	// Vaultwarden's only secret is generated, so it must not be on the form.
 	if _, body := h.get("/install/vaultwarden"); strings.Contains(body, `name="setting.admin_token"`) {
 		t.Error("generated secrets must not appear on the form")
@@ -196,7 +197,7 @@ func TestServicePorts(t *testing.T) {
 		!strings.Contains(body, "Enter a port number") {
 		t.Errorf("bad number: %d", code)
 	}
-	fm.portErr = &manager.FormError{Msg: "Port 8480 is already used by the Roostack admin UI."}
+	fm.portErr = &usererr.Error{Msg: "Port 8480 is already used by the Roostack admin UI."}
 	if code, body := h.post("/services/vaultwarden/ports/ssh", url.Values{"enabled": {"on"}, "host_port": {"8480"}}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "already used by the Roostack admin UI") {
 		t.Errorf("clash: %d", code)

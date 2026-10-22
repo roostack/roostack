@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/s3api"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Rolling a server's backups back (SPEC.md §10.10). A server that's taken
@@ -165,15 +166,15 @@ func (m *Manager) rollbackTarget(ctx context.Context, serverID, ref string, befo
 		return S3Provider{}, "", ErrNotFound
 	}
 	if !m.access(ctx, serverID, d, t).Versioned {
-		return S3Provider{}, "", formErrorf("%s doesn't keep old versions, so there's nothing to roll back to.", d.provider.Name)
+		return S3Provider{}, "", usererr.New("%s doesn't keep old versions, so there's nothing to roll back to.", d.provider.Name)
 	}
 	switch {
 	case before.IsZero():
-		return S3Provider{}, "", formErrorf("Choose the date and time to go back to.")
+		return S3Provider{}, "", usererr.New("Choose the date and time to go back to.")
 	case before.After(time.Now()):
-		return S3Provider{}, "", formErrorf("Choose a time that has passed.")
+		return S3Provider{}, "", usererr.New("Choose a time that has passed.")
 	case !t.Created.IsZero() && before.Before(t.Created):
-		return S3Provider{}, "", formErrorf("Backups here started on %s: choose a time after that.", t.Created.Local().Format("2 January 2006 15:04"))
+		return S3Provider{}, "", usererr.New("Backups here started on %s: choose a time after that.", t.Created.Local().Format("2 January 2006 15:04"))
 	}
 	labID, err := m.labID(ctx)
 	if err != nil {
@@ -233,7 +234,7 @@ func (m *Manager) RollBack(ctx context.Context, serverID, ref string, before tim
 	}
 	checked := m.RollbackChecked(serverID, ref)
 	if checked == nil || !checked.Before.Equal(before) {
-		return formErrorf("Check what going back to that time changes first.")
+		return usererr.New("Check what going back to that time changes first.")
 	}
 	if m.Submit == nil {
 		return errors.New("no maintenance coordinator")

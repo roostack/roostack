@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Media libraries (SPEC.md §8.1, "Media libraries"): the controller keeps
@@ -153,7 +154,7 @@ func libraryWhere(l store.MediaLibrary) string {
 	return where
 }
 
-// libraryMedia is a server's media part, or a FormError saying why it has
+// libraryMedia is a server's media part, or a usererr.Error saying why it has
 // none.
 func (m *Manager) libraryMedia(serverID string) (node.Media, error) {
 	n := m.node(serverID)
@@ -162,7 +163,7 @@ func (m *Manager) libraryMedia(serverID string) (node.Media, error) {
 	}
 	media := n.Media()
 	if media == nil {
-		return nil, formErrorf("That server can't have media libraries: it doesn't answer, or its Roostack is too old.")
+		return nil, usererr.New("That server can't have media libraries: it doesn't answer, or its Roostack is too old.")
 	}
 	return media, nil
 }
@@ -196,11 +197,11 @@ func (m *Manager) LibraryFolders(ctx context.Context, serverID string, l agent.L
 	}
 	list, err := media.LibraryFolders(ctx, l)
 	if err != nil {
-		var fe *node.FormError
+		var fe *usererr.Error
 		if errors.As(err, &fe) {
-			return agent.FolderList{}, formErrorf("%s", fe.Msg)
+			return agent.FolderList{}, usererr.New("%s", fe.Msg)
 		}
-		return agent.FolderList{}, formErrorf("%s", err)
+		return agent.FolderList{}, usererr.New("%s", err)
 	}
 	return list, nil
 }
@@ -239,12 +240,12 @@ func LibraryName(title string) string {
 // that it's there and can be one, for the services chosen, then applies.
 func (m *Manager) AddLibrary(ctx context.Context, req LibraryRequest) error {
 	if m.Libraries == nil {
-		return formErrorf("Media libraries aren't available here.")
+		return usererr.New("Media libraries aren't available here.")
 	}
 	title := strings.TrimSpace(req.Title)
 	name := LibraryName(title)
 	if title == "" || name == "" || !agent.ValidLibraryName(name) {
-		return formErrorf("Give the library a name with some letters or digits, e.g. Films.")
+		return usererr.New("Give the library a name with some letters or digits, e.g. Films.")
 	}
 	stored, err := m.Libraries.MediaLibraries(ctx)
 	if err != nil {
@@ -252,7 +253,7 @@ func (m *Manager) AddLibrary(ctx context.Context, req LibraryRequest) error {
 	}
 	for _, l := range stored {
 		if l.ServerID == req.Server && l.Name == name {
-			return formErrorf("%s already has a library called %s: choose another name.", m.nameOf(req.Server), l.Title)
+			return usererr.New("%s already has a library called %s: choose another name.", m.nameOf(req.Server), l.Title)
 		}
 	}
 	if req.Share != nil {
@@ -260,7 +261,7 @@ func (m *Manager) AddLibrary(ctx context.Context, req LibraryRequest) error {
 	}
 	l := agent.Library{Name: name, Drive: req.Drive, Sub: req.Sub, Folder: req.Folder}
 	if (l.Drive == "") == (l.Folder == "") {
-		return formErrorf("Choose where the library is: a drive, or a folder on the server.")
+		return usererr.New("Choose where the library is: a drive, or a folder on the server.")
 	}
 	// The server checks it can be one, and says who owns what can't be read.
 	list, err := m.LibraryFolders(ctx, req.Server, l)
@@ -272,7 +273,7 @@ func (m *Manager) AddLibrary(ctx context.Context, req LibraryRequest) error {
 	if req.AsOwner {
 		o := list.Check.Owner
 		if o == nil || req.Drive == "" {
-			return formErrorf("There's no owner to read these files as: Roostack can read them already, or they belong to the system.")
+			return usererr.New("There's no owner to read these files as: Roostack can read them already, or they belong to the system.")
 		}
 		lib.OwnerUID, lib.OwnerGID, lib.OwnerName = o.UID, o.GID, o.Name
 	}
@@ -302,10 +303,10 @@ func (m *Manager) addShare(ctx context.Context, req LibraryRequest, name, title 
 		sh.Path = "/" + sh.Path
 	}
 	if _, err := media.CheckShare(ctx, sh); err != nil {
-		return formErrorf("%s", userText(err))
+		return usererr.New("%s", userText(err))
 	}
 	if err := media.SaveShareLogin(ctx, name, sh); err != nil {
-		return formErrorf("%s", userText(err))
+		return usererr.New("%s", userText(err))
 	}
 	lib := store.MediaLibrary{ServerID: req.Server, Name: name, Title: title, ShareType: sh.Type, ShareServer: sh.Server,
 		SharePath: sh.Path, ShareUser: sh.Username, PhotosFor: req.PhotosFor}
@@ -322,11 +323,10 @@ func (m *Manager) addShare(ctx context.Context, req LibraryRequest, name, title 
 	return nil
 }
 
-// userText is an error's words for a form: a FormError's own.
+// userText is an error's words for a form: a usererr.Error's own.
 func userText(err error) string {
-	var fe *node.FormError
-	if errors.As(err, &fe) {
-		return fe.Msg
+	if msg, ok := usererr.Message(err); ok {
+		return msg
 	}
 	return err.Error()
 }
@@ -405,7 +405,7 @@ func (m *Manager) SetServiceLibraries(ctx context.Context, service string, libra
 		return err
 	}
 	if !p.ReadsLibraries() {
-		return formErrorf("%s reads no media libraries.", p.Title)
+		return usererr.New("%s reads no media libraries.", p.Title)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -424,7 +424,7 @@ func (m *Manager) SetServiceLibraries(ctx context.Context, service string, libra
 	}
 	for _, l := range slices.Sorted(maps.Keys(in.LibraryPaths)) {
 		if err := instance.CheckLibraryPath(p, in.LibraryPaths, l); err != nil {
-			return formErrorf("%s can't be at %s inside %s: %v.", m.libraryTitle(ctx, in.Host, l), in.LibraryPaths[l], p.Title, err)
+			return usererr.New("%s can't be at %s inside %s: %v.", m.libraryTitle(ctx, in.Host, l), in.LibraryPaths[l], p.Title, err)
 		}
 	}
 	if err := in.Save(state.InstanceFile(m.Lab, service)); err != nil {

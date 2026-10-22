@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // The plan counts a backup as safe from ransomware only where this
@@ -127,7 +128,7 @@ func TestPlanChangeKey(t *testing.T) {
 		t.Errorf("another account: %d", code)
 	}
 	// A key that doesn't work: said, with the form still open.
-	fm.keyErr = &manager.FormError{Msg: "Backblaze didn't accept this key: wrong key"}
+	fm.keyErr = &usererr.Error{Msg: "Backblaze didn't accept this key: wrong key"}
 	_, body = h.post("/backups/plan/key", url.Values{"key": {"provider:1"}, "access_key": {"x"}, "secret_key": {"y"}}, h.srv.URL)
 	if !strings.Contains(body, "Backblaze didn&#39;t accept this key") || !strings.Contains(body, `id="plan-key-3" open`) {
 		t.Error("a refused key: the message, and the form open")
@@ -256,7 +257,7 @@ func TestPlanRollback(t *testing.T) {
 	}
 
 	// Refused: said on the page; a time that isn't one; another place.
-	fm.rollbackErr = &manager.FormError{Msg: "Choose a time that has passed."}
+	fm.rollbackErr = &usererr.Error{Msg: "Choose a time that has passed."}
 	if _, body = h.post("/backups/plan/rollback", url.Values{"destination": {"provider:1"}, "before": {"2030-01-01T00:00"}}, h.srv.URL); !strings.Contains(body, "Choose a time that has passed.") {
 		t.Error("a refusal is shown")
 	}

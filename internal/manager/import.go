@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Bringing your own data into a service (SPEC.md §8.4): the service's
@@ -36,14 +37,14 @@ func (m *Manager) ImportsOf(service string) (node.Imports, error) {
 	}
 	n := m.node(cmp.Or(in.Host, m.Lab.NodeID))
 	if n == nil {
-		return nil, formErrorf("Roostack can't reach the server it runs on.")
+		return nil, usererr.New("Roostack can't reach the server it runs on.")
 	}
 	if r, ok := n.(RemoteServer); ok && r.Settings() == nil {
-		return nil, formErrorf("Roostack can't reach %s right now.", r.Identity().Name)
+		return nil, usererr.New("Roostack can't reach %s right now.", r.Identity().Name)
 	}
 	x := n.Imports()
 	if x == nil {
-		return nil, formErrorf("Data can't be brought into services on that server.")
+		return nil, usererr.New("Data can't be brought into services on that server.")
 	}
 	return x, nil
 }
@@ -77,20 +78,20 @@ func (m *Manager) SwitchImport(ctx context.Context, service string) error {
 		return err
 	}
 	if v.Copy == nil || v.Copy.Running || v.Copy.Passes == 0 {
-		return formErrorf("Copy your files first; switching copies only what changed since.")
+		return usererr.New("Copy your files first; switching copies only what changed since.")
 	}
 	if !v.Check.Ready() {
-		return formErrorf("Check your files again first.")
+		return usererr.New("Check your files again first.")
 	}
 	host := cmp.Or(in.Host, m.Lab.NodeID)
 	up := node.Capability(m.node(host), node.Node.Updater)
 	if up == nil {
-		return formErrorf("Roostack can't reach %s's server.", p.Title)
+		return usererr.New("Roostack can't reach %s's server.", p.Title)
 	}
 	switching.Lock()
 	if switching.m[service] {
 		switching.Unlock()
-		return formErrorf("%s is being switched already.", p.Title)
+		return usererr.New("%s is being switched already.", p.Title)
 	}
 	switching.m[service] = true
 	switching.Unlock()

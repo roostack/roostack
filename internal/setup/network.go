@@ -5,6 +5,7 @@ import (
 	"io/fs"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Where the lab is: at home behind a router, or on the internet (a cloud
@@ -51,7 +52,7 @@ func (s *Setup) Network(detect func() string) NetworkChoice {
 // that to its end).
 func (s *Setup) SetNetwork(network string, uiTunnelOnly bool) error {
 	if network != config.NetworkHome && network != config.NetworkInternet {
-		return &CheckError{Msg: "Choose where this lab is."}
+		return &usererr.Error{Msg: "Choose where this lab is."}
 	}
 	if err := config.Update(s.LabPath, func(lab *config.Lab) {
 		lab.Network, lab.Public.UITunnelOnly = network, uiTunnelOnly

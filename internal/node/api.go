@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Server serves a server's operations to its controller over Roostack's
@@ -160,7 +161,7 @@ func svcOf(r *http.Request) string { return r.PathValue("service") }
 
 // writeErr sends an error with its kind, so the controller can rebuild it.
 func writeErr(w http.ResponseWriter, err error) {
-	var fe *FormError
+	var fe *usererr.Error
 	var ae *ActionError
 	switch {
 	case errors.Is(err, ErrNotFound):

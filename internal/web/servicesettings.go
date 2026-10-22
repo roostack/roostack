@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // serviceLink is a link into the app's own settings pages.
@@ -170,7 +171,7 @@ func (s *Server) settingsSubmit(w http.ResponseWriter, r *http.Request) {
 			err = s.Libraries.SetServiceLibraries(r.Context(), name, chosen, paths)
 		}
 	}
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	switch {
 	case errors.Is(err, manager.ErrNotFound):
 		http.NotFound(w, r)

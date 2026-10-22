@@ -10,6 +10,7 @@ import (
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +74,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if labName != "" {
 		err := s.Setup.SetLabName(r.Context(), labName, false)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			fail(msg)
 			return
 		}

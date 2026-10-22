@@ -9,6 +9,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Moving a service to another server (SPEC.md §10.10).
@@ -66,7 +67,7 @@ func (s *Server) renderMove(w http.ResponseWriter, r *http.Request, errMsg strin
 func (s *Server) moveSubmit(w http.ResponseWriter, r *http.Request) {
 	name, to := r.PathValue("name"), r.FormValue("to")
 	err := s.Manager.MoveService(r.Context(), name, to, r.FormValue("way"))
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderMove(w, r, msg)
 		return
 	}

@@ -13,6 +13,7 @@ import (
 
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/public"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Blocking known exploits (SPEC.md §6.10 item 4): CrowdSec's AppSec
@@ -117,7 +118,7 @@ func (s *Server) wafSubmit(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	on := r.FormValue("waf") == "on"
 	if err := s.Manager.SetWAF(r.Context(), name, on); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderPublic(w, r, msg)
 			return
 		}

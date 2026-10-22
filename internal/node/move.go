@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Moving a service between servers by copying its data directly (SPEC.md
@@ -640,7 +641,7 @@ func (n *Local) PutBackKeptData(ctx context.Context, path string) error {
 	service, suffix := m[1], "."+m[2]+m[3]
 	s, ok := n.service(service)
 	if !ok {
-		return formErrorf("%s doesn't run on this server, so its data can't be put back here.", service)
+		return usererr.New("%s doesn't run on this server, so its data can't be put back here.", service)
 	}
 	live, err := stateOutput(n, s)
 	if err != nil {

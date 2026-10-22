@@ -14,9 +14,9 @@ import (
 
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/editor"
-	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/registry"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // The Owner adds and removes packages of their own from the catalog
@@ -51,7 +51,7 @@ func TestAddYourOwn(t *testing.T) {
 		t.Error("the catalog should say it was added, with a link to install it")
 	}
 
-	fm.failWith = &manager.FormError{Msg: "The service registry has a package called forgejo already: give yours another name."}
+	fm.failWith = &usererr.Error{Msg: "The service registry has a package called forgejo already: give yours another name."}
 	code, body = h.postFiles("/catalog/add", map[string][]byte{"package": data})
 	if code != http.StatusBadRequest || !strings.Contains(body, "give yours another name") {
 		t.Errorf("a refused package: %d", code)

@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 type fakeSecrets map[string][]byte
@@ -100,7 +101,7 @@ func TestDomainStep(t *testing.T) {
 		{"home.example.com", "me@example.com", "cloudflare", map[string]string{"api_token": "bad"}, "Cloudflare said: 403 Forbidden"},
 	} {
 		err := s.SaveDomain(ctx, tc.domain, tc.email, tc.provider, tc.values, DomainOptions{})
-		var ce *CheckError
+		var ce *usererr.Error
 		if !errors.As(err, &ce) || !strings.Contains(ce.Msg, tc.want) {
 			t.Errorf("%+v: err %v", tc, err)
 		}
@@ -111,7 +112,7 @@ func TestDomainStep(t *testing.T) {
 
 	// Route 53 with the optional region left empty.
 	// Namecheap record management without accepting the risk is refused.
-	var ce *CheckError
+	var ce *usererr.Error
 	if err := s.SaveDomain(ctx, "home.example.com", "me@example.com", "namecheap",
 		map[string]string{"user": "good", "api_key": "good"}, DomainOptions{ManageRecords: true}); !errors.As(err, &ce) {
 		t.Errorf("risky provider without opt-in: %v", err)

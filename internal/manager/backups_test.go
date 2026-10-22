@@ -23,6 +23,7 @@ import (
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 func TestBackupDestinationOnAServersDisk(t *testing.T) {
@@ -313,7 +314,7 @@ func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
 		return &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache")}
 	}
 	ctx := context.Background()
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.AddBackupCopy(ctx, "n-0000000002", "server:n-0000000001"); !errors.As(err, &fe) {
 		t.Errorf("a copy needs a main destination first: %v", err)
 	}
@@ -542,7 +543,7 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 			t.Fatalf("setup: %s\n%s", log.Err, strings.Join(log.Lines, "\n"))
 		}
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.SetBackupDestination(ctx, "n-0000000002", "drive:uuid:64B1"); !errors.As(err, &fe) {
 		t.Errorf("another server can't use this server's drive: %v", err)
 	}

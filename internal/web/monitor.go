@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Monitoring (SPEC.md §6.15): the Monitoring page, a check's Details,
@@ -513,7 +514,7 @@ func (s *Server) statusPageSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.StatusPage != nil && on != s.StatusPage.StatusPageOn() {
 		err := s.StatusPage.SetStatusPage(on)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderMonitoring(w, r, msg, nil)
 			return
 		}

@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Media libraries (SPEC.md §8.1, "Media libraries"): Settings → Media
@@ -182,7 +183,7 @@ func (s *Server) mediaPlaceAt(ctx context.Context, server string, p mediaPlace) 
 		p.Label, p.Name = p.Folder, path.Base(p.Folder)
 	}
 	list, err := s.Libraries.LibraryFolders(ctx, server, l)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		p.Error = msg
 		return p, nil
 	} else if err != nil {
@@ -233,7 +234,7 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 	}
 	ctx := r.Context()
 	drives, err := s.Libraries.LibraryDrives(ctx, v.Server)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		v.DrivesError = msg
 	} else if err != nil {
 		s.serverError(w, err)
@@ -382,7 +383,7 @@ func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if pf := r.FormValue("photos"); pf != "" && s.Photos != nil {
 		err := s.Photos.AddPhotoLocation(r.Context(), pf, req)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderMediaAdd(w, r, msg)
 			return
 		}
@@ -395,7 +396,7 @@ func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := s.Libraries.AddLibrary(r.Context(), req)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderMediaAdd(w, r, msg)
 		return
 	}
@@ -492,7 +493,7 @@ func (s *Server) serviceLibrariesSubmit(w http.ResponseWriter, r *http.Request) 
 	r.ParseForm()
 	name := r.PathValue("name")
 	err := s.Libraries.SetServiceLibraries(r.Context(), name, r.Form["library"], nil)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}

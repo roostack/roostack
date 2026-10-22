@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // The check before anything is copied (SPEC.md §8.4, docs/MIGRATION-PLAN.md
@@ -39,7 +40,7 @@ func (n *Local) CheckImport(ctx context.Context, service string) error {
 		return err
 	}
 	if st := n.loadImport(ctx, service); st.Source == nil {
-		return formErrorf("Say where your files are first.")
+		return usererr.New("Say where your files are first.")
 	}
 	if err := n.updateImport(ctx, service, func(st *ImportState) error {
 		st.Checking, st.CheckErr = true, ""

@@ -24,6 +24,7 @@ import (
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/trust"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // wizardSteps numbers the setup wizard's pages, by template, for the
@@ -301,7 +302,7 @@ func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 	if err == nil && m.This {
 		err = s.Setup.Done(r.Context(), setup.StepSSH)
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		data, derr := s.sshData(r, choice, login, msg)
 		if derr != nil {
 			s.serverError(w, derr)
@@ -497,7 +498,7 @@ func (s *Server) eraseDriveSubmit(w http.ResponseWriter, r *http.Request) {
 	disk := r.FormValue("disk")
 	wizard := s.inWizard(r)
 	err := s.Setup.EraseDrive(r.Context(), disk)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPlanPage(w, r, wizard, msg)
 		return
 	}
@@ -643,7 +644,7 @@ func (s *Server) wizardError(w http.ResponseWriter, r *http.Request, err error, 
 	if err == nil {
 		return false
 	}
-	msg, ok := userMessage(err)
+	msg, ok := usererr.Message(err)
 	if !ok {
 		s.serverError(w, err)
 		return true

@@ -11,6 +11,7 @@ import (
 
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Installing a service, step by step (SPEC.md §6.3.3): the service's page,
@@ -77,7 +78,7 @@ func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) 
 		v.Params = "not " + strings.Join(secrets, ",")
 	}
 	sum, err := s.Manager.InstallSummary(p.Name, req)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		v.Err = msg
 		return v
 	}

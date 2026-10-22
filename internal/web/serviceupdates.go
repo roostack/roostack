@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // ServiceUpdates are updates of installed services to newer versions
@@ -182,7 +183,7 @@ func (s *Server) updateSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"UpdateError": msg}, true)
 		return
 	}

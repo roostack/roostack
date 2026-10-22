@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/trust"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Direct links between servers (SPEC.md §10.10): servers dial only the
@@ -305,7 +306,7 @@ func (m *Manager) SetLinkAddress(ctx context.Context, id, addr string) error {
 		host, port, err := net.SplitHostPort(addr)
 		if n, perr := strconv.Atoi(port); err != nil || perr != nil || n < 1 || n > 65535 || host == "" ||
 			strings.ContainsAny(host, " /") {
-			return formErrorf("Enter the address as host:port, e.g. 192.168.1.20:%d.", agent.WireGuardPort)
+			return usererr.New("Enter the address as host:port, e.g. 192.168.1.20:%d.", agent.WireGuardPort)
 		}
 	}
 	if err := m.Settings.SetSetting(ctx, linkAddrKey+id, addr); err != nil {

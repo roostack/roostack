@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // fakePhotos is the manager's and Immich's server's side of migrating
@@ -78,7 +79,7 @@ func (f *fakePhotos) PhotoDrives(_ context.Context, _ string, admin bool) ([]man
 func (f *fakePhotos) CheckPhotoSource(_ context.Context, _ string, src node.PhotoSource, admin bool) error {
 	f.checked = append(f.checked, admin)
 	if src.Kind == "folder" && !admin {
-		return &node.FormError{Msg: "Only Owners and Admins can choose a folder on the server."}
+		return &usererr.Error{Msg: "Only Owners and Admins can choose a folder on the server."}
 	}
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A new key for an online storage account (SPEC.md §10.10): after a
@@ -42,7 +43,7 @@ func (m *Manager) ChangeS3Key(ctx context.Context, ref, accessKey, secretKey str
 	s3.AccessKey, s3.SecretKey = accessKey, secretKey
 	s3 = s3.Clean()
 	if s3.AccessKey == "" || s3.SecretKey == "" {
-		return formErrorf("Enter the new key's ID and the key itself.")
+		return usererr.New("Enter the new key's ID and the key itself.")
 	}
 	using, err := m.accountUses(ctx, ref)
 	if err != nil {
@@ -53,12 +54,12 @@ func (m *Manager) ChangeS3Key(ctx context.Context, ref, accessKey, secretKey str
 	scoped := false
 	if d.isB2() {
 		if scoped, err = m.b2(s3).CanMakeKeys(cctx, s3.Bucket); err != nil {
-			return formErrorf("Backblaze didn't accept this key: %s", firstLine(err.Error()))
+			return usererr.New("Backblaze didn't accept this key: %s", firstLine(err.Error()))
 		}
 	}
 	if len(using) > 0 {
 		if _, err := m.OpenRepo(using[0].Repository, s3.Env()).Keys(cctx); err != nil {
-			return formErrorf("Roostack couldn't reach the backups in %s with this key: %s", s3.Bucket, firstLine(err.Error()))
+			return usererr.New("Roostack couldn't reach the backups in %s with this key: %s", s3.Bucket, firstLine(err.Error()))
 		}
 	}
 	p := d.provider

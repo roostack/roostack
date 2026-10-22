@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Updating a service to a newer package version (SPEC.md §7). The
@@ -320,11 +321,11 @@ func updatedInstance(in *instance.Instance, old, p *pkgspec.Package) (*instance.
 		}
 	}
 	if len(needs) > 0 {
-		return nil, nil, formErrorf("%s %s needs something set that this version didn't (%s), and Roostack can't ask for it yet.",
+		return nil, nil, usererr.New("%s %s needs something set that this version didn't (%s), and Roostack can't ask for it yet.",
 			p.Title, pkgspec.Upstream(p.Version), strings.Join(needs, ", "))
 	}
 	if err := cp.Validate(p); err != nil {
-		return nil, nil, formErrorf("%s %s doesn't fit this service's settings: %v", p.Title, pkgspec.Upstream(p.Version), err)
+		return nil, nil, usererr.New("%s %s doesn't fit this service's settings: %v", p.Title, pkgspec.Upstream(p.Version), err)
 	}
 	slices.Sort(dropped)
 	return &cp, dropped, nil
@@ -397,7 +398,7 @@ func (m *Manager) UpdatePolicy(name string) string {
 // SetUpdatePolicy changes how a service updates (SPEC.md §7).
 func (m *Manager) SetUpdatePolicy(ctx context.Context, name, policy string) error {
 	if !instance.ValidUpdates(policy) {
-		return formErrorf("Choose how %s updates.", name)
+		return usererr.New("Choose how %s updates.", name)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -427,13 +428,13 @@ func (m *Manager) UpdateService(ctx context.Context, name, to, by string, accept
 		if !validName(name) {
 			return ErrNotFound
 		}
-		return formErrorf("There's no update for this service now.")
+		return usererr.New("There's no update for this service now.")
 	case u.To != to:
-		return formErrorf("The update on offer has changed to %s: have a look, then update again.", u.ToApp())
+		return usererr.New("The update on offer has changed to %s: have a look, then update again.", u.ToApp())
 	case u.Blocked != "":
-		return formErrorf("%s", u.Blocked)
+		return usererr.New("%s", u.Blocked)
 	case len(u.NewRisks) > 0 && !acceptRisks:
-		return formErrorf("%s %s asks for things the version it runs didn't. Read them, and tick the box if you want to update anyway.", u.Title, u.ToApp())
+		return usererr.New("%s %s asks for things the version it runs didn't. Read them, and tick the box if you want to update anyway.", u.Title, u.ToApp())
 	case len(u.NewRisks) > 0:
 		m.Log.Warn("updating to a package of your own with new risks, as the Owner confirmed",
 			"service", name, "version", to, "risks", u.NewRisks)
@@ -450,7 +451,7 @@ func (m *Manager) startUpdate(u *Update, why string, automatic bool, by string, 
 	}
 	if m.upd.active[u.Service] != nil {
 		m.upd.mu.Unlock()
-		return formErrorf("%s is already updating.", u.Title)
+		return usererr.New("%s is already updating.", u.Title)
 	}
 	backup = backup && !u.NoBackups
 	steps := []node.InstallStep{{Key: "download", Title: "Downloading the new version"}}

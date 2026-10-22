@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // forgejoIcon is the test fixture's logo, a valid one.
@@ -41,7 +42,7 @@ func unpinned(data []byte) []byte {
 
 func wantFormError(t *testing.T, err error, want string) {
 	t.Helper()
-	var fe *FormError
+	var fe *usererr.Error
 	if !errors.As(err, &fe) || !strings.Contains(fe.Msg, want) {
 		t.Errorf("got %v, want a form error containing %q", err, want)
 	}

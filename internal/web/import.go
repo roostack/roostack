@@ -21,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Bringing a service's data in from the person's own copy (SPEC.md §8.4):
@@ -172,7 +173,7 @@ func (s *Server) importOf(w http.ResponseWriter, r *http.Request) (string, node.
 		http.NotFound(w, r)
 		return "", nil, false
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		http.Error(w, msg, http.StatusBadRequest)
 		return "", nil, false
 	}
@@ -332,7 +333,7 @@ func (s *Server) importSource(r *http.Request, name string, pg *importPage) erro
 	server := n.Identity().ID
 	f.ServerName = n.Identity().Name
 	drives, err := s.Libraries.LibraryDrives(r.Context(), server)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		f.DrivesError = msg
 	} else if err != nil {
 		return err
@@ -663,7 +664,7 @@ func (s *Server) importBrowsePage(w http.ResponseWriter, r *http.Request) {
 	p.UseText = "Use " + path.Base(cmp.Or(strings.TrimPrefix(rel, "."), top))
 	p.UseHref = base + "?" + url.Values{"for": {forWhat}, "path": {rel}}.Encode()
 	list, err := x.BrowseImport(r.Context(), name, rel)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		p.Error, p.UseHref = msg, ""
 	} else if err != nil {
 		s.serverError(w, err)
@@ -679,7 +680,7 @@ func (s *Server) importBrowsePage(w http.ResponseWriter, r *http.Request) {
 
 // importDone audits a change and goes back to the import page.
 func (s *Server) importDone(w http.ResponseWriter, r *http.Request, err error, what, anchor string) {
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderImport(w, r, msg, http.StatusBadRequest)
 		return
 	}

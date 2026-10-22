@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A lab's servers (SPEC.md §10): this one, the controller, which keeps
@@ -455,12 +456,12 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 		return err
 	}
 	if on := m.onNode(all, id); len(on) > 0 {
-		return formErrorf("%s still runs %s. Remove it first, or move it to another server.",
+		return usererr.New("%s still runs %s. Remove it first, or move it to another server.",
 			r.Identity().Name, on[0].Title())
 	}
 	if w := waitingOn(all, id); len(w) > 0 {
 		// Its backups are how they come back: keep it until they have.
-		return formErrorf("%s waits to be restored from %s's backups. Restore it or remove it first.",
+		return usererr.New("%s waits to be restored from %s's backups. Restore it or remove it first.",
 			w[0].Title(), r.Identity().Name)
 	}
 	reachable := r.Settings() != nil
@@ -491,7 +492,7 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 func (m *Manager) RenameServer(ctx context.Context, id, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 40 || strings.ContainsFunc(name, unicode.IsControl) {
-		return formErrorf("Choose a name of up to 40 characters.")
+		return usererr.New("Choose a name of up to 40 characters.")
 	}
 	if id == m.Lab.NodeID {
 		if m.RenameSelf == nil {

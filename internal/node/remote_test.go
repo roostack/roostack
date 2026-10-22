@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // fakeNode records what the controller asked of it.
@@ -72,7 +73,7 @@ func (f *fakeNode) RetryInstall(_ context.Context, s string) error {
 func (f *fakeNode) RunAction(_ context.Context, s, a string, in map[string]string) (string, error) {
 	switch {
 	case in["password"] == "short":
-		return "", &FormError{Msg: "Password must be at least 8 characters."}
+		return "", &usererr.Error{Msg: "Password must be at least 8 characters."}
 	case a == "fail":
 		return "", &ActionError{Title: "Reset a password", Output: "database not ready", Err: errors.New("exit status 1")}
 	}
@@ -108,7 +109,7 @@ func (f *fakeSettings) Timezones(context.Context) (string, []string, error) {
 }
 func (f *fakeSettings) SetTimezone(_ context.Context, name string) (bool, error) {
 	if name == "Mars" {
-		return false, &FormError{Msg: "Choose a time zone from the list."}
+		return false, &usererr.Error{Msg: "Choose a time zone from the list."}
 	}
 	f.zone = name
 	return true, nil
@@ -202,7 +203,7 @@ func TestRemote(t *testing.T) {
 	if out, err := r.RunAction(ctx, "forgejo", "reset", map[string]string{"username": "mum"}); err != nil || out != "ok mum" {
 		t.Errorf("action: %q %v", out, err)
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if _, err := r.RunAction(ctx, "forgejo", "reset", map[string]string{"password": "short"}); !errors.As(err, &fe) {
 		t.Errorf("form error lost: %v", err)
 	}

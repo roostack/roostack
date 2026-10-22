@@ -8,6 +8,7 @@ import (
 
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/registry"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Withdrawals are the service registry's withdrawals of installed
@@ -73,7 +74,7 @@ func (s *Server) startAnywaySubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"Error": msg}, true)
 		return
 	}

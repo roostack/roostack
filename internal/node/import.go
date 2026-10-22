@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Bringing your own data into a service (SPEC.md §8.4): the server the
@@ -249,13 +250,13 @@ func (n *Local) SetImportSource(ctx context.Context, service string, src ImportS
 		return err
 	}
 	if n.importBusy(service) {
-		return formErrorf("Wait for the check or copy to finish, or stop it, first.")
+		return usererr.New("Wait for the check or copy to finish, or stop it, first.")
 	}
 	if !slices.Contains([]string{"drive", "folder", "share"}, src.Kind) {
-		return formErrorf("Choose a drive, a folder or a share.")
+		return usererr.New("Choose a drive, a folder or a share.")
 	}
 	if _, err := n.ImportAgent.MountImport(ctx, service, src.Library); err != nil {
-		return formErrorf("Roostack couldn't open those files: %v.", strings.TrimSuffix(err.Error(), "."))
+		return usererr.New("Roostack couldn't open those files: %v.", strings.TrimSuffix(err.Error(), "."))
 	}
 	if src.Library.Share != nil {
 		share := *src.Library.Share
@@ -288,7 +289,7 @@ func (n *Local) SetImportSetup(ctx context.Context, service string, setup *impor
 	}
 	if setup != nil {
 		if err := setup.Clean(); err != nil {
-			return formErrorf("%s.", capitalise(strings.TrimSuffix(err.Error(), ".")))
+			return usererr.New("%s.", capitalise(strings.TrimSuffix(err.Error(), ".")))
 		}
 	}
 	n.forgetSamples(service)
@@ -318,7 +319,7 @@ func (n *Local) SetImportPrefixes(ctx context.Context, service string, prefixes 
 			p.Now = "."
 		}
 		if !fs.ValidPath(p.Now) || len(p.Old) > 4096 || strings.ContainsAny(p.Old, "\x00\n") {
-			return formErrorf("%q isn't a folder Roostack can use.", p.Old)
+			return usererr.New("%q isn't a folder Roostack can use.", p.Old)
 		}
 		keep = append(keep, p)
 	}
@@ -336,12 +337,12 @@ func (n *Local) SetImportChoices(ctx context.Context, service string, ch importe
 	}
 	for name, rel := range ch.Storage {
 		if _, ok := s.Package.Storage[name]; !ok || (rel != importer.Leave && !fs.ValidPath(rel)) {
-			return formErrorf("Choose a folder in your files for %s.", name)
+			return usererr.New("Choose a folder in your files for %s.", name)
 		}
 	}
 	for name, rel := range ch.Dumps {
 		if _, ok := s.Package.Databases[name]; !ok || (rel != importer.Leave && !fs.ValidPath(rel)) {
-			return formErrorf("Choose a dump in your files for the database %s.", name)
+			return usererr.New("Choose a dump in your files for the database %s.", name)
 		}
 	}
 	return n.updateImport(ctx, service, func(st *ImportState) error {
@@ -367,7 +368,7 @@ func (n *Local) BrowseImport(ctx context.Context, service, rel string) (ImportLi
 	}
 	entries, err := fs.ReadDir(files, rel)
 	if err != nil {
-		return ImportListing{}, formErrorf("Roostack can't open that folder: %v.", unwrapPathError(err))
+		return ImportListing{}, usererr.New("Roostack can't open that folder: %v.", unwrapPathError(err))
 	}
 	l := ImportListing{Path: rel}
 	for _, e := range entries {
@@ -410,7 +411,7 @@ func (n *Local) startImportRun(service string, run func(ctx context.Context)) er
 	n.imp.mu.Lock()
 	defer n.imp.mu.Unlock()
 	if n.imp.running[service] != nil {
-		return formErrorf("Wait for the check or copy to finish, or stop it, first.")
+		return usererr.New("Wait for the check or copy to finish, or stop it, first.")
 	}
 	if n.imp.running == nil {
 		n.imp.running = map[string]context.CancelFunc{}

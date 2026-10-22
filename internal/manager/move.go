@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Moving a service to another server by copying its data directly
@@ -100,18 +101,18 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 		from = m.Lab.NodeID
 	}
 	if to == from {
-		return formErrorf("%s already runs there.", p.Title)
+		return usererr.New("%s already runs there.", p.Title)
 	}
 	if err := m.checkArch(ctx, p, cmp.Or(in.Title, p.Title), to); err != nil {
 		return err
 	}
 	src, dst := node.Capability(m.node(from), node.Node.Mover), node.Capability(m.node(to), node.Node.Mover)
 	if src == nil || dst == nil {
-		return formErrorf("Choose a server in this lab.")
+		return usererr.New("Choose a server in this lab.")
 	}
 	for _, id := range []string{from, to} {
 		if r, ok := m.node(id).(RemoteServer); ok && r.Settings() == nil {
-			return formErrorf("Roostack can't reach %s right now.", r.Identity().Name)
+			return usererr.New("Roostack can't reach %s right now.", r.Identity().Name)
 		}
 	}
 	var target store.BackupTarget
@@ -120,12 +121,12 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	case MoveBackup:
 		t, _, ok := m.BackupTargetOf(ctx, from)
 		if !ok || t.Provider == "setup" || m.node(from).Backups() == nil {
-			return formErrorf("%s's backups aren't set up through Roostack yet, so this way isn't available. Copy it directly instead.",
+			return usererr.New("%s's backups aren't set up through Roostack yet, so this way isn't available. Copy it directly instead.",
 				m.nameOf(from))
 		}
 		target = t
 	default:
-		return formErrorf("Choose how to move it.")
+		return usererr.New("Choose how to move it.")
 	}
 	m.forgetFailedMove(ctx, name)
 	act := m.Activity.Start(activity.Move, fmt.Sprintf("Moving %s to %s", p.Title, m.nameOf(to)))

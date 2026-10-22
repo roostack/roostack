@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // The copy and the switch (SPEC.md §8.4, docs/MIGRATION-PLAN.md §3.7):
@@ -43,7 +44,7 @@ func (n *Local) CopyImport(ctx context.Context, service string) error {
 		return err
 	}
 	if st := n.loadImport(ctx, service); !st.Check.Ready() {
-		return formErrorf("Check your files first: the copy starts once the check finds nothing in the way.")
+		return usererr.New("Check your files first: the copy starts once the check finds nothing in the way.")
 	}
 	return n.startImportRun(service, func(ctx context.Context) { n.runImportCopy(ctx, s) })
 }

@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/public"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Settings is an overview grid of areas, each with its own page; on
@@ -488,14 +489,14 @@ func dialAddress(typed string) (string, error) {
 		host, port = h, p
 	}
 	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
-		return "", errors.New("That port isn't a number from 1 to 65535.")
+		return "", usererr.New("That port isn't a number from 1 to 65535.")
 	}
 	if ip, err := netip.ParseAddr(host); err == nil {
 		if !public.IsPublic(ip) {
-			return "", errors.New(host + " isn't a public address. A server at home can join the usual way: choose this server's home-network address.")
+			return "", usererr.New("%s isn't a public address. A server at home can join the usual way: choose this server's home-network address.", host)
 		}
 	} else if host == "" || strings.ContainsAny(host, " /:") || !strings.Contains(host, ".") {
-		return "", errors.New("Enter the new server's public address, such as 203.0.113.7, or a name for it.")
+		return "", usererr.New("Enter the new server's public address, such as 203.0.113.7, or a name for it.")
 	}
 	return net.JoinHostPort(host, port), nil
 }
@@ -540,7 +541,7 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 func (s *Server) renameServerSubmit(w http.ResponseWriter, r *http.Request) {
 	id, name := r.PathValue("server"), r.FormValue("name")
 	err := s.Manager.RenameServer(r.Context(), id, name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServers(w, r, map[string]any{"Error": msg, "ErrorServer": id})
 		return
 	}
@@ -573,7 +574,7 @@ func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	err := s.Manager.RemoveServer(r.Context(), id)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServers(w, r, map[string]any{"Error": msg, "ErrorServer": id})
 		return
 	}
@@ -613,7 +614,7 @@ func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) linkAddressSubmit(w http.ResponseWriter, r *http.Request) {
 	id, addr := r.PathValue("server"), strings.TrimSpace(r.FormValue("address"))
 	err := s.Manager.SetLinkAddress(r.Context(), id, addr)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		w.WriteHeader(http.StatusBadRequest)
 		s.renderServers(w, r, map[string]any{"LinkError": msg, "LinkErrorServer": id})
 		return

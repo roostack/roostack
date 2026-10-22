@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A server's backup plan (SPEC.md §6.9), on the Backups page and in the
@@ -457,7 +458,7 @@ func (s *Server) planAddSubmit(wizard bool) http.HandlerFunc {
 			s.renderPlanPage(w, r, wizard, msg)
 		}
 		ref, err := s.resolveChoice(r)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			fail(msg)
 			return
 		}
@@ -478,7 +479,7 @@ func (s *Server) planAddSubmit(wizard bool) http.HandlerFunc {
 		} else {
 			err = s.Manager.AddBackupCopy(ctx, m.ID, ref)
 		}
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			fail(msg)
 			return
 		}
@@ -575,7 +576,7 @@ func (s *Server) planPromoteSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	m := s.serverRefOf(r)
 	err := s.Manager.PromoteBackupCopy(r.Context(), m.ID, r.FormValue("destination"))
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPlanPage(w, r, false, msg)
 		return
 	}
@@ -601,7 +602,7 @@ func (s *Server) planRemoveSubmit(w http.ResponseWriter, r *http.Request) {
 	m := s.serverRefOf(r)
 	ref := r.FormValue("destination")
 	err := s.Manager.RemoveBackupCopy(r.Context(), m.ID, ref)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPlanPage(w, r, false, msg)
 		return
 	}
@@ -632,7 +633,7 @@ func (s *Server) planKeySubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := s.Manager.ChangeS3Key(r.Context(), ref, r.FormValue("access_key"), r.FormValue("secret_key"))
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPlanPage(w, r, false, msg)
 		return
 	}
@@ -717,7 +718,7 @@ func (s *Server) planRollbackSubmit(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = s.Manager.CheckRollback(ctx, m.ID, ref, before)
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPlanPage(w, r, false, msg)
 		return
 	}

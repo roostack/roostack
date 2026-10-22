@@ -9,6 +9,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Extra copies of a server's backups (SPEC.md §6.9, 3-2-1): somewhere
@@ -54,11 +55,11 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	main, _, ok := m.BackupTargetOf(ctx, serverID)
 	if !ok {
-		return formErrorf("Choose where %s backups go first; a copy goes somewhere else.", m.backupsOf(serverID))
+		return usererr.New("Choose where %s backups go first; a copy goes somewhere else.", m.backupsOf(serverID))
 	}
 	choice, err := m.choiceFor(ctx, serverID, ref)
 	if err != nil {
@@ -66,15 +67,15 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 	}
 	switch {
 	case choice == nil:
-		return formErrorf("Choose where the copy goes.")
+		return usererr.New("Choose where the copy goes.")
 	case ref == main.Provider:
-		return formErrorf("That's where %s backups already go. A copy protects you only somewhere else.", m.backupsOf(serverID))
+		return usererr.New("That's where %s backups already go. A copy protects you only somewhere else.", m.backupsOf(serverID))
 	case strings.HasPrefix(ref, "server:") && strings.TrimPrefix(ref, "server:") == main.StoreHost:
-		return formErrorf("That's where %s backups already go.", m.backupsOf(serverID))
+		return usererr.New("That's where %s backups already go.", m.backupsOf(serverID))
 	}
 	for _, c := range m.BackupCopiesOf(ctx, serverID) {
 		if c.Ref == ref {
-			return formErrorf("%s backups are already copied there.", capital(m.backupsOf(serverID)))
+			return usererr.New("%s backups are already copied there.", capital(m.backupsOf(serverID)))
 		}
 	}
 	name := n.Identity().Name
@@ -180,7 +181,7 @@ func (m *Manager) PromoteBackupCopy(ctx context.Context, serverID, ref string) e
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	c, ok := m.copyTarget(ctx, serverID, ref)
 	if !ok {
@@ -215,7 +216,7 @@ func (m *Manager) RemoveBackupCopy(ctx context.Context, serverID, ref string) er
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	t, ok := m.copyTarget(ctx, serverID, ref)
 	if !ok {

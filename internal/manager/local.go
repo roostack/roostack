@@ -10,6 +10,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // The Owner's own packages ("Your own", SPEC.md §8.3.4): package files
@@ -69,28 +70,28 @@ func (m *Manager) CheckPolicy(p *pkgspec.Package, acceptRisks bool) error {
 			"package", p.Name, "problems", c.Problems)
 		return nil
 	case c.Local:
-		return formErrorf("%s asks for things packages from the service registry can't have. Read them above, and tick the box if you want to install it anyway.", p.Title)
+		return usererr.New("%s asks for things packages from the service registry can't have. Read them above, and tick the box if you want to install it anyway.", p.Title)
 	}
 	for _, problem := range c.Problems {
 		m.Log.Error("refusing to install a package that breaks the package policy", "package", p.Name, "problem", problem)
 	}
-	return formErrorf("%s %s can't be installed: it asks for something packages from the service registry aren't allowed, which the registry should have caught. Nothing has changed on your lab.", p.Title, p.Version)
+	return usererr.New("%s %s can't be installed: it asks for something packages from the service registry aren't allowed, which the registry should have caught. Nothing has changed on your lab.", p.Title, p.Version)
 }
 
 // AddLocalPackage checks a package file the Owner gives (data) and its
 // logo (icon, nil for none) and keeps them as one of their own packages,
 // replacing whatever version of it they added before. What's wrong with
-// either is a FormError saying what to change.
+// either is a usererr.Error saying what to change.
 func (m *Manager) AddLocalPackage(data, icon []byte) (*pkgspec.Package, error) {
 	if len(data) == 0 {
-		return nil, formErrorf("Choose a package file.")
+		return nil, usererr.New("Choose a package file.")
 	}
 	if len(data) > LocalPackageMaxBytes {
-		return nil, formErrorf("That file is too large for a package (at most %d KB).", LocalPackageMaxBytes/1000)
+		return nil, usererr.New("That file is too large for a package (at most %d KB).", LocalPackageMaxBytes/1000)
 	}
 	p, err := pkgspec.Parse(data)
 	if err != nil {
-		return nil, formErrorf("Roostack can't read that package: %s", err)
+		return nil, usererr.New("Roostack can't read that package: %s", err)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -99,14 +100,14 @@ func (m *Manager) AddLocalPackage(data, icon []byte) (*pkgspec.Package, error) {
 		return nil, err
 	}
 	if len(problems) > 0 {
-		return nil, formErrorf("%s", problems[0])
+		return nil, usererr.New("%s", problems[0])
 	}
 	switch {
 	case p.About.Icon != "" && icon == nil:
-		return nil, formErrorf("The package names a logo (%s): add it too, or take about.icon out.", p.About.Icon)
+		return nil, usererr.New("The package names a logo (%s): add it too, or take about.icon out.", p.About.Icon)
 	case icon != nil:
 		if err := pkgspec.CheckIcon(icon); err != nil {
-			return nil, formErrorf("The logo: %s. It must be a square PNG, at least %d×%d pixels.", err, pkgspec.IconMinSize, pkgspec.IconMinSize)
+			return nil, usererr.New("The logo: %s. It must be a square PNG, at least %d×%d pixels.", err, pkgspec.IconMinSize, pkgspec.IconMinSize)
 		}
 	}
 	if err := state.SaveLocalPackage(m.Lab.Paths, p, data, icon); err != nil {

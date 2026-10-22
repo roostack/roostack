@@ -223,7 +223,7 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
   - [ ] The media library form doesn't trim a share's server and path, as the photo and import steps do
   - [ ] `importBrowsePage`'s "Use …" label trims a leading "." from folder names (`TrimPrefix(rel, ".")`)
   - [ ] Right after saving a server's restart policy, its page shows the old hour until a reload a few seconds later (on `main` before wave 1)
-  - [ ] D3 (wave 2): `store.FormError` is a fifth "error a person can fix" type; `web.userMessage` doesn't know it (only `cmd/roostack` calls `store.Open` today)
+  - [x] D3 (wave 2): `store.FormError` was a fifth "error a person can fix" type; all five are now `usererr.Error` (2026-10-22)
   - [ ] `AdoptBackupRuns` and `backup_runs.destination` exist only for runs from before repositories were recorded: pre-release aids that could go (a behaviour change, the Owner's call)
   - [ ] Wave 4g: "the Owner" still means the maintainer in many older SPEC, TASKS and DESIGN entries ("the Owner's choice"); SPEC's top note explains it
 - [ ] Wave 2: the shared helpers, one at a time (§11)
