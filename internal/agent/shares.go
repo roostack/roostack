@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Network shares as media libraries (SPEC.md §8.1, "Media libraries"): an
@@ -169,15 +171,7 @@ func shareLoginFile(name string) string { return filepath.Join(ShareLoginDir, na
 
 // writeLogin writes mount.cifs's credentials file, root's only.
 func writeLogin(path string, s Share) error {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(f, "username=%s\npassword=%s\n", s.Username, s.Password)
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	return err
+	return fsutil.WritePrivate(path, fmt.Appendf(nil, "username=%s\npassword=%s\n", s.Username, s.Password))
 }
 
 // mountShare mounts a share library for good: its line in fstab, at the

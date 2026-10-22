@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/labrestore"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/state"
@@ -74,7 +75,7 @@ func (l *labRestorer) Find(ctx context.Context, src labrestore.Source, key strin
 	if err := l.fresh(); err != nil {
 		return nil, nil, err
 	}
-	if err := os.WriteFile(l.keyFile(), []byte(key+"\n"), 0o600); err != nil {
+	if err := fsutil.WritePrivate(l.keyFile(), []byte(key+"\n")); err != nil {
 		return nil, nil, err
 	}
 	f := &labrestore.Finder{OpenRepo: l.openRepo}
@@ -97,7 +98,7 @@ func (l *labRestorer) Start(fd labrestore.Found) error {
 	if l.running {
 		return errors.New("a restore is already running")
 	}
-	if err := os.WriteFile(backup.RestoreStartedFile(l.lab.Paths), []byte(fd.Repository+"\n"), 0o600); err != nil {
+	if err := fsutil.WritePrivate(backup.RestoreStartedFile(l.lab.Paths), []byte(fd.Repository+"\n")); err != nil {
 		return err
 	}
 	l.running = true

@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -627,7 +628,7 @@ func EnsureRecoveryKey(paths config.Paths) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(keyFile, []byte(key+"\n"), 0o600)
+	return fsutil.WritePrivate(keyFile, []byte(key+"\n"))
 }
 
 // BackupAdded records the wizard's backup step done once a backup is set

@@ -12,6 +12,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/s3api"
 )
 
@@ -115,7 +116,7 @@ func (m *Manager) checkS3(ctx context.Context, s3 S3Provider) S3Check {
 	checks := m.s3Checks()
 	checks[s3CheckKey(s3)] = c
 	if data, err := json.MarshalIndent(checks, "", "  "); err == nil {
-		if err := writePrivate(m.s3ChecksFile(), data); err != nil {
+		if err := fsutil.WritePrivate(m.s3ChecksFile(), data); err != nil {
 			m.Log.Warn("saving a bucket's check", "err", err)
 		}
 	}

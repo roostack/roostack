@@ -12,9 +12,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"go.yaml.in/yaml/v3"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Default paths. See SPEC.md §6.7 and docs/ASSUMPTIONS.md (A2).
@@ -607,17 +610,21 @@ func (l Lab) Save(path string) error {
 	if err := enc.Encode(l); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, buf.Bytes(), 0o640); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return fsutil.WriteFile(path, buf.Bytes(), 0o640)
 }
 
-// Update re-reads the config at path, applies change, and saves it. Callers
-// change only their own fields, so concurrent edits of different settings
-// don't overwrite each other.
+// updateMu serialises Update, so two settings changed at the same moment
+// can't each read the old file and save over the other's change.
+var updateMu sync.Mutex
+
+// Update re-reads the config at path, applies change, and saves it, holding
+// a lock for the whole read-change-save. Callers change only their own
+// fields, so with the lock concurrent edits of different settings don't
+// overwrite each other (everything that edits lab.yaml runs in the one
+// roostack process).
 func Update(path string, change func(*Lab)) error {
+	updateMu.Lock()
+	defer updateMu.Unlock()
 	lab, err := Load(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// An incomplete config (e.g. no domain yet) is still updatable.

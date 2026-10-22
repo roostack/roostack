@@ -11,6 +11,7 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/nodeid"
 )
 
@@ -72,11 +73,7 @@ func (m Membership) Save(stateDir string) error {
 	if err := os.MkdirAll(IdentityDir(stateDir), 0o700); err != nil {
 		return err
 	}
-	file := MembershipFile(stateDir)
-	if err := os.WriteFile(file+".tmp", data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(file+".tmp", file)
+	return fsutil.WritePrivate(MembershipFile(stateDir), data)
 }
 
 // Apply sets the lab's runtime role and address from the membership.

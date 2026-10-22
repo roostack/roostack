@@ -23,6 +23,8 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Key signs ID tokens: RSA, as almost every app expects RS256.
@@ -74,12 +76,7 @@ func newKey(path string) (*Key, error) {
 		return nil, err
 	}
 	// Written whole or not at all, never readable by others.
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600); err != nil {
-		return nil, err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
+	if err := fsutil.WritePrivate(path, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})); err != nil {
 		return nil, err
 	}
 	return keyOf(priv), nil

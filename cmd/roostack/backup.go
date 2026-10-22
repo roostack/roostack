@@ -19,6 +19,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/cloudkeys"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/podman"
 	"roostack.cloud/roostack/internal/state"
@@ -110,7 +111,7 @@ func backupInit(ctx context.Context, lab config.Lab, repo *backup.Repo) error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(keyFile, []byte(key+"\n"), 0o600); err != nil {
+		if err := fsutil.WritePrivate(keyFile, []byte(key+"\n")); err != nil {
 			return err
 		}
 		fmt.Println("Recovery key (write it down or print it; without it, backups can't be restored):")

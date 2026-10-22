@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Identity names this server. It's local to the server: it must never
@@ -61,9 +63,5 @@ func LoadOrCreate(stateDir string) (Identity, error) {
 func (id Identity) Save(stateDir string) error {
 	path := File(stateDir)
 	data, _ := json.MarshalIndent(id, "", "  ")
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o640); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return fsutil.WriteFile(path, append(data, '\n'), 0o640)
 }

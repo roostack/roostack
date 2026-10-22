@@ -13,6 +13,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -96,7 +97,7 @@ func (m *Manager) saveKeyChange(k *KeyChange) error {
 	if err != nil {
 		return err
 	}
-	return writePrivate(m.keyChangeFile(), data)
+	return fsutil.WritePrivate(m.keyChangeFile(), data)
 }
 
 // StartKeyChange makes a new recovery key, to be shown and confirmed.
@@ -113,7 +114,7 @@ func (m *Manager) StartKeyChange(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := writePrivate(m.newKeyFile(), []byte(key+"\n")); err != nil {
+	if err := fsutil.WritePrivate(m.newKeyFile(), []byte(key+"\n")); err != nil {
 		return err
 	}
 	return m.saveKeyChange(&KeyChange{Phase: KeyConfirm, Started: time.Now()})
@@ -420,13 +421,4 @@ func cmpErr(err, fallback error) error {
 		return err
 	}
 	return fallback
-}
-
-// writePrivate writes a file only roostack can read (a key, or state that
-// names keys), atomically.
-func writePrivate(file string, data []byte) error {
-	if err := os.WriteFile(file+".tmp", data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(file+".tmp", file)
 }

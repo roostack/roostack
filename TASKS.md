@@ -687,6 +687,7 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
 - [ ] Wave 0: the behaviour fixes found in passing (§2), all approved by the Owner on 2026-10-22 (P3 with its agreed wording, P9 in UTC): P3–P7, P12, P13, P15, P16 here; P1, P2, P8–P11, P14 in Cloud
 - [ ] Wave 1: the parallel batches 1a–1j (§11)
 - [ ] Wave 2: the shared helpers, one at a time (§11)
+  - [ ] D1: the atomic writes of files that aren't private (0644: generated files, Caddy's, the registry's, `labnet`'s certificates) still have their own copies; switch them to `fsutil.WriteFile`, and add `fsutil.CopyFile` for the streamed copies (`labrestore.copyFile`, `node/importcopy.go`). Wave 0 (P7) moved every private (0600) and 0640 file to `fsutil` (2026-10-22)
 - [ ] Wave 3: the structural changes the Owner chooses (§11)
 
 ## To discuss with the user

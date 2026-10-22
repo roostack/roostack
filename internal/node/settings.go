@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/firewall"
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Settings are a server's own settings: its clock, who may reach it over
@@ -312,11 +313,7 @@ func (h *HostSettings) SetBackupDestination(ctx context.Context, d BackupDestina
 		return formErrorf("No backup repository.")
 	}
 	if d.Key != "" {
-		file := backup.KeyFile(h.Lab.Paths)
-		if err := os.WriteFile(file+".tmp", []byte(d.Key+"\n"), 0o600); err != nil {
-			return err
-		}
-		if err := os.Rename(file+".tmp", file); err != nil {
+		if err := fsutil.WritePrivate(backup.KeyFile(h.Lab.Paths), []byte(d.Key+"\n")); err != nil {
 			return err
 		}
 	}
@@ -357,10 +354,7 @@ func (h *HostSettings) SetBackupCopies(ctx context.Context, copies []BackupCopy)
 				return err
 			}
 			keyFile = filepath.Join(dir, fileName(c.Name)+".key")
-			if err := os.WriteFile(keyFile+".tmp", []byte(c.Key+"\n"), 0o600); err != nil {
-				return err
-			}
-			if err := os.Rename(keyFile+".tmp", keyFile); err != nil {
+			if err := fsutil.WritePrivate(keyFile, []byte(c.Key+"\n")); err != nil {
 				return err
 			}
 		}
@@ -427,10 +421,10 @@ func (h *HostSettings) PromoteBackupCopy(ctx context.Context, name string, old B
 			return err
 		}
 		demoted.KeyFile = filepath.Join(dir, fileName(old.Name)+".key")
-		if err := writePrivate(demoted.KeyFile, mainData); err != nil {
+		if err := fsutil.WritePrivate(demoted.KeyFile, mainData); err != nil {
 			return err
 		}
-		if err := writePrivate(mainKey, copyKey); err != nil {
+		if err := fsutil.WritePrivate(mainKey, copyKey); err != nil {
 			return err
 		}
 	}
@@ -446,11 +440,4 @@ func (h *HostSettings) PromoteBackupCopy(ctx context.Context, name string, old B
 	}
 	h.Restart()
 	return nil
-}
-
-func writePrivate(file string, data []byte) error {
-	if err := os.WriteFile(file+".tmp", data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(file+".tmp", file)
 }

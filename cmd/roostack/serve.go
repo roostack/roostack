@@ -24,6 +24,7 @@ import (
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
@@ -645,7 +646,7 @@ func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.
 	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
+	if err := fsutil.WritePrivate(path, []byte(token+"\n")); err != nil {
 		return "", err
 	}
 	log.Info("waiting for first-run setup", "setup_code", token, "file", path)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"image/png"
 	"io"
 	"io/fs"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // The sign-in page's look (SPEC.md §5.2, "The look of the sign-in page"):
@@ -270,7 +271,7 @@ func (s *Server) saveLook(r *http.Request) error {
 		for _, other := range []string{"png", "svg"} {
 			os.Remove(s.lookPath(part, other))
 		}
-		if err := writeFileAtomic(s.lookPath(part, ext), data); err != nil {
+		if err := fsutil.WritePrivate(s.lookPath(part, ext), data); err != nil {
 			return err
 		}
 		files[part], changed = ext, true
@@ -304,19 +305,6 @@ func (s *Server) saveLook(r *http.Request) error {
 		if err := s.Store.SetSetting(ctx, settingSignInFiles, v); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// writeFileAtomic writes a file whole or not at all.
-func writeFileAtomic(path string, data []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("saving %s: %w", filepath.Base(path), err)
 	}
 	return nil
 }

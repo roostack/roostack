@@ -16,6 +16,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
@@ -138,11 +139,7 @@ func (in *Instance) Save(path string) error {
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o640); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return fsutil.WriteFile(path, data, 0o640)
 }
 
 // Marshal encodes an instance as its file's YAML.

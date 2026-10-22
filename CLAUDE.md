@@ -59,6 +59,7 @@ Key packages:
 | `cloud` | The controller's link to Roostack Cloud (linking, its certificate, unlinking); `cloudtest` fakes Cloud's side for tests |
 | `trust` | Who a connection comes from and what each class may reach: the firewall and Caddy's private list both read it |
 | `units` | The one size formatter (decimal: 1 GB = 1000³ bytes) |
+| `fsutil` | Writing a file atomically with the mode asked for (`WriteFile`, `WritePrivate` for 0600) |
 | `editor` | The package editor (HTML and JavaScript, in the browser): its checks must say what `pkgspec`'s say; a format or policy change updates `check.js` too |
 
 Where things live on a host: see the table in [README.md](README.md). Paths come from `config.Paths`; never hard-code `/srv/roostack` or `/var/lib/roostack` outside `config`.
@@ -118,7 +119,7 @@ ROOSTACK_VM=1 scripts/dev-vm.sh ssh 'sudo install -m755 ~/roostack/bin/roostack 
   - htmx attributes are inherited: a container with `hx-select`/`hx-swap` needs `hx-disinherit="*"`, or children's requests break.
   - Sizes go through `size`/`bytes` in templates and `units.Bytes` in Go; never format bytes by hand.
 - **Writing (UI, docs, comments):** British English (colour, licence), short plain sentences, no jargon for end users but exact detail one click away ("Details", "Manage", "Tell me more"). Say what happened and what to do next. Name things consistently (the backup plan: "main backup", "backup 3", "extra backup").
-- **Security:** never print or log secrets (setup codes, join codes, recovery keys, passwords, TOTP secrets, API tokens); point to where they are instead. The one exception is the first-run setup code, which the installer and log show on purpose (docs/ASSUMPTIONS.md K5). Secrets on disk are written 0600 (`writePrivate`). The agent validates every path and argument it's given.
+- **Security:** never print or log secrets (setup codes, join codes, recovery keys, passwords, TOTP secrets, API tokens); point to where they are instead. The one exception is the first-run setup code, which the installer and log show on purpose (docs/ASSUMPTIONS.md K5). Secrets on disk are written 0600 with `fsutil.WritePrivate` (atomic, and the mode applies even over an old file). The agent validates every path and argument it's given.
 
 ## Testing
 
