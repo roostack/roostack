@@ -1,7 +1,6 @@
 # Taking services off the internet quickly: the "big red button" (2026-10-22)
 
-**Decided by the Owner the same day, except the shape of `built_with:`
-(§4.1, still open). Not built:** building waits until the code-quality
+**Decided by the Owner the same day. Not built:** building waits until the code-quality
 review is completely finished (the Owner, 2026-10-22). The short version
 is SPEC.md §6.16; this document has the reasoning, the formats and the
 questions with their answers (§12). Where the text below says
@@ -298,10 +297,11 @@ public_block:
    - a person still reviews the names.
    - Agreed by the Owner (2026-10-22, question 10). Labs never scan.
 
-### 4.1 The shape of `built_with:` — Open (2026-10-22): the options
+### 4.1 The shape of `built_with:` — Decided (2026-10-22), the Owner
 
-The Owner asked for the pros and cons before deciding (question 12).
-Five choices, each with a recommendation.
+The Owner asked for the pros and cons before deciding (question 12),
+then took the recommendation for all five choices (below, "Recommended
+together").
 
 **One thing shapes all of them:** advisories don't depend on
 `built_with:`. An advisory names the exact package versions it affects
@@ -364,7 +364,7 @@ hand would duplicate it.
 | Worked out from Syft only, with no field | No upkeep | Syft misses some things: bundled JavaScript, some static binaries, apps that vendor their libraries. It gives nothing for packages of your own, and the mapping from Syft's findings to names needs keeping anyway |
 | The package file, plus corrections in `registry.yaml` | Correct quickly, and own packages still work | Two places, and the index has to say which won |
 
-**Recommended together:**
+**Recommended together, and decided (the Owner, 2026-10-22):**
 
 - `built_with:` as a list of names, per package, in the package file,
   with names only.
@@ -862,8 +862,8 @@ second phase, since advisories need someone to write them:
 
 ## 12. Questions for the Owner
 
-All answered by the Owner on 2026-10-22 except question 12, which is
-open with its options in §4.1. Each answer took the recommendation.
+All answered by the Owner on 2026-10-22, each taking the
+recommendation; question 12 after its options were set out (§4.1).
 
 1. **Answered: yes.** **Who:** Admins may pause, only the Owner lifts or keeps something
    public anyway? *(Recommended.)* Or the Owner only, for both?
@@ -900,7 +900,7 @@ open with its options in §4.1. Each answer took the recommendation.
     - pausing at the relay's edges from Cloud's website *(recommended)*;
     - letting Cloud ask labs that aren't relayed to pause themselves
       *(opt-in; recommend later, if at all)*.
-12. **Open: the Owner asked for the options' pros and cons (§4.1).** **`built_with`:** the field's name, per package rather than per
+12. **Answered: as recommended in §4.1, after its pros and cons.** **`built_with`:** the field's name, per package rather than per
     container, and its list of names kept by the registry rather than
     in Roostack's code?
 13. **Answered: yes; building waits for the code-quality review.** **The phases** as in §11: the button first, advisories second?

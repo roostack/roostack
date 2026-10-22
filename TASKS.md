@@ -697,15 +697,15 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
 
 ## To discuss with the user
 
-- [ ] The big red button (SPEC §6.16): decided 2026-10-22 except the shape of `built_with:` (docs/RED-BUTTON-PLAN.md §4.1, the options for the Owner)
+- [x] The big red button (SPEC §6.16): decided 2026-10-22, `built_with:`'s shape included (docs/RED-BUTTON-PLAN.md §4.1); building waits for the code-quality review
 - [x] Single sign-on for services (SPEC §5.2; research in docs/SSO-RESEARCH.md; mock-ups in docs/mockups/sso). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library, groups in the first version, two-factor as for Roostack with a choice to ask everyone, 30-day "keep me signed in" ticked, the look on People with a mark or a wide logo. Built and checked end to end on VM3 the same day with Mealie (OIDC) and Stirling-PDF (the wall): docs/ASSUMPTIONS.md V1–V6; the conformance suite passes (V7)
 
 ## The big red button (SPEC §6.16, decided 2026-10-22)
 
-**Don't start until the code-quality review is completely finished** (the Owner, 2026-10-22). Decided except the shape of `built_with:` (docs/RED-BUTTON-PLAN.md §4.1), which phase 1 needs first.
+**Don't start until the code-quality review is completely finished** (the Owner, 2026-10-22). Everything is decided, `built_with:`'s shape included (docs/RED-BUTTON-PLAN.md §4.1).
 
 - [ ] Phase 1, the button: `public.block` and `public_block`; Caddy's page for outside visitors (first in the route block), the error page, public ports home-only, the sign-in page following its services, Paused in monitoring and the status page; `built_with:` in pkgspec, its policy, the editor (`check.js`, schema, corpus) and the format reference; Home's **Pause public access…** page, the service page, Settings → Public access, lifting; roles, audit, Security emails, the weekly summary; `roostack public pause | resume | status`; checked on a VM through port forwarding, the lab's edge and the relay
-- [ ] Phase 1, in the registry: `built_with:` for every package, and the list of names with titles in the index
+- [ ] Phase 1, in the registry: `built_with:` for every package, and the list of names (title, a line, and the purls and CPEs the watcher will map from) in the index
 - [ ] Phase 2, advisories: `advisories/` in the registry and the index's field, with CI's checks; matching on the controller; the automation setting; worked out each time and lifting by themselves; **Keep it public anyway**; updating at once; hourly fetching; emails; a line in the report to Cloud
 - [ ] Phase 3: Cloud's nudge; pausing at the relay's edges from Cloud's website (Cloud's repository); the "closed" level (firewall, edge, relay) for problems in Caddy or Roostack
 - [ ] Phase 4, the watcher (docs/RED-BUTTON-PLAN.md §10.1; can start alongside phase 2): `roostack registry watch` in the registry's CI reading OSV, GitHub's advisories, both KEV lists, EPSS, oss-security, projects' notices and new CrowdSec patch rules; matching on `built_with:`; draft advisory pull requests, a weekly digest, ntfy notifications for critical exploited matches; Syft bills of materials for exact matches, and its findings compared with `built_with:` in the registry's pull-request checks; then an AI first pass once the watcher works without it. Publishing with nobody around: not now, revisit after a few months of accurate drafts
