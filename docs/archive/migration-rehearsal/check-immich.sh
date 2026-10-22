@@ -26,7 +26,6 @@ done
 TOKEN=$(curl -s -H 'Content-Type: application/json' -X POST $B/auth/login -d '{"email":"admin@example.test","password":"rehearsal-admin"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["accessToken"])')
 curl -s -H "Authorization: Bearer $TOKEN" $B/server/statistics | head -c 300; echo
 A=$(curl -s -H "Authorization: Bearer $TOKEN" $B/albums | python3 -c 'import sys,json;a=json.load(sys.stdin)[0];print(a["albumName"],a["assetCount"])'); echo "album: $A"
-KEY=$(q "select encode(key,'base64') from shared_link" | head -1)
 ID=$(curl -s -H "Authorization: Bearer $TOKEN" "$B/assets/random?count=1" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin)[0]["id"])' 2>/dev/null || q "select id from asset limit 1")
 curl -s -o /dev/null -w "thumbnail %{http_code} %{content_type} %{size_download}B\n" -H "Authorization: Bearer $TOKEN" "$B/assets/$ID/thumbnail"
 curl -s -o /dev/null -w "original %{http_code} %{size_download}B\n" -H "Authorization: Bearer $TOKEN" "$B/assets/$ID/original"

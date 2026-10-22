@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Sourced by .github/workflows/apt-publish.yml: uploads to the release
 # bucket through the S3 API (R2_ENDPOINT, R2_BUCKET and the AWS_* keys in
 # the environment).
