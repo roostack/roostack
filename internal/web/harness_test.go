@@ -62,6 +62,20 @@ func newHarness(t *testing.T, setupToken string) *harness {
 	return h
 }
 
+// checkRendered fails the test when a page shows a value its template
+// didn't get, which pages built from maps (pageData) make easy to miss:
+// "<no value>" (text/template's missing key) or a printf's "%!" (one of
+// its values missing or of the wrong kind). html/template shows a missing
+// key as nothing, which only a test of the page's words can catch.
+func checkRendered(t *testing.T, path, body string) {
+	t.Helper()
+	for _, bad := range []string{"<no value>", "&lt;no value&gt;", "%!"} {
+		if strings.Contains(body, bad) {
+			t.Errorf("%s shows %q: a template asks for something its data doesn't have", path, bad)
+		}
+	}
+}
+
 func (h *harness) get(path string) (int, string) {
 	h.t.Helper()
 	resp, err := h.client.Get(h.srv.URL + path)
@@ -70,6 +84,7 @@ func (h *harness) get(path string) (int, string) {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+	checkRendered(h.t, path, string(body))
 	return resp.StatusCode, string(body)
 }
 
@@ -86,6 +101,7 @@ func (h *harness) post(path string, form url.Values, origin string) (int, string
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+	checkRendered(h.t, path, string(body))
 	return resp.StatusCode, string(body)
 }
 
@@ -199,6 +215,7 @@ func (h *harness) postFiles(path string, files map[string][]byte) (int, string) 
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+	checkRendered(h.t, path, string(body))
 	return resp.StatusCode, string(body)
 }
 
