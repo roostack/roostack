@@ -14,6 +14,11 @@
 
   const lower = (s) => String(s).toLowerCase();
 
+  // escapeRegExp makes a name safe to put in a regular expression: Compose
+  // allows "." in service names, which would otherwise match any character.
+  // The editor uses it too (R.compose.escapeRegExp).
+  const escapeRegExp = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
   // safeName makes a name pkgspec accepts: lowercase letters, digits and
   // dashes, starting with a letter, at most 31 characters.
   function safeName(s, fallback) {
@@ -384,13 +389,13 @@
         const v = raw === null || raw === undefined ? "" : String(raw);
         const K = k.toUpperCase();
         // A database the app connects to.
-        const dbHit = Object.entries(dbs).find(([dsvc]) => v === dsvc || new RegExp(`^${dsvc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:\\d+$`).test(v) || new RegExp(`^[a-z]+://([^@/]*@)?${dsvc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([:/]|$)`, "i").test(v));
+        const dbHit = Object.entries(dbs).find(([dsvc]) => v === dsvc || new RegExp(`^${escapeRegExp(dsvc)}:\\d+$`).test(v) || new RegExp(`^[a-z]+://([^@/]*@)?${escapeRegExp(dsvc)}([:/]|$)`, "i").test(v));
         const factHit = Object.entries(dbFacts).find(([dsvc, f]) => dbs[dsvc] && (
           (f.password && v === f.password && /PASS/.test(K)) || (f.user && v === f.user && /USER/.test(K)) || (f.db && v === f.db && /(NAME|DATABASE|_DB)$/.test(K))));
         if (dbHit) {
           const [dsvc, d] = dbHit;
           if (v === dsvc) { cenv[k] = `{{ .Databases.${d.name}.Host }}`; say("converted", `\`${k}\` as the database's address, \`{{ .Databases.${d.name}.Host }}\`.`); continue; }
-          if (new RegExp(`^${dsvc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:\\d+$`).test(v)) {
+          if (new RegExp(`^${escapeRegExp(dsvc)}:\\d+$`).test(v)) {
             cenv[k] = `{{ .Databases.${d.name}.Host }}:{{ .Databases.${d.name}.Port }}`;
             say("converted", `\`${k}\` as the database's address and port.`);
             continue;
@@ -401,7 +406,7 @@
             continue;
           }
           if (d.kind === "redis") {
-            cenv[k] = v.replace(new RegExp(`(://(?:[^@/]*@)?)${dsvc}`), `$1{{ .Databases.${d.name}.Host }}`);
+            cenv[k] = v.replace(new RegExp(`(://(?:[^@/]*@)?)${escapeRegExp(dsvc)}`), `$1{{ .Databases.${d.name}.Host }}`);
             say("converted", `\`${k}\`, with the Redis database's address.`);
             continue;
           }
@@ -429,7 +434,7 @@
           continue;
         }
         // Another of the app's containers.
-        const other = apps.find(([o]) => o !== svc && (v === o || new RegExp(`^[a-z]+://${o.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([:/]|$)`, "i").test(v) || new RegExp(`^${o}:\\d+$`).test(v)));
+        const other = apps.find(([o]) => o !== svc && (v === o || new RegExp(`^[a-z]+://${escapeRegExp(o)}([:/]|$)`, "i").test(v) || new RegExp(`^${escapeRegExp(o)}:\\d+$`).test(v)));
         if (other) {
           const host = `{{ (index .Containers "${containerName[other[0]]}").Host }}`;
           cenv[k] = v === other[0] ? host : v.replace(other[0], host);
@@ -801,5 +806,5 @@
     return null;
   }
 
-  R.compose = { importCompose, readSetup, imageParts, memoryOf, interpolate, shellWords, storageGuess, safeName, versionFromTag };
+  R.compose = { escapeRegExp, importCompose, readSetup, imageParts, memoryOf, interpolate, shellWords, storageGuess, safeName, versionFromTag };
 })(globalThis.RoostackEditor = globalThis.RoostackEditor || {});

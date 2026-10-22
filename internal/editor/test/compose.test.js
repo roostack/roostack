@@ -164,6 +164,26 @@ test("healthchecks, users, limits and Quadlet lines", () => {
   assert.deepEqual(check.problems.filter((p) => /quadlet/.test(p.message)).map((p) => p.message), []);
 });
 
+// Compose allows "." in a service's name: it's matched as itself, not as
+// "any character".
+test("a service name with a dot is matched only as itself", () => {
+  assert.equal(R.compose.escapeRegExp("api.v2"), "api\\.v2");
+  const r = R.compose.importCompose(`services:
+  web:
+    image: example/web:2.0.1
+    ports: ["8080:80"]
+    environment:
+      API: api.v2:9000
+      OTHER: apixv2:9000
+  api.v2:
+    image: example/api:2.0.1
+`, { version: "0.9.0" });
+  assert.equal(r.error, undefined, r.error);
+  const env = YAML.parse(r.yaml).containers.web.env;
+  assert.match(env.API, /index \.Containers/);
+  assert.equal(env.OTHER, "apixv2:9000");
+});
+
 // An old setup read from a Compose file, for bringing a service's data
 // into Roostack (SPEC.md §8.4): images, mounts by container path, named
 // volumes' folders, and the environment with secrets masked.

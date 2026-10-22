@@ -926,7 +926,7 @@
       };
       visit(state.doc.contents);
     };
-    const esc = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const esc = R.compose.escapeRegExp(from);
     const setWhere = (paths) => { for (const p of paths) if (get(p) === from) state.doc.setIn(p, to); };
     if (kind === "containers") {
       setWhere(keysOf(["routes"]).map((r) => ["routes", r, "container"]).concat(keysOf(["ports"]).map((r) => ["ports", r, "container"]), itemsOf(["hooks"]).map((_, i) => ["hooks", i, "container"])));
