@@ -63,7 +63,7 @@ func (b *chainBackups) Status(context.Context) (backup.Status, error) {
 	defer b.mu.Unlock()
 	return backup.Status{Configured: true, Last: b.last, LastOK: b.last}, nil
 }
-func (b *chainBackups) RunNow() error { return b.Submit() }
+func (b *chainBackups) RunNow(context.Context) error { return b.Submit() }
 func (b *chainBackups) Submit(chain ...maintenance.Job) error {
 	b.coord.Submit(append([]maintenance.Job{{Name: "backup", Run: func(context.Context, *maintenance.Handle) error {
 		b.mu.Lock()

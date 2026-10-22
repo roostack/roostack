@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Validity periods. Servers renew their certificates when RenewBefore is
@@ -238,7 +240,7 @@ func writeKey(file string, key *ecdsa.PrivateKey) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(file, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}), 0o600)
+	return fsutil.WritePrivate(file, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}))
 }
 
 func serial() *big.Int {

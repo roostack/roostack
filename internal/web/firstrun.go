@@ -27,6 +27,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/trust"
@@ -108,12 +109,13 @@ func SetupCert(paths config.Paths, addrs []netip.Addr, now time.Time) (tls.Certi
 		return tls.Certificate{}, "", err
 	}
 	// The key first, so a certificate on disk always has its key.
-	if err := writeSetupFile(paths.SetupKeyFile(), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}), 0o600); err != nil {
+	if err := fsutil.WritePrivate(paths.SetupKeyFile(), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})); err != nil {
 		return tls.Certificate{}, "", err
 	}
 	// The certificate is public: the installer's message reads it for its
-	// fingerprint.
-	if err := writeSetupFile(paths.SetupCertFile(), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644); err != nil {
+	// fingerprint. fsutil writes through a new file, never through a
+	// symlink someone put there.
+	if err := fsutil.WriteFile(paths.SetupCertFile(), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644); err != nil {
 		return tls.Certificate{}, "", err
 	}
 	cert, err = tls.LoadX509KeyPair(paths.SetupCertFile(), paths.SetupKeyFile())
@@ -121,25 +123,6 @@ func SetupCert(paths config.Paths, addrs []netip.Addr, now time.Time) (tls.Certi
 		return tls.Certificate{}, "", err
 	}
 	return cert, Fingerprint(der), nil
-}
-
-// writeSetupFile replaces file with data, never writing through a symlink
-// someone put there.
-func writeSetupFile(file string, data []byte, mode os.FileMode) error {
-	tmp := file + ".new"
-	os.Remove(tmp)
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp, file)
 }
 
 // RemoveSetupCert deletes the setup pages' certificate and key, once setup

@@ -165,7 +165,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			if owner && !mc.This {
 				if n := s.Manager.NodeByID(mc.ID); n != nil {
 					if set := n.Settings(); set != nil {
-						if a, err := set.SSHAccess(false); err == nil && a.Choice == "" {
+						if a, err := set.SSHAccess(r.Context(), false); err == nil && a.Choice == "" {
 							add(levelWarning, mc.Name+"'s firewall is off until you choose who can log in to it over SSH.",
 								"/settings/servers/"+mc.ID+"/remote-access", "Choose")
 						}
@@ -177,7 +177,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			if owner {
 				if n := s.Manager.NodeByID(mc.ID); n != nil {
 					if set := n.Settings(); set != nil {
-						if a, err := set.SSHAccess(false); err == nil && a.PasswordsOpen() {
+						if a, err := set.SSHAccess(r.Context(), false); err == nil && a.PasswordsOpen() {
 							s.sshPasswordsAttention(add, mc.This, len(servers) > 1, mc.Name, mc.ID, a.Choice)
 						}
 					}
@@ -249,6 +249,8 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			}
 			// Versions the service registry withdrew (SPEC.md §8.3.4).
 			s.withdrawalAttention(r, services, func(it attentionItem) { items = append(items, it) })
+			// Restores and moves that didn't finish (SPEC.md §6.9, §10.10).
+			s.holdAttention(r, services, func(it attentionItem) { items = append(items, it) })
 			// Updates to newer versions (SPEC.md §7).
 			s.updateAttention(r, services, func(it attentionItem) { items = append(items, it) })
 			for _, svc := range services {
@@ -498,13 +500,15 @@ func (s *Server) updatesAttention(r *http.Request, m serverRef, n ServiceNode, a
 			add(levelInfo, text, m.Updates()+"#roostack", map[bool]string{true: "Details", false: "See what's new"}[ser.Accepted != ""])
 		}
 	}
-	rs := u.RestartStatus()
-	if !rs.Needed {
-		return
+	rs, err := u.RestartStatus(r.Context())
+	if err != nil || !rs.Needed {
+		return // a server that doesn't answer has its own item
 	}
 	mode, hour := s.Maintenance.Restart, s.Maintenance.Hour()
 	if set := n.Settings(); set != nil {
-		mode, hour = set.RestartPolicy()
+		if m, h, err := set.RestartPolicy(r.Context()); err == nil {
+			mode, hour = m, h
+		}
 	}
 	if mode == config.RestartNotify {
 		add(levelWarning, m.Label()+" needs a restart to finish installing updates.", m.Updates(), "Restart")

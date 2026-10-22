@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Network shares as media libraries (SPEC.md §8.1, "Media libraries"): an
@@ -169,15 +171,7 @@ func shareLoginFile(name string) string { return filepath.Join(ShareLoginDir, na
 
 // writeLogin writes mount.cifs's credentials file, root's only.
 func writeLogin(path string, s Share) error {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(f, "username=%s\npassword=%s\n", s.Username, s.Password)
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	return err
+	return fsutil.WritePrivate(path, fmt.Appendf(nil, "username=%s\npassword=%s\n", s.Username, s.Password))
 }
 
 // mountShare mounts a share library for good: its line in fstab, at the
@@ -210,22 +204,18 @@ func (h LinuxHost) mountShare(l Library, spot mountSpot) error {
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(fstab)
-	if err != nil {
-		return err
-	}
 	unit, err := mountUnit(target)
 	if err != nil {
 		return err
 	}
 	automount := strings.TrimSuffix(unit, ".mount") + ".automount"
-	exec.Command("systemctl", "stop", automount, unit).Run()
-	tab := removeBlock(removeBlock(string(data), spot.folderTag), spot.shareTag)
-	tab = withBlock(tab, spot.shareTag, line)
-	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
+	if err := editFstab(func(tab string) (string, error) {
+		exec.Command("systemctl", "stop", automount, unit).Run()
+		tab = removeBlock(removeBlock(tab, spot.folderTag), spot.shareTag)
+		return withBlock(tab, spot.shareTag, line), nil
+	}); err != nil {
 		return err
 	}
-	exec.Command("systemctl", "daemon-reload").Run()
 	// The automount only: the share is mounted when a service first looks,
 	// so a NAS that's off doesn't hold anything up.
 	if out, err := exec.Command("systemctl", "start", automount).CombinedOutput(); err != nil {

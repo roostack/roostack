@@ -15,6 +15,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 )
 
@@ -203,7 +204,12 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	}
 	if ref == "backup:"+to && to == host && !in.Waiting {
 		if x := m.node(to).Restores(); x != nil {
-			return x.Restore(name, snapID)
+			if err := x.Restore(ctx, name, snapID); err != nil {
+				return err
+			}
+			// Held stopped if its databases don't load (SPEC.md §6.9).
+			go m.watchRestore(name, to, id, false)
+			return nil
 		}
 	}
 	repos, err := m.keyRepos(ctx)
@@ -236,7 +242,7 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	act := m.Activity.Start(activity.Restore, "Restoring "+p.Title)
 	go func() {
 		ctx := context.Background()
-		err := m.restoreFrom(ctx, act, restoreJob{name: name, title: p.Title, host: host, to: to,
+		err := m.restoreFrom(ctx, act, restoreJob{name: name, title: cmp.Or(in.Title, p.Title), host: host, to: to, backup: id,
 			repo: repo, snap: *snap, from: fmt.Sprintf("%s backup at %s", m.backupsOf(kr.ServerID), where)}, dst)
 		if err != nil {
 			m.Log.Error("restoring a service", "service", name, "err", err)
@@ -267,6 +273,7 @@ type restoreJob struct {
 	repo     *backup.Repo
 	snap     backup.Snapshot
 	from     string // where the backup is, for the log
+	backup   string // the backup's ID, for restoring it again
 }
 
 // restoreFrom streams a service's backup to the server it goes onto
@@ -358,11 +365,26 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 	if err := dst.LoadDumps(ctx, j.name); err != nil {
 		// Its files are the backup's now: started again on them, without
 		// its databases, it would run half-restored (security review of
-		// 2026-10-16). It stays stopped until it's restored again.
+		// 2026-10-16). It's held stopped until the Owner chooses (SPEC.md
+		// §6.9, "A restore that didn't finish").
 		stopped = false
-		return fmt.Errorf("%s's files are back from the backup, but its databases couldn't be loaded, so it stays stopped; restore it again to retry (%w)", j.title, err)
+		act.Printf("%v", err)
+		h := instance.Hold{Backup: j.backup, Taken: j.snap.Time, Error: err.Error()}
+		if len(kept) > 0 {
+			h.Kept = kept[0]
+		}
+		if herr := m.holdService(j.name, h); herr != nil {
+			act.Printf("Roostack couldn't record that %s should stay stopped (%v), so it may start again at the next change on %s.",
+				j.title, herr, m.nameOf(j.to))
+		}
+		return errors.New(backup.NotLoadedMsg(j.title, j.snap.Time))
 	}
 	stopped = false
+	if released, err := m.releaseHold(j.name, "Starting "+j.title+": it's restored"); err != nil {
+		act.Printf("%v", err)
+	} else if released {
+		m.audit(ctx, AuditHoldEnded, "Restored "+j.title+", so it's no longer stopped")
+	}
 	if j.to != j.host && reachable {
 		aside, err := src.SetAsideData(ctx, j.name, "to-"+m.nameOf(j.to))
 		if err != nil {

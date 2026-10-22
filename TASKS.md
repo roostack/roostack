@@ -684,9 +684,14 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
 
 - [ ] The Owner decides the rest of the review's §12 questions and agrees the plan (§11); §2's are decided
 - [ ] CLAUDE.md's writing rules: the Owner's tense rule (2026-10-22), in batch 1e
-- [ ] Wave 0: the behaviour fixes found in passing (§2), all approved by the Owner on 2026-10-22 (P3 with its agreed wording, P9 in UTC): P3–P7, P12, P13, P15, P16 here; P1, P2, P8–P11, P14 in Cloud
+- [x] Wave 0: the behaviour fixes found in passing (§2), all approved by the Owner on 2026-10-22 (P3 with its agreed wording, P9 in UTC); each finding's status, with its commit, is in the review
+  - [x] Roostack's: P3–P7, P12, P13, P15, P16 (2026-10-22)
+  - [x] Cloud's: P1, P2, P8–P11, P14 (2026-10-22, roostack-cloud branch `claude/wave0-fixes-177bbd`, not merged yet)
+  - [ ] P3's follow-up: check a failed move through a backup on two VMs (only fakes so far)
 - [ ] Wave 1: the parallel batches 1a–1j (§11)
 - [ ] Wave 2: the shared helpers, one at a time (§11)
+  - [ ] P5's follow-up: one parser for the `# Added by Roostack:` blocks, with typed tag constructors (the edits share `editFstab` since wave 0, and `/etc/fstab` is replaced in one step since 2026-10-22, SPEC §6.1 "Editing `/etc/fstab`")
+  - [ ] D1: the atomic writes of files that aren't private (0644: generated files, Caddy's, the registry's, `labnet`'s certificates) still have their own copies; switch them to `fsutil.WriteFile`, and add `fsutil.CopyFile` for the streamed copies (`labrestore.copyFile`, `node/importcopy.go`). Wave 0 (P7) moved every private (0600) and 0640 file to `fsutil` (2026-10-22)
 - [ ] Wave 3: the structural changes the Owner chooses (§11)
 - [ ] Wave 4 (the Owner, 2026-10-22): wording across both repositories. Rework the present simple for actions and short, clipped statements into natural sentences (the future for what will happen, the present continuous for what's happening). A sample of rewrites for the Owner first, then batches by area (§11)
 

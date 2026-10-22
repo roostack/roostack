@@ -188,6 +188,7 @@ Network=roostack-immich.network</code></pre>
 {{status "waiting"}}
 {{status "registry-stop"}}
 {{status "awaiting-data"}}
+{{status "held"}}
 {{status "switching"}}`},
 			{"Badges", "", `
 {{badge "Preview"}}

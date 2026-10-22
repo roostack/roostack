@@ -91,7 +91,7 @@ func (f *fakeNode) Imports() Imports   { return nil }
 
 type fakeSettings struct{ zone string }
 
-func (f *fakeSettings) Timezones() (string, []string, error) {
+func (f *fakeSettings) Timezones(context.Context) (string, []string, error) {
 	return f.zone, []string{"Etc/UTC", "Europe/London"}, nil
 }
 func (f *fakeSettings) SetTimezone(_ context.Context, name string) (bool, error) {
@@ -101,10 +101,14 @@ func (f *fakeSettings) SetTimezone(_ context.Context, name string) (bool, error)
 	f.zone = name
 	return true, nil
 }
-func (f *fakeSettings) SSHAccess(bool) (SSHAccess, error)                           { return SSHAccess{Choice: "lan"}, nil }
-func (f *fakeSettings) SetSSH(context.Context, SSHChange) error                     { return nil }
-func (f *fakeSettings) SetRestartPolicy(context.Context, string, int) error         { return nil }
-func (f *fakeSettings) RestartPolicy() (string, int)                                { return "notify", 3 }
+func (f *fakeSettings) SSHAccess(context.Context, bool) (SSHAccess, error) {
+	return SSHAccess{Choice: "lan"}, nil
+}
+func (f *fakeSettings) SetSSH(context.Context, SSHChange) error             { return nil }
+func (f *fakeSettings) SetRestartPolicy(context.Context, string, int) error { return nil }
+func (f *fakeSettings) RestartPolicy(context.Context) (string, int, error) {
+	return "notify", 3, nil
+}
 func (f *fakeSettings) PromoteBackupCopy(context.Context, string, BackupCopy) error { return nil }
 func (f *fakeSettings) SetBackupCopies(context.Context, []BackupCopy) error         { return nil }
 func (f *fakeSettings) SetBackupDestination(context.Context, BackupDestination) error {
@@ -214,8 +218,8 @@ func TestRemote(t *testing.T) {
 	if r.BuiltIns(ctx); fn.builtIns.Load() != calls+1 {
 		t.Error("a change should forget shared reads")
 	}
-	if mode, hour := r.Settings().RestartPolicy(); mode != "notify" || hour != 3 {
-		t.Errorf("restart policy %q %d", mode, hour)
+	if mode, hour, err := r.Settings().RestartPolicy(ctx); mode != "notify" || hour != 3 || err != nil {
+		t.Errorf("restart policy %q %d %v", mode, hour, err)
 	}
 	if _, err := r.Settings().SetTimezone(ctx, "Mars"); !errors.As(err, &fe) {
 		t.Errorf("set zone form error: %v", err)
@@ -396,6 +400,20 @@ func TestRemoteDown(t *testing.T) {
 	}
 	if time.Since(start) > time.Second {
 		t.Errorf("calls to a server that's down took %v", time.Since(start))
+	}
+	// Reads that once answered "no" for a server that's down say so
+	// (the quality review of 2026-10-21, P15).
+	if _, err := (remoteRestores{r}).Pending(ctx); !errors.Is(err, ErrUnreachable) {
+		t.Errorf("restores pending: %v", err)
+	}
+	if _, err := (remoteUpdates{r}).Pending(ctx); !errors.Is(err, ErrUnreachable) {
+		t.Errorf("updates pending: %v", err)
+	}
+	if _, err := (remoteUpdates{r}).RestartStatus(ctx); !errors.Is(err, ErrUnreachable) {
+		t.Errorf("restart status: %v", err)
+	}
+	if _, _, err := (remoteSettings{r}).RestartPolicy(ctx); !errors.Is(err, ErrUnreachable) {
+		t.Errorf("restart policy: %v", err)
 	}
 
 	// It's back: the next check (a background one) finds it.

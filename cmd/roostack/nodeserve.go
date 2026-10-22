@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/web"
@@ -41,9 +42,7 @@ func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent
 	saved := filepath.Join(labnet.IdentityDir(lab.Paths.StateDir), "assignment.json")
 	api := &node.Server{Node: local, ControllerID: m.ControllerID, Saved: func(w node.WireAssignment) {
 		data, _ := json.Marshal(w)
-		if err := os.WriteFile(saved+".tmp", data, 0o600); err == nil {
-			os.Rename(saved+".tmp", saved)
-		}
+		fsutil.WritePrivate(saved, data)
 	}}
 	// Removed from the lab: after replying (the reply needs WireGuard),
 	// drop the network and restart as a lab of its own.

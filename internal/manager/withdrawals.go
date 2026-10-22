@@ -254,7 +254,7 @@ func (m *Manager) markStops(ctx context.Context, services []state.Service) strin
 		s.Stop = &state.Stop{LastBackup: w.LastBackup}
 		key = append(key, name+"="+strconv.FormatBool(w.LastBackup))
 		if w.LastBackup {
-			m.awaitLastBackup(s.Instance.Host)
+			m.awaitLastBackup(ctx, s.Instance.Host)
 		}
 	}
 	slices.Sort(key)
@@ -264,7 +264,7 @@ func (m *Manager) markStops(ctx context.Context, services []state.Service) strin
 // awaitLastBackup starts a backup of a server now, for a stopped service's
 // databases on the package's own images, and applies again once it has
 // finished so they stop too. One wait per server.
-func (m *Manager) awaitLastBackup(host string) {
+func (m *Manager) awaitLastBackup(ctx context.Context, host string) {
 	if m.awaiting == nil {
 		m.awaiting = map[string]bool{}
 	}
@@ -276,7 +276,7 @@ func (m *Manager) awaitLastBackup(host string) {
 		return
 	}
 	m.awaiting[host] = true
-	if err := n.Backups().RunNow(); err != nil {
+	if err := n.Backups().RunNow(ctx); err != nil {
 		m.Log.Warn("starting a backup before stopping a service's databases", "server", host, "err", err)
 	}
 	go func() {

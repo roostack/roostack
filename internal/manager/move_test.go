@@ -300,7 +300,7 @@ type realBackups struct {
 	last *store.BackupRun
 }
 
-func (b *realBackups) RunNow() error {
+func (b *realBackups) RunNow(context.Context) error {
 	started := time.Now()
 	sum, err := b.repo.Backup(context.Background(), backup.BackupOptions{Paths: []string{b.dir},
 		Tags: []string{backup.TagRoostack, backup.ServiceTag(filepath.Base(b.dir))}})
@@ -319,7 +319,10 @@ func (b *realBackups) Status(context.Context) (backup.Status, error) {
 	return backup.Status{Configured: true, Last: b.last, Progress: -1}, nil
 }
 
-func TestMoveThroughBackup(t *testing.T) {
+// setUpBackupMove is setUpMove with home backing up to a real restic
+// repository, and vps applying at once.
+func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
+	t.Helper()
 	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
 	if bin == "" {
 		var err error
@@ -330,7 +333,7 @@ func TestMoveThroughBackup(t *testing.T) {
 	m, a, b := setUpMove(t)
 	ctx := context.Background()
 	applyWait = 5 * time.Second
-	defer func() { applyWait = 20 * time.Minute }()
+	t.Cleanup(func() { applyWait = 20 * time.Minute })
 	svcDir := filepath.Join(m.Lab.Paths.ServicesDir, "forgejo")
 	os.MkdirAll(filepath.Join(svcDir, "data"), 0o755)
 	os.WriteFile(filepath.Join(svcDir, "data", "app.ini"), []byte("from the backup"), 0o644)
@@ -349,13 +352,19 @@ func TestMoveThroughBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer st.Close()
-	m.BackupStore = st
+	t.Cleanup(func() { st.Close() })
+	m.BackupStore, m.Settings = st, st
 	m.OpenRepo = func(string, []string) *backup.Repo { return repo }
 	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "local:" + repo.URL,
 		Repository: repo.URL, Created: time.Now()})
 	// The new server "applies" at once.
 	b.status = node.ApplyStatus{Finished: true, LastRun: time.Now().Add(time.Hour)}
+	return m, a, b
+}
+
+func TestMoveThroughBackup(t *testing.T) {
+	m, a, b := setUpBackupMove(t)
+	ctx := context.Background()
 
 	if info, _ := m.MoveInfo(ctx, "forgejo"); !info.ViaBackup {
 		t.Error("through a backup should be possible")
@@ -372,5 +381,74 @@ func TestMoveThroughBackup(t *testing.T) {
 	}
 	if !slices.Contains(b.log, "load dumps") || !slices.Contains(a.log, "stop") {
 		t.Errorf("home did %v, vps %v", a.log, b.log)
+	}
+}
+
+// A move through a backup whose databases don't load on the new server
+// goes back to the old one, whose copy is still whole, and what was copied
+// is set aside; if going back fails too, it's held stopped on the new
+// server (SPEC.md §6.9, §10.10).
+func TestMoveThroughBackupGoesBack(t *testing.T) {
+	m, a, b := setUpBackupMove(t)
+	ctx := context.Background()
+	b.failOn = "load dumps"
+	a.status = node.ApplyStatus{Finished: true, LastRun: time.Now().Add(time.Hour)}
+	if err := m.MoveService(ctx, "forgejo", "n-0000000003", MoveBackup); err != nil {
+		t.Fatal(err)
+	}
+	l := waitMove(t, m)
+	if !strings.Contains(l.Err, "Forgejo couldn't be moved to vps: its database didn't load there. It's running on home again, as before. "+
+		"What was copied to vps will stay there, at /srv/roostack/services/forgejo.moved, until you delete it.") {
+		t.Fatalf("move: %s\n%s", l.Err, strings.Join(l.Lines, "\n"))
+	}
+	lines := strings.Join(l.Lines, "\n")
+	if !strings.Contains(lines, "Its database didn't load on vps: load dumps failed") || !strings.Contains(lines, "Moving Forgejo back to home") {
+		t.Errorf("log:\n%s", lines)
+	}
+	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Host != "n-0000000002" || in.Held != nil {
+		t.Errorf("host %q, held %+v", in.Host, in.Held)
+	}
+	if !slices.Contains(b.log, "set aside") || slices.Contains(a.log, "set aside") {
+		t.Errorf("home did %v, vps %v", a.log, b.log)
+	}
+	if f, ok := m.FailedMoves(ctx)["forgejo"]; !ok || f.ToName != "vps" || f.FromName != "home" {
+		t.Errorf("failed moves %+v", m.FailedMoves(ctx))
+	}
+	// Deleting what was copied forgets it.
+	m.RemoveKeptData(ctx, "n-0000000003", "/srv/roostack/services/forgejo.failed-move-20261022-141200")
+	if _, ok := m.FailedMoves(ctx)["forgejo"]; ok {
+		t.Error("the failed move should be forgotten once its copy is deleted")
+	}
+
+	// Going back fails too: held stopped on vps, until moved again.
+	a.status = node.ApplyStatus{Finished: true, LastRun: time.Now().Add(time.Hour), LastErr: errors.New("home's apply failed")}
+	if err := m.MoveService(ctx, "forgejo", "n-0000000003", MoveBackup); err != nil {
+		t.Fatal(err)
+	}
+	l = waitMove(t, m)
+	if !strings.Contains(l.Err, "Forgejo is stopped on vps: its database didn't load there, and moving it back to home failed too: home's apply failed. "+
+		"Roostack will keep it stopped until you choose.") {
+		t.Fatalf("move: %s\n%s", l.Err, strings.Join(l.Lines, "\n"))
+	}
+	in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo"))
+	if in.Host != "n-0000000003" || in.Held == nil || in.Held.MovedFrom != "n-0000000002" || in.Held.Error != "home's apply failed" {
+		t.Fatalf("host %q, held %+v", in.Host, in.Held)
+	}
+	services, _ := state.LoadServices(m.Lab)
+	for _, s := range services {
+		if out, _ := state.Output(m.Lab, s); s.Name() == "forgejo" && slices.ContainsFunc(out.Units, func(u string) bool { return u == "roostack-forgejo-app.service" }) {
+			t.Error("a held service's app doesn't run")
+		}
+	}
+	// Starting it anyway ends the hold.
+	if err := m.StartHeld(ctx, "forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Held != nil {
+		t.Error("still held")
+	}
+	var fe *FormError
+	if err := m.StartHeld(ctx, "forgejo"); !errors.As(err, &fe) {
+		t.Errorf("starting one that isn't held: %v", err)
 	}
 }

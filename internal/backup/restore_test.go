@@ -144,6 +144,30 @@ func TestRestoreService(t *testing.T) {
 		t.Errorf("units = %v, want %v", units.calls, want)
 	}
 
+	// Its database doesn't load: a DumpsError, the files are the backup's,
+	// its data from before is kept, and it isn't started (SPEC.md §6.9).
+	units.calls = nil
+	failing := *r
+	failing.Now = func() time.Time { return time.Date(2026, 9, 26, 13, 0, 0, 0, time.UTC) }
+	failing.Launch = func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "false")
+	}
+	res, err = failing.RestoreService(ctx, svc, "")
+	var de *DumpsError
+	if !errors.As(err, &de) || !strings.Contains(err.Error(), "restoring databases") || res == nil || res.MovedAside[data] == "" {
+		t.Fatalf("err = %v, res = %+v", err, res)
+	}
+	if got, _ := os.ReadFile(filepath.Join(data, "attachment.txt")); string(got) != "precious" {
+		t.Error("the files should be the backup's")
+	}
+	if strings.Join(units.calls, ",") != "stop roostack-app-app.service" {
+		t.Errorf("units = %v: stopped, never started", units.calls)
+	}
+	if msg := NotLoadedMsg("App", time.Date(2026, 10, 20, 3, 0, 0, 0, time.Local)); msg != "App's files are back from the backup of Tue 20 Oct 03:00, "+
+		"but its database couldn't be loaded, so Roostack is keeping it stopped. Choose what to do on App's page." {
+		t.Errorf("message %q", msg)
+	}
+
 	// A service with no backup of its own: nothing is touched.
 	other := filepath.Join(root, "srv", "other", "data")
 	writeFile(t, filepath.Join(other, "keep.txt"), "current")

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // ErrNotConfigured means no SMTP server is set up.
@@ -68,7 +69,7 @@ func (s *Service) Save(m config.Mail, password string, clearPassword bool) error
 			return err
 		}
 	case password != "":
-		if err := writePrivate(s.PasswordFile, []byte(password)); err != nil {
+		if err := fsutil.WritePrivate(s.PasswordFile, []byte(password)); err != nil {
 			return err
 		}
 	}
@@ -213,13 +214,4 @@ func compose(from *mail.Address, to []string, msg Message) ([]byte, error) {
 	qp.Write([]byte(strings.ReplaceAll(msg.Body, "\n", "\r\n")))
 	qp.Close()
 	return b.Bytes(), nil
-}
-
-// writePrivate writes a secret readable only by Roostack (0600).
-func writePrivate(file string, data []byte) error {
-	tmp := file + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, file)
 }

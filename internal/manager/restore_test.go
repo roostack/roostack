@@ -192,12 +192,7 @@ func TestRemoveWaiting(t *testing.T) {
 	if err := m.RemoveWaiting(ctx, "forgejo"); err != nil {
 		t.Fatal(err)
 	}
-	var l activity.Snapshot
-	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if l, _ = m.Activity.Latest(activity.Restore); !l.Running() {
-			break
-		}
-	}
+	l := waitDone(t, m, activity.Restore)
 	// The copy can't be read: its backups can't be checked, so it's kept.
 	if !strings.Contains(l.Err, "some backups couldn't be read, so nothing was deleted") {
 		t.Fatalf("with a copy that can't be read: %q", l.Err)
@@ -228,6 +223,23 @@ func TestRemoveWaiting(t *testing.T) {
 	if _, err := os.Stat(state.InstanceFile(m.Lab, "forgejo")); !os.IsNotExist(err) {
 		t.Error("it should be removed")
 	}
+}
+
+// waitDone waits for the latest log of a kind to finish, and fails the test
+// if it's still running after two minutes. Setting up a repository takes
+// seconds (restic derives each key slowly on purpose), and much longer on
+// a busy machine, so a short limit made tests fail at random, checking a
+// result that wasn't there yet.
+func waitDone(t *testing.T, m *Manager, kind string) activity.Snapshot {
+	t.Helper()
+	var l activity.Snapshot
+	for deadline := time.Now().Add(2 * time.Minute); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if l, _ = m.Activity.Latest(kind); !l.Running() {
+			return l
+		}
+	}
+	t.Fatalf("%s is still running after 2 minutes:\n%s", l.Title, strings.Join(l.Lines, "\n"))
+	return l
 }
 
 func waitRestore(t *testing.T, m *Manager) activity.Snapshot {
@@ -303,16 +315,45 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 	}
 
 	// Its databases don't load: the files are back, and it isn't started
-	// again on them.
+	// again on them, but held stopped in its desired state until the Owner
+	// chooses (SPEC.md §6.9, "A restore that didn't finish").
+	var audited []string
+	m.Audit = func(_ context.Context, action, detail string) { audited = append(audited, action+": "+detail) }
 	home.log, home.failOn = nil, "load dumps"
 	if err := m.RestoreService(ctx, "forgejo", backups[0].ID(), "n-0000000002"); err != nil {
 		t.Fatal(err)
 	}
-	if l := waitRestore(t, m); !strings.Contains(l.Err, "files are back from the backup, but its databases couldn't be loaded") ||
+	if l := waitRestore(t, m); !strings.Contains(l.Err, "Forgejo's files are back from the backup of ") ||
+		!strings.HasSuffix(l.Err, ", but its database couldn't be loaded, so Roostack is keeping it stopped. Choose what to do on Forgejo's page.") ||
 		slices.Contains(home.log, "start") {
 		t.Errorf("restore: %q; home did %v", l.Err, home.log)
 	}
+	in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo"))
+	if in.Held == nil || in.Held.Backup != backups[0].ID() || in.Held.Error != "load dumps failed" || !in.Held.Taken.Equal(backups[0].Time) {
+		t.Fatalf("held %+v", in.Held)
+	}
+	services, _ := state.LoadServices(m.Lab)
+	d, _ := state.Desired(m.Lab, state.OnNode(services, "n-0000000002"))
+	for _, out := range d.Services {
+		if out.Service == "forgejo" && (slices.Contains(out.Units, "roostack-forgejo-app.service") || out.CaddySite != nil) {
+			t.Errorf("held, only its databases run: %v", out.Units)
+		}
+	}
+	// Restored again once the cause is fixed: the hold ends, and that's
+	// recorded.
 	home.failOn = ""
+	if err := m.RestoreService(ctx, "forgejo", backups[0].ID(), "n-0000000002"); err != nil {
+		t.Fatal(err)
+	}
+	if l := waitRestore(t, m); l.Err != "" {
+		t.Fatalf("restore again: %s", l.Err)
+	}
+	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Held != nil {
+		t.Errorf("still held: %+v", in.Held)
+	}
+	if len(audited) != 1 || audited[0] != "restore: Restored Forgejo, so it's no longer stopped" {
+		t.Errorf("audited %q", audited)
+	}
 
 	// Onto a server that can't be reached: refused.
 	if err := m.RestoreService(ctx, "forgejo", backups[0].ID(), "n-0000000003"); err == nil || !strings.Contains(err.Error(), "can't reach vps") {

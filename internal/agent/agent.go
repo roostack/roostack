@@ -27,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Default locations. The socket is in the agent's runtime directory, the
@@ -874,10 +876,7 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(file+".tmp", []byte(conf), 0o600); err != nil {
-		return "", err
-	}
-	if err := os.Rename(file+".tmp", file); err != nil {
+	if err := fsutil.WritePrivate(file, []byte(conf)); err != nil {
 		return "", err
 	}
 	unit := "wg-quick@" + iface
@@ -932,10 +931,7 @@ func (h LinuxHost) ApplyLinks(l Links) error {
 	if conf == string(old) {
 		return nil
 	}
-	if err := os.WriteFile(file+".tmp", []byte(conf), 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(file+".tmp", file); err != nil {
+	if err := fsutil.WritePrivate(file, []byte(conf)); err != nil {
 		return err
 	}
 	if _, err := os.Stat("/sys/class/net/" + WireGuardInterface); err != nil {

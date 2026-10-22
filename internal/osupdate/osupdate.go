@@ -150,7 +150,7 @@ const runLimit = 2 * time.Hour
 var ErrAlreadyQueued = errors.New("OS updates are already queued")
 
 // Submit queues an update run.
-func (s *Service) Submit() error {
+func (s *Service) Submit(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.pending {
@@ -165,10 +165,10 @@ func (s *Service) Submit() error {
 }
 
 // Pending reports whether an update run is queued or running.
-func (s *Service) Pending() bool {
+func (s *Service) Pending(_ context.Context) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.pending
+	return s.pending, nil
 }
 
 // Job installs updates, records the result, and requests a reboot if one
@@ -381,7 +381,7 @@ type RestartStatus struct {
 }
 
 // RestartStatus reports whether a restart is needed and why it's waiting.
-func (s *Service) RestartStatus() RestartStatus {
+func (s *Service) RestartStatus(_ context.Context) (RestartStatus, error) {
 	need, pkgs := RebootNeeded()
 	st := s.Coord.Status()
 	rs := RestartStatus{Needed: need, Packages: pkgs, LastBoot: LastBoot()}
@@ -394,7 +394,7 @@ func (s *Service) RestartStatus() RestartStatus {
 	if st.Running != nil {
 		rs.Running = st.Running.Name
 	}
-	return rs
+	return rs, nil
 }
 
 // ErrBusy means a restart now would interrupt a running job.

@@ -43,6 +43,26 @@ type RestoreResult struct {
 	MovedAside map[string]string
 }
 
+// DumpsError is a restore whose files are back from the backup but whose
+// databases couldn't be loaded: the service must stay stopped until the
+// Owner chooses what to do (SPEC.md §6.9, "A restore that didn't
+// finish"). Its data from before is in the .before-restore folders.
+type DumpsError struct{ Err error }
+
+func (e *DumpsError) Error() string {
+	return "restoring databases: " + e.Err.Error() + " (the previous data is in the .before-restore directories)"
+}
+
+func (e *DumpsError) Unwrap() error { return e.Err }
+
+// NotLoadedMsg is a restore log's last line when a service's files are back
+// from the backup taken at taken, but its databases didn't load (the
+// Owner's wording, 2026-10-22).
+func NotLoadedMsg(title string, taken time.Time) string {
+	return fmt.Sprintf("%s's files are back from the backup of %s, but its database couldn't be loaded, so Roostack is keeping it stopped. "+
+		"Choose what to do on %s's page.", title, taken.Local().Format("Mon 2 Jan 15:04"), title)
+}
+
 // RestoreService restores a service from one of its snapshots ("" = the
 // latest).
 //
@@ -98,7 +118,7 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 		r.Log.Step("Putting the database back")
 	}
 	if err := r.LoadDumps(ctx, svc); err != nil {
-		return res, fmt.Errorf("restoring databases: %w (the previous data is in the .before-restore directories)", err)
+		return res, &DumpsError{Err: err}
 	}
 	r.Log.Step("Starting %s", svc.Service)
 	if err := r.Units.Start(ctx, svc.Units...); err != nil {

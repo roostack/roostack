@@ -1,6 +1,7 @@
 package node
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -179,7 +180,7 @@ func (s *Server) Handler() http.Handler {
 		if err != nil {
 			return nil, err
 		}
-		return nil, b.RunNow()
+		return nil, b.RunNow(ctx(r))
 	})
 	restores := func() (Restores, error) {
 		if x := n.Restores(); x != nil {
@@ -192,7 +193,7 @@ func (s *Server) Handler() http.Handler {
 		if err != nil {
 			return nil, err
 		}
-		return x.Pending(), nil
+		return x.Pending(ctx(r))
 	})
 	handle("GET /v1/restores/{service}/snapshots", func(r *http.Request) (any, error) {
 		x, err := restores()
@@ -210,14 +211,21 @@ func (s *Server) Handler() http.Handler {
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
-		return nil, x.Restore(svc(r), req.Snapshot)
+		return nil, x.Restore(ctx(r), svc(r), req.Snapshot)
+	})
+	handle("GET /v1/restores/{service}/outcome", func(r *http.Request) (any, error) {
+		x, err := restores()
+		if err != nil {
+			return nil, err
+		}
+		return x.Outcome(ctx(r), svc(r))
 	})
 	handle("GET /v1/restores/{service}/kept", func(r *http.Request) (any, error) {
 		x, err := restores()
 		if err != nil {
 			return nil, err
 		}
-		return x.Kept(svc(r))
+		return x.Kept(ctx(r), svc(r))
 	})
 	handle("POST /v1/restores/{service}/kept/put-back", func(r *http.Request) (any, error) {
 		x, err := restores()
@@ -256,7 +264,12 @@ func (s *Server) Handler() http.Handler {
 		if err != nil {
 			return nil, err
 		}
-		return wireUpdates{Last: last, Pending: u.Pending(), Restart: u.RestartStatus()}, nil
+		pending, err := u.Pending(ctx(r))
+		if err != nil {
+			return nil, err
+		}
+		restart, err := u.RestartStatus(ctx(r))
+		return wireUpdates{Last: last, Pending: pending, Restart: restart}, err
 	})
 	handle("GET /v1/host/changes", func(r *http.Request) (any, error) {
 		u, err := updates()
@@ -299,7 +312,7 @@ func (s *Server) Handler() http.Handler {
 		if err != nil {
 			return nil, err
 		}
-		return nil, u.Submit()
+		return nil, u.Submit(ctx(r))
 	})
 	handle("POST /v1/restart", func(r *http.Request) (any, error) {
 		u, err := updates()
@@ -578,13 +591,13 @@ func (s *Server) Handler() http.Handler {
 		if err != nil {
 			return nil, err
 		}
-		zone, zones, err := x.Timezones()
+		zone, zones, err := x.Timezones(ctx(r))
 		if err != nil {
 			return nil, err
 		}
-		ssh, err := x.SSHAccess(false)
-		mode, hour := x.RestartPolicy()
-		return wireSettings{Timezone: zone, Zones: zones, SSH: ssh, RestartMode: mode, RestartHour: hour}, err
+		ssh, err := x.SSHAccess(ctx(r), false)
+		mode, hour, perr := x.RestartPolicy(ctx(r))
+		return wireSettings{Timezone: zone, Zones: zones, SSH: ssh, RestartMode: mode, RestartHour: hour}, cmp.Or(err, perr)
 	})
 	handle("PUT /v1/settings/timezone", func(r *http.Request) (any, error) {
 		x, err := settings()
@@ -605,7 +618,7 @@ func (s *Server) Handler() http.Handler {
 		if err != nil {
 			return nil, err
 		}
-		return x.SSHAccess(true)
+		return x.SSHAccess(ctx(r), true)
 	})
 	handle("PUT /v1/settings/ssh", func(r *http.Request) (any, error) {
 		x, err := settings()

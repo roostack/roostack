@@ -24,6 +24,7 @@ import (
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
@@ -166,7 +167,8 @@ func serve(args []string) error {
 		},
 		UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
 		Submit:    func(j maintenance.Job) { coord.Submit(j) },
-		Settings:  st}
+		Settings:  st,
+		Audit:     func(ctx context.Context, action, detail string) { st.Audit(ctx, nil, action, detail) }}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	srv.Libraries = mgr
@@ -645,7 +647,7 @@ func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.
 	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
+	if err := fsutil.WritePrivate(path, []byte(token+"\n")); err != nil {
 		return "", err
 	}
 	log.Info("waiting for first-run setup", "setup_code", token, "file", path)
@@ -686,6 +688,10 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		}
 		if mgr.Switching(s.Name()) {
 			v.Status = web.StatusSwitching
+		}
+		if s.Instance.Held != nil {
+			// Held after a restore that didn't finish (SPEC.md §6.9).
+			v.Status, v.Held = web.StatusHeld, s.Instance.Held
 		}
 		if s.Instance.Waiting {
 			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).
@@ -799,7 +805,7 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 					log.Warn("nightly backup not started", "err", err)
 				}
 			}
-			if err := updates.Submit(); err != nil {
+			if err := updates.Submit(ctx); err != nil {
 				log.Warn("nightly OS updates not started", "err", err)
 			}
 		})
@@ -889,7 +895,10 @@ func lookupService(services serverServices, name string) (*generate.Output, stri
 	}
 	for _, s := range list {
 		if s.Name() == name {
-			out, err := generate.Service(lab, s.Package, s.Instance)
+			// What runs of it now: only its databases while it's held after
+			// a restore that didn't finish, so restoring it again stops
+			// and starts only units that exist (SPEC.md §6.9).
+			out, err := state.Output(lab, s)
 			return out, s.Title(), err
 		}
 	}

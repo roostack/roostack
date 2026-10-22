@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/instance"
 )
 
@@ -53,11 +54,7 @@ func readMarker(paths config.Paths) (marker, bool) {
 
 func (m marker) save(paths config.Paths) error {
 	data, _ := json.Marshal(m)
-	tmp := markerFile(paths) + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, markerFile(paths))
+	return fsutil.WritePrivate(markerFile(paths), data)
 }
 
 // Restore puts a server's backup back onto this one (step 1). repo is
@@ -127,7 +124,7 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 	if err != nil {
 		return err
 	}
-	if err := writeFile(backup.KeyFile(paths), key); err != nil {
+	if err := fsutil.WritePrivate(backup.KeyFile(paths), key); err != nil {
 		return err
 	}
 	// The restored lab's hints are from its last backup, and its
@@ -255,6 +252,12 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
+	// OpenFile sets the mode only on a file it creates: one left over
+	// from before keeps its own (the quality review of 2026-10-21, P7).
+	if err := out.Chmod(0o600); err != nil {
+		out.Close()
+		return err
+	}
 	if _, err := io.Copy(out, in); err != nil {
 		out.Close()
 		return err
@@ -263,12 +266,4 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.Rename(tmp, dst)
-}
-
-func writeFile(file string, data []byte) error {
-	tmp := file + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, file)
 }

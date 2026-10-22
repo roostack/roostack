@@ -46,9 +46,13 @@ type Mover interface {
 	// CommitData moves the staging folders into place; data already there
 	// is kept aside. It returns where.
 	CommitData(ctx context.Context, service string) ([]string, error)
-	// SetAsideData renames the service's folders after it moved away.
+	// SetAsideData renames the service's folders after it moved away
+	// (.moved-<note>-<time>), or, with the note FailedMove, what a move
+	// that didn't finish copied here (.failed-move-<time>).
 	SetAsideData(ctx context.Context, service, note string) ([]string, error)
-	// StopService and StartService stop and start its containers.
+	// StopService and StartService stop and start its containers: those
+	// that run now (state.Output), so only its databases while it's
+	// stopped or held (SPEC.md §6.9, "A restore that didn't finish").
 	StopService(ctx context.Context, service string) error
 	StartService(ctx context.Context, service string) error
 	// ExportSecrets and ImportSecrets copy its Podman secrets.
@@ -57,7 +61,8 @@ type Mover interface {
 	// DataSize is roughly how much data it has, in bytes.
 	DataSize(ctx context.Context, service string) (int64, error)
 	// LoadDumps stops the service, loads its databases from the dumps in
-	// its data (after a move through a backup), and starts it again.
+	// its data (after a restore or a move through a backup), and starts
+	// what of it runs now again.
 	LoadDumps(ctx context.Context, service string) error
 	// KeptData lists folders moves left behind; RemoveKeptData deletes
 	// one, PutBackKeptData puts one back in place of its service's data.
@@ -74,6 +79,7 @@ const (
 	staging     = ".incoming"
 	keptAside   = ".before-move-"
 	movedAway   = ".moved-"
+	failedMove  = ".failed-move-"
 	timeLayout  = "20060102-150405"
 	safeService = "abcdefghijklmnopqrstuvwxyz0123456789-"
 )
@@ -370,6 +376,14 @@ func (n *Local) CommitData(ctx context.Context, service string) ([]string, error
 	return kept, nil
 }
 
+// FailedMove is SetAsideData's note for what a move that didn't finish
+// copied to its new server (SPEC.md §10.10), which then has
+// FailedMoveSuffix and a time after the service's name.
+const (
+	FailedMove       = "failed-move"
+	FailedMoveSuffix = failedMove
+)
+
 func (n *Local) SetAsideData(ctx context.Context, service, note string) ([]string, error) {
 	if _, err := n.dataDir(service, 0); err != nil {
 		return nil, err
@@ -382,6 +396,9 @@ func (n *Local) SetAsideData(ctx context.Context, service, note string) ([]strin
 	}, strings.ToLower(note))
 	var aside []string
 	suffix := movedAway + note + "-" + time.Now().Format(timeLayout)
+	if note == FailedMove {
+		suffix = failedMove + time.Now().Format(timeLayout)
+	}
 	for _, d := range n.DataDirs(service) {
 		if _, err := os.Stat(d); err != nil {
 			continue
@@ -404,19 +421,19 @@ func (n *Local) output(service string) (*generate.Output, error) {
 }
 
 func (n *Local) StopService(ctx context.Context, service string) error {
-	out, err := n.output(service)
+	live, err := n.liveOutput(service)
 	if err != nil {
 		return err
 	}
-	return n.Reconciler.Systemd.Stop(ctx, out.Units...)
+	return n.Reconciler.Systemd.Stop(ctx, live.Units...)
 }
 
 func (n *Local) StartService(ctx context.Context, service string) error {
-	out, err := n.output(service)
+	live, err := n.liveOutput(service)
 	if err != nil {
 		return err
 	}
-	return n.Reconciler.Systemd.Start(ctx, out.Units...)
+	return n.Reconciler.Systemd.Start(ctx, live.Units...)
 }
 
 func (n *Local) ExportSecrets(ctx context.Context, service string) (map[string][]byte, error) {
@@ -508,14 +525,18 @@ func (n *Local) LoadDumps(ctx context.Context, service string) error {
 	if err != nil {
 		return err
 	}
-	if err := n.Reconciler.Systemd.Stop(ctx, out.Units...); err != nil {
+	live, err := n.liveOutput(service)
+	if err != nil {
+		return err
+	}
+	if err := n.Reconciler.Systemd.Stop(ctx, live.Units...); err != nil {
 		return err
 	}
 	r := &backup.Restorer{Units: n.Reconciler.Systemd, Launch: n.Launch, RoostackBin: exe}
 	if err := r.LoadDumps(ctx, out); err != nil {
 		return err
 	}
-	return n.Reconciler.Systemd.Start(ctx, out.Units...)
+	return n.Reconciler.Systemd.Start(ctx, live.Units...)
 }
 
 // KeptFolder is a service's data folder a move, or bringing data in,
@@ -528,17 +549,19 @@ type KeptFolder struct {
 	MovedAway bool
 	// Imported: its data from before data was brought in (SPEC.md §8.4);
 	// FailedImport: what was brought, set aside when that failed;
-	// Replaced: what a put back replaced.
-	Imported, FailedImport, Replaced bool
-	Time                             time.Time
-	Size                             int64 // bytes, -1 if unknown
+	// Replaced: what a put back replaced; FailedMove: what a move that
+	// didn't finish copied here.
+	Imported, FailedImport, Replaced, FailedMove bool
+	Time                                         time.Time
+	Size                                         int64 // bytes, -1 if unknown
 }
 
 // keptName matches kept folders' names: <service>.before-move-<time>,
-// <service>.moved-<note>-<time>, and bringing data in's
+// <service>.moved-<note>-<time>, what a move that didn't finish copied,
+// <service>.failed-move-<time>, bringing data in's
 // <service>.before-import-<time> and .failed-import-<time>, and what a put
 // back replaced, <service>.before-put-back-<time>.
-var keptName = regexp.MustCompile(`^([a-z0-9-]+)\.(before-move-|before-import-|failed-import-|before-put-back-|moved-[a-z0-9-]*-)(\d{8}-\d{6})$`)
+var keptName = regexp.MustCompile(`^([a-z0-9-]+)\.(before-move-|before-import-|failed-import-|failed-move-|before-put-back-|moved-[a-z0-9-]*-)(\d{8}-\d{6})$`)
 
 // KeptData lists folders moves left on this server, newest first.
 func (n *Local) KeptData(ctx context.Context) ([]KeptFolder, error) {
@@ -558,7 +581,8 @@ func (n *Local) KeptData(ctx context.Context) ([]KeptFolder, error) {
 			}
 			t, _ := time.ParseInLocation(timeLayout, m[3], time.Local)
 			k := KeptFolder{Path: filepath.Join(base, e.Name()), Service: m[1], MovedAway: strings.HasPrefix(m[2], "moved-"),
-				Imported: m[2] == "before-import-", FailedImport: m[2] == "failed-import-", Replaced: m[2] == "before-put-back-", Time: t, Size: -1}
+				Imported: m[2] == "before-import-", FailedImport: m[2] == "failed-import-", Replaced: m[2] == "before-put-back-",
+				FailedMove: m[2] == "failed-move-", Time: t, Size: -1}
 			if out, err := n.unshare(ctx, "du", "-sb", k.Path).Output(); err == nil {
 				if f := strings.Fields(string(out)); len(f) > 0 {
 					k.Size, _ = strconv.ParseInt(f[0], 10, 64)

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Fencing off an out-of-date copy of a lab (SPEC.md §6.9, "Two copies of
@@ -63,11 +64,7 @@ func ReadGeneration(paths config.Paths) int {
 
 // WriteGeneration saves the lab's generation.
 func WriteGeneration(paths config.Paths, gen int) error {
-	file := GenerationFile(paths)
-	if err := os.WriteFile(file+".tmp", []byte(strconv.Itoa(gen)+"\n"), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(file+".tmp", file)
+	return fsutil.WritePrivate(GenerationFile(paths), []byte(strconv.Itoa(gen)+"\n"))
 }
 
 // Fence says why this server stood down.

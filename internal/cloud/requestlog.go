@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // The request log, requests.log in the lab's Cloud folder: every request
@@ -166,7 +167,7 @@ func (s *Service) record(method, path string, body []byte, status int, err error
 	if len(lines) > keepRequests {
 		lines = lines[len(lines)-keepRequests:]
 	}
-	if err := writeFile(s.file("requests.log"), append(bytes.Join(lines, []byte("\n")), '\n'), 0o600); err != nil {
+	if err := fsutil.WritePrivate(s.file("requests.log"), append(bytes.Join(lines, []byte("\n")), '\n')); err != nil {
 		s.log.Warn("Roostack Cloud: recording a request", "err", err)
 	}
 }
@@ -224,7 +225,7 @@ func (s *Service) KeepRequests() (keepAgain func() error) {
 		if err := os.MkdirAll(s.dir, 0o700); err != nil {
 			return err
 		}
-		return writeFile(s.file("requests.log"), out, 0o600)
+		return fsutil.WritePrivate(s.file("requests.log"), out)
 	}
 }
 

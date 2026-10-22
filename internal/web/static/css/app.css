@@ -445,7 +445,7 @@ p.error[role="alert"] { background: var(--bad-bg); color: var(--bad); padding: v
 .status::before, .pill::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .status-running, .pill-ok { background: var(--ok-bg); color: var(--ok); }
 .status-starting, .status-waiting, .pill-warn { background: var(--warn-bg); color: var(--warn); }
-.status-failed, .status-registry-stop, .pill-bad { background: var(--bad-bg); color: var(--bad); }
+.status-failed, .status-registry-stop, .status-held, .pill-bad { background: var(--bad-bg); color: var(--bad); }
 .status-installing, .status-updating, .pill-info { background: var(--accent-soft); color: var(--fg); }
 .status-installing::before, .status-updating::before, .pill-info::before { background: var(--accent); animation: status-pulse 1.6s ease-in-out infinite; }
 @keyframes status-pulse { 50% { opacity: 0.35; } }

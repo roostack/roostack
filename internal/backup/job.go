@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/cloudkeys"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/units"
@@ -422,7 +423,7 @@ func writeJSON(file string, v any) error {
 	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(file, data, 0o600)
+	return fsutil.WritePrivate(file, data)
 }
 
 // upload backs the snapshots up to one repository (to is "" for the main

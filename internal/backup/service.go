@@ -211,7 +211,7 @@ func (s *Service) CatchUpAt(t time.Time) {
 }
 
 // RunNow queues a backup ("Back up now").
-func (s *Service) RunNow() error { return s.Submit() }
+func (s *Service) RunNow(_ context.Context) error { return s.Submit() }
 
 // Submit queues a backup to every destination unless one is already
 // queued or running.

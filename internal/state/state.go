@@ -40,7 +40,8 @@ type Stop struct {
 
 // Output is what runs of a service on its server: generate.Service's, but
 // only its network and databases while Roostack has stopped it (SPEC.md
-// §8.3.4) or it waits for its data to be brought in (SPEC.md §8.4).
+// §8.3.4), it waits for its data to be brought in (SPEC.md §8.4) or it's
+// held after a restore that didn't finish (SPEC.md §6.9).
 func Output(lab config.Lab, s Service) (*generate.Output, error) {
 	out, err := generate.Service(lab, s.Package, s.Instance)
 	if err != nil {
@@ -58,6 +59,10 @@ func trim(out *generate.Output, s Service) {
 	case s.Instance != nil && s.Instance.AwaitingData:
 		// Its databases run (empty until the switch loads them), so
 		// what's brought can be checked against them.
+		generate.Stop(out, s.Package, true)
+	case s.Instance != nil && s.Instance.Held != nil:
+		// Its databases run, so they can be loaded again (SPEC.md §6.9,
+		// "A restore that didn't finish").
 		generate.Stop(out, s.Package, true)
 	}
 }
@@ -151,13 +156,13 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		// them while it's stopped.
 		for _, h := range out.Hosts {
 			if other, dup := hosts[h]; dup {
-				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Name(), h, other))
+				errs = append(errs, &HostInUseError{Service: s.Name(), Host: h, UsedBy: other})
 			}
 			hosts[h] = s.Name()
 		}
 		for _, p := range out.Ports {
 			if other, dup := ports[p]; dup {
-				errs = append(errs, fmt.Errorf("%s: port %d is already used by %s", s.Name(), p, other))
+				errs = append(errs, &PortInUseError{Service: s.Name(), Port: p, UsedBy: other})
 			}
 			ports[p] = s.Name()
 		}
@@ -170,7 +175,7 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		d.Services = append(d.Services, out)
 	}
 	for _, s := range proxied {
-		if s.Stop != nil || (s.Instance != nil && s.Instance.AwaitingData) {
+		if s.Stop != nil || (s.Instance != nil && (s.Instance.AwaitingData || s.Instance.Held != nil)) {
 			continue // its server has stopped it: nothing to pass on
 		}
 		out, err := generate.ProxySite(lab, s.Package, s.Instance, s.Addr)
@@ -180,7 +185,7 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		}
 		for _, h := range out.Hosts {
 			if other, dup := hosts[h]; dup {
-				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Name(), h, other))
+				errs = append(errs, &HostInUseError{Service: s.Name(), Host: h, UsedBy: other})
 			}
 			hosts[h] = s.Name()
 		}
@@ -202,6 +207,18 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	}
 	d.System = sys
 	return d, errors.Join(errs...)
+}
+
+// HostInUseError is a web address (hostname) that another service, or
+// Roostack itself, already has: every hostname is unique across the lab.
+type HostInUseError struct {
+	Service, Host string
+	// UsedBy is what already has the hostname.
+	UsedBy string
+}
+
+func (e *HostInUseError) Error() string {
+	return fmt.Sprintf("%s: hostname %s is already used by %s", e.Service, e.Host, e.UsedBy)
 }
 
 // PortInUseError is a package port that clashes with another port Roostack

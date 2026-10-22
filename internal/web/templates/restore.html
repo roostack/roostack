@@ -14,7 +14,7 @@
   {{if .Pending}}
     {{notice "info" "A restore is in progress. This page shows how it's going."}}
   {{else if .Groups}}
-  {{$m := index (index .Groups 0).Moments 0}}{{$p := index $m.Places 0}}
+  {{$m := .Chosen}}{{$p := .ChosenPlace}}
   {{if .JustDone}}{{notice "ok" (printf "%s is restored. Check it works; its previous data is kept below until you delete it." .Service.Title)}}
   <details class="restore-again">
     <summary>Restore it again…</summary>{{end}}
@@ -31,7 +31,7 @@
         {{range .Moments}}
         <label class="check"><input type="radio" name="moment" value="{{.ID}}" data-label="{{.Label}}" data-place="{{(index .Places 0).Title}}"
             x-model="moment" x-on:change="label = $el.dataset.label; place = $el.dataset.place"{{if eq .ID $m.ID}} checked{{end}}>
-          <span>{{.Label}}{{if eq .ID $m.ID}} (newest){{end}}</span></label>
+          <span>{{.Label}}{{if eq .ID $.NewestID}} (newest){{end}}</span></label>
         {{end}}
       </fieldset>
       {{end}}
@@ -41,7 +41,7 @@
     {{if gt (len .Places) 1}}
     <label data-moment="{{.ID}}" x-show="moment === $el.dataset.moment"{{if ne .ID $m.ID}} x-cloak{{end}}>Read it from
       <select name="backup" x-bind:disabled="moment !== $el.parentElement.dataset.moment" x-on:change="place = $el.selectedOptions[0].text">
-        {{range .Places}}<option value="{{.ID}}">{{.Title}}</option>{{end}}
+        {{range .Places}}<option value="{{.ID}}"{{if eq .ID $p.ID}} selected{{end}}>{{.Title}}</option>{{end}}
       </select>
       <small>The main backup is usually the quickest. Choose a copy if it can't be read.</small>
     </label>

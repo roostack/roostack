@@ -15,15 +15,21 @@ import (
 // Backups is a server's nightly backup.
 type Backups interface {
 	Status(ctx context.Context) (backup.Status, error)
-	RunNow() error
+	RunNow(ctx context.Context) error
 }
 
 // Restores restores a server's services from its backups.
 type Restores interface {
 	Snapshots(ctx context.Context, service string) ([]backup.Snapshot, error)
-	Restore(service, snapshotID string) error
-	Pending() bool
-	Kept(service string) ([]backup.KeptCopy, error)
+	Restore(ctx context.Context, service, snapshotID string) error
+	// Pending says whether a restore is queued or running; the error
+	// says the server couldn't be asked.
+	Pending(ctx context.Context) (bool, error)
+	Kept(ctx context.Context, service string) ([]backup.KeptCopy, error)
+	// Outcome is how the service's last restore or put back here ended,
+	// for the controller to hold it stopped if its databases didn't load
+	// (SPEC.md §6.9, "A restore that didn't finish").
+	Outcome(ctx context.Context, service string) (backup.RestoreOutcome, error)
 	RemoveKept(ctx context.Context, service, path string) error
 	// PutBack puts a kept copy back in place of the data (SPEC.md §8.4).
 	PutBack(ctx context.Context, service, path string) error
@@ -32,9 +38,11 @@ type Restores interface {
 // Updates is a server's OS updates and restarts.
 type Updates interface {
 	Last(ctx context.Context) (*osupdate.Result, error)
-	Pending() bool
-	Submit() error
-	RestartStatus() osupdate.RestartStatus
+	// Pending says whether an update run is queued or running; the error
+	// says the server couldn't be asked.
+	Pending(ctx context.Context) (bool, error)
+	Submit(ctx context.Context) error
+	RestartStatus(ctx context.Context) (osupdate.RestartStatus, error)
 	RestartNow(ctx context.Context) error
 	// HostChanges are changes to the host Roostack didn't make (SPEC.md §3.2).
 	HostChanges(ctx context.Context) (osupdate.HostCheck, error)

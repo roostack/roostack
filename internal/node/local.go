@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/firewall"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/reconcile"
@@ -650,10 +651,7 @@ func (n *Local) addStorage(d *reconcile.Desired, st *Storage) error {
 		if old, err := os.ReadFile(path); err == nil && string(old) == data {
 			return nil
 		}
-		if err := os.WriteFile(path+".tmp", []byte(data), 0o600); err != nil {
-			return err
-		}
-		return os.Rename(path+".tmp", path)
+		return fsutil.WritePrivate(path, []byte(data))
 	}
 	if err := write(generate.StorePasswords, users); err != nil {
 		return err
@@ -699,10 +697,7 @@ func writeIfChanged(path, data string) error {
 	if old, err := os.ReadFile(path); err == nil && string(old) == data {
 		return nil
 	}
-	if err := os.WriteFile(path+".tmp", []byte(data), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(path+".tmp", path)
+	return fsutil.WritePrivate(path, []byte(data))
 }
 
 // GuestUsage is how much a guest lab stores on this server, in bytes.

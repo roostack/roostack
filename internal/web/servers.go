@@ -232,7 +232,9 @@ func (s *Server) serverViews(r *http.Request) []serverView {
 					}
 				}
 				if u := n.Updates(); u != nil {
-					v.RestartNeeded = u.RestartStatus().Needed
+					if rs, err := u.RestartStatus(r.Context()); err == nil {
+						v.RestartNeeded = rs.Needed
+					}
 					if last, err := u.Last(r.Context()); err == nil && last != nil {
 						v.UpdatesFailed = !last.OK
 					}

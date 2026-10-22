@@ -111,7 +111,7 @@ func TestNewSeries(t *testing.T) {
 	}
 
 	// Not accepted: a run stays on its series.
-	s.Submit()
+	s.Submit(ctx)
 	if err := coord.jobs[0].Run(ctx, nil); err != nil || ran != "" {
 		t.Errorf("run before accepting: %v, series %q", err, ran)
 	}
@@ -121,7 +121,7 @@ func TestNewSeries(t *testing.T) {
 	}
 	// Accepted, but the last backup didn't work: it waits, and says why.
 	s.BackupCheck = func(context.Context) string { return "the last backup didn't work" }
-	s.Submit()
+	s.Submit(ctx)
 	if err := coord.jobs[1].Run(ctx, nil); err != nil || ran != "" {
 		t.Errorf("run without a backup: %v, series %q", err, ran)
 	}
@@ -130,7 +130,7 @@ func TestNewSeries(t *testing.T) {
 	}
 	// With a backup that worked, the run moves to it.
 	s.BackupCheck = func(context.Context) string { return "" }
-	s.Submit()
+	s.Submit(ctx)
 	if err := coord.jobs[2].Run(ctx, nil); err != nil || ran != "0.5" {
 		t.Errorf("run after a backup: %v, series %q", err, ran)
 	}
@@ -141,7 +141,7 @@ func TestNewSeries(t *testing.T) {
 		t.Errorf("after moving: %+v", ser)
 	}
 	ran = "x"
-	s.Submit()
+	s.Submit(ctx)
 	if err := coord.jobs[3].Run(ctx, nil); err != nil || ran != "" {
 		t.Errorf("run after moving: %v, series %q", err, ran)
 	}
@@ -192,7 +192,7 @@ func TestJobUpgradesRoostack(t *testing.T) {
 	s.Activity, s.PollEvery = activity.New(), time.Millisecond
 	ended := s.Now().Add(3 * time.Minute)
 	ag.runs = []agent.UpdatesRun{{Running: true, Output: out[:40]}, {Ended: ended, Output: out}}
-	s.Submit()
+	s.Submit(ctx)
 	if err := coord.jobs[0].Run(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -201,14 +201,14 @@ func TestJobUpgradesRoostack(t *testing.T) {
 		!strings.Contains(last.Output, "Setting up roostack (0.4.1)") {
 		t.Errorf("last = %+v", last)
 	}
-	if v, _ := s.Store.Setting(ctx, runningKey); v != "" || s.Pending() {
-		t.Errorf("still marked running: %q, pending %v", v, s.Pending())
+	if v, _ := s.Store.Setting(ctx, runningKey); v != "" || s.pendingNow() {
+		t.Errorf("still marked running: %q, pending %v", v, s.pendingNow())
 	}
 
 	// Roostack restarts while following it: the run's left for the next
 	// start, which records it once it ends, and says so in the log.
 	ag.runs = []agent.UpdatesRun{{Running: true}}
-	s.Submit()
+	s.Submit(ctx)
 	stop, cancel := context.WithCancel(ctx)
 	go func() { time.Sleep(20 * time.Millisecond); cancel() }()
 	if err := coord.jobs[1].Run(stop, nil); !errors.Is(err, context.Canceled) {
@@ -224,7 +224,7 @@ func TestJobUpgradesRoostack(t *testing.T) {
 	next := &Service{Agent: ag, Store: s.Store, Coord: coord2, Now: s.Now, Log: s.Log, Activity: activity.New(), PollEvery: time.Millisecond}
 	ag.runs = []agent.UpdatesRun{{Running: true}, {Ended: ended, Status: 1, Output: "E: Sub-process /usr/bin/dpkg returned an error code (1)\n"}}
 	next.Resume(ctx)
-	if len(coord2.jobs) != 1 || coord2.jobs[0].Name != JobName || !next.Pending() {
+	if len(coord2.jobs) != 1 || coord2.jobs[0].Name != JobName || !next.pendingNow() {
 		t.Fatalf("resume: %+v", coord2.jobs)
 	}
 	if err := coord2.jobs[0].Run(ctx, nil); err != nil {

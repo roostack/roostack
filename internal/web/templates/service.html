@@ -14,7 +14,7 @@
   </div>
   <div class="page-head-actions">
     <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
-    {{if and .Service.URLs (not .Service.Install) (not .Service.NoAddress) (ne .Service.Status "registry-stop") (ne .Service.Status "awaiting-data")}}
+    {{if and .Service.URLs (not .Service.Install) (not .Service.NoAddress) (ne .Service.Status "registry-stop") (ne .Service.Status "awaiting-data") (ne .Service.Status "held")}}
     <a class="button" href="{{index .Service.URLs 0}}" target="_blank" rel="noopener">Open {{.Service.Title}}{{template "new-window"}}</a>{{end}}
   </div>
 </div>
@@ -68,6 +68,47 @@
           "Start it anyway" "danger"}}
       </form>
     </details>
+    {{end}}
+  </div>
+  {{end}}
+  {{with .Held}}{{$t := $.Service.Title}}
+  {{/* Held after a restore (or a move through a backup) that didn't
+       finish (SPEC.md §6.9, "A restore that didn't finish"): the Owner's
+       wording, 2026-10-22. */}}
+  <div id="held" class="notice notice-error" role="alert">
+    {{with $.HeldError}}<p class="error">{{.}}</p>{{end}}
+    {{if .MovedFrom}}
+    <p><strong>{{$t}} is stopped on {{.On}}: its database didn't load there, and moving it back to {{.From}} failed too:</strong>
+      <em>{{firstLine .Error}}</em>. Roostack will keep it stopped until you choose.</p>
+    <p><a href="/services/{{$.Service.Name}}/move">See the move's log</a></p>
+    {{else}}
+    <p><strong>{{$t}} is stopped: its restore didn't finish.</strong> Its files were put back from the backup of {{.TakenText}}, but its
+      database couldn't be loaded: <em>{{firstLine .Error}}</em>.</p>
+    <p>If it started now, {{$t}} would be running on files without the database that goes with them: it could lose track of what it
+      keeps, or offer to set itself up again for whoever opens it first. So Roostack will keep it stopped until you choose.</p>
+    <p><a href="/backups/restore/{{$.Service.Name}}">See the restore's log</a></p>
+    {{end}}
+    {{if $.IsOwner}}
+    <div class="held-choices">
+      {{if .MovedFrom}}
+      <p><a class="button" href="/services/{{$.Service.Name}}/move">Move it again…</a></p>
+      {{else}}
+      <p><a class="button" href="{{.RestoreAgain $.Service.Name}}">Restore again…</a><br>
+        <small class="hint">Try the same backup again once the cause is fixed (a full disk, say), or an older one.</small></p>
+      {{if .Kept}}<p>{{confirm (printf "/services/%s/held/put-back" $.Service.Name)
+        (printf "Put back %s's data from before the restore, as it was at %s? %s will start again as it was before you restored it. The files from the backup will be kept, so you can try the restore again." $t .AtText $t)
+        "Put back what was there…" "secondary"}}</p>{{end}}
+      {{end}}
+      <details>
+        <summary>Start {{$t}} anyway…</summary>
+        <form method="post" action="/services/{{$.Service.Name}}/held/start">
+          {{confirmSubmit (printf "Start %s anyway, without its database from the backup? It will run on the backup's files with whatever is in its database now, which may be empty or half loaded. %s may offer to set itself up again, or lose track of its files. Do this only if you'll put its database right yourself." $t $t)
+            "Start it anyway" "danger"}}
+        </form>
+      </details>
+    </div>
+    {{else}}
+    <p class="hint">The Owner can restore it again or start it anyway.</p>
     {{end}}
   </div>
   {{end}}
@@ -163,7 +204,7 @@
     <dl class="facts">
       {{if .Service.NoAddress}}<dt>Address</dt><dd>{{template "address-waiting" $}}</dd>{{end}}
       {{range $u := .Service.URLs}}<dt>Address</dt><dd>{{if $.Service.Install}}<span class="address-pending">{{.}}</span> <small class="hint">· ready once installed</small>
-        {{- else if eq $.Service.Status "registry-stop"}}<span class="address-pending">{{.}}</span> <small class="hint">· off while it's stopped</small>
+        {{- else if or (eq $.Service.Status "registry-stop") (eq $.Service.Status "held")}}<span class="address-pending">{{.}}</span> <small class="hint">· off while it's stopped</small>
         {{- else if eq $.Service.Status "awaiting-data"}}<span class="address-pending">{{.}}</span> <small class="hint">· ready once its data is in</small>
         {{- else}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>
         {{- with $.Old}}{{with .URL $u}}<br><small class="hint">Until {{date $.Old.Until}} also at its old address, {{.}}</small>{{end}}{{end}}{{end}}</dd>{{end}}

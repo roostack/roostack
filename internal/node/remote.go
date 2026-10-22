@@ -369,8 +369,8 @@ func (b remoteBackups) Status(ctx context.Context) (backup.Status, error) {
 	return st, err
 }
 
-func (b remoteBackups) RunNow() error {
-	return b.r.call(context.Background(), http.MethodPost, "/v1/backups/run", struct{}{}, nil)
+func (b remoteBackups) RunNow(ctx context.Context) error {
+	return b.r.call(ctx, http.MethodPost, "/v1/backups/run", struct{}{}, nil)
 }
 
 type remoteRestores struct{ r *Remote }
@@ -381,20 +381,26 @@ func (x remoteRestores) Snapshots(ctx context.Context, service string) ([]backup
 	return out, err
 }
 
-func (x remoteRestores) Restore(service, snapshotID string) error {
-	return x.r.call(context.Background(), http.MethodPost, "/v1/restores/"+url.PathEscape(service),
+func (x remoteRestores) Restore(ctx context.Context, service, snapshotID string) error {
+	return x.r.call(ctx, http.MethodPost, "/v1/restores/"+url.PathEscape(service),
 		map[string]string{"Snapshot": snapshotID}, nil)
 }
 
-func (x remoteRestores) Pending() bool {
+func (x remoteRestores) Pending(ctx context.Context) (bool, error) {
 	var out bool
-	x.r.call(context.Background(), http.MethodGet, "/v1/restores/pending", nil, &out)
-	return out
+	err := x.r.call(ctx, http.MethodGet, "/v1/restores/pending", nil, &out)
+	return out, err
 }
 
-func (x remoteRestores) Kept(service string) ([]backup.KeptCopy, error) {
+func (x remoteRestores) Kept(ctx context.Context, service string) ([]backup.KeptCopy, error) {
 	var out []backup.KeptCopy
-	err := x.r.call(context.Background(), http.MethodGet, "/v1/restores/"+url.PathEscape(service)+"/kept", nil, &out)
+	err := x.r.call(ctx, http.MethodGet, "/v1/restores/"+url.PathEscape(service)+"/kept", nil, &out)
+	return out, err
+}
+
+func (x remoteRestores) Outcome(ctx context.Context, service string) (backup.RestoreOutcome, error) {
+	var out backup.RestoreOutcome
+	err := x.r.call(ctx, http.MethodGet, "/v1/restores/"+url.PathEscape(service)+"/outcome", nil, &out)
 	return out, err
 }
 
@@ -421,18 +427,18 @@ func (u remoteUpdates) Last(ctx context.Context) (*osupdate.Result, error) {
 	return w.Last, err
 }
 
-func (u remoteUpdates) Pending() bool {
-	w, _ := u.get(context.Background())
-	return w.Pending
+func (u remoteUpdates) Pending(ctx context.Context) (bool, error) {
+	w, err := u.get(ctx)
+	return w.Pending, err
 }
 
-func (u remoteUpdates) Submit() error {
-	return u.r.call(context.Background(), http.MethodPost, "/v1/updates/run", struct{}{}, nil)
+func (u remoteUpdates) Submit(ctx context.Context) error {
+	return u.r.call(ctx, http.MethodPost, "/v1/updates/run", struct{}{}, nil)
 }
 
-func (u remoteUpdates) RestartStatus() osupdate.RestartStatus {
-	w, _ := u.get(context.Background())
-	return w.Restart
+func (u remoteUpdates) RestartStatus(ctx context.Context) (osupdate.RestartStatus, error) {
+	w, err := u.get(ctx)
+	return w.Restart, err
 }
 
 func (u remoteUpdates) HostChanges(ctx context.Context) (osupdate.HostCheck, error) {
@@ -461,14 +467,14 @@ func (u remoteUpdates) RestartNow(ctx context.Context) error {
 
 type remoteSettings struct{ r *Remote }
 
-func (x remoteSettings) get() (wireSettings, error) {
+func (x remoteSettings) get(ctx context.Context) (wireSettings, error) {
 	var w wireSettings
-	err := x.r.call(context.Background(), http.MethodGet, "/v1/settings", nil, &w)
+	err := x.r.call(ctx, http.MethodGet, "/v1/settings", nil, &w)
 	return w, err
 }
 
-func (x remoteSettings) Timezones() (string, []string, error) {
-	w, err := x.get()
+func (x remoteSettings) Timezones(ctx context.Context) (string, []string, error) {
+	w, err := x.get(ctx)
 	return w.Timezone, w.Zones, err
 }
 
@@ -478,13 +484,13 @@ func (x remoteSettings) SetTimezone(ctx context.Context, name string) (bool, err
 	return out.Changed, err
 }
 
-func (x remoteSettings) SSHAccess(fresh bool) (SSHAccess, error) {
+func (x remoteSettings) SSHAccess(ctx context.Context, fresh bool) (SSHAccess, error) {
 	if fresh {
 		var a SSHAccess
-		err := x.r.call(context.Background(), http.MethodGet, "/v1/settings/ssh", nil, &a)
+		err := x.r.call(ctx, http.MethodGet, "/v1/settings/ssh", nil, &a)
 		return a, err
 	}
-	w, err := x.get()
+	w, err := x.get(ctx)
 	return w.SSH, err
 }
 
@@ -505,9 +511,9 @@ func (x remoteSettings) SetBackupDestination(ctx context.Context, d BackupDestin
 	return x.r.call(ctx, http.MethodPut, "/v1/settings/backup-destination", d, nil)
 }
 
-func (x remoteSettings) RestartPolicy() (string, int) {
-	w, _ := x.get()
-	return w.RestartMode, w.RestartHour
+func (x remoteSettings) RestartPolicy(ctx context.Context) (string, int, error) {
+	w, err := x.get(ctx)
+	return w.RestartMode, w.RestartHour, err
 }
 
 func (x remoteSettings) SetRestartPolicy(ctx context.Context, mode string, hour int) error {

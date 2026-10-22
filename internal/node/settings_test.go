@@ -83,7 +83,7 @@ func TestSSH(t *testing.T) {
 	if *restarts != 2 || len(used) != 1 || used[0] != config.SSHOff {
 		t.Errorf("restarts %d, used %v", *restarts, used)
 	}
-	if a, _ := h.SSHAccess(false); a.Choice != config.SSHOff {
+	if a, _ := h.SSHAccess(context.Background(), false); a.Choice != config.SSHOff {
 		t.Errorf("the page shows the new choice at once: %q", a.Choice)
 	}
 }
@@ -123,13 +123,13 @@ func TestSSHKeysOnly(t *testing.T) {
 	if !errors.As(err, &fe) || !strings.Contains(fe.Msg, "lock you out") || len(sshd.calls) != 0 {
 		t.Fatalf("keys only without a sudo key login: %v, calls %v", err, sshd.calls)
 	}
-	if a, _ := h.SSHAccess(false); a.PasswordsOpen() || a.Choice != "" {
+	if a, _ := h.SSHAccess(context.Background(), false); a.PasswordsOpen() || a.Choice != "" {
 		t.Errorf("a refused choice changed things: %+v", a)
 	}
 	if err := h.SetSSH(ctx, SSHChange{Choice: config.SSHFromAny, Login: config.SSHLoginPassword}); err != nil || len(sshd.calls) != 0 {
 		t.Fatalf("passwords: %v, calls %v", err, sshd.calls)
 	}
-	if a, _ := h.SSHAccess(false); !a.PasswordsOpen() {
+	if a, _ := h.SSHAccess(context.Background(), false); !a.PasswordsOpen() {
 		t.Errorf("passwords open: %+v", a)
 	}
 
@@ -141,7 +141,7 @@ func TestSSHKeysOnly(t *testing.T) {
 	if len(sshd.calls) != 1 || !sshd.calls[0] || lab.Firewall.SSHLogin != config.SSHLoginKey {
 		t.Errorf("calls %v, lab.yaml %+v", sshd.calls, lab.Firewall)
 	}
-	if a, _ := h.SSHAccess(false); a.PasswordsOpen() || a.Login != config.SSHLoginKey {
+	if a, _ := h.SSHAccess(context.Background(), false); a.PasswordsOpen() || a.Login != config.SSHLoginKey {
 		t.Errorf("after keys only: %+v", a)
 	}
 

@@ -174,7 +174,7 @@ func (s *Server) timezonePage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	current, zones, err := s.server(r).Timezones()
+	current, zones, err := s.server(r).Timezones(r.Context())
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -221,7 +221,7 @@ func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 		err = s.Setup.Done(r.Context(), setup.StepTimezone)
 	}
 	if err != nil {
-		current, zones, zerr := s.server(r).Timezones()
+		current, zones, zerr := s.server(r).Timezones(r.Context())
 		if zerr != nil {
 			s.serverError(w, zerr)
 			return
@@ -257,7 +257,7 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 	if s.server(r) == nil {
 		return nil, errNoServer
 	}
-	a, err := s.server(r).SSHAccess(true)
+	a, err := s.server(r).SSHAccess(r.Context(), true)
 	if err != nil {
 		return nil, err
 	}

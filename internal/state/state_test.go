@@ -98,7 +98,8 @@ func TestDuplicatePort(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-roostack.1\nroutes:\n  web: { port: 20005 }\n")
 	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-roostack.1\nroutes:\n  web: { port: 20005 }\n")
 	services, _ := LoadServices(lab)
-	if _, err := Desired(lab, services); err == nil || !strings.Contains(err.Error(), "port 20005 is already used") {
+	var pe *PortInUseError
+	if _, err := Desired(lab, services); !errors.As(err, &pe) || pe.Port != 20005 || !strings.Contains(err.Error(), "port 20005 is already used") {
 		t.Errorf("err = %v, want duplicate port", err)
 	}
 }
@@ -167,7 +168,8 @@ func TestDuplicateHostname(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Desired(lab, services); err == nil || !strings.Contains(err.Error(), "already used") {
+	var he *HostInUseError
+	if _, err := Desired(lab, services); !errors.As(err, &he) || he.Host != "photos."+lab.Domain || !strings.Contains(err.Error(), "already used") {
 		t.Errorf("error = %v, want duplicate hostname", err)
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -79,15 +78,11 @@ func (h LinuxHost) UnmountImport(service string) error {
 // login; a drive mounted for it goes too once nothing else mounts from it.
 func unmountPlace(spot mountSpot) error {
 	stopMount(spot.target)
-	data, err := os.ReadFile(fstab)
-	if err != nil {
+	if err := editFstab(func(tab string) (string, error) {
+		return pruneMediaDrives(removeBlock(tab, spot.folderTag)), nil
+	}); err != nil {
 		return err
 	}
-	tab := pruneMediaDrives(removeBlock(string(data), spot.folderTag))
-	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
-		return err
-	}
-	exec.Command("systemctl", "daemon-reload").Run()
 	os.Remove(spot.login)
 	if err := os.Remove(spot.target); err != nil && !errors.Is(err, os.ErrNotExist) {
 		// Still mounted (busy): it goes once it's free and unmounted.

@@ -13,8 +13,9 @@
   <ul>{{range .Items}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
 
 {{/* status: a service state (running, starting, stopped, failed, unknown; waiting to be restored, or
-     registry-stop: stopped because the registry withdrew its version; installing or updating). */}}
-{{define "status"}}<span class="status status-{{.}}">{{if eq . "waiting"}}Waiting to be restored{{else if eq . "registry-stop"}}Stopped by Roostack{{else if eq . "awaiting-data"}}Waiting for its data{{else}}{{capitalise .}}{{end}}</span>{{end}}
+     registry-stop: stopped because the registry withdrew its version; held: stopped after a restore that
+     didn't finish, with a hint saying so; installing or updating). */}}
+{{define "status"}}<span class="status status-{{.}}">{{if eq . "waiting"}}Waiting to be restored{{else if eq . "registry-stop"}}Stopped by Roostack{{else if eq . "awaiting-data"}}Waiting for its data{{else if eq . "held"}}Stopped{{else}}{{capitalise .}}{{end}}</span>{{if eq . "held"}} <small class="hint">Its restore didn't finish</small>{{end}}{{end}}
 
 {{/* install-steps: a service's install, step by step (node.InstallProgress):
      done, in progress (with how long so far) and still to do. */}}

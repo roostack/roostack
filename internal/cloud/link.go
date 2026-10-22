@@ -28,6 +28,7 @@ import (
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // PollEvery is how often the lab asks about a link being made (a
@@ -858,10 +859,10 @@ func (s *Service) saveCert(keyPEM, certPEM []byte) error {
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return err
 	}
-	if err := writeFile(s.file("lab.key"), keyPEM, 0o600); err != nil {
+	if err := fsutil.WritePrivate(s.file("lab.key"), keyPEM); err != nil {
 		return err
 	}
-	return writeFile(s.file("lab.crt"), certPEM, 0o644)
+	return fsutil.WriteFile(s.file("lab.crt"), certPEM, 0o644)
 }
 
 // save writes link.json (s.mu held).
@@ -873,15 +874,7 @@ func (s *Service) save() error {
 	if err != nil {
 		return err
 	}
-	return writeFile(s.file("link.json"), append(data, '\n'), 0o600)
-}
-
-func writeFile(file string, data []byte, mode os.FileMode) error {
-	tmp := file + ".new"
-	if err := os.WriteFile(tmp, data, mode); err != nil {
-		return err
-	}
-	return os.Rename(tmp, file)
+	return fsutil.WritePrivate(s.file("link.json"), append(data, '\n'))
 }
 
 // Run checks in when Roostack starts, then once a day (hourly while

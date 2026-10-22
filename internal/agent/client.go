@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"os"
 	"time"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Client calls roostack-agent from the unprivileged roostack service.
@@ -344,8 +346,5 @@ func (c *Client) SaveWireGuardKeys(ctx context.Context) error {
 		return nil
 	}
 	data, _ := json.Marshal(keys)
-	if err := os.WriteFile(c.KeysFile+".tmp", data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(c.KeysFile+".tmp", c.KeysFile)
+	return fsutil.WritePrivate(c.KeysFile, data)
 }

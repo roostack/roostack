@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // File is where a server keeps its keys for purpose ("backup", "prune"). The
@@ -100,12 +101,8 @@ func (c *Cache) read() (cloudapi.StorageKeys, error) {
 
 func (c *Cache) write(k cloudapi.StorageKeys) error {
 	data, _ := json.Marshal(k)
-	tmp := c.Path + ".tmp"
 	if err := os.MkdirAll(filepath.Dir(c.Path), 0o700); err != nil {
 		return err
 	}
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, c.Path)
+	return fsutil.WritePrivate(c.Path, data)
 }

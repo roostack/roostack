@@ -148,7 +148,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if s.server(r) != nil {
-		if a, err := s.server(r).SSHAccess(false); err == nil {
+		if a, err := s.server(r).SSHAccess(r.Context(), false); err == nil {
 			text, status := sshSummary(a)
 			set("remote-access", text, status)
 		}
@@ -201,7 +201,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.updates(r) != nil {
 		last, _ := s.updates(r).Last(r.Context())
-		rs := s.updates(r).RestartStatus()
+		rs, _ := s.updates(r).RestartStatus(r.Context())
 		switch {
 		case last != nil && !last.OK:
 			set("updates", "The last update didn't finish", "problem")

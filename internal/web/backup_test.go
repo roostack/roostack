@@ -18,7 +18,7 @@ type fakeBackups struct {
 }
 
 func (f *fakeBackups) Status(context.Context) (backup.Status, error) { return f.status, nil }
-func (f *fakeBackups) RunNow() error                                 { f.runs++; return nil }
+func (f *fakeBackups) RunNow(context.Context) error                  { f.runs++; return nil }
 
 func TestBackupCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleAdmin)

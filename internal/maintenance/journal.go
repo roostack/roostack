@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // FileJournal stores interrupted job names in a small JSON file, so they
@@ -36,9 +38,5 @@ func (j FileJournal) Save(names []string) error {
 	if err != nil {
 		return err
 	}
-	tmp := j.Path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, j.Path)
+	return fsutil.WritePrivate(j.Path, data)
 }

@@ -15,13 +15,11 @@ if [ "$1" = triggered ]; then
 fi
 [ "$1" = configure ] || exit 0
 
-if ! id roostack >/dev/null 2>&1; then
-    useradd --system --create-home --home-dir /var/lib/roostack/home --shell /usr/sbin/nologin roostack
-fi
 # System users get no subordinate IDs by default; rootless podman needs them
-# (docs/ASSUMPTIONS.md B1).
-if ! grep -q '^roostack:' /etc/subuid; then
-    usermod --add-subuids 200000-265535 --add-subgids 200000-265535 roostack
+# (docs/ASSUMPTIONS.md B1). --add-subids-for-system has useradd pick a free
+# range, so it can't overlap a login user's or anyone's own rootless Podman.
+if ! id roostack >/dev/null 2>&1; then
+    useradd --system --add-subids-for-system --create-home --home-dir /var/lib/roostack/home --shell /usr/sbin/nologin roostack
 fi
 # GPU access for rootless containers (docs/ASSUMPTIONS.md A7).
 for g in render video; do
