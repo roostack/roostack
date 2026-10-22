@@ -217,7 +217,7 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 	}
 	posted := r.Method == http.MethodPost
 	v := mediaAddView{Server: sv.ServerID, ServerName: sv.ServerName, Where: q.Get("where"), Error: errMsg,
-		Roots: agent.LibraryFolderRoots}
+		Roots: agent.FolderRoots}
 	if pf := q.Get("photos"); pf != "" {
 		ps, ok := s.photoService(r.Context(), pf)
 		if !ok || ps.Host != sv.ServerID {

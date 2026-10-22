@@ -114,7 +114,7 @@ func (s *Server) pickFolders(ctx context.Context, server string, pl pickerPlace,
 		}
 		if pl.Folder == "" {
 			// The places folders can be, to start with.
-			for _, root := range agent.LibraryFolderRoots {
+			for _, root := range agent.FolderRoots {
 				p.Folders = append(p.Folders, pickerFolder{Name: root, Href: at(url.Values{"folder": {root}}), NoCounts: true})
 			}
 			p.Crumbs = crumbsFor(links.serverTop, "", folderAt)

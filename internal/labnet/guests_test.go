@@ -113,7 +113,7 @@ func TestGuestHub(t *testing.T) {
 		resp.Body.Close()
 		return resp.StatusCode
 	}
-	_, hash, _ := NewStorePassword()
+	_, hash, _ := NewPassword()
 	body := `{"hash":"` + hash + `"}`
 	if code := call(http.MethodPut, "n-0000000002", body, inv.User, inv.AdminPassword); code != http.StatusOK || changed != 1 {
 		t.Fatalf("set a server's user: %d, changed %d", code, changed)

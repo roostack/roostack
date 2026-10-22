@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/agent"
 )
 
@@ -110,7 +111,7 @@ func TestJoinCode(t *testing.T) {
 		t.Errorf("code %q (%d chars)", s, len(s))
 	}
 	got, err := ParseJoinCode("  " + s + "\n")
-	if err != nil || got != c || HashToken(got.Token) != hash {
+	if err != nil || got != c || authkit.HashToken(got.Token) != hash {
 		t.Fatalf("round trip: %+v, %v", got, err)
 	}
 	for _, bad := range []string{"hello", s[:len(s)-10], "roostack-join-!!!"} {

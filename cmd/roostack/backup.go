@@ -107,10 +107,7 @@ func backupCmd(args []string) error {
 func backupInit(ctx context.Context, lab config.Lab, repo *backup.Repo) error {
 	keyFile := backup.KeyFile(lab.Paths)
 	if _, err := os.Stat(keyFile); errors.Is(err, os.ErrNotExist) {
-		key, err := backup.NewRecoveryKey()
-		if err != nil {
-			return err
-		}
+		key := backup.NewRecoveryKey()
 		if err := fsutil.WritePrivate(keyFile, []byte(key+"\n")); err != nil {
 			return err
 		}

@@ -302,7 +302,7 @@ func importLabel(v node.ImportView, rel string) string {
 // form came back or as the import has it.
 func (s *Server) importSource(r *http.Request, name string, pg *importPage) error {
 	f := &pg.Source
-	f.Roots = agent.LibraryFolderRoots
+	f.Roots = agent.FolderRoots
 	q := r.URL.Query()
 	if r.Method == http.MethodPost {
 		q = r.PostForm
@@ -455,7 +455,7 @@ func (s *Server) importRows(r *http.Request, pg *importPage) {
 	var stop []string
 	for _, m := range v.Plan.Containers {
 		if m.Part != "" {
-			oc := oldContainer(v.Setup, m.Old)
+			oc := v.Setup.Container(m.Old)
 			stop = append(stop, cmp.Or(oc.Service, oc.Name))
 		}
 	}
@@ -547,18 +547,6 @@ func libraryPlacementText(at []string, title string) string {
 		return fmt.Sprintf("%s's media folder goes at %s, with each library in it under the name it had. A drive unplugged and plugged back in comes back by itself.", title, parent)
 	}
 	return fmt.Sprintf("These aren't in one folder, so each library is shown at its own place. If a library's drive is unplugged, %s can't see it again until it restarts: Roostack restarts %s by itself once the drive is back, which takes a few seconds.", title, title)
-}
-
-// oldContainer finds an old container by name.
-func oldContainer(s *importer.Setup, name string) importer.Container {
-	if s != nil {
-		for _, c := range s.Containers {
-			if c.Name == name {
-				return c
-			}
-		}
-	}
-	return importer.Container{}
 }
 
 // dumpChoices are the dump-like files at the top of the person's copy and

@@ -11,6 +11,7 @@
 package importer
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -149,6 +150,19 @@ func ParseInspect(text []byte) (Setup, error) {
 	return s, s.Clean()
 }
 
+// Container finds an old container by name (an empty one if there's no
+// setup, or no such container).
+func (s *Setup) Container(name string) Container {
+	if s != nil {
+		for _, c := range s.Containers {
+			if c.Name == name {
+				return c
+			}
+		}
+	}
+	return Container{}
+}
+
 // Clean checks a setup (from ParseInspect, or the browser's Compose
 // reader), within limits, and masks secrets' values, so none is kept.
 func (s *Setup) Clean() error {
@@ -167,7 +181,7 @@ func (s *Setup) Clean() error {
 			return fmt.Errorf("container %d of the old setup has no image, or odd text in its name or image", i+1)
 		}
 		if c.Name == "" {
-			c.Name = cmpOr(c.Service, Repository(c.Image))
+			c.Name = cmp.Or(c.Service, Repository(c.Image))
 		}
 		if len(c.Mounts) > maxMounts || len(c.Env) > maxEnv {
 			return fmt.Errorf("%s has more folders or settings than Roostack reads", c.Name)
@@ -205,13 +219,6 @@ func printable(s string) string {
 		}
 		return r
 	}, s)
-}
-
-func cmpOr(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
 }
 
 // Repository is an image's repository, as registries name it: without its

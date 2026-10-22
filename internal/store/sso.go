@@ -32,9 +32,7 @@ func (s *Store) SetName(ctx context.Context, userID int64, name string) error {
 // renamed person keeps their accounts in apps.
 func (s *Store) EnsureSSOID(ctx context.Context, userID int64) (string, error) {
 	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
+	rand.Read(buf) // never fails (Go 1.24)
 	if _, err := s.db.ExecContext(ctx, `UPDATE users SET sso_id = ? WHERE id = ? AND sso_id = ''`,
 		hex.EncodeToString(buf), userID); err != nil {
 		return "", err

@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/nodeid"
@@ -274,7 +275,7 @@ func (h *Hub) Join(ctx context.Context, req JoinRequest) (JoinResponse, error) {
 	if name == "" || len([]rune(name)) > 40 || strings.ContainsFunc(name, unicode.IsControl) {
 		name = req.NodeID
 	}
-	m, err := h.Store.Join(ctx, HashToken(req.Token), store.Server{ID: req.NodeID, Name: name, PublicKey: req.PublicKey}, h.Now())
+	m, err := h.Store.Join(ctx, authkit.HashToken(req.Token), store.Server{ID: req.NodeID, Name: name, PublicKey: req.PublicKey}, h.Now())
 	if err != nil {
 		return JoinResponse{}, err
 	}

@@ -238,7 +238,7 @@ func shareEntries(tab string) []libraryEntry {
 			continue
 		}
 		if f := strings.Fields(lines[i+1]); len(f) >= 4 {
-			out = append(out, libraryEntry{name: name, source: fstabUnescape(f[0]), share: true})
+			out = append(out, libraryEntry{name: name, source: FstabUnescape(f[0]), share: true})
 		}
 	}
 	return out

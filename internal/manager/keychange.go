@@ -111,10 +111,7 @@ func (m *Manager) StartKeyChange(ctx context.Context) error {
 	if _, err := os.Stat(backup.KeyFile(m.Lab.Paths)); err != nil {
 		return usererr.New("The lab has no recovery key yet: it's made with the first backup.")
 	}
-	key, err := backup.NewRecoveryKey()
-	if err != nil {
-		return err
-	}
+	key := backup.NewRecoveryKey()
 	if err := fsutil.WritePrivate(m.newKeyFile(), []byte(key+"\n")); err != nil {
 		return err
 	}

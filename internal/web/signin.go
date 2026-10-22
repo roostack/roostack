@@ -5,7 +5,6 @@ import (
 	"errors"
 	"html/template"
 	"io/fs"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -112,7 +112,7 @@ func (s *Server) SignInHandler() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		if !strings.EqualFold(hostOnly(r.Host), s.SignInHost) {
+		if !strings.EqualFold(public.HostOnly(r.Host), s.SignInHost) {
 			http.NotFound(w, r)
 			return
 		}
@@ -128,13 +128,6 @@ func (s *Server) SignInHandler() http.Handler {
 		}
 		mux.ServeHTTP(w, r)
 	}))
-}
-
-func hostOnly(h string) string {
-	if host, _, err := net.SplitHostPort(h); err == nil {
-		return host
-	}
-	return h
 }
 
 // signInSession is who's signed in on the sign-in page, if anyone.

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 )
@@ -170,14 +171,9 @@ func mountID(table, path string) string {
 	id := ""
 	for _, l := range strings.Split(table, "\n") {
 		f := strings.Fields(l)
-		if len(f) > 4 && fstabUnescape(f[4]) == path && !slices.Contains(f, "autofs") {
+		if len(f) > 4 && agent.FstabUnescape(f[4]) == path && !slices.Contains(f, "autofs") {
 			id = f[0]
 		}
 	}
 	return id
-}
-
-// fstabUnescape reads an escaped mount table field (spaces as \040).
-func fstabUnescape(s string) string {
-	return strings.NewReplacer(`\040`, " ", `\011`, "\t", `\134`, `\`).Replace(s)
 }

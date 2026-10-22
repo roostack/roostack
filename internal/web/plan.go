@@ -422,7 +422,6 @@ func (s *Server) planOptions(r *http.Request, m serverRef, main store.BackupTarg
 		}
 		switch s.Manager.BackupKind(ctx, m.ID, c.Ref) {
 		case manager.KindCloud:
-			c := c
 			o.Cloud = &c
 		case manager.KindOnline:
 			o.Online = append(o.Online, c)

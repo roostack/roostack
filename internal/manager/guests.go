@@ -537,7 +537,7 @@ func (m *Manager) remoteServerUser(ctx context.Context, ref, serverID string) (R
 	pw := r.Servers[serverID]
 	var hash string
 	if pw == "" {
-		pw, hash, err = labnet.NewStorePassword()
+		pw, hash, err = labnet.NewPassword()
 	} else {
 		hash, err = labnet.HashPassword(pw)
 	}

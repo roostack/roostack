@@ -31,7 +31,7 @@ import (
 // The roostack user asks for these, so the agent holds the line on what a
 // library can show it: mount points are under LibraryRoot, which is root's
 // (the roostack user could swap a folder in /srv/roostack for a symlink);
-// a folder on the server must be under LibraryFolderRoots and outside
+// a folder on the server must be under FolderRoots and outside
 // Roostack's own folders; a path may hold no symlinks; and "read as its
 // owner" (an idmapped mount, docs/ASSUMPTIONS.md M2) only maps a regular
 // user's files, on a drive that isn't the system's.
@@ -52,10 +52,6 @@ const LibraryViews = config.LibraryViews
 // doesn't import: it accepts what any version of roostack might send,
 // and only guards against path tricks (no slash, no dot, no "..").
 var serviceName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
-
-// LibraryFolderRoots are where a library can be a folder already on the
-// server (the agent can't see /home: its sandbox hides it).
-var LibraryFolderRoots = []string{"/mnt", "/media", "/srv"}
 
 // libraryName is a library's name on disk and in services.
 var libraryName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
@@ -415,12 +411,12 @@ func (h LinuxHost) driveByUUID(uuid string) (Drive, error) {
 }
 
 // libraryFolder checks a folder on the server can be a library: an
-// existing folder under LibraryFolderRoots, outside Roostack's own folders
+// existing folder under FolderRoots, outside Roostack's own folders
 // and other libraries, with no symlinks on the way.
 func libraryFolder(p string) (string, error) {
 	p = filepath.Clean(p)
-	if !filepath.IsAbs(p) || rootOf(p, LibraryFolderRoots) == "" {
-		return "", fmt.Errorf("pick a folder under %s", strings.Join(LibraryFolderRoots, ", "))
+	if !filepath.IsAbs(p) || rootOf(p, FolderRoots) == "" {
+		return "", fmt.Errorf("pick a folder under %s", strings.Join(FolderRoots, ", "))
 	}
 	if ownFolder(p) {
 		return "", errors.New("that's one of Roostack's own folders")
@@ -703,8 +699,9 @@ func fstabEscape(s string) string {
 	return strings.NewReplacer(`\`, `\134`, " ", `\040`, "\t", `\011`).Replace(s)
 }
 
-// fstabUnescape reads an escaped fstab field.
-func fstabUnescape(s string) string {
+// FstabUnescape reads an escaped fstab or mount table field (spaces as
+// \040).
+func FstabUnescape(s string) string {
 	return strings.NewReplacer(`\040`, " ", `\011`, "\t", `\134`, `\`).Replace(s)
 }
 
@@ -768,7 +765,7 @@ func mediaDriveMounts(tab string) []string {
 	for i, l := range lines {
 		if strings.HasPrefix(l, "# Added by Roostack: a media drive") && i+1 < len(lines) {
 			if f := strings.Fields(lines[i+1]); len(f) >= 2 {
-				mps = append(mps, fstabUnescape(f[1]))
+				mps = append(mps, FstabUnescape(f[1]))
 			}
 		}
 	}
@@ -781,7 +778,7 @@ func mediaDriveDevice(tab, mp string) string {
 	lines := strings.Split(tab, "\n")
 	for i, l := range lines {
 		if strings.HasPrefix(l, "# Added by Roostack: a media drive") && i+1 < len(lines) {
-			if f := strings.Fields(lines[i+1]); len(f) >= 2 && fstabUnescape(f[1]) == mp {
+			if f := strings.Fields(lines[i+1]); len(f) >= 2 && FstabUnescape(f[1]) == mp {
 				return f[0]
 			}
 		}
@@ -794,7 +791,7 @@ func removeMediaDrive(tab, mp string) string {
 	lines := strings.Split(tab, "\n")
 	for i, l := range lines {
 		if strings.HasPrefix(l, "# Added by Roostack: a media drive") && i+1 < len(lines) {
-			if f := strings.Fields(lines[i+1]); len(f) >= 2 && fstabUnescape(f[1]) == mp {
+			if f := strings.Fields(lines[i+1]); len(f) >= 2 && FstabUnescape(f[1]) == mp {
 				return removeBlock(tab, l)
 			}
 		}
@@ -821,13 +818,13 @@ func libraryEntries(tab string) []libraryEntry {
 		if len(f) < 4 {
 			continue
 		}
-		e := libraryEntry{name: name, source: fstabUnescape(f[0])}
+		e := libraryEntry{name: name, source: FstabUnescape(f[0])}
 		for _, o := range strings.Split(f[3], ",") {
 			if v, ok := strings.CutPrefix(o, "x-systemd.requires-mounts-for="); ok {
-				e.base = fstabUnescape(v)
+				e.base = FstabUnescape(v)
 			}
 			if v, ok := strings.CutPrefix(o, "X-mount.idmap="); ok {
-				e.asOwner = fstabUnescape(v)
+				e.asOwner = FstabUnescape(v)
 			}
 		}
 		out = append(out, e)
@@ -841,7 +838,7 @@ func mountedAt(mountinfo, target string) bool {
 	for _, l := range strings.Split(mountinfo, "\n") {
 		f := strings.Fields(l)
 		// An automount's own entry (autofs) doesn't count: only what it mounted.
-		if len(f) > 4 && fstabUnescape(f[4]) == target && !slices.Contains(f, "autofs") {
+		if len(f) > 4 && FstabUnescape(f[4]) == target && !slices.Contains(f, "autofs") {
 			return true
 		}
 	}

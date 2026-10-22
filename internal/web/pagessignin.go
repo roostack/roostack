@@ -14,6 +14,7 @@ import (
 
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -95,7 +96,7 @@ type pagesHandoff struct {
 // own login page is the way in.
 func (s *Server) pagesSignIn(r *http.Request) bool {
 	if s.SignIn == nil || s.SSO == nil || s.SignInHost == "" || s.UIHost == "" || fromSetupListener(r) ||
-		!isHTTPS(r) || !strings.EqualFold(hostOnly(r.Host), s.UIHost) {
+		!isHTTPS(r) || !strings.EqualFold(public.HostOnly(r.Host), s.UIHost) {
 		return false
 	}
 	return len(s.SSO.SSOClients()) > 0 && s.signInServed(r.Context())

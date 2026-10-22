@@ -28,7 +28,9 @@ import (
 // Checking a path first isn't enough: a symlink can appear between the
 // check and the change.
 
-// FolderRoots are where backup folders may be prepared.
+// FolderRoots are where a backup folder may be prepared, and where a
+// library can be a folder already on the server (the agent can't see
+// /home: its sandbox hides it).
 var FolderRoots = []string{"/mnt", "/media", "/srv"}
 
 // BackupFolderName is the folder Roostack keeps its backups in.

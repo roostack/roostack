@@ -189,7 +189,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		if m.Part == "" {
 			continue
 		}
-		oc := oldContainer(st.Setup, m.Old)
+		oc := st.Setup.Container(m.Old)
 		newImage := p.Containers[m.Part].Image
 		switch importer.CompareImages(oc.Image, newImage) {
 		case importer.SameImage:
@@ -391,7 +391,7 @@ func oldPaths(p *pkgspec.Package, setup *importer.Setup, plan importer.Plan) ([]
 		if m.Part == "" {
 			continue
 		}
-		oc := oldContainer(setup, m.Old)
+		oc := setup.Container(m.Old)
 		for _, mt := range oc.Mounts {
 			t := strings.TrimSuffix(mt.Target, "/")
 			if strings.HasPrefix(t, "/etc/") || t == "" || slices.Contains(out, t+"/") {
@@ -410,18 +410,6 @@ func oldPaths(p *pkgspec.Package, setup *importer.Setup, plan importer.Plan) ([]
 	}
 	slices.Sort(out)
 	return out, shown
-}
-
-// oldContainer finds an old container by name.
-func oldContainer(s *importer.Setup, name string) importer.Container {
-	if s != nil {
-		for _, c := range s.Containers {
-			if c.Name == name {
-				return c
-			}
-		}
-	}
-	return importer.Container{}
 }
 
 // imageEnv is an image's own environment, KEY → value (empty if it isn't

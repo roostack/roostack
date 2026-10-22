@@ -370,7 +370,6 @@ func CheckLibraryPath(p *pkgspec.Package, paths map[string]string, l string) err
 	return nil
 }
 
-
 // LibraryPlacement is where a service's libraries with paths of their own
 // go (SPEC.md §8.4). A library bound straight at its own path stays broken
 // once its drive is unplugged and plugged back in, until the service

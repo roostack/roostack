@@ -15,7 +15,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"math/big"
 	"net"
 	"net/netip"
 	"os"
@@ -62,8 +61,8 @@ func LoadOrCreateCA(dir, labName string) (*CA, error) {
 	if err != nil {
 		return nil, err
 	}
+	// No SerialNumber: x509.CreateCertificate makes a random one.
 	tmpl := &x509.Certificate{
-		SerialNumber:          serial(),
 		Subject:               pkix.Name{CommonName: "Roostack " + labName + " servers"},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(caValidity),
@@ -112,15 +111,15 @@ func (ca *CA) issue(csrDER []byte, nodeID string, addr netip.Addr, validity time
 	if err := csr.CheckSignature(); err != nil {
 		return nil, nil, err
 	}
+	// No SerialNumber: x509.CreateCertificate makes a random one.
 	tmpl := &x509.Certificate{
-		SerialNumber: serial(),
-		Subject:      pkix.Name{CommonName: nodeID},
-		DNSNames:     []string{nodeID},
-		IPAddresses:  []net.IP{addr.AsSlice()},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(validity),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		Subject:     pkix.Name{CommonName: nodeID},
+		DNSNames:    []string{nodeID},
+		IPAddresses: []net.IP{addr.AsSlice()},
+		NotBefore:   time.Now().Add(-time.Hour),
+		NotAfter:    time.Now().Add(validity),
+		KeyUsage:    x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, ca.Cert, csr.PublicKey, ca.Key)
 	if err != nil {
@@ -237,9 +236,4 @@ func writeKey(file string, key *ecdsa.PrivateKey) error {
 		return err
 	}
 	return fsutil.WritePrivate(file, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}))
-}
-
-func serial() *big.Int {
-	n, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 127))
-	return n
 }

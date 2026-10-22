@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
@@ -410,7 +411,7 @@ func TestRemovedGuestGrace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.JoinGuest(ctx, labnet.HashToken(inv.Token), "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", time.Now()); err != nil {
+	if _, err := st.JoinGuest(ctx, authkit.HashToken(inv.Token), "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	guests, _ := st.Guests(ctx, time.Now())

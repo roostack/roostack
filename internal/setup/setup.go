@@ -620,11 +620,7 @@ func EnsureRecoveryKey(paths config.Paths) error {
 	if _, err := os.Stat(keyFile); !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	key, err := backup.NewRecoveryKey()
-	if err != nil {
-		return err
-	}
-	return fsutil.WritePrivate(keyFile, []byte(key+"\n"))
+	return fsutil.WritePrivate(keyFile, []byte(backup.NewRecoveryKey()+"\n"))
 }
 
 // BackupAdded records the wizard's backup step done once a backup is set

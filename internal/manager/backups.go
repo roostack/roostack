@@ -2,8 +2,6 @@ package manager
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,8 +9,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
@@ -326,7 +322,7 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		if addr == "" {
 			return fail(fmt.Errorf("no address for server %s", host))
 		}
-		password, hash, err := newPassword()
+		password, hash, err := labnet.NewPassword()
 		if err != nil {
 			return fail(err)
 		}
@@ -422,7 +418,7 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 	// server gets a key of its own.
 	dest.PrunedByController = true
 	if serverID != m.Lab.NodeID {
-		key, _, err := newPassword()
+		key, _, err := labnet.NewPassword()
 		if err != nil {
 			return fail(err)
 		}
@@ -601,7 +597,7 @@ func (m *Manager) storeAdmin(ctx context.Context, host string) (string, error) {
 	if err != nil || ok {
 		return pw, err
 	}
-	pw, hash, err := newPassword()
+	pw, hash, err := labnet.NewPassword()
 	if err != nil {
 		return "", err
 	}
@@ -680,17 +676,6 @@ func (m *Manager) aboutServer(id, line string) string {
 		return strings.ToUpper(line[:1]) + line[1:]
 	}
 	return m.nameOf(id) + ": " + line
-}
-
-// newPassword returns a random password and its bcrypt hash.
-func newPassword() (string, string, error) {
-	b := make([]byte, 24)
-	if _, err := rand.Read(b); err != nil {
-		return "", "", err
-	}
-	pw := hex.EncodeToString(b)
-	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
-	return pw, string(hash), err
 }
 
 func firstLine(s string) string {

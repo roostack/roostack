@@ -980,4 +980,3 @@ func MainRoute(p *pkgspec.Package) string {
 	}
 	return names[0]
 }
-

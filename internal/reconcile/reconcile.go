@@ -618,9 +618,7 @@ func (r *Reconciler) hasUserSecret(name string) bool {
 func (r *Reconciler) secretValue(s generate.Secret) ([]byte, error) {
 	if s.Generate {
 		buf := make([]byte, 32)
-		if _, err := rand.Read(buf); err != nil {
-			return nil, err
-		}
+		rand.Read(buf) // never fails (Go 1.24)
 		return []byte(base64.RawURLEncoding.EncodeToString(buf)), nil
 	}
 	if r.UserSecret != nil {
