@@ -270,21 +270,19 @@ func (m *Manager) forgetFailedMove(ctx context.Context, name string) {
 // databases didn't load on the new one (cause), and sets what was copied
 // there aside. If that fails too, it's held stopped on the new server.
 // The error is the move log's last line.
-func (m *Manager) moveBack(ctx context.Context, act interface {
-	Step(string, ...any)
-	Printf(string, ...any)
-}, name, title, from, to string, dst node.Mover, cause error) error {
+func (j *transferJob) moveBack(ctx context.Context, cause error) error {
+	m, act, title, from, to := j.m, j.act, j.title, j.from, j.to
 	act.Printf("Its database didn't load on %s: %v", m.nameOf(to), cause)
 	act.Step("Moving %s back to %s", title, m.nameOf(from))
 	switched := time.Now()
-	err := m.switchHost(name, from)
+	err := m.switchHost(j.name, from)
 	if err == nil {
 		err = waitApplied(ctx, m.node(from), switched)
 	}
 	if err != nil {
 		act.Printf("%v", err)
 		h := instance.Hold{Error: err.Error(), MovedFrom: from}
-		if herr := m.holdOn(name, to, h); herr != nil {
+		if herr := m.holdOn(j.name, to, h); herr != nil {
 			act.Printf("Roostack couldn't record that %s should stay stopped (%v), so it may start again at the next change on %s.",
 				title, herr, m.nameOf(to))
 		}
@@ -292,10 +290,10 @@ func (m *Manager) moveBack(ctx context.Context, act interface {
 			"Roostack will keep it stopped until you choose.", title, m.nameOf(to), m.nameOf(from), err)
 	}
 	if m.Settings != nil {
-		m.Settings.SetSetting(ctx, failedMoveKey(name), to+" "+strconv.FormatInt(time.Now().Unix(), 10))
+		m.Settings.SetSetting(ctx, failedMoveKey(j.name), to+" "+strconv.FormatInt(time.Now().Unix(), 10))
 	}
 	where := ""
-	aside, aerr := dst.SetAsideData(ctx, name, node.FailedMove)
+	aside, aerr := j.dst.SetAsideData(ctx, j.name, node.FailedMove)
 	if aerr != nil {
 		act.Printf("Roostack couldn't set aside what was copied to %s (%v), so it's still in %s's usual folders there.",
 			m.nameOf(to), aerr, title)

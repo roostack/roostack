@@ -374,6 +374,9 @@ func TestMoveThroughBackup(t *testing.T) {
 	if info, _ := m.MoveInfo(ctx, "forgejo"); !info.ViaBackup {
 		t.Error("through a backup should be possible")
 	}
+	// Left by an earlier move that didn't finish: cleared first, as a
+	// restore does (transferJob.copyFromBackup).
+	b.staged[0]["data/stale.txt"] = file{Data: "left over"}
 	if err := m.MoveService(ctx, "forgejo", "n-0000000003", MoveBackup); err != nil {
 		t.Fatal(err)
 	}
@@ -383,6 +386,9 @@ func TestMoveThroughBackup(t *testing.T) {
 	}
 	if b.data[0]["data/app.ini"].Data != "from the backup" || b.data[0]["db-dump/main.sql"].Data != "dump" {
 		t.Errorf("vps has %v", b.data[0])
+	}
+	if _, ok := b.data[0]["data/stale.txt"]; ok {
+		t.Error("what an earlier attempt left was moved in too")
 	}
 	if !slices.Contains(b.log, "load dumps") || !slices.Contains(a.log, "stop") {
 		t.Errorf("home did %v, vps %v", a.log, b.log)

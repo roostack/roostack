@@ -243,9 +243,9 @@ func (m *Manager) restoreNewest(ctx context.Context, act *activity.Log, name, ti
 	if err != nil {
 		return err
 	}
-	dst := m.node(to).Mover()
-	return m.restoreFrom(ctx, act, restoreJob{name: name, title: title, host: host, to: to, repo: repo,
-		snap: place.Snapshot, from: fmt.Sprintf("%s's backup at %s", place.ServerName, place.Where)}, dst)
+	j := &transferJob{m: m, act: act, name: name, title: title, from: host, to: to, dst: m.node(to).Mover(),
+		restore: true, repo: repo, snap: place.Snapshot, where: fmt.Sprintf("%s's backup at %s", place.ServerName, place.Where)}
+	return j.restoreBackup(ctx)
 }
 
 // setWaiting marks a service as waiting to be restored, or not.

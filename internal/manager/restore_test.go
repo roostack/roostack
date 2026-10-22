@@ -310,6 +310,16 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 		t.Errorf("runs on %q", in.Host)
 	}
 
+	// It fails after stopping, before the files are in place: started
+	// again as it was.
+	home.log, home.failOn = nil, "commit"
+	if err := m.RestoreService(ctx, "forgejo", backups[0].ID(), "n-0000000002"); err != nil {
+		t.Fatal(err)
+	}
+	if l := waitRestore(t, m); l.Err != "commit failed" || !slices.Contains(home.log, "stop") || !slices.Contains(home.log, "start") {
+		t.Errorf("restore: %q; home did %v", l.Err, home.log)
+	}
+
 	// Its databases don't load: the files are back, and it isn't started
 	// again on them, but held stopped in its desired state until the Owner
 	// chooses (SPEC.md §6.9, "A restore that didn't finish").
