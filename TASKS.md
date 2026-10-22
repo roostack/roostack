@@ -684,7 +684,10 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
 
 - [ ] The Owner decides the rest of the review's §12 questions and agrees the plan (§11); §2's are decided
 - [ ] CLAUDE.md's writing rules: the Owner's tense rule (2026-10-22), in batch 1e
-- [ ] Wave 0: the behaviour fixes found in passing (§2), all approved by the Owner on 2026-10-22 (P3 with its agreed wording, P9 in UTC): P3–P7, P12, P13, P15, P16 here; P1, P2, P8–P11, P14 in Cloud
+- [ ] Wave 0: the behaviour fixes found in passing (§2), all approved by the Owner on 2026-10-22 (P3 with its agreed wording, P9 in UTC)
+  - [x] Roostack's: P3–P7, P12, P13, P15, P16 (2026-10-22; each finding's status in the review)
+  - [ ] Cloud's: P1, P2, P8–P11, P14
+  - [ ] P3's follow-up: check a failed move through a backup on two VMs (only fakes so far)
 - [ ] Wave 1: the parallel batches 1a–1j (§11)
 - [ ] Wave 2: the shared helpers, one at a time (§11)
   - [ ] P5's follow-ups: one parser for the `# Added by Roostack:` blocks, with typed tag constructors (the edits share `editFstab` since wave 0); and whether `/etc/fstab` should be written atomically, which needs `ReadWritePaths=/etc` in the agent's sandbox (the Owner's call, SPEC §6.1 "Editing `/etc/fstab`")

@@ -132,6 +132,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
   - Move log: "Its database didn't load on server-2: *(error)*", "Moving Immich back to server-1", then "Immich couldn't be moved to server-2: its database didn't load there. It's running on server-1 again, as before. What was copied to server-2 will stay there, at `/srv/roostack/services/immich.failed-move-20261022-1412`, until you delete it."
   - Needs attention after a failed move (a warning): "Immich couldn't be moved to server-2. It's running on server-1, as before." Link: "See what went wrong".
   - If moving back fails too, it's held on server-2: "Immich is stopped on server-2: its database didn't load there, and moving it back to server-1 failed too: *(error)*. Roostack will keep it stopped until you choose." Choices: **Move it again…** and **Start it anyway**.
+- **Status:** Fixed in `ae621c3` (2026-10-22). Also found: a restore onto the same server from its own main backup runs as that server's own maintenance job, which this finding didn't cite; the controller now asks the server how it ended (`Restores.Outcome`) and holds it then. Checked on VM3: a dump that failed to load held Forgejo through an unrelated apply, `roostack apply` and a reboot, and each of the three choices worked. The failed move was checked with fakes only (one VM).
 
 **P4. `config.Update` says concurrent edits are safe, but nothing locks it.**
 - **Where:** `internal/config/config.go:617-631`. It reads `lab.yaml`, applies the change and saves. It's called from `manager` (through `UpdateLab`), `node/settings.go:274, 301, 324, 373, 437`, `setup` and `mail`, all in one process.
@@ -139,6 +140,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** a package-level mutex around read-change-save; fix the comment.
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in `8de6bb8` (2026-10-22).
 
 **P5. `/etc/fstab` is edited in seven places, unlocked and in place.**
 - **Where:** `internal/agent/drives.go:394/417`, `import.go:82/87`, `library.go:226/237, 259/282, 648/678, 873/959`, `shares.go:213/225`.
@@ -153,18 +155,21 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
   - One block parser with typed tag constructors.
 - **Effort:** M. **Risk:** medium: it's the privilege boundary; verify on a VM. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in `be6a0d1` (2026-10-22): one `editFstab` with a lock, a synced write and the reload. The write stays in place: the agent's sandbox can write `/etc/fstab` but not `/etc`, so an atomic rename needs `ReadWritePaths=/etc` (the Owner's call, in TASKS); the block parser waits for wave 2. Checked on VM3: a backup drive and a media library added and removed.
 
 **P6. A port clash is reported as a web-address clash.**
 - **Where:** `internal/manager/manager.go:387, 856` match `strings.Contains(err.Error(), "already used")` and say "That web address is already used". The port message at `internal/state/state.go:160` contains the same words.
 - **Change:** a `HostInUseError` beside the existing `PortInUseError` (`state.go:208`), and `errors.As`.
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in `e3384cb` (2026-10-22).
 
 **P7. Atomic writes can leave a private file with the wrong permissions.**
 - **Where:** every hand-written `os.WriteFile(tmp, data, 0o600)` then `os.Rename` (§3.1). `os.WriteFile` applies the mode only when it creates the file, so a leftover `.tmp` from an earlier crash, if it was 0644, keeps 0644. Only `reconcile.writeAtomic` (`internal/reconcile/reconcile.go:708`) uses `CreateTemp` and `Chmod`.
 - **Change:** fixed by the helper in §3.1.
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in `8de6bb8` (2026-10-22): `internal/fsutil`, used by every 0600 and 0640 writer; the 0644 copies wait for D1.
 
 **P8. Cloud's quota email shows 400 kB as "0 MB".**
 - **Where:** `cloud:internal/storage/meter.go:255` formats with `%.0f MB` below a gigabyte.
@@ -195,6 +200,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** buffer it like the others.
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in `e073709` (2026-10-22).
 
 **P13. The package editor's Compose import puts a service name into a regular expression unescaped.**
 - **Where:** `internal/editor/static/compose.js:404` (`dsvc`) and `:432` (`^${o}:\d+$`). The same file escapes names elsewhere (`:432`'s first pattern).
@@ -202,6 +208,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** one shared `escapeRegExp`, used everywhere the escape is inlined (five places).
 - **Effort:** S. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in `c1d0225` (2026-10-22).
 
 **P14. The website's copy of the editor uses a design token the site doesn't have.**
 - **Where:** `cloud:site/src/styles/roostack/tokens.css` was synced from Roostack `51a7674`, 401 commits ago; the editor from `06aa380`. `editor.css` uses `var(--text-xs)` (lines 157, 162, 197) with no fallback, and the site's tokens don't define it.
@@ -217,6 +224,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** add `ctx` to those interface methods; return the errors.
 - **Effort:** M. **Risk:** low. **Decision:** no.
 - **Decided (the Owner, 2026-10-22):** approved.
+- **Status:** Fixed in `d43dece` (2026-10-22).
 
 **P16. The deb's subordinate ID range can overlap one that was there before.**
 - **Where:** `packaging/deb/postinst:25` gives the `roostack` user a fixed `200000-265535` with `usermod --add-subuids`, which doesn't check for overlaps.
@@ -228,6 +236,7 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** `useradd --system --add-subids-for-system` when the user is made (line 19), so shadow picks a free range, and drop the `usermod`. Only fresh installs are supported, so nothing needs migrating. Update ASSUMPTIONS B1.
 - **Effort:** S. **Risk:** low. **Decision:** yes. **Not verified:** that Debian 13's shadow has `--add-subids-for-system` (shadow 4.11 and later should), and that it skips taken ranges. Check on a VM with a second user made before the install.
 - **Decided (the Owner, 2026-10-22):** as proposed.
+- **Status:** Fixed in `7d6aa9f` (2026-10-22). Checked on VM3: Debian 13's shadow (4.17.4) has the option, and with two login users made first the package gave `roostack:231072:65536`, no overlap.
 
 ---
 
