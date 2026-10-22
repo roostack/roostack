@@ -164,6 +164,45 @@ test("healthchecks, users, limits and Quadlet lines", () => {
   assert.deepEqual(check.problems.filter((p) => /quadlet/.test(p.message)).map((p) => p.message), []);
 });
 
+// What the fixtures don't reach: a Redis address, a port read from
+// Traefik's labels, depends_on's conditions, and what's left to the person
+// (a profile, an unknown key, top-level configs and secrets).
+test("Redis addresses, Traefik's port, conditions, and what's left over", () => {
+  const r = R.compose.importCompose(`services:
+  web:
+    image: example/web:2.0.1
+    environment:
+      CACHE_URL: redis://cache:6379/0
+    labels:
+      traefik.http.services.web.loadbalancer.server.port: "8080"
+    depends_on:
+      cache: {condition: service_healthy}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    profiles: [full]
+    weird_key: 1
+    x-ours: 2
+  cache:
+    image: valkey/valkey:8
+configs: {c: {file: x}}
+secrets: {s: {file: y}}
+`, { version: "0.9.0" });
+  assert.equal(r.error, undefined, r.error);
+  const pkg = YAML.parse(r.yaml), c = pkg.containers.app;
+  assert.equal(c.env.CACHE_URL, "redis://{{ .Databases.cache.Host }}:6379/0");
+  assert.deepEqual(pkg.databases.cache, { type: "redis", backup: false });
+  assert.equal(pkg.routes.web.port, 8080);
+  assert.deepEqual(c.depends_on, ["databases.cache"]);
+  assert.ok(has(r.report.notNeeded, /Traefik's port was read/));
+  assert.ok(has(r.report.notNeeded, /depends_on`'s conditions/));
+  assert.ok(has(r.report.notAllowed, /host-gateway/));
+  assert.ok(has(r.report.overToYou, /profiles full/));
+  assert.ok(has(r.report.overToYou, /`weird_key` isn't something the import knows/));
+  assert.ok(!has(r.report.overToYou, /x-ours/));
+  assert.ok(has(r.report.overToYou, /top-level `configs`/));
+  assert.ok(has(r.report.overToYou, /top-level `secrets`/));
+  assert.match(r.summary, /^2 services: `web` became the container `app`, and `cache` a database/);
+});
+
 // Compose allows "." in a service's name: it's matched as itself, not as
 // "any character".
 test("a service name with a dot is matched only as itself", () => {
