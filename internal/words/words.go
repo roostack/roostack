@@ -11,7 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/units"
 )
 
 // Capitalise starts s with a capital letter: "running" → "Running",

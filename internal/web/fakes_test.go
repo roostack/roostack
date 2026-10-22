@@ -34,8 +34,8 @@ import (
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // The fakes the web tests share. fakeManager is the manager, and plays

@@ -11,7 +11,7 @@ import (
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/dns"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/units"
 )
 
 // CloudLink is the controller's link to Roostack Cloud (cloud.Service;

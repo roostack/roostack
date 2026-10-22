@@ -21,8 +21,8 @@ import (
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 func TestWizardFlow(t *testing.T) {
