@@ -215,6 +215,9 @@ func TestImportDataStaysInside(t *testing.T) {
 // sender waits for it to be read, never finishes; anything else after the
 // marker is refused, as tar would drop it. Runs the real tar.
 func TestImportDataReadsToTheEnd(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("links are listed with GNU find, as on the servers")
+	}
 	if _, err := exec.LookPath("tar"); err != nil {
 		t.Skip("no tar")
 	}
