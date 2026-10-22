@@ -581,7 +581,7 @@ Changes to the lab ↔ Cloud contract (`cloudapi`) made with Roostack Cloud's si
 - [x] M10 (lab side): a restore from Roostack Cloud is given every lab with the recovery key (`cloudapi.RestoreAccess.Labs`: a lab unlinked and linked again has two); the restore page shows each with its backups, and the person chooses (SPEC §6.9)
 - [x] M26 (the restore's part): a node's own repository could hold a forged "controller" snapshot that the full-lab restore offered beside the real one (`labrestore/find.go` read the role from inside the snapshot). Each backup found now says whose folder it's in, a controller's backup is offered only from its own server's folder (`labrestore.FolderServer`), and a restore puts back only the state folder, the secrets store and each service's folders (SPEC §6.9)
 
-- [ ] **Not yet taken up from the review** (2026-10-16; the review is REVIEW-2026-10-16.md in the roostack-cloud checkout, not committed):
+- [ ] **Not yet taken up from the review** (2026-10-16; the review is docs/REVIEW-2026-10-16.md in roostack-cloud):
   - [x] M24 (rs-friends-labs, 2026-10-17): what rest-server 0.14.0 `--append-only --private-repos` refuses, verified on VM2 (ASSUMPTIONS O: no overwrite or delete of anything but locks; new files anywhere; junk locks and keys are worse than the review thought). SPEC §6.9 and §10.10 no longer promise more. The controller finds files its key can't read (`backup.FindJunk`) weekly before the prune and after a backup fails that way, removes them through its own access without asking (the Owner's choice: automatic, no copies kept), and says so under Needs attention with a details page (`/backups/junk`); online storage gets the list to delete by hand (SPEC §10.10, "Junk in a repository"; help: trouble/backup-junk)
   - [x] `scripts/dev-vm.sh` couldn't start VMs 6–9: TCP ports were offset by `(n-1)*10000`, so VM 6's HTTPS forward was 68443, past 65535 (found 2026-10-17). VMs 1–5 keep their ports; VMs 6–9 use 60xxx to 63xxx (VM 6's UI tunnel is 60481), checked by starting VM 6 (2026-10-17). CLAUDE.md says VMs 1–9 work
   - [x] A backup error with restic's stack trace in it (a junk snapshot makes `restic backup` print one, found on VM2 2026-10-17) widens the home page past a phone's width: the "last backup didn't finish" item's text has no break points. Done (browser-check, 2026-10-17): attention items and notices wrap anywhere, Needs attention shows only an error's first line, and the Backups page shows the rest under the failed backup's Details
@@ -677,6 +677,18 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [ ] Straight after: Apple's privacy export (and a Mac's export as a plain folder)
 - [ ] Before shipping: immich-go's next release (this week's Live Photo and resume fixes)
 - [ ] Later: an upload share (Samba), the Locked Folder and trash, Flickr and Facebook, cloud drives, PhotoPrism, the pages on the sign-in site too, a queue of imports
+
+## Code quality review (2026-10-21)
+
+The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUALITY-REVIEW-2026-10-21.md); IDs refer to it.
+
+- [ ] The Owner decides the rest of the review's §12 questions and agrees the plan (§11); §2's are decided
+- [ ] CLAUDE.md's writing rules: the Owner's tense rule (2026-10-22), in batch 1e
+- [ ] Wave 0: the behaviour fixes found in passing (§2), all approved by the Owner on 2026-10-22 (P3 with its agreed wording, P9 in UTC): P3–P7, P12, P13, P15, P16 here; P1, P2, P8–P11, P14 in Cloud
+- [ ] Wave 1: the parallel batches 1a–1j (§11)
+- [ ] Wave 2: the shared helpers, one at a time (§11)
+- [ ] Wave 3: the structural changes the Owner chooses (§11)
+- [ ] Wave 4 (the Owner, 2026-10-22): wording across both repositories. Rework the present simple for actions and short, clipped statements into natural sentences (the future for what will happen, the present continuous for what's happening). A sample of rewrites for the Owner first, then batches by area (§11)
 
 ## To discuss with the user
 
