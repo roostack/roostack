@@ -224,20 +224,16 @@ func (h LinuxHost) mountShare(l Library, spot mountSpot) error {
 	return nil
 }
 
-// shareTag marks a share library's line in fstab.
-func shareTag(name string) string { return "# Added by Roostack: media library " + name + " (a share)" }
-
 // shareEntries reads the share libraries' lines in fstab.
 func shareEntries(tab string) []libraryEntry {
 	var out []libraryEntry
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		rest, ok := strings.CutPrefix(l, "# Added by Roostack: media library ")
-		name, isShare := strings.CutSuffix(rest, " (a share)")
-		if !ok || !isShare || i+1 >= len(lines) {
+	for _, b := range fstabBlocks(tab) {
+		rest, ok := strings.CutPrefix(string(b.tag), libraryWords)
+		name, isShare := strings.CutSuffix(rest, shareWords)
+		if !ok || !isShare {
 			continue
 		}
-		if f := strings.Fields(lines[i+1]); len(f) >= 4 {
+		if f := b.fields; len(f) >= 4 {
 			out = append(out, libraryEntry{name: name, source: FstabUnescape(f[0]), share: true})
 		}
 	}

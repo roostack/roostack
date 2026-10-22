@@ -168,7 +168,7 @@ func (h LinuxHost) MountLibrary(l Library) error {
 // (import.go). A spot has one line in fstab, under one of its tags.
 type mountSpot struct {
 	target              string
-	folderTag, shareTag string
+	folderTag, shareTag tag
 	// login is a share's login file.
 	login string
 }
@@ -717,70 +717,43 @@ func checkedFstabLine(fields []string) (string, error) {
 	return strings.Join(fields, " "), nil
 }
 
-// Comments marking the fstab lines Roostack adds for media.
-func libraryTag(name string) string { return "# Added by Roostack: media library " + name }
-func mediaDriveTag(mp, label string) string {
-	return "# Added by Roostack: a media drive (" + printable(label) + ") at " + mp
-}
-
 // backupDrive says whether fstab has the UUID as one of Roostack's backup
 // drives.
 func backupDrive(tab, uuid string) bool {
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		if f := strings.Fields(l); len(f) >= 2 && f[0] == "UUID="+uuid && i > 0 &&
-			strings.HasPrefix(lines[i-1], "# Added by Roostack: a backup drive") {
+	for _, b := range fstabBlocks(tab) {
+		if strings.HasPrefix(string(b.tag), backupDriveWords) && len(b.fields) >= 2 && b.fields[0] == "UUID="+uuid {
 			return true
 		}
 	}
 	return false
 }
 
-// withBlock appends a tagged line to fstab.
-func withBlock(tab, tag, line string) string {
-	if tab != "" && !strings.HasSuffix(tab, "\n") {
-		tab += "\n"
-	}
-	return tab + tag + "\n" + line + "\n"
-}
-
-// removeBlock removes a tag and the line after it.
-func removeBlock(tab, tag string) string {
-	lines := strings.Split(tab, "\n")
-	var out []string
-	for i := 0; i < len(lines); i++ {
-		if lines[i] == tag {
-			i++ // and its line
-			continue
-		}
-		out = append(out, lines[i])
-	}
-	return strings.Join(out, "\n")
-}
-
 // mediaDriveMounts are the mount points of the media drives in fstab.
 func mediaDriveMounts(tab string) []string {
 	var mps []string
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		if strings.HasPrefix(l, "# Added by Roostack: a media drive") && i+1 < len(lines) {
-			if f := strings.Fields(lines[i+1]); len(f) >= 2 {
-				mps = append(mps, FstabUnescape(f[1]))
-			}
-		}
+	for _, b := range mediaDriveBlocks(tab) {
+		mps = append(mps, FstabUnescape(b.fields[1]))
 	}
 	return mps
+}
+
+// mediaDriveBlocks are fstab's media drives.
+func mediaDriveBlocks(tab string) []fstabBlock {
+	var out []fstabBlock
+	for _, b := range fstabBlocks(tab) {
+		if strings.HasPrefix(string(b.tag), mediaDriveWords) && len(b.fields) >= 2 {
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 // mediaDriveDevice is the device (UUID=…) of the media drive mounted at
 // mp, or "" if mp isn't one.
 func mediaDriveDevice(tab, mp string) string {
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		if strings.HasPrefix(l, "# Added by Roostack: a media drive") && i+1 < len(lines) {
-			if f := strings.Fields(lines[i+1]); len(f) >= 2 && FstabUnescape(f[1]) == mp {
-				return f[0]
-			}
+	for _, b := range mediaDriveBlocks(tab) {
+		if FstabUnescape(b.fields[1]) == mp {
+			return b.fields[0]
 		}
 	}
 	return ""
@@ -788,12 +761,9 @@ func mediaDriveDevice(tab, mp string) string {
 
 // removeMediaDrive removes the media drive mounted at mp from fstab.
 func removeMediaDrive(tab, mp string) string {
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		if strings.HasPrefix(l, "# Added by Roostack: a media drive") && i+1 < len(lines) {
-			if f := strings.Fields(lines[i+1]); len(f) >= 2 && FstabUnescape(f[1]) == mp {
-				return removeBlock(tab, l)
-			}
+	for _, b := range mediaDriveBlocks(tab) {
+		if FstabUnescape(b.fields[1]) == mp {
+			return removeBlock(tab, b.tag)
 		}
 	}
 	return tab
@@ -808,13 +778,12 @@ type libraryEntry struct {
 // libraryEntries reads the libraries' lines in fstab.
 func libraryEntries(tab string) []libraryEntry {
 	var out []libraryEntry
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		name, ok := strings.CutPrefix(l, "# Added by Roostack: media library ")
-		if !ok || i+1 >= len(lines) || strings.HasSuffix(name, " (a share)") {
+	for _, b := range fstabBlocks(tab) {
+		name, ok := strings.CutPrefix(string(b.tag), libraryWords)
+		if !ok || strings.HasSuffix(name, shareWords) {
 			continue // a share's (shareEntries)
 		}
-		f := strings.Fields(lines[i+1])
+		f := b.fields
 		if len(f) < 4 {
 			continue
 		}
@@ -963,14 +932,14 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[st
 }
 
 // withView adds a view of library l at target to fstab, under tag.
-func withView(tab, tag, l, target string) (string, error) {
+func withView(tab string, t tag, l, target string) (string, error) {
 	lib := filepath.Join(LibraryRoot, l)
 	line, err := checkedFstabLine([]string{lib, target, "none",
 		"bind,ro,nofail,x-systemd.automount,x-systemd.requires-mounts-for=" + lib, "0", "0"})
 	if err != nil {
 		return "", err
 	}
-	return withBlock(tab, tag, line), nil
+	return withBlock(tab, t, line), nil
 }
 
 // RemoveLibraryViews removes a service's view folders and their mounts
@@ -991,37 +960,23 @@ func (h LinuxHost) RemoveLibraryViews(service string) error {
 // (instance.CheckLibraryPath allows the same).
 var atName = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,63}$`)
 
-// atTag marks a library in a service's second view folder, under a name.
-func atTag(service, library, name string) string {
-	return "# Added by Roostack: " + service + " reads media library " + library + " as " + name
-}
-
 // atEntry is a library in a service's second view folder.
 type atEntry struct{ service, library, name string }
 
 // atEntries reads the second view folders' entries in fstab.
 func atEntries(tab string) []atEntry {
 	var out []atEntry
-	for _, l := range strings.Split(tab, "\n") {
-		rest, ok := strings.CutPrefix(l, "# Added by Roostack: ")
+	for _, b := range fstabBlocks(tab) {
+		svc, rest, ok := strings.Cut(string(b.tag), readsWords)
 		if !ok {
 			continue
 		}
-		svc, rest, ok := strings.Cut(rest, " reads media library ")
-		if !ok {
-			continue
-		}
-		lib, name, ok := strings.Cut(rest, " as ")
+		lib, name, ok := strings.Cut(rest, asWords)
 		if ok && serviceName.MatchString(svc) && ValidLibraryName(lib) && atName.MatchString(name) {
 			out = append(out, atEntry{svc, lib, name})
 		}
 	}
 	return out
-}
-
-// viewTag marks a service's view of a library in fstab.
-func viewTag(service, library string) string {
-	return "# Added by Roostack: " + service + " reads media library " + library
 }
 
 // viewEntry is a service's view of a library.
@@ -1030,12 +985,8 @@ type viewEntry struct{ service, library string }
 // viewEntries reads the services' views in fstab.
 func viewEntries(tab string) []viewEntry {
 	var out []viewEntry
-	for _, l := range strings.Split(tab, "\n") {
-		rest, ok := strings.CutPrefix(l, "# Added by Roostack: ")
-		if !ok {
-			continue
-		}
-		svc, lib, ok := strings.Cut(rest, " reads media library ")
+	for _, b := range fstabBlocks(tab) {
+		svc, lib, ok := strings.Cut(string(b.tag), readsWords)
 		if ok && serviceName.MatchString(svc) && ValidLibraryName(lib) {
 			out = append(out, viewEntry{svc, lib})
 		}
