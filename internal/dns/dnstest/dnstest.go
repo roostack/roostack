@@ -327,7 +327,7 @@ func Start(t testing.TB) *Fake {
 			readJSON(r, &b)
 			it := b.Items[0]
 			if !b.Force && len(st.Get(r.PathValue("zone"), it.Name, it.Type)) > 0 {
-				http.Error(w, "conflict", 409)
+				http.Error(w, "conflict", http.StatusConflict)
 				return
 			}
 			st.Set(r.PathValue("zone"), it.Name, it.Type, []string{field[it.Type] + "=" + it.Address + it.Cname + it.Value})

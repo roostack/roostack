@@ -220,7 +220,7 @@ func TestThemesAreReadable(t *testing.T) {
 func TestEveryThemeHasAFile(t *testing.T) {
 	for _, th := range Themes {
 		if _, err := os.Stat(filepath.Join("static", "css", "themes", th.ID+".css")); err != nil {
-			t.Error(fmt.Sprintf("theme %s: %v", th.ID, err))
+			t.Errorf("theme %s: %v", th.ID, err)
 		}
 	}
 	files, _ := filepath.Glob(filepath.Join("static", "css", "themes", "*.css"))

@@ -144,7 +144,7 @@ func TestSignInOIDC(t *testing.T) {
 	if resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(next, "/sign-in?next=") {
 		t.Fatalf("not signed in: %d %q", resp.StatusCode, next)
 	}
-	resp, body := call(t, srv, c, "GET", signInHost, next, nil)
+	_, body := call(t, srv, c, "GET", signInHost, next, nil)
 	for _, want := range []string{"Smiths&#39; lab", "to continue to", "Mealie", `name="remember" checked`, `class="brand-mark`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("sign-in page missing %q", want)
