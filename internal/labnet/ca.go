@@ -83,7 +83,7 @@ func LoadOrCreateCA(dir, labName string) (*CA, error) {
 	if err := writeKey(keyFile, key); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(certFile, certPEM(der), 0o644); err != nil {
+	if err := writeFile(certFile, certPEM(der)); err != nil {
 		return nil, err
 	}
 	return &CA{Cert: cert, Key: key}, nil
@@ -191,11 +191,7 @@ func (id Identity) NeedsRenewal(now time.Time) (bool, error) {
 
 // writeFile replaces a file in one step, so a reader never sees half of it.
 func writeFile(file string, data []byte) error {
-	tmp := file + ".new"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, file)
+	return fsutil.WriteFile(file, data, 0o644)
 }
 
 // Exists reports whether the server has a signed certificate.

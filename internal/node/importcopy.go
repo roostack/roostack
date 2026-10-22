@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -16,6 +15,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -163,7 +163,7 @@ func excludedText(ex []string) string {
 }
 
 // copyOne copies a file (a dump), unless one of the same size and time
-// is there already: through a temporary name, then with its time.
+// is there already: atomically, then with its time.
 func copyOne(src, dst string) error {
 	si, err := os.Stat(src)
 	if err != nil {
@@ -175,27 +175,10 @@ func copyOne(src, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
 		return err
 	}
-	in, err := os.Open(src)
-	if err != nil {
+	if err := fsutil.CopyFile(src, dst, 0o600); err != nil {
 		return err
 	}
-	defer in.Close()
-	tmp := dst + ".partial"
-	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	if err := out.Close(); err != nil {
-		return err
-	}
-	if err := os.Chtimes(tmp, si.ModTime(), si.ModTime()); err != nil {
-		return err
-	}
-	return os.Rename(tmp, dst)
+	return os.Chtimes(dst, si.ModTime(), si.ModTime())
 }
 
 // userRe is a container's numeric user in its Quadlet lines (User=1000 or

@@ -54,3 +54,32 @@ func TestWriteFileFails(t *testing.T) {
 		t.Errorf("left behind: %v", entries)
 	}
 }
+
+// A copy has the source's content and the mode asked for, replaces what
+// was there, and leaves nothing behind; a missing source changes nothing.
+func TestCopyFile(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src")
+	dst := filepath.Join(dir, "dst")
+	os.WriteFile(src, []byte("dump"), 0o644)
+	os.WriteFile(dst, []byte("old"), 0o644)
+	if err := CopyFile(src, dst, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(dst); string(data) != "dump" {
+		t.Errorf("content = %q", data)
+	}
+	if fi, _ := os.Stat(dst); fi.Mode().Perm() != 0o600 {
+		t.Errorf("mode = %v, want 0600", fi.Mode().Perm())
+	}
+	if err := CopyFile(filepath.Join(dir, "missing"), dst, 0o600); err == nil {
+		t.Error("a missing source: want an error")
+	}
+	if data, _ := os.ReadFile(dst); string(data) != "dump" {
+		t.Errorf("after a failed copy, content = %q", data)
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 2 {
+		t.Errorf("left behind: %v", entries)
+	}
+}

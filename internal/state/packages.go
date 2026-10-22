@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
 
@@ -47,11 +48,7 @@ func KeepPackage(paths config.Paths, name, version string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
-	tmp := dst + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, dst)
+	return fsutil.WriteFile(dst, data, 0o644)
 }
 
 // LoadPackage reads the lab's copy of a package version. A service
