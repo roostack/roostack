@@ -211,11 +211,3 @@ func TestImportPage(t *testing.T) {
 		t.Errorf("an Admin: %d", code)
 	}
 }
-
-// testWriter sends a log to the test's.
-type testWriter struct{ t *testing.T }
-
-func (w testWriter) Write(b []byte) (int, error) {
-	w.t.Log(strings.TrimSpace(string(b)))
-	return len(b), nil
-}

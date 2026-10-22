@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,34 +11,6 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/registry"
 )
-
-// fakeRegistry is the controller's registry.Updater.
-type fakeRegistry struct {
-	on      bool
-	status  registry.Status
-	checks  int // Check calls
-	opened  int // CheckIfOlder calls
-	setOnTo []bool
-	listing map[string]registry.Listed
-}
-
-func (f *fakeRegistry) On() bool { return f.on }
-func (f *fakeRegistry) SetOn(on bool) error {
-	f.on = on
-	f.setOnTo = append(f.setOnTo, on)
-	return nil
-}
-func (f *fakeRegistry) Check(context.Context) error { f.checks++; return nil }
-func (f *fakeRegistry) CheckIfOlder(context.Context, time.Duration) error {
-	f.opened++
-	return nil
-}
-func (f *fakeRegistry) Status() registry.Status { return f.status }
-func (f *fakeRegistry) Listing() (map[string]registry.Listed, error) {
-	return f.listing, nil
-}
-func (f *fakeRegistry) URL() string { return registry.DefaultURL }
-func (f *fakeRegistry) Dir() string { return "/var/lib/roostack/catalog" }
 
 func fresh() registry.Status {
 	now := time.Now()

@@ -15,41 +15,6 @@ import (
 	"roostack.cloud/roostack/internal/registry"
 )
 
-func (f *fakeManager) AvailableUpdates(context.Context) map[string]*manager.Update {
-	return f.svcUpdates
-}
-func (f *fakeManager) UpdateService(_ context.Context, name, to, by string, acceptRisks bool) error {
-	u := f.svcUpdates[name]
-	if u == nil {
-		return manager.ErrNotFound
-	}
-	if u.To != to {
-		return &manager.FormError{Msg: "The update on offer has changed."}
-	}
-	if len(u.NewRisks) > 0 && !acceptRisks {
-		return &manager.FormError{Msg: "Tick the box."}
-	}
-	f.svcUpdated = append(f.svcUpdated, name+" "+to+" by "+by)
-	return nil
-}
-func (f *fakeManager) Updating(name string) *manager.ServiceUpdate { return f.updating[name] }
-func (f *fakeManager) LastUpdate(_ context.Context, name string) *manager.UpdateRecord {
-	return f.lastUpdate[name]
-}
-func (f *fakeManager) UpdatePolicy(name string) string {
-	if p := f.policies[name]; p != "" {
-		return p
-	}
-	return "notify"
-}
-func (f *fakeManager) SetUpdatePolicy(_ context.Context, name, policy string) error {
-	if f.policies == nil {
-		f.policies = map[string]string{}
-	}
-	f.policies[name] = policy
-	return nil
-}
-
 func updateServices(context.Context) ([]ServiceView, error) {
 	return []ServiceView{{Name: "immich", Title: "Immich", Status: "running", Update: "2.1.0"},
 		{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", Update: "1.36.1"}}, nil

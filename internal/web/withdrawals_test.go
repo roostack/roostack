@@ -13,22 +13,6 @@ import (
 	"roostack.cloud/roostack/internal/registry"
 )
 
-func (f *fakeManager) Withdrawals(context.Context) map[string]*manager.Withdrawal { return f.withdrawn }
-func (f *fakeManager) StartAnyway(_ context.Context, name string, private bool) error {
-	w := f.withdrawn[name]
-	if w == nil {
-		return manager.ErrNotFound
-	}
-	f.startedAnyway = append(f.startedAnyway, name+map[bool]string{true: " private", false: ""}[private])
-	w.Stopped, w.StartedAnyway, w.Shown = false, true, registry.LevelWarning
-	return nil
-}
-func (f *fakeManager) StopsOn() bool { return !f.stopsOff }
-func (f *fakeManager) SetStops(on bool) error {
-	f.stopsOff = !on
-	return nil
-}
-
 func withdrawalServices(context.Context) ([]ServiceView, error) {
 	return []ServiceView{{Name: "immich", Title: "Immich", Status: StatusRegistryStop, URLs: []string{"https://photos.example.org"}},
 		{Name: "forgejo", Title: "Forgejo", Status: "running"}, {Name: "vaultwarden", Title: "Vaultwarden", Status: "running"}}, nil

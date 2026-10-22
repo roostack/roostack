@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -11,12 +10,6 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
 )
-
-func (f *fakeManager) JunkReports(context.Context) []manager.JunkReport { return f.junk }
-func (f *fakeManager) DismissJunk(context.Context) error {
-	f.junk = nil
-	return nil
-}
 
 // Junk the controller removed from a backup shows under Needs attention
 // and on its page until the Owner clears it; what it couldn't remove is

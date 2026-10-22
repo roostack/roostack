@@ -19,29 +19,6 @@ import (
 	"roostack.cloud/roostack/internal/registry"
 )
 
-// postFiles posts a multipart form with these files (field: contents),
-// as a browser's file upload does.
-func (h *harness) postFiles(path string, files map[string][]byte) (int, string) {
-	h.t.Helper()
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	for field, data := range files {
-		w, _ := mw.CreateFormFile(field, field+".file")
-		w.Write(data)
-	}
-	mw.Close()
-	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+path, &buf)
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.Header.Set("Origin", h.srv.URL)
-	resp, err := h.client.Do(req)
-	if err != nil {
-		h.t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	return resp.StatusCode, string(body)
-}
-
 // The Owner adds and removes packages of their own from the catalog
 // (SPEC.md §8.3.4); nobody else can.
 func TestAddYourOwn(t *testing.T) {

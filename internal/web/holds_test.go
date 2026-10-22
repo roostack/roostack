@@ -15,18 +15,6 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 )
 
-func (f *fakeManager) StartHeld(_ context.Context, name string) error {
-	f.held = append(f.held, "start "+name)
-	return nil
-}
-func (f *fakeManager) PutBackHeld(_ context.Context, name string) error {
-	f.held = append(f.held, "put-back "+name)
-	return nil
-}
-func (f *fakeManager) FailedMoves(context.Context) map[string]manager.FailedMove {
-	return f.failedMoves
-}
-
 // heldServices has Immich held after a restore that didn't finish, and
 // Forgejo after a move that couldn't go back.
 func heldServices(context.Context) ([]ServiceView, error) {
