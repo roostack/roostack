@@ -20,9 +20,9 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
 	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // Bringing a service's data in from the person's own copy (SPEC.md §8.4):

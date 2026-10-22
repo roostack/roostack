@@ -13,7 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/units"
 )
 
 // Junk in backups (SPEC.md §10.10, "Junk in a repository"): a server

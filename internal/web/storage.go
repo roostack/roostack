@@ -11,8 +11,8 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // Storage for other labs (SPEC.md §10.10): this lab keeps other labs'

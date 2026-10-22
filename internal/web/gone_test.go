@@ -11,7 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/units"
 )
 
 // A server that can't be reached offers "is gone"; its page lists its

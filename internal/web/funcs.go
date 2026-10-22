@@ -13,8 +13,8 @@ import (
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/photoimport"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // templateFuncs are the functions every template can call. It's a

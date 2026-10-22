@@ -17,8 +17,8 @@ import (
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // Email notifications (SPEC.md §6.13): what needs a person, or happened

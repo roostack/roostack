@@ -14,8 +14,8 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/systemd"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // What a server can tell about its services and itself, so nothing about

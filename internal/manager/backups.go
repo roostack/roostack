@@ -23,9 +23,9 @@ import (
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
 	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // Backups across servers (SPEC.md §10.10): each server chooses where it

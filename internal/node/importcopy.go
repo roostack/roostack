@@ -20,8 +20,8 @@ import (
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // The copy and the switch (SPEC.md §8.4, docs/MIGRATION-PLAN.md §3.7):

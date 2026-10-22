@@ -8,7 +8,7 @@ import (
 
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/units"
 )
 
 // Disk space on each server (SPEC.md §6.7): what's used and free on the

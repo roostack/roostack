@@ -8,8 +8,8 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // Moving a service to another server (SPEC.md §10.10).

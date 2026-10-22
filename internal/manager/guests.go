@@ -20,8 +20,8 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // Storage for other labs (SPEC.md §10.10). As host, this lab keeps other
