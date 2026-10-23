@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -17,12 +16,14 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -341,13 +342,7 @@ func (b *realBackups) Status(context.Context) (backup.Status, error) {
 // repository, and vps applying at once.
 func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 	t.Helper()
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	bin := restictest.Bin(t)
 	m, a, b := setUpMove(t)
 	ctx := context.Background()
 	applyWait = 5 * time.Second
@@ -366,11 +361,7 @@ func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 		t.Fatal(err)
 	}
 	a.backups = &realBackups{repo: repo, dir: svcDir}
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	m.BackupStore, m.Settings = st, st
 	m.OpenRepo = func(string, []string) *backup.Repo { return repo }
 	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "local:" + repo.URL,

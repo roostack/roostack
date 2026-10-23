@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -17,7 +16,9 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/b2"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -25,13 +26,7 @@ import (
 // each server one of its own; elsewhere every server gets the new key
 // (SPEC.md §10.10).
 func TestChangeS3Key(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	bin := restictest.Bin(t)
 	// A fake Backblaze: the old key came from the website (it can't make
 	// keys), the new one from the command-line tool.
 	var created, deleted []string
@@ -73,11 +68,7 @@ func TestChangeS3Key(t *testing.T) {
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	dir := t.TempDir()
 	recovery := filepath.Join(dir, "recovery")
@@ -118,7 +109,7 @@ func TestChangeS3Key(t *testing.T) {
 	}
 
 	// A wrong key is refused, and nothing changes.
-	err = m.ChangeS3Key(ctx, "provider:1", "new-id", "typo")
+	err := m.ChangeS3Key(ctx, "provider:1", "new-id", "typo")
 	var fe *usererr.Error
 	if !errors.As(err, &fe) || !strings.Contains(err.Error(), "Backblaze didn't accept this key") {
 		t.Errorf("wrong key: %v", err)

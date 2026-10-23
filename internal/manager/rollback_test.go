@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/s3api"
 	"roostack.cloud/roostack/internal/s3api/s3fake"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -27,11 +28,7 @@ func s3Lab(t *testing.T, b *s3fake.Bucket) (*Manager, *store.Store) {
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
 	m.Activity = activity.New()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	m.BackupStore = st
 	srv := httptest.NewServer(b)
 	t.Cleanup(srv.Close)

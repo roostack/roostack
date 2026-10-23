@@ -13,7 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/maintenance"
-	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/internal/testwait"
 )
 
@@ -43,11 +43,7 @@ func TestFenceRestored(t *testing.T) {
 	}
 	before, _ := repo.Snapshots(ctx, TagRoostack)
 
-	st, err := store.Open(filepath.Join(root, "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now, Journal: nopJournal{},
 		Ticks: make(chan time.Time), Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	cctx, cancel := context.WithCancel(ctx)

@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/internal/testwait"
 )
 
@@ -289,11 +290,7 @@ func TestServiceUpdate(t *testing.T) {
 
 	// Backups set up: a manual update backs up first. This version
 	// doesn't work, so it goes back.
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: m.Lab.NodeID, Provider: "local:usb", Repository: "/mnt/usb/backups"})
 	m.BackupStore = st
 	ix = withdrawIndex(t, m, nil)

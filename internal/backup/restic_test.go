@@ -10,19 +10,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"roostack.cloud/roostack/internal/backup/restictest"
 )
 
 // These tests run the real restic binary when ROOSTACK_RESTIC_BIN is set (or
 // restic is on PATH), against a repository in a temporary directory.
 func testRepo(t *testing.T) *Repo {
 	t.Helper()
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	bin := restictest.Bin(t)
 	dir := t.TempDir()
 	pw := filepath.Join(dir, "key")
 	if err := os.WriteFile(pw, []byte("test recovery key\n"), 0o600); err != nil {

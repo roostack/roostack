@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 // Changing the recovery key (SPEC.md §6.9) on real restic repositories:
@@ -19,22 +20,12 @@ import (
 // repository that can't be reached keeps the change waiting, with the old
 // key still working; at the end only the new key opens anything.
 func TestKeyChange(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	bin := restictest.Bin(t)
 	ctx := context.Background()
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
 	m.Activity = activity.New()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	keyFile := backup.KeyFile(m.Lab.Paths)
 	cloud := &fakeCloudBackup{keyFile: keyFile}
