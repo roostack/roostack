@@ -14,6 +14,7 @@ import (
 // fix a version the registry has; anything else fails the build. A lab
 // matches them by the exact file it has, and packages of an Owner's own by
 // what they're built with when the advisory says they may be affected.
+// What it's about must be on the registry's list of names, once there is one.
 func TestAdvisories(t *testing.T) {
 	r := newTestRegistry(t)
 	fixed := strings.Replace(string(pkgtest.Read(t, "forgejo")), "version: 15.0.9-roostack.1", "version: 15.0.10-roostack.1", 1)
@@ -79,7 +80,18 @@ local: possibly
 			t.Errorf("%s: %v, want %q", bad, err, want)
 		}
 	}
+	// With the registry's list of names, an advisory's must be on it.
+	r.write(BuiltWithFile, "- { name: go, title: Go }\n- { name: java, title: Java }\n- { name: spring, title: Spring }\n"+
+		"- { name: node, title: Node.js }\n- { name: python, title: Python }\n- { name: rust, title: Rust }\n")
+	r.write(AdvisoriesDir+"/2026-0007.yaml", strings.Replace(advisory, "built_with: go", "built_with: cobol", 1))
+	if _, err := Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now}); err == nil ||
+		!strings.Contains(err.Error(), `2026-0007.yaml: built_with: "cobol" isn't in the registry's built-with.yaml`) {
+		t.Errorf("a name not on the list: %v", err)
+	}
 	r.write(AdvisoriesDir+"/2026-0007.yaml", advisory)
+	if _, err := Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now}); err != nil {
+		t.Errorf("a name on the list: %v", err)
+	}
 	os.Rename(filepath.Join(r.repo, AdvisoriesDir, "2026-0007.yaml"), filepath.Join(r.repo, AdvisoriesDir, "php-bug.yaml"))
 	if _, err := Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now}); err == nil || !strings.Contains(err.Error(), "must be the year and a number") {
 		t.Errorf("an ID that isn't one: %v", err)

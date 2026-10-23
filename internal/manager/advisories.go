@@ -273,8 +273,10 @@ func (m *Manager) KeepPublicAnyway(ctx context.Context, name, id string) error {
 // away, rather than at night, when the registry offers a version the
 // advisory doesn't affect and the service's update policy takes it (not
 // notify): its public access is down meanwhile (as UpdateStopped does for
-// a service the registry stopped). The pause lifts once the update has
-// worked; a failed one goes back to the affected version, still paused.
+// a service the registry stopped). The pause lifts with the switch to the
+// new version, whose apply restarts the service before Caddy reloads, so
+// the affected version is never public; a failed update goes back to it,
+// paused again.
 func (m *Manager) UpdateAdvised(ctx context.Context) {
 	advs := m.Advisories(ctx)
 	for name, u := range m.AvailableUpdates(ctx) {

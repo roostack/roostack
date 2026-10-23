@@ -21,7 +21,7 @@ const (
 )
 
 // Updater runs the Fetcher on the controller: when Roostack starts, every
-// few hours, and when asked; not at all while the Owner has turned
+// hour, and when asked; not at all while the Owner has turned
 // fetching off.
 type Updater struct {
 	Fetcher *Fetcher
@@ -38,7 +38,7 @@ func NewUpdater(f *Fetcher, off bool, save func(off bool) error, log *slog.Logge
 	return &Updater{Fetcher: f, Save: save, Log: log, off: off}
 }
 
-// Run checks now, then every few hours until ctx ends.
+// Run checks now, then every hour until ctx ends.
 func (u *Updater) Run(ctx context.Context) {
 	for {
 		if u.On() {
