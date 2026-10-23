@@ -338,7 +338,7 @@ func isBanned(name string) bool {
 }
 
 // maxWalk stops a folder's look after this many entries: it's a quick
-// look, and the dry run counts the rest.
+// look, and the migration itself reads everything.
 const maxWalk = 2_000_000
 
 // scanFolder counts a folder of photos, all the way down, skipping the
@@ -352,7 +352,7 @@ func scanFolder(fsys fs.FS) (*Scan, error) {
 			if p == "." {
 				return err
 			}
-			return nil // a folder Roostack can't read: the dry run says which
+			return nil // a folder Roostack can't read: the migration's summary names what immich-go couldn't read
 		}
 		if n++; n > maxWalk {
 			return fs.SkipAll
