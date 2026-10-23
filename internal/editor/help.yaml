@@ -20,7 +20,7 @@ schema:
   link: reference/packages#the-parts
 name:
   label: Name
-  help: Lowercase letters, digits and dashes, starting with a letter. It names the service's folders, containers and backups, so it can't change once people use it.
+  help: Lowercase letters, digits, and dashes, starting with a letter. It will name the service's folders, containers, and backups, so it can't change once people use it.
   example: myapp
   link: packages/write#name-and-version
 title:
@@ -45,7 +45,7 @@ about:
   link: packages/write#the-project
 about.maker:
   label: Who makes it
-  help: Who makes the app, in a few words, so the catalog credits them.
+  help: Who makes the app, in a few words, so that the catalog credits them.
   example: a volunteer community
   link: reference/packages#the-parts
 about.website:
@@ -70,7 +70,7 @@ about.support:
   link: reference/packages#the-parts
 about.releases:
   label: What's new
-  help: Where the project says what's new in each version, with {version} where the app's version goes (without -roostack.N), or one page for every version. A service's update links to it.
+  help: Where the project says what's new in each version, with {version} where the app's version goes (without -roostack.N), or one page for every version. A service's update will link to it.
   example: https://github.com/example/myapp/releases/tag/v{version}
   link: packages/write#the-project
 about.icon:
@@ -93,13 +93,13 @@ requires:
   link: reference/packages#the-parts
 requires.roostack:
   label: Oldest Roostack
-  help: The oldest Roostack release the package works with, such as 0.6 or 0.6.1. The one you tried it on, unless you know better. A lab running an older one doesn't offer it.
+  help: The oldest Roostack release the package works with, such as 0.6 or 0.6.1. The one you tried it on, unless you know better. A lab running an older one won't offer it.
   example: "0.6"
   link: packages/write#the-project
 
 upgrade_notes:
   label: Upgrade notes
-  help: What to know before updating, shown before a service updates. Keep the notes still needed from earlier versions, so someone updating past several at once sees all of them.
+  help: What to know before updating, shown before a service updates. Keep the notes still needed from earlier versions so that someone updating past several at once sees all of them.
   link: reference/packages#the-parts
 upgrade_notes[].version:
   label: Arrived in
@@ -109,7 +109,7 @@ upgrade_notes[].version:
 upgrade_notes[].note:
   label: Note
   help: What to know or do, in a sentence or two.
-  example: Version 2 moves sharing links to a new address; send new ones to people you shared with.
+  example: Version 2 will move sharing links to a new address, so send new ones to people you shared with.
   link: reference/packages#the-parts
 
 settings:
@@ -118,7 +118,7 @@ settings:
   link: packages/write#settings-setup-and-links
 settings[].key:
   label: Key
-  help: 'Lowercase letters, digits and underscores. Templates use it as {{ .Settings.key }}, and secrets: name it.'
+  help: 'Lowercase letters, digits, and underscores. Templates use it as {{ .Settings.key }}, and secrets: name it.'
   example: signups_allowed
   link: packages/write#settings-setup-and-links
 settings[].title:
@@ -132,7 +132,7 @@ settings[].description:
   link: packages/write#settings-setup-and-links
 settings[].type:
   label: Type
-  help: 'bool (on or off), string, int (a whole number) or secret (a password or key: a Podman secret, never in a file).'
+  help: 'bool (on or off), string, int (a whole number), or secret (a password or key: a Podman secret, never in a file).'
   link: reference/packages#the-parts
 settings[].default:
   label: Default
@@ -140,7 +140,7 @@ settings[].default:
   link: reference/packages#the-parts
 settings[].generate:
   label: Roostack makes it
-  help: 'For a secret: Roostack creates a random value, so nobody has to think of one.'
+  help: 'For a secret: Roostack will create a random value, so nobody has to think of one.'
   link: packages/write#settings-setup-and-links
 settings[].required:
   label: Required
@@ -153,28 +153,28 @@ settings[].min_length:
   link: reference/packages#the-parts
 settings[].install_only:
   label: Only at install
-  help: Asked for at install and used only by install hooks, such as the first administrator's password. A secret like this is deleted once setup has run.
+  help: Asked for at install and used only by install hooks, such as the first administrator's password. Roostack will delete a secret like this once setup has run.
   link: packages/write#settings-setup-and-links
 settings[].reveal:
   label: Admins can see it
-  help: 'For a secret that''s kept: Admins can show it on the service''s page (each view is logged), such as a token for the app''s own admin page.'
+  help: 'For a secret that''s kept: Admins can show it on the service''s page (Roostack will log each view), such as a token for the app''s own admin page.'
   link: reference/packages#the-parts
 settings[].from_hook:
   label: Made by the app
-  help: 'For a secret the app makes, such as an API key for changing its own settings: a hook prints it and Roostack keeps it (the hook''s saves). Never shown, used only by hooks, and needs an action that can make it again.'
+  help: 'For a secret the app makes, such as an API key for changing its own settings: a hook will print it and Roostack will keep it (the hook''s saves). It''s never shown and is used only by hooks, and it needs an action that can make it again.'
   link: packages/write#single-sign-on
 settings[].install_value:
   label: Value during install
-  help: 'Used until the install hooks succeed, whatever was chosen, then the chosen value. For an app that makes its first account only by signing up: sign-ups on while the hook signs the Owner up, then off. Needs an install hook.'
+  help: 'Roostack will use it until the install hooks succeed, whatever was chosen, and then the chosen value. For an app that makes its first account only by signing up, sign-ups will be on while the hook is signing the Owner up, and then off. It needs an install hook.'
   link: packages/write#settings-setup-and-links
 
 containers:
   label: Containers
-  help: 'The app''s containers, each from an image the project publishes itself. Databases aren''t containers here: declare them under databases, and Roostack runs them.'
+  help: 'The app''s containers, each from an image the project publishes itself. Databases aren''t containers here: declare them under databases, and Roostack will run them.'
   link: packages/write#containers-and-images
 containers.*.image:
   label: Image
-  help: The project's own image, pinned to its tag and its multi-architecture digest (name:tag@sha256:…), so every lab runs the image you tried.
+  help: The project's own image, pinned to its tag and its multi-architecture digest (name:tag@sha256:…) so that every lab runs the image you tried.
   example: docker.io/example/myapp:2.4.1@sha256:…
   link: packages/write#containers-and-images
 containers.*.command:
@@ -187,7 +187,7 @@ containers.*.env:
   link: packages/write#containers-and-images
 containers.*.secrets:
   label: Secrets
-  help: Passwords and keys as environment variables, each pointing at a secret setting, databases.<name>.password, or databases.<name>.url (Postgres's whole address). Roostack keeps them as Podman secrets, never in a file.
+  help: Passwords and keys as environment variables, each pointing at a secret setting, databases.<name>.password, or databases.<name>.url (Postgres's whole address). Roostack will keep them as Podman secrets, never in a file.
   link: packages/write#containers-and-images
 containers.*.mounts:
   label: Mounts
@@ -222,12 +222,12 @@ containers.*.devices[].gpu:
   link: reference/packages#the-parts
 containers.*.devices[].when:
   label: When
-  help: A template that renders true or false; the device is asked for only when true.
+  help: A template that renders true or false; the device will be asked for only when true.
   example: "{{ .Settings.hardware_transcoding }}"
   link: reference/packages#templates
 containers.*.health:
   label: Health check
-  help: How Roostack tells the container is working. Set http or cmd, not both.
+  help: How Roostack will tell the container is working. Set http or cmd, not both.
   link: packages/write#containers-and-images
 containers.*.health.http.port:
   label: Port
@@ -251,12 +251,12 @@ containers.*.depends_on:
   link: packages/write#containers-and-images
 containers.*.when:
   label: When
-  help: A template that renders true or false; the container is left out unless it's true. For optional parts, so turned-off features don't use memory.
+  help: A template that renders true or false; Roostack will leave the container out unless it's true. It's for optional parts so that turned-off features don't use memory.
   example: "{{ .Settings.smart_search }}"
   link: reference/packages#templates
 containers.*.memory:
   label: Memory
-  help: What it typically uses, such as 300 MB or 1.5 GB (1 GB is 1000 MB), for the summary shown before installing. An estimate, not a limit; measure it once it runs.
+  help: What it typically uses, such as 300 MB or 1.5 GB (1 GB is 1000 MB), for the summary shown before installing. It's an estimate, not a limit, so measure it once it's running.
   example: 300 MB
   link: packages/try#measure-its-memory
 containers.*.quadlet:
@@ -275,7 +275,7 @@ storage.*.title:
   link: packages/write#data
 storage.*.class:
   label: Backed up
-  help: critical is backed up; replaceable isn't, because the app makes it again (caches, thumbnails, converted files). Anything people would miss is critical.
+  help: critical will be backed up; replaceable won't, because the app makes it again (caches, thumbnails, converted files). Anything people would miss is critical.
   link: packages/write#data
 storage.*.location:
   label: Where
@@ -284,15 +284,15 @@ storage.*.location:
 
 databases:
   label: Databases
-  help: Databases Roostack runs, makes passwords for and backs up consistently. Declare them here rather than running your own container.
+  help: Databases Roostack will run, make passwords for, and back up consistently. Declare them here rather than running your own container.
   link: packages/write#data
 databases.*.type:
   label: Type
-  help: sqlite (a file in the app's storage), postgres, mysql, mariadb or redis (a container of their own). Roostack runs Postgres 17, MySQL 8.4, MariaDB 11.8 and Valkey.
+  help: sqlite (a file in the app's storage), postgres, mysql, mariadb, or redis (a container of their own). Roostack runs Postgres 17, MySQL 8.4, MariaDB 11.8, and Valkey.
   link: packages/write#data
 databases.*.path:
   label: File
-  help: For sqlite, the file's place in a storage folder, as storage/file. Roostack copies it safely before each backup.
+  help: For sqlite, the file's place in a storage folder, as storage/file. Roostack will copy it safely before each backup.
   example: data/db.sqlite3
   link: packages/write#data
 databases.*.image:
@@ -301,7 +301,7 @@ databases.*.image:
   link: reference/packages#the-parts
 databases.*.backup:
   label: Backed up
-  help: Leave it out to back the database up. false for a Redis used only as a queue or cache, which is safe to lose.
+  help: Leave it out to back the database up, or set it to false for a Redis used only as a queue or cache, which is safe to lose.
   link: packages/write#data
 databases.*.memory:
   label: Memory
@@ -313,7 +313,7 @@ databases.*.quadlet:
 
 routes:
   label: Web addresses
-  help: Where people reach the app. Every address starts private (home only); the Owner makes it public, and the package says what's safe then.
+  help: Where people reach the app. Every address will start private (home only) until the Owner makes it public, and the package says what's safe once it is.
   link: packages/write#its-web-address
 routes.*.container:
   label: Container
@@ -331,7 +331,7 @@ routes.*.subdomain:
   link: packages/write#its-web-address
 routes.*.exposure:
   label: Exposure
-  help: Always private in a package; only the Owner makes an address public.
+  help: Always private in a package; only the Owner can make an address public.
   link: packages/write#its-web-address
 routes.*.max_body_size:
   label: Largest upload
@@ -340,12 +340,12 @@ routes.*.max_body_size:
   link: reference/packages#the-parts
 routes.*.client_ip_header:
   label: Visitor's address header
-  help: For an app that reads the visitor's address from a header other than X-Forwarded-For, such as X-Real-IP. Roostack sets it, replacing any the visitor sent.
+  help: For an app that reads the visitor's address from a header other than X-Forwarded-For, such as X-Real-IP. Roostack will set it, replacing any the visitor sent.
   example: X-Real-IP
   link: reference/packages#the-parts
 routes.*.monitor:
   label: Monitoring
-  help: How monitoring checks the address, for an app whose usual answer doesn't say it works. Most packages leave it out.
+  help: How monitoring will check the address, for an app whose usual answer doesn't say it works. Most packages leave it out.
   link: servers/monitoring
 routes.*.monitor.path:
   label: Path
@@ -363,7 +363,7 @@ routes.*.public:
   link: packages/write#its-web-address
 routes.*.public.unsafe:
   label: Not safe to make public
-  help: Why the whole address shouldn't be public, such as an API with no login. The Owner sees it as a warning, and can still go ahead.
+  help: Why the whole address shouldn't be public, such as an API with no login. The Owner will see it as a warning and can still go ahead.
   link: packages/write#its-web-address
 routes.*.public.private_paths:
   label: Home-only paths
@@ -371,7 +371,7 @@ routes.*.public.private_paths:
   link: packages/write#its-web-address
 routes.*.public.private_paths[].path:
   label: Path
-  help: 'Plain, starting with /, with letters, digits and - _ . : between the slashes, and no * or trailing /.'
+  help: 'Plain, starting with /, with letters, digits, and - _ . : between the slashes, and no * or trailing /.'
   example: /admin
   link: packages/write#its-web-address
 routes.*.public.private_paths[].reason:
@@ -381,7 +381,7 @@ routes.*.public.private_paths[].reason:
   link: packages/write#its-web-address
 routes.*.public.login_paths:
   label: Where people sign in
-  help: The addresses that check a password. Outside visitors get a strict limit on tries there, so nobody can guess passwords quickly.
+  help: The addresses that check a password. Outside visitors will get a strict limit on tries there so that nobody can guess passwords quickly.
   example: /login
   link: packages/write#its-web-address
 
@@ -422,20 +422,20 @@ ports.*.enabled:
   link: reference/packages#the-parts
 ports.*.exposure:
   label: Exposure
-  help: Always private in a package (home only); only the Owner opens a connection to the internet.
+  help: Always private in a package (home only); only the Owner can open a connection to the internet.
   link: reference/packages#the-parts
 
 hooks:
   label: Setup and actions
-  help: Commands run inside a container, once after the first start (install), as a button on the service's page (action), or when single sign-on is turned on, changed or off (sso). Values people type reach them only as environment variables.
+  help: Commands run inside a container, once after the first start (install), as a button on the service's page (action), or when single sign-on is turned on, changed, or off (sso). Values people type will reach them only as environment variables.
   link: packages/write#settings-setup-and-links
 hooks[].on:
   label: When
-  help: install runs once after the first start, and must be safe to run twice; action is a button on the service's page; sso runs when single sign-on is turned on, changed (the lab's address or name) or off, told which by ROOSTACK_SSO=on or off, and must be safe to run again.
+  help: install will run once after the first start and must be safe to run twice; action is a button on the service's page; sso will run when single sign-on is turned on, changed (the lab's address or name), or off, told which by ROOSTACK_SSO=on or off, and must be safe to run again.
   link: packages/write#settings-setup-and-links
 hooks[].name:
   label: Name
-  help: For an action, lowercase letters, digits and dashes, used in its address.
+  help: For an action, lowercase letters, digits, and dashes, used in its address.
   example: reset-password
   link: reference/packages#the-parts
 hooks[].title:
@@ -453,7 +453,7 @@ hooks[].container:
   link: reference/packages#the-parts
 hooks[].command:
   label: Command
-  help: 'Run as it is, one argument per item, with no templates: settings and inputs arrive as environment variables, so they can''t change what a script does.'
+  help: 'Run as it is, one argument per item, with no templates: settings and inputs will arrive as environment variables, so they can''t change what a script does.'
   link: packages/write#settings-setup-and-links
 hooks[].env:
   label: Environment
@@ -465,7 +465,7 @@ hooks[].secrets:
   link: reference/packages#the-parts
 hooks[].saves:
   label: Keeps what it prints
-  help: 'For an install hook or an action: a from_hook secret setting, which becomes what the hook prints on standard output (one line, never shown or logged). Print everything else on standard error, the log.'
+  help: 'For an install hook or an action: a from_hook secret setting, which will become what the hook prints on standard output (one line, never shown or logged). Print everything else on standard error, the log.'
   example: settings_key
   link: packages/write#single-sign-on
 hooks[].inputs:
@@ -526,7 +526,7 @@ links[].path:
   link: reference/packages#the-parts
 sso:
   label: Single sign-on
-  help: How the app takes single sign-on, which the Owner turns on per service. Either oidc (the app signs people in through OIDC itself) or forward_auth (everyone signs in on the lab's sign-in page before a request reaches it), not both.
+  help: How the app takes single sign-on, which the Owner turns on per service. Either oidc (the app will sign people in through OIDC itself) or forward_auth (everyone will sign in on the lab's sign-in page before a request reaches it), not both.
   link: services/single-sign-on
 sso.oidc.route:
   label: OIDC, on the address
@@ -559,7 +559,7 @@ sso.oidc.redirect_uris:
   link: reference/packages#the-parts
 sso.forward_auth.route:
   label: Sign-in wall, in front of the address
-  help: The route that goes behind the wall. Its containers may read who someone is from the Remote-User, Remote-Email, Remote-Name and Remote-Groups headers; Roostack removes any a visitor sends.
+  help: The route that goes behind the wall. Its containers may read who someone is from the Remote-User, Remote-Email, Remote-Name, and Remote-Groups headers; Roostack will remove any a visitor sends.
   example: web
   link: reference/packages#the-parts
 sso.forward_auth.bypass_paths:
@@ -568,7 +568,7 @@ sso.forward_auth.bypass_paths:
   link: reference/packages#the-parts
 sso.forward_auth.bypass_paths[].path:
   label: Path
-  help: 'A path that stays outside the wall, such as an API the phone apps use with the app''s own tokens. Plain, starting with /, with letters, digits and - _ . : between the slashes, and no * or trailing /.'
+  help: 'A path that stays outside the wall, such as an API the phone apps use with the app''s own tokens. Plain, starting with /, with letters, digits, and - _ . : between the slashes, and no * or trailing /.'
   example: /api
   link: reference/packages#the-parts
 sso.forward_auth.bypass_paths[].reason:
@@ -582,11 +582,11 @@ sso.env:
   link: reference/packages#the-parts
 sso.secrets:
   label: Client secret
-  help: 'Gives a container the app''s client secret, which Roostack makes: container, then variable, then sso.client_secret, such as OIDC_CLIENT_SECRET: sso.client_secret. OIDC apps only.'
+  help: 'Gives a container the app''s client secret, which Roostack will make: container, then variable, then sso.client_secret, such as OIDC_CLIENT_SECRET: sso.client_secret. OIDC apps only.'
   link: reference/packages#the-parts
 sso.secret_env:
   label: Secret inside a value
-  help: 'For an app that takes its client secret inside a bigger value, such as a JSON list of providers: container, then variable, then a template using {{ .SSO.ClientSecret }} (with json for each value). Roostack makes the value as a Podman secret, never in a file it writes.'
+  help: 'For an app that takes its client secret inside a bigger value, such as a JSON list of providers: container, then variable, then a template using {{ .SSO.ClientSecret }} (with json for each value). Roostack will make the value as a Podman secret, never in a file it writes.'
   link: reference/packages#the-parts
 sso.note:
   label: Note
