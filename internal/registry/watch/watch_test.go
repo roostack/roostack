@@ -264,9 +264,9 @@ func TestWatchBOMs(t *testing.T) {
 	now := time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
 	dir := testRepo(t)
 	log4j := "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"
-	os.MkdirAll(filepath.Join(dir, BOMDir, "vaultwarden"), 0o755)
-	os.WriteFile(filepath.Join(dir, BOMDir, "vaultwarden", "1.34.3-roostack.1.json"),
-		[]byte(`{"artifacts":[{"purl":"`+log4j+`"},{"purl":"pkg:golang/example.com/x@1.0.0"}]}`), 0o644)
+	bom := filepath.Join(dir, BOMFile("vaultwarden", "1.34.3-roostack.1", "docker.io/vaultwarden/server:1.34.3@sha256:aa"))
+	os.MkdirAll(filepath.Dir(bom), 0o755)
+	os.WriteFile(bom, []byte(`{"image":"docker.io/vaultwarden/server:1.34.3@sha256:aa","artifacts":[{"purl":"`+log4j+`"},{"purl":"pkg:golang/example.com/x@1.0.0"}]}`), 0o644)
 	vuln, _ := json.Marshal(map[string]any{"id": "GHSA-jfh8-c2jp-5v3q", "summary": "Remote code injection in Log4j",
 		"aliases": []string{"CVE-2021-44228"}, "published": now.Add(-time.Hour),
 		"severity": []map[string]string{{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"}},
@@ -308,5 +308,83 @@ func TestPatchedAndCVEs(t *testing.T) {
 	}
 	if got := CVEsIn("prior to 7.12 is vulnerable to CVE-2026-109618 & CVE-2026-109619 (CVE-2026-109618)."); strings.Join(got, " ") != "CVE-2026-109618 CVE-2026-109619" {
 		t.Errorf("CVEsIn = %v", got)
+	}
+}
+
+// Bills of materials are kept per image, listed by what still needs one,
+// and compared with built_with by the registry's list's package URLs:
+// what the images have that built_with doesn't name, and the other way
+// round; names without package URLs aren't compared.
+func TestBOMs(t *testing.T) {
+	dir := testRepo(t)
+	os.WriteFile(filepath.Join(dir, registry.BuiltWithFile), []byte(`
+- { name: rust, title: Rust }
+- { name: go, title: Go, purls: ["pkg:golang/stdlib"] }
+- { name: ffmpeg, title: FFmpeg, purls: ["pkg:deb/debian/ffmpeg", "pkg:deb/debian/libavcodec*"] }
+- { name: java, title: Java, purls: ["pkg:maven/"] }
+- { name: postgres, title: PostgreSQL }
+- { name: sqlite, title: SQLite }
+`), 0o644)
+	repo, err := ReadRepo(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := repo.Images(false, false)
+	newest := repo.Images(true, true)
+	if len(newest) == 0 || len(all) <= len(newest) {
+		t.Fatalf("images: all %v, newest %v", all, newest)
+	}
+	var vw Image
+	for _, img := range newest {
+		if img.Package == "vaultwarden" {
+			vw = img
+		}
+	}
+	if vw.Version != "1.34.4-roostack.1" || !strings.HasPrefix(vw.Image, "docker.io/vaultwarden/server:") {
+		t.Fatalf("Vaultwarden's newest image: %+v", vw)
+	}
+	write := func(img Image, purls ...string) {
+		var arts []Artifact
+		for _, p := range purls {
+			arts = append(arts, Artifact{Purl: p})
+		}
+		data, _ := json.Marshal(BOM{Image: img.Image, Artifacts: arts})
+		path := filepath.Join(dir, BOMFile(img.Package, img.Version, img.Image))
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		os.WriteFile(path, data, 0o644)
+	}
+	write(vw, "pkg:golang/stdlib@1.27.1", "pkg:deb/debian/libavcodec61@7.1.5?arch=amd64", "pkg:deb/debian/libsqlite3-0@3.46")
+	repo, _ = ReadRepo(dir)
+	for _, img := range repo.Images(true, true) {
+		if img.Package == "vaultwarden" {
+			t.Error("Vaultwarden's image is listed though it has a bill of materials")
+		}
+	}
+	got := repo.CheckBOMs()
+	var lines []string
+	for _, m := range got {
+		lines = append(lines, m.Package+" "+m.Name+" "+m.Found)
+	}
+	// Vaultwarden says rust (no package URLs: not compared); its image
+	// has Go and FFmpeg, which it doesn't name; SQLite isn't compared.
+	if strings.Join(lines, "|") != "vaultwarden go pkg:golang/stdlib@1.27.1|vaultwarden ffmpeg pkg:deb/debian/libavcodec61@7.1.5?arch=amd64" {
+		t.Errorf("mismatches: %q", lines)
+	}
+	report := MismatchReport(got)
+	if !strings.Contains(report, "**vaultwarden 1.34.4-roostack.1**: its images have `pkg:golang/stdlib@1.27.1`, but `built_with:` doesn't name `go` (Go)") {
+		t.Errorf("report:\n%s", report)
+	}
+	if MismatchReport(nil) != "" {
+		t.Error("a report with nothing in it")
+	}
+	for want, cases := range map[bool][][2]string{
+		true:  {{"pkg:npm/sharp", "pkg:npm/sharp@0.35.5"}, {"pkg:maven/", "pkg:maven/org.x/y@1"}, {"pkg:deb/debian/libavcodec*", "pkg:deb/debian/libavcodec61@7"}},
+		false: {{"pkg:npm/sharp", "pkg:npm/sharpie@1"}, {"pkg:deb/debian/git", "pkg:deb/debian/gitk@1"}},
+	} {
+		for _, c := range cases {
+			if purlMatches(c[0], c[1]) != want {
+				t.Errorf("purlMatches(%q, %q) != %v", c[0], c[1], want)
+			}
+		}
 	}
 }

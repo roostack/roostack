@@ -1,8 +1,6 @@
 package watch
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -31,6 +29,9 @@ type Package struct {
 	Versions []string
 	// BuiltWith are its built-with names, databases' included.
 	BuiltWith []string
+	// Images and Names are each version's images (its containers', and
+	// its databases' where it names one) and built-with names.
+	Images, Names map[string][]string
 }
 
 // Upstream is a package version's app version (1.37.4 for
@@ -46,14 +47,12 @@ type Repo struct {
 	// advisory IDs they're about (from cves and the link), so nothing is
 	// drafted twice.
 	Advisories map[string][]string
-	// BOMs are each package version's bill of materials, where the
-	// registry's CI keeps one (BOMDir): package URLs with versions.
-	BOMs map[string][]string
+	// BOMs are the package URLs, with versions, in each package version's
+	// bills of materials ("ntfy 2.31.1-roostack.1"), and Bills the bills
+	// themselves, one for each image (bom.go).
+	BOMs  map[string][]string
+	Bills map[string][]BOM
 }
-
-// BOMDir is where the registry's CI keeps each package version's bill of
-// materials (Syft's JSON): boms/<package>/<version>.json.
-const BOMDir = "boms"
 
 var githubRepoRe = regexp.MustCompile(`^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(\.git)?/?$`)
 
@@ -69,7 +68,7 @@ func GitHubRepo(source string) string {
 
 // ReadRepo reads a registry repository checkout.
 func ReadRepo(dir string) (*Repo, error) {
-	r := &Repo{Dir: dir, Advisories: map[string][]string{}, BOMs: map[string][]string{}}
+	r := &Repo{Dir: dir, Advisories: map[string][]string{}, BOMs: map[string][]string{}, Bills: map[string][]BOM{}}
 	var err error
 	if r.BuiltWith, err = registry.ReadBuiltWith(dir); err != nil {
 		return nil, err
@@ -93,8 +92,9 @@ func ReadRepo(dir string) (*Repo, error) {
 				return nil, fmt.Errorf("%s: %w", f, err)
 			}
 			if pkg == nil {
-				pkg = &Package{Name: p.Name}
+				pkg = &Package{Name: p.Name, Images: map[string][]string{}, Names: map[string][]string{}}
 			}
+			pkg.Images[p.Version], pkg.Names[p.Version] = packageImages(p), p.BuiltWithNames()
 			// The newest version's title, source and names stand for them all.
 			if len(pkg.Versions) == 0 || pkgspec.CompareVersions(p.Version, pkg.Versions[len(pkg.Versions)-1]) > 0 {
 				pkg.Title, pkg.Source, pkg.Repo, pkg.BuiltWith = p.Title, p.About.Source, GitHubRepo(p.About.Source), p.BuiltWithNames()
@@ -183,33 +183,6 @@ func mapKeys[V any](m map[string]V) func(func(string) bool) {
 			}
 		}
 	}
-}
-
-// readBOMs reads each bill of materials' package URLs (Syft's JSON:
-// artifacts[].purl), by package version ("ntfy 2.31.1-roostack.1").
-func (r *Repo) readBOMs() error {
-	files, _ := filepath.Glob(filepath.Join(r.Dir, BOMDir, "*", "*.json"))
-	for _, f := range files {
-		data, err := os.ReadFile(f)
-		if err != nil {
-			return err
-		}
-		var bom struct {
-			Artifacts []struct {
-				Purl string `json:"purl"`
-			} `json:"artifacts"`
-		}
-		if err := json.NewDecoder(bytes.NewReader(data)).Decode(&bom); err != nil {
-			return fmt.Errorf("%s: %w", f, err)
-		}
-		key := filepath.Base(filepath.Dir(f)) + " " + strings.TrimSuffix(filepath.Base(f), ".json")
-		for _, a := range bom.Artifacts {
-			if strings.HasPrefix(a.Purl, "pkg:") && strings.Contains(a.Purl, "@") {
-				r.BOMs[key] = append(r.BOMs[key], a.Purl)
-			}
-		}
-	}
-	return nil
 }
 
 // Package is the named package, if the registry has it.

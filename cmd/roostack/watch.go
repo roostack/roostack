@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"roostack.cloud/roostack/internal/registry/watch"
@@ -81,4 +82,47 @@ func registryWatch(args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "%d drafted, %d for the digest, %d notes: %s\n", len(res.Drafts), len(res.Weak), len(res.Notes), *summary)
 	return os.WriteFile(*summary, append(out, '\n'), 0o644)
+}
+
+// registryImages lists the registry's package versions' images, one a
+// line: the package, the version, the image, and the file its bill of
+// materials goes in ("ntfy 2.31.1-roostack.1 docker.io/…@sha256:…
+// boms/ntfy/2.31.1-roostack.1/docker.io_binwiederhier_ntfy_v2.31.1.json"),
+// for the registry's CI to run Syft on (docs/REGISTRY-WATCH.md).
+func registryImages(args []string) error {
+	fs := flag.NewFlagSet("registry images", flag.ExitOnError)
+	repo := fs.String("repo", ".", "the registry repository's checkout")
+	missing := fs.Bool("missing", false, "only images without a bill of materials (boms/)")
+	newest := fs.Bool("newest", false, "only each package's newest version")
+	fs.Parse(args)
+	r, err := watch.ReadRepo(*repo)
+	if err != nil {
+		return err
+	}
+	for _, img := range r.Images(*missing, *newest) {
+		fmt.Println(img.Package, img.Version, img.Image, watch.BOMFile(img.Package, img.Version, img.Image))
+	}
+	return nil
+}
+
+// registryBOMCheck compares each package version's bills of materials
+// with its built_with, as markdown for the pull request's summary (the
+// registry's check; nothing when they agree). It never fails the check:
+// a maintainer decides.
+func registryBOMCheck(args []string) error {
+	fs := flag.NewFlagSet("registry bom-check", flag.ExitOnError)
+	repo := fs.String("repo", ".", "the registry repository's checkout")
+	only := fs.String("only", "", "only these package versions, separated by commas (ntfy@2.31.1-roostack.2)")
+	fs.Parse(args)
+	r, err := watch.ReadRepo(*repo)
+	if err != nil {
+		return err
+	}
+	ms := r.CheckBOMs()
+	if *only != "" {
+		keep := splitList(*only)
+		ms = slices.DeleteFunc(ms, func(m watch.Mismatch) bool { return !slices.Contains(keep, m.Package+"@"+m.Version) })
+	}
+	fmt.Print(watch.MismatchReport(ms))
+	return nil
 }

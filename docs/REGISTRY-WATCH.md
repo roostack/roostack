@@ -16,7 +16,7 @@ approval.
 | CISA's list of known exploited vulnerabilities | "Being used in attacks", and new entries naming something the registry has |
 | CrowdSec's virtual-patch rules (the Hub's index) | A new rule usually means a public exploit; new rules naming something the registry has |
 | EPSS | How likely each problem is to be exploited, to sort them |
-| OSV, for the library versions in `boms/` | Exact matches inside the images, once the CI keeps bills of materials |
+| OSV, for the library versions in `boms/` | Exact matches inside the images |
 
 Not read yet: VulnCheck's list (it needs an account), oss-security,
 projects' own feeds beyond GitHub, and packages whose source isn't on
@@ -61,11 +61,29 @@ each Monday it opens the digest as an issue instead. Then it commits
   Publish's checks won't run on the drafts;
 - `main` accepting the state's commit from that token.
 
-## Bills of materials (next)
+## Bills of materials
 
-For exact matches inside the images, the registry's CI will run Syft
-once for each new package version's images and keep the result as
-`boms/<package>/<version>.json` (Syft's JSON, `-o syft-json`). The
-watcher then asks OSV about each library version in them. Syft runs only
-in the registry's CI, never on labs (the maintainer's answer to question
-10).
+Syft lists what each image holds: its libraries, OS packages, and the
+runtimes it recognises (`pkg:golang/stdlib`, `pkg:generic/node`). The
+registry keeps that, cut down to each one's name, version, type and
+package URL, as `boms/<package>/<version>/<image>.json` (about 120 KB an
+image), for each package's newest version (branch `boms` in the
+maintainer's checkout, 2026-10-23, not pushed):
+
+- `roostack registry images -missing -newest` lists the images still
+  without one, with the file each goes in.
+- `.github/get-syft.sh` puts a pinned Syft release in place, checked by
+  its SHA-256; `.github/scan-boms.sh` scans each image for linux/amd64
+  and writes the files.
+- **On a pull request,** Publish scans the new versions' images and runs
+  `roostack registry bom-check -only <those versions>`, writing to the
+  run's summary what an image has that `built_with:` doesn't name, and
+  what `built_with:` names that Syft found nothing for (it may be bundled
+  or built in). It never fails the check: a maintainer decides.
+- **After a merge,** the Bills of materials workflow scans the same way
+  and commits the files to `main`; run it by hand for the first ones.
+
+`built-with.yaml` says which package URLs show each name (a URL ending in
+`/` or `*` is a prefix); a name with none isn't compared. SQLite's library
+is in nearly every image, so SQLite isn't compared. Syft runs only in the
+registry's CI, never on labs (the maintainer's answer to question 10).
