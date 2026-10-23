@@ -258,7 +258,16 @@ func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream 
 		lab: lab, pkg: p, inst: in, ctx: buildContext(lab, p, in), upstream: upstream,
 		name: in.ID(), title: cmp.Or(in.Title, p.Title), out: &Output{Service: in.ID()},
 		included: map[string]bool{}, waf: !in.NoWAF, sso: SSOOn(lab, p, in), ssoReach: SSOReaches(lab, p, in),
+		paused: Paused(lab, p, in),
 	}
+}
+
+// Paused says whether a service's public access is paused (SPEC.md
+// §6.16): its own pause, or the lab's for everything or for something it's
+// built with. Worked out wherever it's generated, from the lab's settings
+// its server is sent and its instance.
+func Paused(lab config.Lab, p *pkgspec.Package, in *instance.Instance) bool {
+	return in.PublicPause != nil || lab.Public.Pause.Covers(p.BuiltWithNames())
 }
 
 type gen struct {
@@ -276,6 +285,10 @@ type gen struct {
 	included map[string]bool
 	// waf: CrowdSec's AppSec checks its public routes (SPEC.md §6.10).
 	waf bool
+	// paused: its public access is paused (Paused): its public routes
+	// answer visitors from outside with the paused page, and its public
+	// ports take connections from home only.
+	paused bool
 	// sso: single sign-on is on (SSOOn); ssoReach: its containers reach
 	// the sign-in page (SSOReaches).
 	sso, ssoReach bool
@@ -401,8 +414,12 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 		}
 		// All host addresses: the firewall limits who can reach it.
 		cs.Add("PublishPort", fmt.Sprintf("%d:%d/%s", pc.HostPort, pp.Port, pc.Protocol))
+		exposure := pc.Exposure
+		if g.paused {
+			exposure = pkgspec.ExposurePrivate
+		}
 		g.out.HostPorts = append(g.out.HostPorts, HostPort{Name: pn, Title: pp.Title, Port: pc.HostPort,
-			Protocol: pc.Protocol, Exposure: pc.Exposure})
+			Protocol: pc.Protocol, Exposure: exposure})
 	}
 	env, err := g.ssoEnv(name, c.Env)
 	if err != nil {
@@ -693,7 +710,9 @@ func (g *gen) caddySite() error {
 		}
 		if g.sso && g.pkg.SSORoute() == name {
 			g.out.SSO = true
-			g.out.SSOPublic = !cr.Private
+			// The sign-in page is public for the services that need it
+			// from outside, which a paused one doesn't.
+			g.out.SSOPublic = !cr.Private && !g.paused
 		}
 		if !cr.Private {
 			// The package's private paths stay home-only unless the Owner
@@ -705,6 +724,7 @@ func (g *gen) caddySite() error {
 			}
 			cr.LoginPaths = r.Public.LoginPaths
 			cr.WAF = g.waf
+			cr.Blocked = g.paused
 			// The check link reaches the UI on the Caddy server (internal/public).
 			cr.CheckUpstream = fmt.Sprintf("%s:%d", CaddyHostLoopback, g.lab.UIPort)
 			g.out.Public = true

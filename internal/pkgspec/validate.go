@@ -29,6 +29,11 @@ var (
 // ValidName reports whether n can be a package's name.
 func ValidName(n string) bool { return nameRe.MatchString(n) }
 
+// ValidBuiltWith says whether b is a name built_with: takes (SPEC.md
+// §6.16): pausing public access by what services are built with checks
+// the names it's given the same way.
+func ValidBuiltWith(b string) bool { return builtWithRe.MatchString(b) }
+
 // ValidVersion reports whether v can be a package version.
 func ValidVersion(v string) bool { return versionRe.MatchString(v) }
 

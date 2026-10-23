@@ -74,6 +74,10 @@ type Check struct {
 	// Public: a service route open to the internet (the status page shows
 	// those by default).
 	Public bool
+	// PublicPaused: its public access is paused (SPEC.md §6.16). It's
+	// still checked, since it works at home, but the public status page
+	// shows it as paused: visitors from outside get the paused page.
+	PublicPaused bool
 }
 
 // States people see.

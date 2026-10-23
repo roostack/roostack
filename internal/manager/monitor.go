@@ -48,9 +48,10 @@ func (m *Manager) MonitorChecks(ctx context.Context) []monitor.Check {
 		return out
 	}
 	states := m.ServiceStates(ctx)
+	lab := m.labNow()
 	for _, s := range services {
 		name := s.Name()
-		gen, err := generate.Service(m.Lab, s.Package, s.Instance)
+		gen, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
 			continue
 		}
@@ -62,6 +63,7 @@ func (m *Manager) MonitorChecks(ctx context.Context) []monitor.Check {
 				Service: name, Server: st.Server,
 				URL: "https://" + rm.Host + rm.Path, Dial: CaddyLocal, Statuses: rm.Statuses,
 				Paused: paused, Alert: true, Public: rm.Public,
+				PublicPaused: rm.Public && generate.Paused(lab, s.Package, s.Instance),
 			})
 		}
 	}

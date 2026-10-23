@@ -287,6 +287,10 @@ func TestRemote(t *testing.T) {
 	if !again(Assignment{Services: svcs, Lab: LabContext{Domain: "new.example.com"}, SetUp: []string{"vaultwarden"}}) {
 		t.Error("set-ups to hand over must be sent")
 	}
+	paused := LabContext{Domain: "new.example.com", Pause: config.PublicPause{All: &config.Pause{Since: time.Unix(1, 0)}}}
+	if !again(Assignment{Services: svcs, Lab: paused}) {
+		t.Error("pausing public access must be sent (SPEC.md §6.16)")
+	}
 	fn.healthy.Store(false)
 
 	// An older assignment is ignored.

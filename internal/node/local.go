@@ -588,6 +588,7 @@ func (n *Local) lab(a Assignment) config.Lab {
 	}
 	lab.EdgeAddrs = a.Lab.EdgeAddrs
 	lab.Monitoring.StatusPage = a.Lab.StatusPage
+	lab.Public.Pause = a.Lab.Pause
 	return lab
 }
 

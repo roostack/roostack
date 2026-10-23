@@ -59,6 +59,11 @@ type LabContext struct {
 	// StatusPage: the server running Caddy serves the public status page
 	// (config.Monitoring, SPEC.md §6.15).
 	StatusPage bool `json:"status_page,omitempty"`
+	// Pause is the lab's pauses of public access (config.Public, SPEC.md
+	// §6.16): the server running Caddy answers a paused service's
+	// visitors from outside, and the server running it closes its public
+	// ports to them.
+	Pause config.PublicPause `json:"pause,omitzero"`
 }
 
 // WireService is a service's instance and package files.

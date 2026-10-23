@@ -191,6 +191,36 @@ func TestMonitoringOwnerSettings(t *testing.T) {
 	}
 }
 
+// A service whose public access is paused (SPEC.md §6.16) shows on the
+// public status page as paused, whatever its check says, since visitors
+// from outside get the paused page; it isn't counted as down there.
+func TestStatusPagePaused(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	up := false
+	withMonitor(h, &up)
+	checks := h.server.AutoChecks
+	h.server.AutoChecks = func(ctx context.Context) []monitor.Check {
+		cs := checks(ctx)
+		for i := range cs {
+			cs[i].PublicPaused = cs[i].Key == "service:forgejo:web"
+		}
+		return cs
+	}
+	h.server.StatusPageDir = t.TempDir()
+	ctx := context.Background()
+	for range monitor.DownAfter {
+		h.server.Monitor.Round(ctx)
+	}
+	h.post("/monitoring/status-page", url.Values{"choices": {"yes"}, "on": {"yes"}, "show": {"service:forgejo:web"}}, h.srv.URL)
+	page, err := os.ReadFile(filepath.Join(h.server.StatusPageDir, "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), "Forgejo") || !strings.Contains(string(page), "Paused") || strings.Contains(string(page), "working at the moment") {
+		t.Errorf("the paused service on the status page:\n%s", page)
+	}
+}
+
 // A service's page has its Uptime card.
 func TestServiceUptimeCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)

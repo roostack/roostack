@@ -62,6 +62,10 @@ func (s *Server) renderStatusPage(ctx context.Context, now time.Time) ([]byte, e
 			continue
 		}
 		row := statusRow{Name: st.Name, State: st.State}
+		if st.PublicPaused {
+			// What its visitors from outside get (SPEC.md §6.16).
+			row.State = monitor.StatePaused
+		}
 		h, err := s.Monitor.History(ctx, st.Key, 90, false)
 		if err != nil {
 			return nil, err
@@ -71,7 +75,7 @@ func (s *Server) renderStatusPage(ctx context.Context, now time.Time) ([]byte, e
 			row.Uptime = t
 		}
 		rows = append(rows, row)
-		if st.State == monitor.StateDown {
+		if row.State == monitor.StateDown {
 			down = append(down, st.Name)
 		}
 	}

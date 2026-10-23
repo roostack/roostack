@@ -266,7 +266,7 @@ func (m *Manager) startApplyLocked(reason string) {
 	// anything asks.
 	pub := m.labNow().Public
 	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked,
-		StatusPage: m.StatusPageOn()}
+		StatusPage: m.StatusPageOn(), Pause: pub.Pause}
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
 		nodes = append(nodes, r)
