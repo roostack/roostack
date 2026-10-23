@@ -214,7 +214,7 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
   - [x] 1a–1e here and 1h–1j in Cloud, merged into both `main`s on 2026-10-22
   - [x] 1f (CI, staticcheck, generated files, flaky tests) and 1g (the editor), merged on 2026-10-22
   - [x] S10, one capability convention on `Node` (batch 1c's follow-up), merged on 2026-10-22
-  - [ ] Cloud's reconciliation after 1h's move to `internal/ui`: the sync scripts' and mock-ups' paths, the design copy re-synced and checked, the docs (batch 1i's follow-up), merged into Cloud's `main` on 2026-10-22; Cloud's editor copy reads 1g's `scripts.json` (merged on 2026-10-22, pinned at Roostack `f27115b`)
+  - [x] Cloud's reconciliation after 1h's move to `internal/ui`: the sync scripts' and mock-ups' paths, the design copy re-synced and checked, the docs (batch 1i's follow-up), merged into Cloud's `main` on 2026-10-22; Cloud's editor copy reads 1g's `scripts.json` (merged on 2026-10-22, pinned at Roostack `f27115b`)
   - [x] Moving a service back to the controller with "copy directly" hung (found by 1c; on `main` before wave 1): the import now reads each tar stream to its end (2026-10-22, SPEC §10.10). Checked on VMs 5 and 6: Vaultwarden there and back, with its data
   - [ ] T1's later step: split `agent` into portable wire types and client, and the Linux server
   - [ ] Turn on GitHub's private vulnerability reporting in the repository's settings (SECURITY.md relies on it; the maintainer)
@@ -264,7 +264,6 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
   - [x] S8 step 4, storage for other labs: `manager.Guests` (`Manager.Guests()`, `guests.go`, `guesthost.go`) through the same `core`; this lab's storage at other labs is a backup destination, so it stays on `Manager`, in `remotestorage.go`. In web, `StorageSharing` is `Server.Guests`, and `StorageAtOtherLabs` stays in `ServiceManager`; `attention.Lab` has `Guests` (2026-10-23)
   - [x] S8 step 4, recovery key changes: `manager.KeyChanges` (`Manager.KeyChanges()`, `keychange.go`) through the same `core`, with the activity logs, maintenance jobs, Roostack Cloud backup and `keyRepos`, which stays on `Manager` in `backups.go` because restores use it too. In web, `RecoveryKeys` is `Server.Keys`. `Manager` now has 140 exported methods, from 168 before step 4 (2026-10-23)
   - [x] S11: `node.Local`'s photo migration and imports are types of their own, `localPhotos` and `localImports` (`Local.Photos()` and `Imports()` return them, no longer the Local), as `Remote`'s capabilities are; each is a view of the Local, whose `pho` and `imp` keep what they share while it runs. `Local` has 138 methods, from 210 (2026-10-23)
-- [ ] Wave 4 (the Owner, 2026-10-22): wording across both repositories. Rework the present simple for actions and short, clipped statements into natural sentences (the future for what will happen, the present continuous for what's happening). A sample of rewrites for the Owner first, then batches by area (§11)
 
 ## To discuss with the user
 
