@@ -382,9 +382,9 @@ weekly summary will keep saying what's paused until then.
       php`, or `-service lychee`), `sudo roostack public resume …` to open
       it again, and `sudo roostack public status`. It saves the change
       as the roostack user, records it like the pages do (so the Owners
-      will be emailed), and restarts Roostack so that it applies it; if
-      Roostack isn't running, it applies it to that server's own services
-      itself.
+      will be emailed), and tells the running Roostack to apply it at
+      once (with a SIGHUP, so nothing running stops); if Roostack isn't
+      running, it applies it to that server's own services itself.
 
 ## Making it private again
 

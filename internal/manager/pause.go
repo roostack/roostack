@@ -307,6 +307,20 @@ func (m *Manager) LiftPause(r PauseRequest) error {
 	return nil
 }
 
+// ReloadPauses takes the lab's pauses as lab.yaml has them now and applies
+// them at once: `roostack public` changed them from the command line and
+// asked this running Roostack to read them (SIGHUP) rather than restart
+// it (SPEC.md §6.16). Services' own pauses are in their instance files,
+// which every apply reads.
+func (m *Manager) ReloadPauses(pause config.PublicPause) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	l := m.labNow()
+	l.Public.Pause = pause
+	m.saved.Store(&l)
+	m.startApplyNowLocked("Pausing or opening public access from the server's command line")
+}
+
 // publicServices are the named services, each of which must have a
 // public address or port: there's nothing to pause otherwise.
 func (m *Manager) publicServices(names []string) ([]state.Service, error) {

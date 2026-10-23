@@ -30,7 +30,7 @@ Pausing public access takes services off the internet: visitors from
 outside will see a page saying it's closed for a while, and at home
 everything will keep working. It's for when the web UI can't be reached.
 Run it on the lab's controller as root: the change will be saved as the
-roostack user, and root will then restart Roostack so that it applies it.
+roostack user, and root will then tell the running Roostack to apply it.
 `
 
 // publicCmd pauses public access, opens it again, or says what's paused,
@@ -64,9 +64,10 @@ func publicCmd(args []string) error {
 			say("Roostack isn't running, so the change is being applied here (this server's services only)")
 			return runAsRoostack([]string{"apply"})
 		}
-		say("Restarting Roostack so that it applies the change (a backup that's running will stop and run again tonight)")
-		if out, err := exec.Command("systemctl", "restart", "roostack").CombinedOutput(); err != nil {
-			return fmt.Errorf("restarting roostack: %w: %s", err, out)
+		// The running Roostack reads lab.yaml's pauses again on SIGHUP
+		// and applies them at once, without a restart (serve.go).
+		if out, err := exec.Command("systemctl", "kill", "--signal=HUP", "--kill-whom=main", "roostack").CombinedOutput(); err != nil {
+			return fmt.Errorf("telling Roostack: %w: %s", err, out)
 		}
 		say("Done: Roostack is applying it now, which usually takes a few seconds.")
 		return nil
@@ -143,7 +144,7 @@ func publicCmd(args []string) error {
 	}
 	say("%s.", done)
 	if !fromRoot() {
-		say("Restart Roostack so that it applies the change: sudo systemctl restart roostack")
+		say("Tell Roostack to apply the change: sudo systemctl kill --signal=HUP --kill-whom=main roostack")
 	}
 	return nil
 }
