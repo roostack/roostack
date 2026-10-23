@@ -620,61 +620,6 @@ func (m *Manager) provider(ctx context.Context, id string) (store.BackupProvider
 	return store.BackupProvider{}, errors.New("no such provider")
 }
 
-// addressOf is a server's address on Roostack's network, or "".
-func (m *Manager) addressOf(id string) string {
-	if id == m.Lab.NodeID {
-		if m.Lab.OverlayAddr != "" {
-			return m.Lab.OverlayAddr
-		}
-		return labnet.ControllerAddr.String()
-	}
-	for _, r := range m.others() {
-		if r.Identity().ID == id {
-			return r.Address()
-		}
-	}
-	return ""
-}
-
-func (m *Manager) nameOf(id string) string {
-	if n := m.node(id); n != nil {
-		return n.Identity().Name
-	}
-	return id
-}
-
-// alone says whether the lab has one server. Its pages and logs don't name
-// it: the name is the host's, which the Owner may never have chosen
-// (found 2026-10-18).
-func (m *Manager) alone() bool { return len(m.others()) == 0 }
-
-// serverName is a server's name in a sentence, or "this server" in a lab
-// of one.
-func (m *Manager) serverName(id string) string {
-	if id == m.Lab.NodeID && m.alone() {
-		return "this server"
-	}
-	return m.nameOf(id)
-}
-
-// onServer is " on <server>" after a step that happens on one, or nothing
-// in a lab of one.
-func (m *Manager) onServer(id string) string {
-	if id == m.Lab.NodeID && m.alone() {
-		return ""
-	}
-	return " on " + m.nameOf(id)
-}
-
-// aboutServer starts a line about one server with its name ("nas:
-// keeping …"), or, in a lab of one, is the line alone ("Keeping …").
-func (m *Manager) aboutServer(id, line string) string {
-	if id == m.Lab.NodeID && m.alone() {
-		return words.Capitalise(line)
-	}
-	return m.nameOf(id) + ": " + line
-}
-
 // BackupTargetOf is where a server backs up, if the controller set it up
 // (ok false: not yet, or set up before servers chose destinations).
 func (m *Manager) BackupTargetOf(ctx context.Context, serverID string) (t store.BackupTarget, title string, ok bool) {

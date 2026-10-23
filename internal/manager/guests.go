@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -516,18 +515,14 @@ func remoteAdmin(r RemoteStorage, serverURL string) (string, []string) {
 		[]string{"RESTIC_REST_USERNAME=" + r.User, "RESTIC_REST_PASSWORD=" + r.AdminPassword}
 }
 
-// remoteConfigMu makes changes to a friend's lab's record one at a time
-// (servers' users are added as their backups are set up).
-var remoteConfigMu sync.Mutex
-
 // remoteServerUser makes sure a server has its own user at another lab's
 // store (SPEC.md §10.10, review M21), so a server that's taken over can't
 // add to its siblings' backups there or read them: a password kept in the
 // lab's record, whose hash the host is given over the guest API (again
 // each time, in case it lost it). It returns the record with it.
 func (m *Manager) remoteServerUser(ctx context.Context, ref, serverID string) (RemoteStorage, error) {
-	remoteConfigMu.Lock()
-	defer remoteConfigMu.Unlock()
+	m.remoteConfigMu.Lock()
+	defer m.remoteConfigMu.Unlock()
 	d, err := m.destinationOf(ctx, ref)
 	if err != nil {
 		return RemoteStorage{}, err
@@ -566,8 +561,8 @@ func (m *Manager) removeRemoteUsers(ctx context.Context, act *activity.Log, serv
 	if m.BackupStore == nil {
 		return
 	}
-	remoteConfigMu.Lock()
-	defer remoteConfigMu.Unlock()
+	m.remoteConfigMu.Lock()
+	defer m.remoteConfigMu.Unlock()
 	for _, r := range m.RemoteStorages(ctx) {
 		if r.Servers[serverID] == "" {
 			continue

@@ -777,8 +777,7 @@ func (m *Manager) switchVersion(from, to *instance.Instance, reason string) erro
 	if err := to.Save(path); err != nil {
 		return err
 	}
-	m.applyReason = reason
-	m.startApplyLocked()
+	m.startApplyLocked(reason)
 	return nil
 }
 

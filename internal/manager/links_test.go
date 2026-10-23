@@ -308,11 +308,11 @@ func TestRelayUpdatesInOrder(t *testing.T) {
 	nz := config.Countries{Allow: []string{"NZ"}}
 	m.relayMu.Lock()
 	m.mu.Lock()
-	m.startApplyLocked()
+	m.startApplyLocked("")
 	m.mu.Unlock()
 	local(m).Wait()
 	m.mu.Lock()
-	m.publicLocked().Countries = nz
+	m.saveLab(func(l *config.Lab) { l.Public.Countries = nz })
 	m.mu.Unlock()
 	m.relayMu.Unlock()
 	m.Wait()
@@ -323,11 +323,11 @@ func TestRelayUpdatesInOrder(t *testing.T) {
 	// Held back while the relay is turned off: nothing is sent.
 	m.relayMu.Lock()
 	m.mu.Lock()
-	m.startApplyLocked()
+	m.startApplyLocked("")
 	m.mu.Unlock()
 	local(m).Wait()
 	m.mu.Lock()
-	m.publicLocked().Relay = false
+	m.saveLab(func(l *config.Lab) { l.Public.Relay = false })
 	m.mu.Unlock()
 	m.relayMu.Unlock()
 	m.Wait()

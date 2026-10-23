@@ -285,8 +285,7 @@ func (m *Manager) AddLibrary(ctx context.Context, req LibraryRequest) error {
 	if err := m.setReadersLocked(req.Server, name, req.Services); err != nil {
 		return err
 	}
-	m.applyReason = "Adding the media library " + title
-	m.startApplyLocked()
+	m.startApplyLocked("Adding the media library " + title)
 	return nil
 }
 
@@ -318,8 +317,7 @@ func (m *Manager) addShare(ctx context.Context, req LibraryRequest, name, title 
 	if err := m.setReadersLocked(req.Server, name, req.Services); err != nil {
 		return err
 	}
-	m.applyReason = "Adding the media library " + title
-	m.startApplyLocked()
+	m.startApplyLocked("Adding the media library " + title)
 	return nil
 }
 
@@ -348,8 +346,7 @@ func (m *Manager) RemoveLibrary(ctx context.Context, serverID, name string) erro
 	if err := m.setReadersLocked(serverID, name, nil); err != nil {
 		return err
 	}
-	m.applyReason = "Removing the media library " + name
-	m.startApplyLocked()
+	m.startApplyLocked("Removing the media library " + name)
 	return nil
 }
 
@@ -360,8 +357,7 @@ func (m *Manager) SetLibraryReaders(ctx context.Context, serverID, name string, 
 	if err := m.setReadersLocked(serverID, name, services); err != nil {
 		return err
 	}
-	m.applyReason = "Changing who reads the media library " + name
-	m.startApplyLocked()
+	m.startApplyLocked("Changing who reads the media library " + name)
 	return nil
 }
 
@@ -430,8 +426,7 @@ func (m *Manager) SetServiceLibraries(ctx context.Context, service string, libra
 	if err := in.Save(state.InstanceFile(m.Lab, service)); err != nil {
 		return err
 	}
-	m.applyReason = "Changing the media libraries " + p.Title + " reads"
-	m.startApplyLocked()
+	m.startApplyLocked("Changing the media libraries " + p.Title + " reads")
 	return nil
 }
 

@@ -81,7 +81,7 @@ func publicAddr(p labnet.Peer) string {
 // its public address ("" if it has none now).
 func (m *Manager) Edge(ctx context.Context) (EdgeServer, bool) {
 	m.mu.Lock()
-	id := m.publicLocked().Edge
+	id := m.labNow().Public.Edge
 	m.mu.Unlock()
 	if id == "" {
 		return EdgeServer{}, false
@@ -107,12 +107,10 @@ func (m *Manager) SetEdge(ctx context.Context, id string) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.UpdateLab(func(l *config.Lab) { l.Public.Edge = id }); err != nil {
+	if err := m.saveLab(func(l *config.Lab) { l.Public.Edge = id }); err != nil {
 		return err
 	}
-	m.publicLocked().Edge = id
-	m.applyReason = "Changing how public visitors reach the lab"
-	m.startApplyLocked()
+	m.startApplyLocked("Changing how public visitors reach the lab")
 	return nil
 }
 
@@ -120,7 +118,7 @@ func (m *Manager) SetEdge(ctx context.Context, id string) error {
 // ID, and the addresses (as /32 ranges) the controller's Caddy believes
 // PROXY headers from. Empty when the lab has no edge in it.
 func (m *Manager) edgeFor(infos map[string]linkInfo) (id string, addrs []string) {
-	id = m.publicLocked().Edge
+	id = m.labNow().Public.Edge
 	info, ok := infos[id]
 	if id == "" || !ok || info.Addr == "" {
 		return "", nil
@@ -186,7 +184,7 @@ type Relay struct {
 func (m *Manager) RelayOn() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.publicLocked().Relay
+	return m.labNow().Public.Relay
 }
 
 // SetRelay turns Roostack Cloud's relay on or off as the lab's way in.
@@ -208,7 +206,7 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 			return err
 		}
 		m.mu.Lock()
-		countries := m.publicLocked().Countries
+		countries := m.labNow().Public.Countries
 		m.relayGen++
 		m.mu.Unlock()
 		if err := m.Relay.Set(ctx, publicHostsOf(m.withStatusPage(), services, false), countries, m.Lab.Timezone, ownDomain(m.Lab)); err != nil {
@@ -219,7 +217,7 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.UpdateLab(func(l *config.Lab) {
+	if err := m.saveLab(func(l *config.Lab) {
 		l.Public.Relay = on
 		if on {
 			l.Public.Edge = ""
@@ -227,13 +225,7 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 	}); err != nil {
 		return err
 	}
-	p := m.publicLocked()
-	p.Relay = on
-	if on {
-		p.Edge = ""
-	}
-	m.applyReason = "Changing how public visitors reach the lab"
-	m.startApplyLocked()
+	m.startApplyLocked("Changing how public visitors reach the lab")
 	return nil
 }
 
@@ -248,18 +240,16 @@ func (m *Manager) RelayGone(apply bool) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !m.publicLocked().Relay {
+	if !m.labNow().Public.Relay {
 		return nil
 	}
-	if err := m.UpdateLab(func(l *config.Lab) { l.Public.Relay = false }); err != nil {
+	if err := m.saveLab(func(l *config.Lab) { l.Public.Relay = false }); err != nil {
 		return err
 	}
-	m.publicLocked().Relay = false
 	m.relayGen++ // an update on its way is dropped
 	m.Log.Info("Roostack Cloud's relay is off: it went with the link to Roostack Cloud")
 	if apply {
-		m.applyReason = "Roostack Cloud's relay went with the link: changing how public visitors reach the lab"
-		m.startApplyLocked()
+		m.startApplyLocked("Roostack Cloud's relay went with the link: changing how public visitors reach the lab")
 	}
 	return nil
 }
@@ -286,7 +276,7 @@ func (m *Manager) CheckRelay(ctx context.Context) error {
 	m.relayMu.Lock()
 	defer m.relayMu.Unlock()
 	m.mu.Lock()
-	countries := m.publicLocked().Countries
+	countries := m.labNow().Public.Countries
 	m.relayGen++
 	m.mu.Unlock()
 	return m.Relay.Set(ctx, publicHostsOf(m.withStatusPage(), services, false), countries, m.Lab.Timezone, ownDomain(m.Lab))
@@ -296,7 +286,7 @@ func (m *Manager) CheckRelay(ctx context.Context) error {
 func (m *Manager) Countries() config.Countries {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.publicLocked().Countries
+	return m.labNow().Public.Countries
 }
 
 // SetCountries sets who the relay lets in by country (SPEC.md §10.5).
@@ -331,10 +321,9 @@ func (m *Manager) SetCountries(ctx context.Context, c config.Countries) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.UpdateLab(func(l *config.Lab) { l.Public.Countries = c }); err != nil {
+	if err := m.saveLab(func(l *config.Lab) { l.Public.Countries = c }); err != nil {
 		return err
 	}
-	m.publicLocked().Countries = c
 	return nil
 }
 
@@ -347,7 +336,7 @@ func (m *Manager) SetCountries(ctx context.Context, c config.Countries) error {
 // whether the relay is still on, so it never undoes a newer SetCountries
 // or SetRelay(false); it's dropped if a newer update came first.
 func (m *Manager) relayFor(services []state.Service) []string {
-	if !m.publicLocked().Relay || m.Relay.Edges == nil {
+	if !m.labNow().Public.Relay || m.Relay.Edges == nil {
 		return nil
 	}
 	if set := m.Relay.Set; set != nil {
@@ -359,7 +348,7 @@ func (m *Manager) relayFor(services []state.Service) []string {
 			m.relayMu.Lock()
 			defer m.relayMu.Unlock()
 			m.mu.Lock()
-			p := m.publicLocked()
+			p := m.labNow().Public
 			current, countries := gen == m.relayGen && p.Relay, p.Countries
 			m.mu.Unlock()
 			if !current {

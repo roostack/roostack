@@ -137,10 +137,10 @@ func (p *RollbackPlan) describe(kind string) (string, int) {
 // rollbackChecks are the latest checks, by activity.BackupRollbackFor: a
 // rollback runs only after one for the same time (the Owner saw what it
 // changes).
-var rollbackChecks = struct {
+type rollbackChecks struct {
 	sync.Mutex
 	plans map[string]*RollbackPlan
-}{plans: map[string]*RollbackPlan{}}
+}
 
 // rollbackCheckAge is how long a check lets a rollback run.
 const rollbackCheckAge = time.Hour
@@ -197,9 +197,12 @@ func (m *Manager) CheckRollback(ctx context.Context, serverID, ref string, befor
 			for _, l := range plan.Summary {
 				act.Printf("%s", l)
 			}
-			rollbackChecks.Lock()
-			rollbackChecks.plans[kind] = plan
-			rollbackChecks.Unlock()
+			m.rollbacks.Lock()
+			if m.rollbacks.plans == nil {
+				m.rollbacks.plans = map[string]*RollbackPlan{}
+			}
+			m.rollbacks.plans[kind] = plan
+			m.rollbacks.Unlock()
 			act.Step("Checked %d files", plan.Files)
 		}
 		act.Finish(err)
@@ -210,9 +213,9 @@ func (m *Manager) CheckRollback(ctx context.Context, serverID, ref string, befor
 // RollbackChecked is the latest check of rolling a server's backups at
 // ref back, while it can still be acted on (nil if none).
 func (m *Manager) RollbackChecked(serverID, ref string) *RollbackPlan {
-	rollbackChecks.Lock()
-	defer rollbackChecks.Unlock()
-	p := rollbackChecks.plans[activity.BackupRollbackFor(serverID, ref)]
+	m.rollbacks.Lock()
+	defer m.rollbacks.Unlock()
+	p := m.rollbacks.plans[activity.BackupRollbackFor(serverID, ref)]
 	if p == nil || time.Since(p.Checked) > rollbackCheckAge {
 		return nil
 	}
@@ -233,9 +236,9 @@ func (m *Manager) RollBack(ctx context.Context, serverID, ref string, before tim
 	if m.Submit == nil {
 		return errors.New("no maintenance coordinator")
 	}
-	rollbackChecks.Lock()
-	delete(rollbackChecks.plans, activity.BackupRollbackFor(serverID, ref))
-	rollbackChecks.Unlock()
+	m.rollbacks.Lock()
+	delete(m.rollbacks.plans, activity.BackupRollbackFor(serverID, ref))
+	m.rollbacks.Unlock()
 	m.Submit(m.rollbackJob(serverID, ref, before))
 	return nil
 }

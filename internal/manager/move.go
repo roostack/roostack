@@ -370,8 +370,7 @@ func (m *Manager) switchHost(name, to string) error {
 	if err := in.Save(file); err != nil {
 		return err
 	}
-	m.applyReason = "Moving " + name + " to another server"
-	m.startApplyLocked()
+	m.startApplyLocked("Moving " + name + " to another server")
 	return m.assignErr
 }
 

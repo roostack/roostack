@@ -3,7 +3,6 @@ package manager
 import (
 	"context"
 	"slices"
-	"strings"
 
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -54,13 +53,11 @@ func (m *Manager) RetryInstallWith(ctx context.Context, name string, settings, s
 			continue
 		}
 		v := secrets[s.Key]
-		switch {
-		case v == "":
+		if v == "" {
 			continue // keep what was typed before
-		case s.MinLength > 0 && len([]rune(v)) < s.MinLength:
-			return usererr.New("%s must be at least %d characters.", s.Title, s.MinLength)
-		case strings.ContainsAny(v, "\n\r\x00"):
-			return usererr.New("%s can't contain line breaks.", s.Title)
+		}
+		if err := checkSecret(s, v); err != nil {
+			return err
 		}
 		typed[node.SecretName(name, s.Key)] = []byte(v)
 	}
@@ -77,7 +74,6 @@ func (m *Manager) RetryInstallWith(ctx context.Context, name string, settings, s
 		m.secrets = map[string]map[string][]byte{}
 	}
 	m.secrets[name] = typed
-	m.applyReason = "Trying " + name + "'s setup again"
-	m.startApplyLocked()
+	m.startApplyLocked("Trying " + name + "'s setup again")
 	return nil
 }

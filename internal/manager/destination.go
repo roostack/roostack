@@ -182,10 +182,10 @@ func (m *Manager) targetAt(ctx context.Context, serverID, ref string) (store.Bac
 
 // hiddenCache remembers Backblaze buckets' lifecycle rules for a while, so
 // the Backups page doesn't ask Backblaze each time.
-var hiddenCache = struct {
+type hiddenCache struct {
 	sync.Mutex
 	days map[string]hiddenDays
-}{days: map[string]hiddenDays{}}
+}
 
 type hiddenDays struct {
 	days    int
@@ -196,9 +196,9 @@ type hiddenDays struct {
 // folder (b2.Client.KeepsHidden), -1 if Backblaze couldn't be asked.
 func (m *Manager) keepsHidden(ctx context.Context, s3 S3Provider, folder string) int {
 	key := strings.Join([]string{s3.Endpoint, s3.AccessKey, s3.Bucket, folder}, " ")
-	hiddenCache.Lock()
-	c, ok := hiddenCache.days[key]
-	hiddenCache.Unlock()
+	m.hidden.Lock()
+	c, ok := m.hidden.days[key]
+	m.hidden.Unlock()
 	if ok && time.Now().Before(c.expires) {
 		return c.days
 	}
@@ -210,9 +210,12 @@ func (m *Manager) keepsHidden(ctx context.Context, s3 S3Provider, folder string)
 		m.Log.Warn("reading a Backblaze bucket's lifecycle rules", "bucket", s3.Bucket, "err", err)
 		c = hiddenDays{days: -1, expires: time.Now().Add(5 * time.Minute)}
 	}
-	hiddenCache.Lock()
-	hiddenCache.days[key] = c
-	hiddenCache.Unlock()
+	m.hidden.Lock()
+	if m.hidden.days == nil {
+		m.hidden.days = map[string]hiddenDays{}
+	}
+	m.hidden.days[key] = c
+	m.hidden.Unlock()
 	return c.days
 }
 

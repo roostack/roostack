@@ -69,15 +69,7 @@ type Withdrawal struct {
 func (m *Manager) StopsOn() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return !m.noStopsLocked()
-}
-
-func (m *Manager) noStopsLocked() bool {
-	if m.noStops == nil {
-		v := m.Lab.Registry.NoStops
-		m.noStops = &v
-	}
-	return *m.noStops
+	return !m.labNow().Registry.NoStops
 }
 
 // SetStops turns stopping on or off, saving it in lab.yaml, and applies
@@ -85,13 +77,10 @@ func (m *Manager) noStopsLocked() bool {
 func (m *Manager) SetStops(on bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.UpdateLab(func(l *config.Lab) { l.Registry.NoStops = !on }); err != nil {
+	if err := m.saveLab(func(l *config.Lab) { l.Registry.NoStops = !on }); err != nil {
 		return err
 	}
-	off := !on
-	m.noStops = &off
-	m.applyReason = "Changing whether Roostack stops a service the registry says is dangerous"
-	m.startApplyLocked()
+	m.startApplyLocked("Changing whether Roostack stops a service the registry says is dangerous")
 	return nil
 }
 
@@ -103,7 +92,7 @@ func (m *Manager) Withdrawals(ctx context.Context) map[string]*Withdrawal {
 		return nil
 	}
 	m.mu.Lock()
-	noStops := m.noStopsLocked()
+	noStops := m.labNow().Registry.NoStops
 	m.mu.Unlock()
 	return m.withdrawals(ctx, services, noStops)
 }
@@ -232,7 +221,7 @@ func (m *Manager) lastBackupDue(ctx context.Context, s state.Service, since time
 // what should run does, so a new index only applies when it matters.
 // Callers hold m.mu.
 func (m *Manager) markStops(ctx context.Context, services []state.Service) string {
-	ws := m.withdrawals(ctx, services, m.noStopsLocked())
+	ws := m.withdrawals(ctx, services, m.labNow().Registry.NoStops)
 	var key []string
 	for i := range services {
 		s := &services[i]
@@ -286,7 +275,7 @@ func (m *Manager) awaitLastBackup(ctx context.Context, host string) {
 			services, err := state.LoadServices(m.Lab)
 			due := false
 			if err == nil {
-				ws := m.withdrawals(context.Background(), services, m.noStopsLocked())
+				ws := m.withdrawals(context.Background(), services, m.labNow().Registry.NoStops)
 				for _, s := range services {
 					if w := ws[s.Name()]; w != nil && w.LastBackup && s.Instance.Host == host {
 						due = true
@@ -295,8 +284,7 @@ func (m *Manager) awaitLastBackup(ctx context.Context, host string) {
 			}
 			if !due || err != nil {
 				delete(m.awaiting, host)
-				m.applyReason = "A backup finished, so the databases of services Roostack stopped can stop too"
-				m.startApplyLocked()
+				m.startApplyLocked("A backup finished, so the databases of services Roostack stopped can stop too")
 				m.mu.Unlock()
 				return
 			}
@@ -317,7 +305,7 @@ func (m *Manager) RegistryChanged() {
 		return // the next apply says why
 	}
 	ctx := context.Background()
-	ws := m.withdrawals(ctx, services, m.noStopsLocked())
+	ws := m.withdrawals(ctx, services, m.labNow().Registry.NoStops)
 	var key []string
 	for name, w := range ws {
 		if w.Stopped {
@@ -328,8 +316,7 @@ func (m *Manager) RegistryChanged() {
 	if strings.Join(key, ",") == m.stopsKey {
 		return
 	}
-	m.applyReason = "The service registry changed which services Roostack stops"
-	m.startApplyLocked()
+	m.startApplyLocked("The service registry changed which services Roostack stops")
 }
 
 // StartAnyway runs a service Roostack stopped, at the Owner's word: this
@@ -376,7 +363,6 @@ func (m *Manager) StartAnyway(ctx context.Context, name string, private bool) er
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
-	m.applyReason = "Starting " + name + " again, at the Owner's word, though the service registry withdrew its version as dangerous"
-	m.startApplyLocked()
+	m.startApplyLocked("Starting " + name + " again, at the Owner's word, though the service registry withdrew its version as dangerous")
 	return nil
 }

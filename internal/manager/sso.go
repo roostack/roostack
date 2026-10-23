@@ -67,11 +67,10 @@ func (m *Manager) SetSSO(ctx context.Context, name string, on bool) error {
 	m.ssoClients = nil // read again
 	m.ssoMu.Unlock()
 	if on {
-		m.applyReason = "Turning on single sign-on for " + name
+		m.startApplyLocked("Turning on single sign-on for " + name)
 	} else {
-		m.applyReason = "Turning off single sign-on for " + name
+		m.startApplyLocked("Turning off single sign-on for " + name)
 	}
-	m.startApplyLocked()
 	return nil
 }
 

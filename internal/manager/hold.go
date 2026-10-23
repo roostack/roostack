@@ -52,8 +52,7 @@ func (m *Manager) holdOn(name, to string, h instance.Hold) error {
 		return err
 	}
 	m.Log.Warn("holding a service stopped: its databases didn't load", "service", name, "err", h.Error)
-	m.applyReason = "Keeping " + name + " stopped: its databases didn't load"
-	m.startApplyLocked()
+	m.startApplyLocked("Keeping " + name + " stopped: its databases didn't load")
 	return m.assignErr
 }
 
@@ -71,8 +70,7 @@ func (m *Manager) releaseHold(name, reason string) (bool, error) {
 	if err := in.Save(file); err != nil {
 		return false, err
 	}
-	m.applyReason = reason
-	m.startApplyLocked()
+	m.startApplyLocked(reason)
 	return true, nil
 }
 

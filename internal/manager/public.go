@@ -117,8 +117,7 @@ func (m *Manager) SetPublic(ctx context.Context, name string, req PublicRequest)
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
-	m.applyReason = "Changing who can reach " + name
-	m.startApplyLocked()
+	m.startApplyLocked("Changing who can reach " + name)
 	return nil
 }
 
@@ -144,8 +143,7 @@ func (m *Manager) SetWAF(ctx context.Context, name string, on bool) error {
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
-	m.applyReason = "Changing whether known exploits are blocked for " + name
-	m.startApplyLocked()
+	m.startApplyLocked("Changing whether known exploits are blocked for " + name)
 	return nil
 }
 
@@ -164,17 +162,8 @@ func (m *Manager) PublicHosts() []string {
 func (m *Manager) SignalSharing() (asked, share bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	p := m.publicLocked()
+	p := m.labNow().Public
 	return p.SharingAsked, !p.NoSharing
-}
-
-// publicLocked returns the public access settings; m.mu is held.
-func (m *Manager) publicLocked() *config.Public {
-	if m.public == nil {
-		p := m.Lab.Public
-		m.public = &p
-	}
-	return m.public
 }
 
 // SetSignalSharing saves the Owner's answer and applies it (CrowdSec
@@ -185,12 +174,9 @@ func (m *Manager) SetSignalSharing(share bool) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.UpdateLab(func(l *config.Lab) { l.Public.SharingAsked, l.Public.NoSharing = true, !share }); err != nil {
+	if err := m.saveLab(func(l *config.Lab) { l.Public.SharingAsked, l.Public.NoSharing = true, !share }); err != nil {
 		return err
 	}
-	p := m.publicLocked()
-	p.SharingAsked, p.NoSharing = true, !share
-	m.applyReason = "Changing whether CrowdSec shares attack reports"
-	m.startApplyLocked()
+	m.startApplyLocked("Changing whether CrowdSec shares attack reports")
 	return nil
 }
