@@ -520,7 +520,7 @@ func TestServers(t *testing.T) {
 
 	// Renaming and removing.
 	if code, body := h.post("/settings/servers/n-9876543210/remove", nil, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "vps still runs Forgejo") {
+		!strings.Contains(body, "vps is still running Forgejo") {
 		t.Errorf("removing a server with services: %d", code)
 	}
 	h.post("/settings/servers/n-9876543210/rename", url.Values{"name": {"cloud"}}, h.srv.URL)

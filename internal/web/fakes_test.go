@@ -434,7 +434,7 @@ func (f *fakeServers) ApplyBecause(reason string) {
 
 func (f *fakeServers) RemoveServer(_ context.Context, id string) error {
 	if id == "n-9876543210" {
-		return &usererr.Error{Msg: "vps still runs Forgejo. Remove it first, or move it to another server."}
+		return &usererr.Error{Msg: "vps is still running Forgejo. Remove it first or move it to another server."}
 	}
 	f.serverOps = append(f.serverOps, "remove "+id)
 	return nil
