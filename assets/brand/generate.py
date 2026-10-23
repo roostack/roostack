@@ -430,6 +430,10 @@ def main():
             png(svg("Roostack Cloud", paint(tile(small_cloud, radius=0, inset=False), MODES["light"])), 180,
                 BRAND / "apple-touch-icon-cloud.png"),
         ]
+        # The marks in emails (mailkit, embedded in each email: no remote images),
+        # 96px for a 48px-or-smaller place on a high-density screen.
+        MAILKIT = ROOT / "mailkit"
+        written += [png(light_small, 96, MAILKIT / "mark.png"), png(light_cloud, 96, MAILKIT / "mark-cloud.png")]
         shutil.copy(BRAND / "favicon.ico", STATIC / "favicon.ico")
         shutil.copy(BRAND / "apple-touch-icon.png", STATIC / "apple-touch-icon.png")
         written += [STATIC / "favicon.ico", STATIC / "apple-touch-icon.png"]

@@ -1,7 +1,8 @@
 // Package mail sends email through the lab's SMTP server (SPEC.md §6.13):
-// plain-text messages, over STARTTLS (port 587) or TLS (465), with the
-// standard library's SMTP client. Settings are read for every message, so
-// a change in Settings → Email applies at once.
+// plain text with the same in HTML beside it (mailkit), over STARTTLS
+// (port 587) or TLS (465), with the standard library's SMTP client.
+// Settings are read for every message, so a change in Settings → Email
+// applies at once.
 package mail
 
 import (
@@ -13,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"mime"
-	"mime/quotedprintable"
 	"net"
 	"net/mail"
 	"net/smtp"
@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/mailkit"
 )
 
 // ErrNotConfigured means no SMTP server is set up.
@@ -35,6 +36,10 @@ type Message struct {
 	To      []string
 	Subject string
 	Body    string // plain text
+	// HTML is the email in HTML, sent beside Body. Nil makes it from Body
+	// (mailkit.FromText), headed by the subject and signed with the lab's
+	// name.
+	HTML *mailkit.Email
 }
 
 // Service sends email with the lab's settings, and saves them.
@@ -124,6 +129,10 @@ func (s *Service) send(ctx context.Context, m config.Mail, password string, msg 
 		return &usererr.Error{Msg: "Give an address to send to."}
 	}
 	from, _ := mail.ParseAddress(m.From)
+	if msg.HTML == nil {
+		msg.HTML = &mailkit.Email{Brand: mailkit.Roostack, Heading: msg.Subject, Blocks: mailkit.FromText(msg.Body),
+			Footer: []mailkit.Block{mailkit.Paragraph("Roostack, for " + config.NameAt(s.LabPath, config.Lab{})() + ".")}}
+	}
 	body, err := compose(from, to, msg)
 	if err != nil {
 		return err
@@ -189,8 +198,8 @@ func (s *Service) send(ctx context.Context, m config.Mail, password string, msg 
 	return c.Quit()
 }
 
-// compose builds the message: headers, then the body as quoted-printable
-// UTF-8 text.
+// compose builds the message: headers, then the body, its text and HTML
+// as alternatives (mailkit.Body).
 func compose(from *mail.Address, to []string, msg Message) ([]byte, error) {
 	if strings.ContainsAny(msg.Subject, "\r\n") {
 		return nil, errors.New("a subject can't contain line breaks")
@@ -204,10 +213,12 @@ func compose(from *mail.Address, to []string, msg Message) ([]byte, error) {
 	fmt.Fprintf(&b, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", msg.Subject))
 	fmt.Fprintf(&b, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 	fmt.Fprintf(&b, "Message-ID: <%s@%s>\r\n", hex.EncodeToString(id), domain)
-	b.WriteString("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n")
+	contentType, body, err := mailkit.Body(msg.Body, *msg.HTML)
+	if err != nil {
+		return nil, err
+	}
+	b.WriteString("MIME-Version: 1.0\r\nContent-Type: " + contentType + "\r\n")
 	b.WriteString("Auto-Submitted: auto-generated\r\n\r\n")
-	qp := quotedprintable.NewWriter(&b)
-	qp.Write([]byte(strings.ReplaceAll(msg.Body, "\n", "\r\n")))
-	qp.Close()
+	b.Write(body)
 	return b.Bytes(), nil
 }

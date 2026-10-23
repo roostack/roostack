@@ -157,7 +157,8 @@ func newService(t *testing.T, m config.Mail, trust *tls.Config) *Service {
 }
 
 // A message goes out over STARTTLS with the password encrypted, as UTF-8
-// quoted-printable text; the password is kept apart, 0600.
+// quoted-printable text with the same in HTML beside it; the password is
+// kept apart, 0600.
 func TestSendSTARTTLS(t *testing.T) {
 	f, trust := newFakeSMTP(t, false)
 	s := newService(t, config.Mail{}, trust)
@@ -182,7 +183,8 @@ func TestSendSTARTTLS(t *testing.T) {
 		t.Errorf("auth %q encrypted %v from %q rcpt %v", f.auth, f.encrypted, f.from, f.rcpt)
 	}
 	for _, want := range []string{"From: \"Roostack\" <roostack@lab.example.com>", "Subject: =?utf-8?q?Backups_on_n=C3=BCc?=",
-		"Content-Type: text/plain; charset=utf-8", "Line one\r\nLine two =E2=80=94 done.", "Auto-Submitted: auto-generated"} {
+		"Content-Type: multipart/alternative; boundary=", "Content-Type: text/plain; charset=utf-8", "Line one\r\nLine two =E2=80=94 done.",
+		"Content-Type: text/html; charset=utf-8", "Content-Id: <mark@roostack.cloud>", "Auto-Submitted: auto-generated"} {
 		if !strings.Contains(f.data, want) {
 			t.Errorf("message missing %q:\n%s", want, f.data)
 		}

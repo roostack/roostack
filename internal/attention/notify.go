@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/mailkit"
 )
 
 // Email notifications (SPEC.md §6.13): what needs a person, or happened
@@ -165,11 +166,13 @@ func (n *Notifier) Run(ctx context.Context) {
 	})
 }
 
-// notifyMail is what one person is told in one email.
+// notifyMail is what one person is told in one email. Fresh and still
+// are notices with their links and tones, for the HTML (mailkit).
 type notifyMail struct {
-	security, fresh, still, fixed []string
-	weekly                        string
-	keys                          []string // the notices in fresh and still
+	security, fixed []string
+	fresh, still    []mailkit.Item
+	weekly          string
+	keys            []string // the notices in fresh and still
 }
 
 func (m *notifyMail) empty() bool {
@@ -253,8 +256,8 @@ func (n *Notifier) Notify(ctx context.Context, now time.Time) error {
 		if m.empty() {
 			continue
 		}
-		subject, body := composeNotification(lab, u, m)
-		if err := n.Mail.Send(ctx, mail.Message{To: []string{u.Email}, Subject: subject, Body: body}); err != nil {
+		subject, e := composeNotification(lab, u, m)
+		if err := n.Mail.Send(ctx, mail.Message{To: []string{u.Email}, Subject: subject, Body: e.Text(), HTML: &e}); err != nil {
 			n.Log.Error("notifications: sending", "user", u.Username, "err", err)
 			continue
 		}
@@ -339,15 +342,23 @@ func (n *Notifier) followProblems(ctx context.Context, lab *Lab, u *store.User, 
 		}
 		nt.GoneSince = time.Time{} // back (or never gone): not fixed
 		nt.Text = it.Text + lab.linkLine(it.Link)
+		item := mailkit.Item{Text: it.Text, LinkText: it.LinkText, Tone: mailkit.Warn}
+		if it.Level == Problem {
+			item.Tone = mailkit.Bad
+		}
+		if lab.linkLine(it.Link) != "" {
+			item.URL = lab.uiURL(it.Link)
+		}
 		delay := notifyDelay
 		if waiting {
 			delay = notifyWaitingDelay
 		}
 		switch {
 		case nt.SentAt.IsZero() && now.Sub(nt.FirstSeen) >= delay:
-			m.fresh, m.keys = append(m.fresh, nt.Text), append(m.keys, key)
+			m.fresh, m.keys = append(m.fresh, item), append(m.keys, key)
 		case !nt.SentAt.IsZero() && now.Sub(nt.SentAt) >= notifyRemind:
-			m.still = append(m.still, nt.Text+"\n  (since "+nt.FirstSeen.Local().Format("2 January at 15:04")+")")
+			item.Detail = "(since " + nt.FirstSeen.Local().Format("2 January at 15:04") + ")"
+			m.still = append(m.still, item)
 			m.keys = append(m.keys, key)
 		}
 		if err := n.Store.SaveNotice(ctx, u.ID, nt); err != nil {
@@ -420,37 +431,47 @@ func (lab *Lab) linkLine(path string) string {
 	return ""
 }
 
-// composeNotification writes one person's email.
-func composeNotification(l *Lab, u *store.User, m *notifyMail) (subject, body string) {
+// composeNotification writes one person's email: its subject, and what
+// it says, as plain text (Text) and HTML, a section per kind of notice
+// in its status colour.
+func composeNotification(l *Lab, u *store.User, m *notifyMail) (subject string, e mailkit.Email) {
 	lab := l.LabName
 	if lab == "" {
 		lab = "Your lab"
 	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "Hello %s,\n\n", u.Username)
-	section := func(title string, lines []string) {
-		if len(lines) == 0 {
-			return
-		}
-		b.WriteString(title + "\n\n")
+	e = mailkit.Email{Brand: mailkit.Roostack, Heading: lab, Blocks: []mailkit.Block{mailkit.Paragraph("Hello " + u.Username + ",")}}
+	plain := func(lines []string, tone mailkit.Tone) []mailkit.Item {
+		var out []mailkit.Item
 		for _, l := range lines {
-			b.WriteString("- " + l + "\n")
+			out = append(out, mailkit.Item{Text: l, Tone: tone})
 		}
-		b.WriteString("\n")
+		return out
 	}
-	section("Security:", m.security)
-	section("Needs attention:", m.fresh)
-	section("Still needs attention:", m.still)
-	section("Fixed:", m.fixed)
+	section := func(title string, tone mailkit.Tone, items []mailkit.Item) {
+		if len(items) > 0 {
+			e.Blocks = append(e.Blocks, mailkit.Section{Title: title, Tone: tone, Items: items})
+		}
+	}
+	section("Security", mailkit.Highlight, plain(m.security, mailkit.Highlight))
+	section("Needs attention", mailkit.Bad, m.fresh)
+	section("Still needs attention", mailkit.Warn, m.still)
+	section("Fixed", mailkit.OK, plain(m.fixed, mailkit.OK))
 	if m.weekly != "" {
-		b.WriteString("This week:\n\n" + m.weekly + "\n")
+		e.Blocks = append(e.Blocks, mailkit.Section{Title: "This week"})
+		e.Blocks = append(e.Blocks, mailkit.FromText(m.weekly)...)
 	}
-	fmt.Fprintf(&b, "-- \nRoostack, for %s.", lab)
+	e.Footer = []mailkit.Block{mailkit.Paragraph("Roostack, for " + lab + ".")}
 	if link := l.uiURL("/account/notifications"); link != "" {
-		fmt.Fprintf(&b, "\nChoose which emails you get: %s", link)
+		e.Footer = append(e.Footer, mailkit.Link{Label: "Choose which emails you get", URL: link})
 	}
-	b.WriteString("\n")
 
+	texts := func(items []mailkit.Item) []string {
+		var out []string
+		for _, it := range items {
+			out = append(out, it.Text)
+		}
+		return out
+	}
 	headline := func(prefix string, lines []string) string {
 		t := words.FirstLine(lines[0])
 		if len(t) > 80 {
@@ -465,13 +486,13 @@ func composeNotification(l *Lab, u *store.User, m *notifyMail) (subject, body st
 	case len(m.security) > 0:
 		subject = headline("Security: ", m.security)
 	case len(m.fresh) > 0:
-		subject = headline("Needs attention: ", m.fresh)
+		subject = headline("Needs attention: ", texts(m.fresh))
 	case len(m.still) > 0:
-		subject = headline("Still needs attention: ", m.still)
+		subject = headline("Still needs attention: ", texts(m.still))
 	case len(m.fixed) > 0:
 		subject = headline("Fixed: ", m.fixed)
 	default:
 		subject = "This week"
 	}
-	return "[" + lab + "] " + subject, b.String()
+	return "[" + lab + "] " + subject, e
 }

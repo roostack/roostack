@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -776,7 +777,7 @@ func TestRoundTrip(t *testing.T) {
 			if got := rec.take(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("the server's node was asked\n %#v\nwant\n %#v", got, tt.want)
 			}
-			if !reflect.DeepEqual(out, tt.out) {
+			if !sameAnswer(out, tt.out) {
 				t.Errorf("answer\n %#v\nwant\n %#v", out, tt.out)
 			}
 		})
@@ -913,4 +914,22 @@ func TestRoundTripWithout(t *testing.T) {
 			t.Errorf("%s: %v, want not found", name, err)
 		}
 	}
+}
+
+// sameAnswer reports whether an answer is what the row wants. A time
+// that came over the wire is the same instant as the row's but may carry
+// another *time.Location: on a host whose zone is UTC (CI's), JSON's
+// "Z" decodes as time.UTC where the row says time.Local, which
+// reflect.DeepEqual counts as different. So answers of the same type
+// that encode the same are the same.
+func sameAnswer(got, want any) bool {
+	if reflect.DeepEqual(got, want) {
+		return true
+	}
+	if reflect.TypeOf(got) != reflect.TypeOf(want) {
+		return false
+	}
+	g, err1 := json.Marshal(got)
+	w, err2 := json.Marshal(want)
+	return err1 == nil && err2 == nil && bytes.Equal(g, w)
 }

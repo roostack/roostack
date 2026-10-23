@@ -27,6 +27,7 @@ Each SVG comes in three versions:
 - `internal/web/brandmark.go`: the small mark for the top bar, coloured by the `bm-*` classes in `app.css` so it follows the user's theme.
 - `internal/web/static/favicon.svg`, `favicon.ico`, `apple-touch-icon.png`: linked from every page.
 - `help/docs/assets/logo.svg`: the help site's logo and favicon.
+- `mailkit/mark.png`, `mailkit/mark-cloud.png`: the small marks (Roostack's and Roostack Cloud's, light, 96px) embedded in emails, which can't show SVG.
 
 ## Colours
 
