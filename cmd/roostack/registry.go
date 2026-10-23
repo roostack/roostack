@@ -175,8 +175,16 @@ func registryIndex(args []string) error {
 	if err != nil {
 		return err
 	}
+	warnings := 0
 	opts := registry.BuildOptions{Repo: *repo, Out: *out, Key: key, Roots: roots, Commit: *commit,
-		Platforms: imagecheck.Platforms, Now: time.Now()}
+		Platforms: imagecheck.Platforms, Now: time.Now(), Warn: func(msg string) {
+			warnings++
+			if os.Getenv("GITHUB_ACTIONS") == "true" {
+				fmt.Println("::warning::" + msg) // an annotation on the run
+				return
+			}
+			fmt.Fprintln(os.Stderr, "roostack: warning:", msg)
+		}}
 	if *noImages {
 		opts.Platforms = nil
 	}
@@ -189,6 +197,11 @@ func registryIndex(args []string) error {
 		versions += len(p.Versions)
 	}
 	if *check {
+		if warnings > 0 {
+			fmt.Printf("Checked %d packages, %d versions: fine, with %d %s\n", len(ix.Packages), versions, warnings,
+				map[bool]string{true: "warning", false: "warnings"}[warnings == 1])
+			return nil
+		}
 		fmt.Printf("Checked %d packages, %d versions: all fine\n", len(ix.Packages), versions)
 		return nil
 	}

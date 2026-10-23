@@ -6,6 +6,7 @@ package imagecheck
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -28,6 +29,11 @@ func Platforms(ref string) ([]string, error) {
 	}
 	return IndexPlatforms(m[1], m[2], m[3])
 }
+
+// ErrGone: the registry no longer has the image (it answered 404 for its
+// digest), as when a project rebuilds a tag and the registry deletes the
+// image the tag pointed to before.
+var ErrGone = errors.New("the image is gone from its registry")
 
 // IndexPlatforms fetches an image index (a multi-arch manifest) and returns
 // its platforms as os/architecture. A digest that isn't an index is an error:
@@ -56,6 +62,9 @@ func IndexPlatforms(registry, repo, digest string) ([]string, error) {
 		}
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("registry answered %s: %w", resp.Status, ErrGone)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("registry answered %s", resp.Status)
 	}

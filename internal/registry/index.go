@@ -138,6 +138,10 @@ type Version struct {
 	// for; empty when it didn't check.
 	Architectures []string    `json:"architectures,omitempty"`
 	Withdrawn     *Withdrawal `json:"withdrawn,omitempty"`
+	// ImageGone: an image this version pins is gone from its registry
+	// (an older version's: the newest's fails the build). Labs running it
+	// keep their copy, but it's never offered to install.
+	ImageGone bool `json:"image_gone,omitempty"`
 }
 
 // Withdrawal levels (SPEC.md §8.3.4).
@@ -283,7 +287,7 @@ func (p *Package) Offer(roostack string, arches ...string) (string, *Version, bo
 	}
 	best := ""
 	for version, v := range p.Versions {
-		if v.Withdrawn.Blocks() || !pkgspec.RunsOn(v.RequiresRoostack, roostack) {
+		if v.Withdrawn.Blocks() || v.ImageGone || !pkgspec.RunsOn(v.RequiresRoostack, roostack) {
 			continue
 		}
 		if !v.RunsOnAny(arches) {
@@ -337,7 +341,7 @@ func (p *Package) NeedsRoostack(roostack string, arches ...string) string {
 	}
 	best := ""
 	for version, v := range p.Versions {
-		if v.Withdrawn.Blocks() || !v.RunsOnAny(arches) {
+		if v.Withdrawn.Blocks() || v.ImageGone || !v.RunsOnAny(arches) {
 			continue
 		}
 		if best == "" || pkgspec.CompareVersions(version, best) > 0 {

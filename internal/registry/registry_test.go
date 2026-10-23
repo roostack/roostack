@@ -4,16 +4,19 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/imagecheck"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/state"
 )
@@ -591,5 +594,54 @@ func TestFetchStatusUnwritable(t *testing.T) {
 	st := f.Status()
 	if !st.NoRootKey || !strings.Contains(st.Error, "no registry root key") || st.Checked.IsZero() || st.Fetching {
 		t.Errorf("status %+v", st)
+	}
+}
+
+// An older version's image gone from its registry (a project rebuilt the
+// tag) is a warning, not a failure: the version is kept, without
+// architectures, marked ImageGone, and never offered. The newest
+// version's image gone fails the build, since it's what labs install.
+func TestBuildImageGone(t *testing.T) {
+	r := newTestRegistry(t)
+	data, _ := os.ReadFile(filepath.Join(r.repo, "packages", "vaultwarden", "1.34.3-roostack.1.yaml"))
+	old := regexp.MustCompile(`docker\.io/vaultwarden/server:[^\s]+`).FindString(string(data))
+	newer := strings.Replace(strings.Replace(string(data), "version: 1.34.3-roostack.1", "version: 1.34.4-roostack.1", 1),
+		old, "docker.io/vaultwarden/server:1.34.4@sha256:"+strings.Repeat("ab", 32), 1)
+	r.write("packages/vaultwarden/1.34.4-roostack.1.yaml", newer)
+	gone := old
+	var warnings []string
+	build := func() (*Index, error) {
+		return Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now, Warn: func(m string) { warnings = append(warnings, m) },
+			Platforms: func(image string) ([]string, error) {
+				if image == gone {
+					return nil, fmt.Errorf("registry answered 404 Not Found: %w", imagecheck.ErrGone)
+				}
+				if strings.Contains(image, "server:1.34.4") {
+					return []string{"linux/amd64"}, nil
+				}
+				return []string{"linux/amd64", "linux/arm64"}, nil
+			}})
+	}
+	ix, err := build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	vs := ix.Packages["vaultwarden"].Versions
+	if !vs["1.34.3-roostack.1"].ImageGone || len(vs["1.34.3-roostack.1"].Architectures) != 0 || vs["1.34.4-roostack.1"].ImageGone ||
+		len(warnings) != 1 || !strings.Contains(warnings[0], "packages/vaultwarden/1.34.3-roostack.1.yaml: "+old+": registry answered 404") ||
+		!strings.Contains(warnings[0], "labs will keep running it, but won't be offered it") {
+		t.Fatalf("versions: %+v %+v, warnings %q", vs["1.34.3-roostack.1"], vs["1.34.4-roostack.1"], warnings)
+	}
+	// Without architectures it would count as running anywhere: an arm64
+	// lab is offered nothing rather than the version whose image is gone.
+	if v, _, _ := ix.Packages["vaultwarden"].Offer("dev", "arm64"); v != "" {
+		t.Errorf("arm64 offered %q", v)
+	}
+	if v, _, _ := ix.Packages["vaultwarden"].Offer("dev", "amd64"); v != "1.34.4-roostack.1" {
+		t.Errorf("amd64 offered %q", v)
+	}
+	gone = "docker.io/vaultwarden/server:1.34.4@sha256:" + strings.Repeat("ab", 32)
+	if _, err := build(); err == nil || !strings.Contains(err.Error(), "1.34.4-roostack.1.yaml: "+gone+": registry answered 404") {
+		t.Errorf("the newest version's image gone: %v", err)
 	}
 }
