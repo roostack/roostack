@@ -96,6 +96,14 @@ const (
 	AuditPublicOpened = "public access opened"
 )
 
+// A pause at Roostack Cloud's relay's edges (SPEC.md §6.16), in the audit
+// log: what it covers, and how the detail ends when the lab heard of it
+// from Cloud (placed or lifted on Cloud's website).
+const (
+	RelayPauseWhat = "everything coming through Roostack Cloud's relay"
+	ViaCloud       = " via Roostack Cloud"
+)
+
 // Timing: a problem is emailed once it has lasted notifyDelay, something
 // waiting once it has waited notifyWaitingDelay; reminders come every
 // notifyRemind.
@@ -275,6 +283,11 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 	if e.Username == "system" || strings.HasSuffix(e.Detail, "via command line") {
 		by = "from the server's command line"
 	}
+	if strings.HasSuffix(e.Detail, ViaCloud) {
+		by = "from Roostack Cloud's website"
+	}
+	// What a pause covers.
+	paused := strings.TrimSuffix(strings.TrimSuffix(e.Detail, " via command line"), ViaCloud)
 	first := func() string { // the account an action was on: "sam (admin)" → sam
 		f := strings.FieldsFunc(e.Detail, func(r rune) bool { return r == ' ' || r == ':' })
 		if len(f) == 0 {
@@ -313,7 +326,11 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 	case AuditGuestJoined:
 		return "", "Another lab started storing its backups here: " + e.Detail + " (" + when + ").", ""
 	case AuditPublicPaused:
-		return "", "Public access to " + strings.TrimSuffix(e.Detail, " via command line") + " was paused " + by + " (" + when + "). Visitors from the internet are seeing a page " +
+		if paused == RelayPauseWhat {
+			return "", "Public access to " + paused + " was paused " + by + " (" + when + "). Visitors from the internet are getting a connection " +
+				"error, and everything is still working at home.", ""
+		}
+		return "", "Public access to " + paused + " was paused " + by + " (" + when + "). Visitors from the internet are seeing a page " +
 			"saying it's closed for a while, and it's still working at home.", ""
 	case manager.AuditAdvisoryPaused:
 		svc, what, _ := strings.Cut(e.Detail, ": ")
@@ -327,7 +344,7 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 		svc, what, _ := strings.Cut(e.Detail, ": ")
 		return "", "The service registry warns of a security problem in " + svc + " (" + when + "): " + what + ".", ""
 	case AuditPublicOpened:
-		return "", "Public access to " + strings.TrimSuffix(e.Detail, " via command line") + " was opened again " + by + " (" + when + ").", ""
+		return "", "Public access to " + paused + " was opened again " + by + " (" + when + ").", ""
 	}
 	return "", "", ""
 }

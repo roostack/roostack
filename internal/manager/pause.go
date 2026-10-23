@@ -119,22 +119,27 @@ func (m *Manager) PublicPauses() (PublicPauses, error) {
 	if err != nil && len(services) == 0 {
 		return PublicPauses{}, err
 	}
-	pp := PublicPausesOf(m.labNow(), services)
-	advs := m.advisories(context.Background(), m.labNow(), services)
-	for i := range pp.Services {
-		for _, a := range advs[pp.Services[i].Name] {
-			if a.Paused {
-				pp.Services[i].Advisory = a
-				break
-			}
-		}
-	}
+	pp := PublicPausesOf(m.labNow(), services).WithAdvisories(m.advisories(context.Background(), m.labNow(), services))
 	if m.RegistryIndex != nil {
 		if ix, err := m.RegistryIndex(); err == nil {
 			pp = pp.WithTitles(ix)
 		}
 	}
 	return pp, nil
+}
+
+// WithAdvisories marks the services an advisory pauses, from advs (by
+// service name, as AdvisoriesOf).
+func (a PublicPauses) WithAdvisories(advs map[string][]*ServiceAdvisory) PublicPauses {
+	for i := range a.Services {
+		for _, adv := range advs[a.Services[i].Name] {
+			if adv.Paused {
+				a.Services[i].Advisory = adv
+				break
+			}
+		}
+	}
+	return a
 }
 
 // builtWithTitle is a built-with name as people write it (the registry's

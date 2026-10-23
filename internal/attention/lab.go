@@ -113,6 +113,7 @@ type Cloud interface {
 	Status() cloud.Status
 	RelayName() (string, *cloudapi.RelayDomain)
 	RelayStanding() (turnedOff time.Time, suspended string)
+	RelayPaused() time.Time
 }
 
 // Registry keeps the catalog up to date with the service registry.

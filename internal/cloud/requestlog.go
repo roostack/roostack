@@ -55,10 +55,13 @@ var recordedFields = map[string]bool{
 	"secret": false,
 	// LabReport and its ServerBackup.
 	"emails": true, "backups": true, "server": true, "last": true,
+	// LabReport's PublicPaused: how many services are paused and since
+	// when, never which (SPEC.md §6.16).
+	"paused": true, "services": true, "since": true,
 	// RelayRequest (public_key is the lab's WireGuard public key),
 	// RelayCountries, RelayBans.
 	"public_key": true, "hosts": true, "countries": true, "allow": true, "block": true,
-	"open_until": true, "time_zone": true, "domain": true, "turn_on": true, "bans": true,
+	"open_until": true, "time_zone": true, "domain": true, "turn_on": true, "resume": true, "bans": true,
 	// StorageRequest.
 	"purpose": true,
 	// RecoveryIdentity, RestoreChallengeRequest, RestoreProof and

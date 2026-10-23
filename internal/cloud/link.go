@@ -84,6 +84,9 @@ type Service struct {
 	// triedName is the roost.ac name an attempt that didn't link asked
 	// for (failed, expired, or cancelled here or in Cloud).
 	triedName string
+	// registryNews is called with what Cloud says of the registry
+	// (news.go).
+	registryNews func(serial int64)
 
 	// UseName makes a claimed roost.ac name the lab's address (it saves
 	// it and restarts Roostack); called when a link asked for a name.
@@ -108,6 +111,10 @@ type Service struct {
 	// the relay's WireGuard dials them: the lab applies again, so Caddy
 	// and the firewall know the new edges' relay addresses.
 	EdgesChanged func()
+	// RelayPausedChanged is called when Cloud's answer says the lab's
+	// account paused public access at the relay's edges from Cloud's
+	// website (true), or lifted the pause there (false).
+	RelayPausedChanged func(paused bool)
 	// Report is what the lab tells Cloud after each check-in (its own
 	// email recipients, its servers' last backups to Cloud; report.go);
 	// nil: nothing.

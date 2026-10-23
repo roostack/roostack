@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
+	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -92,5 +95,23 @@ func TestPublicCmd(t *testing.T) {
 		": everything, services built with php and rust and Vaultwarden via command line"
 	if strings.Join(got, "|") != want {
 		t.Errorf("audit:\n%q", got)
+	}
+	// Opening a service nobody paused changes nothing, and records nothing.
+	if err := run("resume", "-service", "vaultwarden"); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := st.AuditSince(context.Background(), 0); len(again) != len(entries) {
+		t.Errorf("nothing to open, but recorded: %+v", again[len(entries):])
+	}
+
+	// A pause Roostack placed for a security advisory: status says so.
+	file, _ := os.ReadFile(lab.Paths.LabPackageFile(p.Name, p.Version))
+	sum := sha256.Sum256(file)
+	ix := &registry.Index{Advisories: []*registry.Advisory{{ID: "2026-0007", Title: "Vaultwarden lets anyone read every vault.",
+		Severity: registry.SeverityCritical, Exploited: true, Published: "2026-10-22",
+		Affects: map[string]*registry.Affected{p.Name: {Versions: map[string]string{p.Version: hex.EncodeToString(sum[:])}}}}}}
+	pp = manager.PublicPausesOf(lab, services).WithAdvisories(manager.AdvisoriesOf(lab, ix, services))
+	if s := pauseStatus(pp); !strings.Contains(s, "Vaultwarden (vaultwarden): paused (by Roostack for security advisory 2026-0007: Vaultwarden lets anyone read every vault)") {
+		t.Errorf("an advisory's pause:\n%s", s)
 	}
 }

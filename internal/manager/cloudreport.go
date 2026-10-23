@@ -65,3 +65,35 @@ func (m *Manager) CloudBackups(ctx context.Context) ([]cloudapi.ServerBackup, er
 	}
 	return out, nil
 }
+
+// CloudPaused is how much of the lab's public access is paused, for the
+// lab's report to Cloud (SPEC.md §6.16): how many public services, and
+// since the earliest of their pauses.
+func (m *Manager) CloudPaused() (*cloudapi.PublicPaused, error) {
+	pp, err := m.PublicPauses()
+	if err != nil {
+		return nil, err
+	}
+	out := &cloudapi.PublicPaused{}
+	earliest := func(t time.Time) {
+		if !t.IsZero() && (out.Since.IsZero() || t.Before(out.Since)) {
+			out.Since = t
+		}
+	}
+	for _, s := range pp.PausedServices() {
+		out.Services++
+		if s.Own != nil {
+			earliest(s.Own.Since)
+		}
+		if s.ByAll {
+			earliest(pp.All.Since)
+		}
+		for _, b := range s.ByBuiltWith {
+			earliest(pp.BuiltWith[b].Since)
+		}
+		if s.Advisory != nil {
+			earliest(s.Advisory.Since)
+		}
+	}
+	return out, nil
+}

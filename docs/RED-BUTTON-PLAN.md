@@ -200,6 +200,58 @@ down.
 - **The outside check link** (`/.well-known/roostack-check/…`): blocked
   with the rest. It tests whether visitors get in, and they don't.
 
+### 2.6 The closed level — proposed for phase 3, waiting for the maintainer (2026-10-23)
+
+A pause relies on Caddy: Caddy answers outside visitors with the paused
+page. A problem in Caddy itself, or in Roostack, may be reachable before
+any route runs, so the page isn't enough. **Closed** keeps outside
+connections from reaching Caddy at all (§2.2's right-hand column).
+Phases 1 and 2 are built; this is what's left of phase 3 on the lab's
+side, and it needs the maintainer's answers first.
+
+- **Q18. What closes it.**
+  - *(Recommended)* Only a person, but an advisory about Caddy or
+    Roostack asks at once: a problem on Home and a Security email, each
+    with **Close public access completely…**. Roostack never closes by
+    itself, since on a lab on the internet closing also takes away
+    Roostack's own pages.
+  - Or by itself under the advisories setting, like a pause.
+- **Q19. How an advisory names Caddy or Roostack.** Each Roostack
+  release pins Caddy's build (`build/caddy`'s Containerfile), so:
+  - *(Recommended)* an advisory's `affects` may name `roostack` with the
+    affected Roostack releases and the fixed one. A Roostack patch
+    release installs itself (SPEC §7.2), so the fix usually arrives on
+    its own, and closing lifts by itself once the lab runs it, as a
+    pause does after an update.
+  - Or a separate `front_door: caddy | roostack` field with Caddy's own
+    versions, which the lab would have to map to its build.
+- **Q20. What closing covers.** Always everything: Caddy is shared, so
+  closing one service would protect nothing. *(Recommended.)*
+- **Q21. Each way in:**
+  - port forwarding: the controller's firewall refuses new connections
+    to 80 and 443 from outside the home network and the lab's VPN
+    (a refusal, so visitors get an error at once rather than waiting);
+  - the lab's own edge: its config leaves the lab's names out;
+  - Roostack Cloud's relay: the lab's firewall refuses the edges'
+    connections too, and the lab asks Cloud to pause at the edges (a new
+    `RelayRequest.Pause`, beside today's `Resume`), so it works even
+    where Cloud is from before it;
+  - a lab on the internet: the same firewall rule, so Roostack's own
+    pages are reachable only through the lab's VPN or an SSH tunnel.
+    The confirmation says so and shows the tunnel's command first.
+    *(Recommended, as question 5 answered: closed is a separate choice
+    that cuts Roostack's pages off.)*
+- **Q22. Lifting:** the Owner, from Settings → Public access or with
+  `roostack public resume -closed` on the controller (the way back in
+  on a lab on the internet). *(Recommended.)*
+
+**Built on the lab for phase 3 so far (2026-10-23):** the nudge (§9 item
+1: `News` and `Relay.Registry`, `GET /v1/lab/news` every 5 minutes for a
+linked lab that isn't relayed), and the lab's side of pausing at the
+relay's edges (§9 item 2: `Relay.Paused`, shown on Home and Settings →
+Public access, emailed, and lifted by the Owner with
+`RelayRequest.Resume`). Cloud's side of both is in Cloud's repository.
+
 ## 3. What the button covers
 
 | Scope | For | Proposed |

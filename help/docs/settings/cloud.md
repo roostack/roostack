@@ -78,7 +78,7 @@ restore is still linked.
 ## What your lab tells Roostack Cloud each day
 
 After it checks in each day, your lab tells Roostack Cloud its name (as it
-is now, in Settings → Lab name) and two more things, and nothing else:
+is now, in Settings → Lab name) and three more things, and nothing else:
 
 - **The email addresses of the people here who get the lab's problems**
   (each person's address on their account page, if they get **Problems**:
@@ -92,6 +92,9 @@ is now, in Settings → Lab name) and two more things, and nothing else:
 - **Each server's last backup to Roostack Cloud**, if it backs up there,
   with the server's name, so your lab's page on Roostack Cloud can show
   it.
+- **Whether public access is paused**: how many public services are paused
+  and since when, never which ones or why (see [Pausing public
+  access](../services/public.md#pausing-public-access)).
 
 **Emails to** on the page lists each address and how it stands: getting
 Roostack Cloud's emails, not confirmed yet (and when Roostack Cloud emailed

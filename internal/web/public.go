@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
@@ -331,6 +332,9 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 				data["RelayOff"] = off
 			}
 			data["RelaySuspended"] = suspended
+			if at := s.Cloud.RelayPaused(); !at.IsZero() {
+				data["RelayPaused"] = at
+			}
 		}
 		if s.DNS != nil {
 			st := s.DNS.Status()
@@ -456,6 +460,22 @@ func (s *Server) publicRelayOn(w http.ResponseWriter, r *http.Request) {
 	s.Store.Audit(r.Context(), currentUser(r), "public access", "Roostack Cloud's relay turned on again")
 	s.refreshDNS()
 	redirect(w, r, "/settings/public?saved=relay-on#way-in")
+}
+
+// publicRelayResume lifts a pause the lab's account placed at the relay's
+// edges from Roostack Cloud's website (SPEC.md §6.16): the Owner's choice,
+// as lifting any pause is.
+func (s *Server) publicRelayResume(w http.ResponseWriter, r *http.Request) {
+	if s.Cloud == nil || !s.Manager.RelayOn() {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.Cloud.ResumeRelay(r.Context()); err != nil {
+		redirect(w, r, "/settings/public?relay_error="+url.QueryEscape(cloudMessage(err))+"#way-in")
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), attention.AuditPublicOpened, attention.RelayPauseWhat)
+	redirect(w, r, "/settings/public?saved=relay-resumed#way-in")
 }
 
 // publicCountriesSubmit sets who the relay lets in by country: anyone,

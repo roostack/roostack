@@ -54,7 +54,9 @@ func publicCmd(args []string) error {
 	// The roostack user's files are changed as that user; root only
 	// restarts the service (asroostack.go).
 	if os.Geteuid() == 0 {
-		if err := runAsRoostack(append([]string{"public"}, args...)); err != nil {
+		if err := runAsRoostack(append([]string{"public"}, args...)); errors.Is(err, nothingChanged) {
+			return nil
+		} else if err != nil {
 			return err
 		}
 		if sub == "status" {
@@ -87,7 +89,7 @@ func publicCmd(args []string) error {
 	// Titles of built-with names, from the registry's index the lab
 	// fetched last (none before the first).
 	ix, _ := (&registry.Fetcher{Dir: lab.Paths.CatalogDir}).Index()
-	pp := manager.PublicPausesOf(lab, installed).WithTitles(ix)
+	pp := manager.PublicPausesOf(lab, installed).WithAdvisories(manager.AdvisoriesOf(lab, ix, installed)).WithTitles(ix)
 	if sub == "status" {
 		fmt.Print(pauseStatus(pp))
 		return nil
@@ -109,6 +111,28 @@ func publicCmd(args []string) error {
 	}
 	if err != nil {
 		return err
+	}
+	// Only the Owner's choice on the service's page, or an update, ends a
+	// pause Roostack placed for an advisory.
+	stays := func() {
+		for _, s := range pp.Services {
+			if s.Advisory != nil && (req.All || slices.Contains(req.Services, s.Name) || slices.ContainsFunc(s.BuiltWith, func(b string) bool { return slices.Contains(req.BuiltWith, b) })) {
+				say("%s will stay paused for security advisory %s until it's updated, or you choose Keep it public anyway on its page.", s.Title, s.Advisory.ID)
+			}
+		}
+	}
+	if sub == "resume" && !req.All && len(req.BuiltWith) == 0 && !slices.ContainsFunc(named, func(s state.Service) bool { return s.Instance.PublicPause != nil }) {
+		// Nothing a person paused: say why each is paused, if it is.
+		for _, s := range named {
+			if i := slices.IndexFunc(pp.Services, func(ps manager.PublicService) bool { return ps.Name == s.Name() }); i < 0 || !pp.Services[i].Paused() {
+				say("%s isn't paused.", s.Title())
+			}
+		}
+		stays()
+		if fromRoot() {
+			return nothingChanged // root needn't tell Roostack
+		}
+		return nil
 	}
 	var pause *config.Pause
 	if sub == "pause" {
@@ -143,11 +167,18 @@ func publicCmd(args []string) error {
 		fmt.Fprintf(os.Stderr, "roostack: couldn't record it in the history: %v\n", err)
 	}
 	say("%s.", done)
+	if pause == nil {
+		stays()
+	}
 	if !fromRoot() {
 		say("Tell Roostack to apply the change: sudo systemctl kill --signal=HUP --kill-whom=main roostack")
 	}
 	return nil
 }
+
+// nothingChanged is the exit status of roostack public, re-run as the
+// roostack user by root, when it changed nothing for Roostack to apply.
+const nothingChanged = exitStatus(3)
 
 // servicesNamed are the named services of all.
 func servicesNamed(all []state.Service, names []string) ([]state.Service, error) {
@@ -194,6 +225,9 @@ func pauseStatus(pp manager.PublicPauses) string {
 					bw = append(bw, pp.Title(n))
 				}
 				why = append(why, "built with "+words.And(bw))
+			}
+			if a := s.Advisory; a != nil {
+				why = append(why, fmt.Sprintf("by Roostack for security advisory %s: %s", a.ID, strings.TrimRight(a.Title, ".")))
 			}
 			state = "paused (" + strings.Join(why, "; ") + ")"
 		}

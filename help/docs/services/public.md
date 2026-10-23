@@ -137,6 +137,18 @@ If Roostack Cloud has **suspended** the relay (after an abuse report),
 the page will say why, and there'll be no button: Roostack Cloud emailed
 the account's Owner how to appeal.
 
+### Paused in Roostack Cloud
+
+Your Roostack Cloud account's page can also pause public access at the
+relay, even while your lab is off or not working properly. The relay will
+then turn visitors from the internet away with a connection error rather
+than a page, and your addresses will keep pointing at the relay, so there
+won't be another way in. Your lab will hear it from Roostack Cloud within
+a few minutes: Home and **Settings → Public access** will say so, and the
+Owners will get an email. It will stay paused until someone opens it again,
+with **Open it again** in **Settings → Public access** (Owners) or on your
+Roostack Cloud account's page.
+
 ### Visitors through the relay
 
 While the relay is on, **Settings → Public access** (or, for Admins,
@@ -366,9 +378,11 @@ weekly summary will keep saying what's paused until then.
 
 The service registry's maintainers publish a warning when a security
 problem affects a service in the registry, naming the versions affected
-and the version that fixes it. Roostack checks for them every hour, and
-what it will do about one is your choice, in **Settings → Public
-access**:
+and the version that fixes it. Roostack checks for them every hour (if
+your lab is linked to Roostack Cloud, Cloud will also tell it within a few
+minutes when the registry has something new, and Roostack will check at
+once), and what it will do about one is your choice, in **Settings →
+Public access**:
 
 - **Tell me**: Roostack will show it on Home and email the Owners, and
   won't pause anything by itself.
@@ -423,6 +437,15 @@ Roostack will tell you it may be affected.
       will be emailed), and tells the running Roostack to apply it at
       once (with a SIGHUP, so nothing running stops); if Roostack isn't
       running, it applies it to that server's own services itself.
+      `status` lists what Roostack paused for a warning too; `resume`
+      can't open those: update the service, or choose **Keep it public
+      anyway** on its page.
+    - Linked to Roostack Cloud, your lab asks Cloud every 5 minutes which
+      registry index is the newest it has seen (`GET /v1/lab/news`; a
+      relayed lab hears it in the relay's answer instead), and fetches
+      the registry at once when it's newer than its own. Cloud only says
+      when to look: your lab fetches the signed index from the registry
+      and checks it as always.
 
 ## Making it private again
 
