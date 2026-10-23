@@ -445,7 +445,7 @@
   const parts = [
     { id: "name", title: "Name and version", fields: [["title"], ["name"], ["description"], ["version"]] },
     { id: "about", title: "The project", fields: [["about", "maker"], ["about", "source"], ["about", "website"], ["about", "licence"], "logo", ["about", "categories"],
-      ["about", "keywords"], ["about", "releases"], ["about", "support"], ["requires", "roostack"]] },
+      ["about", "keywords"], ["built_with"], ["about", "releases"], ["about", "support"], ["requires", "roostack"]] },
     { id: "containers", title: "Containers", map: ["containers"], add: "Add a container",
       fields: ["image", "memory", "env", "secrets", "mounts", "health", "depends_on"], more: ["command", "devices", "when", "quadlet"] },
     { id: "storage", title: "Data", map: ["storage"], add: "Add storage", fields: ["title", "class", "location"] },
@@ -692,7 +692,7 @@
     function addIt() {
       const v = input.value.trim();
       if (!v) return;
-      for (const part of f.item.type === "string" && /keywords|categories/.test(pathKey(path)) ? v.split(/\s*,\s*/) : [v]) {
+      for (const part of f.item.type === "string" && /keywords|categories|built_with/.test(pathKey(path)) ? v.split(/\s*,\s*/) : [v]) {
         if (part) append(path, f.item.type === "int" && /^\d+$/.test(part) ? Number(part) : part);
       }
       written(true);

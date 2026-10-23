@@ -21,6 +21,7 @@ about:
   icon: icon.png
   categories: [documents]
   keywords: [pdf, merge, split, convert, compress, sign, ocr]
+built_with: [java, spring]
 requires:
   roostack: "0.1"
 

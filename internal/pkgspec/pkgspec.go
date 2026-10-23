@@ -5,7 +5,10 @@ package pkgspec
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -24,6 +27,13 @@ type Package struct {
 	Version     string   `yaml:"version"`
 	About       About    `yaml:"about"`
 	Requires    Requires `yaml:"requires"`
+	// BuiltWith names what the app is built on (PHP, Laravel, Log4j), as
+	// short names from the list the service registry keeps (SPEC.md
+	// §6.16): what pausing public access by what services are built with
+	// matches, and what the service's page shows. Not a bill of materials:
+	// the registry's CI finds exact versions with Syft. Its databases are
+	// added from databases: (BuiltWithNames).
+	BuiltWith []string `yaml:"built_with"`
 	// UpgradeNotes are shown before a service updates to this version
 	// (SPEC.md §8.3.5).
 	UpgradeNotes []UpgradeNote         `yaml:"upgrade_notes"`
@@ -193,6 +203,25 @@ type Mount struct {
 	Libraries bool   `yaml:"libraries"`
 	Path      string `yaml:"path"`
 	ReadOnly  bool   `yaml:"readonly"`
+}
+
+// BuiltWithNames is what the service is built with (SPEC.md §6.16): the
+// package's built_with:, then what its databases add, since Roostack runs
+// them and knows what they are. A redis database is valkey on Roostack's
+// own image, as it is on a package's image that names Valkey.
+func (p *Package) BuiltWithNames() []string {
+	out := slices.Clone(p.BuiltWith)
+	for _, name := range slices.Sorted(maps.Keys(p.Databases)) {
+		d := p.Databases[name]
+		b := d.Type
+		if b == DBRedis && (d.Image == "" || strings.Contains(d.Image, "valkey")) {
+			b = "valkey"
+		}
+		if b != "" && !slices.Contains(out, b) {
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 // ReadsLibraries says whether any of the package's containers mounts the

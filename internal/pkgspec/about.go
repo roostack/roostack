@@ -97,8 +97,10 @@ func CategoryTitle(key string) string {
 const (
 	MaxCategories = 3
 	MaxKeywords   = 10
-	maxMaker      = 100
-	maxKeyword    = 40
+	// MaxBuiltWith keeps built_with: to what an app is built on.
+	MaxBuiltWith = 20
+	maxMaker     = 100
+	maxKeyword   = 40
 )
 
 // Requires says what a package needs to run (SPEC.md §8.3.5).
@@ -129,6 +131,9 @@ var (
 	// The release a running Roostack's version starts with: v0.6.0,
 	// 0.6.0-3-gabc1234 (git describe after a tag), 0.6.
 	runningVersionRe = regexp.MustCompile(`^v?([0-9]+)\.([0-9]+)(?:\.([0-9]+))?`)
+	// A name in built_with: (SPEC.md §6.16). Only its form is checked, since
+	// the list of names is the registry's, and a newer one can add names.
+	builtWithRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 	// A memory size: a number and a decimal unit (1 GB = 1000 MB, like
 	// the rest of Roostack: the units package).
 	memoryRe = regexp.MustCompile(`^([0-9]+(?:\.[0-9]+)?) ?(MB|GB)$`)
@@ -354,6 +359,18 @@ func (p *Package) validateAbout(v *validator) {
 			v.addf("about.keywords[%d]: %q is listed twice", i, k)
 		}
 		seen[strings.ToLower(k)] = true
+	}
+
+	if len(p.BuiltWith) > MaxBuiltWith {
+		v.addf("built_with: at most %d; name what the app is built on, not every library it uses", MaxBuiltWith)
+	}
+	for i, b := range p.BuiltWith {
+		if !builtWithRe.MatchString(b) {
+			v.addf("built_with[%d]: %q must be a short name such as php or log4j: lowercase letters, digits, and dashes, starting with a letter", i, b)
+		}
+		if slices.Index(p.BuiltWith, b) != i {
+			v.addf("built_with[%d]: %q is listed twice", i, b)
+		}
 	}
 
 	if r := p.Requires.Roostack; r != "" && !roostackVersionRe.MatchString(r) {

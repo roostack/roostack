@@ -38,6 +38,7 @@ about:                              # the project, credited in the catalog
   icon: icon.png                    # the logo, beside this file
   categories: [passwords]
   keywords: [password manager, bitwarden, two-factor, passkeys]
+built_with: [rust]                  # what the app is built on
 requires:
   roostack: "0.1"                   # the oldest Roostack it works with
 
@@ -125,6 +126,18 @@ routes:
       (Network).
     - `keywords`: up to ten words or short phrases people might search
       for.
+
+`built_with`
+:   What the app is built on, as short names: its language (`php`,
+    `node`, `python`, `java`, `go`, `rust`), its web server if it has
+    its own (`nginx`, `frankenphp`), and frameworks or libraries known
+    for security problems (`laravel`, `spring`, `log4j`, `imagemagick`).
+    Not every library it uses: up to twenty names, each lowercase
+    letters, digits and dashes. If one of them has a security problem,
+    the Owner will be able to pause public access to every service built
+    with it at once. Roostack will add the databases it runs for the app
+    by itself (`postgres`, `mysql`, `mariadb`, `sqlite`, and `valkey` for
+    a `redis` database on Roostack's own image).
 
 `requires`
 :   `roostack`: the oldest Roostack release the package works with, such as
