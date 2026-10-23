@@ -707,3 +707,34 @@ func TestRelayPaused(t *testing.T) {
 		t.Errorf("resumed: %v %v", s.RelayPaused(), changes)
 	}
 }
+
+// TestPauseRelay: closing public access completely (SPEC.md §6.16) asks
+// the relay's edges to close, every later request keeps asking, and
+// opening it again stops; it's never mistaken for a pause placed from
+// Cloud's website.
+func TestPauseRelay(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	s.WireGuard = &fakeWG{}
+	var changes []bool
+	s.RelayPausedChanged = func(paused bool) { changes = append(changes, paused) }
+	ctx := context.Background()
+	if err := s.PauseRelay(ctx, true); err != nil {
+		t.Fatal("not relayed: nothing to ask", err)
+	}
+	link(t, f, s, "")
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PauseRelay(ctx, true); err != nil || !f.RelayClosed {
+		t.Fatalf("closing: %v, asked %v", err, f.RelayClosed)
+	}
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test", "smiths.roost.test"}, config.Countries{}, "", ""); err != nil || !f.RelayClosed {
+		t.Errorf("a later request stopped asking: %v", err)
+	}
+	if err := s.PauseRelay(ctx, false); err != nil || f.RelayClosed {
+		t.Errorf("opening again: %v, asked %v", err, f.RelayClosed)
+	}
+	if !s.RelayPaused().IsZero() || len(changes) != 0 {
+		t.Errorf("the lab's own closing taken for Cloud's: %v %v", s.RelayPaused(), changes)
+	}
+}

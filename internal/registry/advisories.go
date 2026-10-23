@@ -57,6 +57,10 @@ type Advisory struct {
 	Link      string `json:"link,omitempty"`
 	// Affects are the registry's packages it affects, by name.
 	Affects map[string]*Affected `json:"affects"`
+	// Roostack: it's a problem in Roostack itself, or in the Caddy a
+	// Roostack release pins, which a pause's page can't keep visitors
+	// from (affects: roostack in the advisory's file).
+	Roostack *RoostackAffected `json:"roostack,omitempty"`
 	// Local: packages of an Owner's own built with BuiltWith may be
 	// affected too, so labs say so (never pausing them by themselves).
 	Local bool `json:"local,omitempty"`
@@ -69,6 +73,20 @@ type Affected struct {
 	Versions map[string]string `json:"versions"`
 	Fixed    string            `json:"fixed,omitempty"`
 }
+
+// RoostackAffected are the Roostack releases an advisory affects (each
+// pins its Caddy build, so a problem in Caddy names the releases with that
+// build), and the release that fixes it, if there's one. Labs never pause
+// or close by themselves for it: they ask the Owner to close public access
+// completely (SPEC.md §6.16).
+type RoostackAffected struct {
+	Versions []string `json:"versions"`
+	Fixed    string   `json:"fixed,omitempty"`
+}
+
+// AffectsRoostack is the name an advisory's file gives Roostack itself
+// in affects.
+const AffectsRoostack = "roostack"
 
 // advisoryFile is an advisory as the registry repository has it.
 type advisoryFile struct {
@@ -91,6 +109,8 @@ type advisoryFile struct {
 var (
 	advisoryIDRe = regexp.MustCompile(`^[0-9]{4}-[0-9]{4}$`)
 	cveRe        = regexp.MustCompile(`^CVE-[0-9]{4}-[0-9]{4,}$`)
+	// releaseRe is a Roostack release's version (docs/RELEASING.md).
+	releaseRe = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 )
 
 // readAdvisories reads the registry repository's advisories, turning
@@ -131,6 +151,10 @@ func readAdvisories(repo string, ix *Index) ([]*Advisory, error) {
 		}
 		for _, pkg := range slices.Sorted(maps.Keys(f.Affects)) {
 			af := f.Affects[pkg]
+			if pkg == AffectsRoostack {
+				a.Roostack = &RoostackAffected{Versions: af.Versions, Fixed: af.Fixed}
+				continue
+			}
 			p := ix.Packages[pkg]
 			if p == nil {
 				errs = append(errs, fmt.Errorf("%s: affects %s, which isn't in the registry", at, pkg))
@@ -191,8 +215,24 @@ func (a *Advisory) check() error {
 			errs = append(errs, fmt.Errorf("link: %q must be an https:// address", a.Link))
 		}
 	}
-	if len(a.Affects) == 0 && !a.Local {
+	if len(a.Affects) == 0 && a.Roostack == nil && !a.Local {
 		errs = append(errs, errors.New("affects: name the package versions it affects (or local: possibly for packages of the Owners' own)"))
+	}
+	if r := a.Roostack; r != nil {
+		if len(r.Versions) == 0 {
+			errs = append(errs, errors.New("affects roostack: name the Roostack releases it affects"))
+		}
+		for _, v := range r.Versions {
+			if !releaseRe.MatchString(v) {
+				errs = append(errs, fmt.Errorf("affects roostack: %q isn't a Roostack release, as 0.4.1", v))
+			}
+		}
+		if r.Fixed != "" && !releaseRe.MatchString(r.Fixed) {
+			errs = append(errs, fmt.Errorf("affects roostack: fixed %q isn't a Roostack release, as 0.4.2", r.Fixed))
+		}
+		if r.Fixed != "" && slices.Contains(r.Versions, r.Fixed) {
+			errs = append(errs, fmt.Errorf("affects roostack: %s is both affected and the fix", r.Fixed))
+		}
 	}
 	for pkg, aff := range a.Affects {
 		if !pkgspec.ValidName(pkg) || aff == nil || len(aff.Versions) == 0 {
@@ -225,6 +265,22 @@ func (ix *Index) Affecting(name, version string, file []byte) []*Advisory {
 	var out []*Advisory
 	for _, a := range ix.Advisories {
 		if aff := a.Affects[name]; aff != nil && aff.Versions[version] != "" && aff.Versions[version] == sum(file) {
+			out = append(out, a)
+		}
+	}
+	slices.SortStableFunc(out, func(x, y *Advisory) int { return strings.Compare(y.ID, x.ID) })
+	return out
+}
+
+// AffectingRoostack are the advisories that affect a Roostack release,
+// newest first.
+func (ix *Index) AffectingRoostack(version string) []*Advisory {
+	if ix == nil {
+		return nil
+	}
+	var out []*Advisory
+	for _, a := range ix.Advisories {
+		if a.Roostack != nil && slices.Contains(a.Roostack.Versions, version) {
 			out = append(out, a)
 		}
 	}

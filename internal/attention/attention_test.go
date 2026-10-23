@@ -32,6 +32,7 @@ type fakeManager struct {
 	withdraw   map[string]*manager.Withdrawal
 	pauses     manager.PublicPauses
 	advisories map[string][]*manager.ServiceAdvisory
+	roostack   []*manager.ServiceAdvisory
 }
 
 func (f *fakeManager) Servers() ([]manager.Server, error)                     { return f.servers, nil }
@@ -46,6 +47,9 @@ func (f *fakeManager) PublicHosts() []string                            { return
 func (f *fakeManager) PublicPauses() (manager.PublicPauses, error)      { return f.pauses, nil }
 func (f *fakeManager) Advisories(context.Context) map[string][]*manager.ServiceAdvisory {
 	return f.advisories
+}
+func (f *fakeManager) RoostackAdvisories(context.Context) []*manager.ServiceAdvisory {
+	return f.roostack
 }
 func (f *fakeManager) Edge(context.Context) (manager.EdgeServer, bool) {
 	return manager.EdgeServer{}, false

@@ -484,7 +484,7 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
-		"import", "import-folders", "photos", "photos-home", "photos-folders", "pause"} {
+		"import", "import-folders", "photos", "photos-home", "photos-folders", "pause", "pause-close"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs()).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -634,6 +634,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /pause", s.require(auth.ManageServices, s.pausePage))
 	mux.Handle("POST /pause", s.require(auth.ManageServices, s.pauseSubmit))
 	mux.Handle("POST /pause/lift", s.requireOwner(s.liftSubmit))
+	mux.Handle("GET /pause/close", s.require(auth.ManageServices, s.closePage))
+	mux.Handle("POST /pause/close", s.require(auth.ManageServices, s.closeSubmit))
 	mux.Handle("POST /settings/public/advisories", s.requireOwner(s.advisoryPolicySubmit))
 	mux.Handle("POST /services/{name}/public-anyway", s.requireOwner(s.keepPublicSubmit))
 	mux.Handle("POST /settings/public/sharing", s.requireOwner(s.publicSharingSubmit))

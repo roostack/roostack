@@ -3,6 +3,7 @@ package web
 import (
 	"cmp"
 	"context"
+	"net"
 	"net/http"
 	"slices"
 
@@ -24,6 +25,9 @@ type Pauses interface {
 	// service, what Roostack does about them (lab.yaml), and keeping a
 	// version public despite one.
 	Advisories(ctx context.Context) map[string][]*manager.ServiceAdvisory
+	// RoostackAdvisories are those affecting Roostack itself, for which
+	// the Owner may close public access completely.
+	RoostackAdvisories(ctx context.Context) []*manager.ServiceAdvisory
 	AdvisoryPolicy() string
 	SetAdvisoryPolicy(policy string) error
 	KeepPublicAnyway(ctx context.Context, name, id string) error
@@ -147,10 +151,55 @@ func pauseRequest(r *http.Request) manager.PauseRequest {
 	case "some":
 		req.Services = r.Form["service"]
 	default:
-		req.All = r.FormValue("all") == "yes"
+		req.All, req.Closed = r.FormValue("all") == "yes", r.FormValue("closed") == "yes"
 		req.BuiltWith, req.Services = r.Form["built_with"], r.Form["service"]
 	}
 	return req
+}
+
+// closePage is Close public access completely (SPEC.md §6.16): for a
+// security problem in Roostack itself or in Caddy, which a pause's page
+// can't keep visitors from. advisory names the advisory about Roostack it
+// was asked for from, if any. Owners and Admins can close, as they can
+// pause; on a lab on the internet it says first how to reach Roostack's
+// pages afterwards.
+func (s *Server) closePage(w http.ResponseWriter, r *http.Request) {
+	pp, err := s.Manager.PublicPauses()
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	data := s.pageData(r)
+	data["Closed"] = pp.Closed
+	for _, a := range s.Manager.RoostackAdvisories(r.Context()) {
+		if a.ID == r.FormValue("advisory") {
+			data["Advisory"] = a
+		}
+	}
+	s.addPublicUI(data)
+	data["Relay"] = s.Manager.RelayOn()
+	host := r.Host
+	if h, _, err := net.SplitHostPort(r.Host); err == nil {
+		host = h
+	}
+	data["TunnelHost"] = host
+	s.render(w, "pause-close", data)
+}
+
+// closeSubmit closes public access completely, records who did, and goes
+// back to Home, which will say so.
+func (s *Server) closeSubmit(w http.ResponseWriter, r *http.Request) {
+	u := currentUser(r)
+	if err := s.Manager.PausePublic(u.Username, manager.PauseRequest{Closed: true, Advisory: r.FormValue("advisory")}); err != nil {
+		if msg, ok := usererr.Message(err); ok {
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), u, attention.AuditPublicPaused, manager.ClosedWhat)
+	redirect(w, r, "/")
 }
 
 // pauseSubmit pauses what the form asks for, records who did, and goes
@@ -200,6 +249,9 @@ func (s *Server) liftSubmit(w http.ResponseWriter, r *http.Request) {
 // pauseDetail says what a pause or lift was about, for the audit log and
 // the Owners' email: "everything", "services built with php", "Lychee".
 func (s *Server) pauseDetail(req manager.PauseRequest) string {
+	if req.Closed {
+		return manager.ClosedWhat
+	}
 	var parts []string
 	if req.All {
 		parts = append(parts, "everything")

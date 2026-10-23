@@ -165,6 +165,60 @@ func AdvisoriesOf(lab config.Lab, ix *registry.Index, services []state.Service) 
 	return out
 }
 
+// roostackService is the name advisories about Roostack itself are
+// recorded under (advisorySeenKey).
+const roostackService = "roostack"
+
+// RoostackAdvisories are the security advisories affecting the Roostack
+// the controller runs, newest first, each with the release that fixes it
+// and when Roostack first saw it (SPEC.md §6.16). Roostack never closes
+// public access for them by itself: Home asks the Owner to.
+func (m *Manager) RoostackAdvisories(ctx context.Context) []*ServiceAdvisory {
+	var out []*ServiceAdvisory
+	for _, a := range m.roostackAdvisories() {
+		out = append(out, &ServiceAdvisory{Advisory: a, Version: m.Version, Fixed: a.Roostack.Fixed,
+			Since: m.advisorySeen(ctx, roostackService, a.ID)})
+	}
+	return out
+}
+
+// roostackAdvisories are the index's advisories affecting this Roostack
+// (none for a development build, which has no release version).
+func (m *Manager) roostackAdvisories() []*registry.Advisory {
+	if m.RegistryIndex == nil || m.Version == "" {
+		return nil
+	}
+	ix, err := m.RegistryIndex()
+	if err != nil {
+		return nil
+	}
+	return ix.AffectingRoostack(m.Version)
+}
+
+// liftClosed opens public access again when it was closed completely for
+// an advisory about Roostack that no longer affects the Roostack the lab
+// runs: it was updated, or the registry changed the advisory (SPEC.md
+// §6.16). Callers hold mu.
+func (m *Manager) liftClosed(ctx context.Context) {
+	c := m.labNow().Public.Pause.Closed
+	if c == nil || c.Advisory == "" || m.RegistryIndex == nil {
+		return
+	}
+	if ix, err := m.RegistryIndex(); err != nil || ix == nil {
+		return // nothing to tell by
+	}
+	if slices.ContainsFunc(m.roostackAdvisories(), func(a *registry.Advisory) bool { return a.ID == c.Advisory }) {
+		return
+	}
+	if err := m.saveLab(func(l *config.Lab) { l.Public.Pause.Closed = nil }); err != nil {
+		m.Log.Error("opening public access again after a security advisory about Roostack", "err", err)
+		return
+	}
+	m.Log.Info("opening public access again after a security advisory about Roostack", "advisory", c.Advisory, "version", m.Version)
+	m.audit(ctx, AuditAdvisoryOpened, ClosedWhat+": security advisory "+c.Advisory+" no longer affects Roostack "+m.Version+
+		": it was updated, or the registry changed the advisory")
+}
+
 // advisorySeen is when Roostack first saw an advisory affecting a service
 // (zero before markAdvisories records it).
 func (m *Manager) advisorySeen(ctx context.Context, name, id string) time.Time {
@@ -223,6 +277,15 @@ func (m *Manager) markAdvisories(ctx context.Context, lab config.Lab, services [
 	var key []string
 	for _, name := range slices.Sorted(maps.Keys(advised)) {
 		key = append(key, name+"="+advised[name])
+	}
+	// Advisories about Roostack itself are recorded too (the Owners are
+	// emailed), and change the key, so a new one is applied and said.
+	for _, a := range m.RoostackAdvisories(ctx) {
+		if a.Since.IsZero() && m.Settings != nil {
+			m.Settings.SetSetting(ctx, advisorySeenKey+roostackService+":"+a.ID, strconv.FormatInt(time.Now().Unix(), 10))
+			m.audit(ctx, AuditAdvisory, advisoryDetail("Roostack "+m.Version, a))
+		}
+		key = append(key, roostackService+"="+a.ID)
 	}
 	return advised, strings.Join(key, ",")
 }

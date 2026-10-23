@@ -664,6 +664,7 @@ ul.rows > li:last-child, ul.kept > li:last-child, ul.users > li:last-child { bor
   overflow-wrap: anywhere; }
 .row-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
 ul.guests .row-split { flex-wrap: wrap; }
+ul.pauses .row-split > :last-child { flex: none; } /* the text wraps, never a button's label */
 ul.guests .row-split > strong { flex: 1 1 10em; } /* the buttons go underneath when there isn't room */
 ul.guests .guest-space { margin: var(--space-2) 0 var(--space-1); }
 ul.plain { list-style: none; padding: 0; margin: var(--space-2) 0; }

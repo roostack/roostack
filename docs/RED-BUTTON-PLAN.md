@@ -200,14 +200,16 @@ down.
 - **The outside check link** (`/.well-known/roostack-check/…`): blocked
   with the rest. It tests whether visitors get in, and they don't.
 
-### 2.6 The closed level — proposed for phase 3, waiting for the maintainer (2026-10-23)
+### 2.6 The closed level — Decided (2026-10-23): the maintainer took each recommendation, questions 18–22; built the same day (SPEC §6.16)
 
 A pause relies on Caddy: Caddy answers outside visitors with the paused
 page. A problem in Caddy itself, or in Roostack, may be reachable before
 any route runs, so the page isn't enough. **Closed** keeps outside
 connections from reaching Caddy at all (§2.2's right-hand column).
-Phases 1 and 2 are built; this is what's left of phase 3 on the lab's
-side, and it needs the maintainer's answers first.
+Built as recommended, except that the lab's own edge is closed by its
+server's firewall, like every server, rather than by leaving the names
+out of its Caddy's config: the firewall keeps visitors from Caddy
+entirely, and works the same everywhere.
 
 - **Q18. What closes it.**
   - *(Recommended)* Only a person, but an advisory about Caddy or

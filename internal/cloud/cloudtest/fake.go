@@ -97,10 +97,12 @@ type Fake struct {
 	// RelayOff is when the account turned the relay off at Cloud (zero:
 	// it's on), until the lab asks to turn it on; RelaySuspended why
 	// it's suspended; RelayPaused when the account paused public access
-	// at the edges, until the lab asks to resume.
+	// at the edges, until the lab asks to resume; RelayClosed whether the
+	// lab's last request asked the edges to close (RelayRequest.Pause).
 	RelayOff       time.Time
 	RelaySuspended string
 	RelayPaused    time.Time
+	RelayClosed    bool
 	// Reports are each lab's last report, by lab ID; NoReports answers
 	// them 404, as a Cloud from before them does.
 	Reports   map[string]cloudapi.LabReport
@@ -553,6 +555,7 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request, rt cloudapi.Route)
 		if req.Resume {
 			f.RelayPaused = time.Time{}
 		}
+		f.RelayClosed = req.Pause
 		reply(w, f.relay(req))
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabRelay:
 		req, ok := f.Relayed[id]

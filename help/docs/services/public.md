@@ -447,6 +447,51 @@ Roostack will tell you it may be affected.
       when to look: your lab fetches the signed index from the registry
       and checks it as always.
 
+### Closing public access completely
+
+Pausing relies on Caddy, the part of Roostack every visitor reaches first,
+to show visitors its page. If the problem is in Caddy or in Roostack
+itself, that isn't enough, so you can close public access completely
+instead: choose **Close public access completely** at the side of the
+**Pause public access…** page. Within a few seconds, every server's
+firewall will refuse connections from the internet to your web addresses,
+so visitors will get a connection error rather than a page. If your lab
+uses Roostack Cloud's relay, Roostack will ask it to close its edges for
+your addresses too. At home and on your lab's VPN, everything will keep
+working.
+
+If your server is on the internet (a cloud server), Roostack's own pages
+will be closed too, and you'll reach them only through your lab's VPN or
+an SSH tunnel. The page shows the tunnel's command before you close, so
+you can check that it works first.
+
+When the service registry warns of a problem in Roostack itself, Home will
+say so and ask you to close public access completely: Roostack never closes
+it by itself, since that can take its own pages away. If you close it from
+that warning, Roostack will open it again by itself once it's updated past
+the problem (a Roostack fix release usually installs itself). Otherwise it
+will stay closed until an Owner opens it again from **Settings → Public
+access**. Owners and Admins can close it, and Roostack will email the Owners
+straight away to say who did.
+
+??? note "For technical users"
+
+    - It's `public.pause.closed` in `lab.yaml` (when, by whom, and the
+      advisory it was closed for), sent to every server with its
+      assignment. Each server's firewall then accepts ports 80 and 443 (and
+      443 over UDP) from the home network and VPN ranges only and refuses
+      everyone else with a TCP reset, and refuses the relay's and the lab's
+      edges' connections to Caddy's edge listener. A server applies this at
+      once, without waiting for other changes it's applying.
+    - Everything public is paused too, so anything that still reached
+      Caddy would get the paused page, and public package ports are home
+      only.
+    - From the controller's command line: `sudo roostack public pause
+      -closed` and `sudo roostack public resume -closed`.
+    - Roostack Cloud's relay is asked with every relay request while it's
+      closed (`pause` in the request). A Cloud that doesn't know it yet
+      ignores it, and the firewall refuses the relay's visitors anyway.
+
 ## Making it private again
 
 On the same page, choose **Make private**. The service will be reachable
