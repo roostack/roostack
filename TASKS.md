@@ -289,7 +289,9 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [ ] Phase 3: Cloud's nudge; pausing at the relay's edges from Cloud's website (Cloud's repository); the "closed" level (firewall, edge, relay) for problems in Caddy or Roostack
   - [x] The lab's side of the nudge (`Relay.Registry`, `GET /v1/lab/news`) and of pausing at the relay's edges (`Relay.Paused`, shown, emailed, and lifted with `RelayRequest.Resume`), tested against the fake Cloud (2026-10-23, SPEC §6.16)
   - [ ] Cloud's side of both, and showing the report's `paused` line on the lab's page (Cloud's repository)
-  - [ ] The closed level: waiting for the maintainer's answers to docs/RED-BUTTON-PLAN.md §2.6 (questions 18–22)
+  - [x] The closed level (2026-10-23, SPEC §6.16 "As built, the closed level"): every server's firewall, the relay asked with `RelayRequest.Pause`, advisories naming Roostack releases asking on Home and lifting by themselves, `/pause/close`, `roostack public pause|resume -closed`. Checked on VM7 (docs/ASSUMPTIONS.md P18)
+  - [ ] Cloud's side of `RelayRequest.Pause`: close the edges for the lab's names while its requests say so (Cloud's repository)
+  - [ ] `TestRestoreFromCloud` (internal/cloud) has data races under `go test -race`, on main too (found 2026-10-23, not from this change)
 - [ ] Phase 4, the watcher (docs/RED-BUTTON-PLAN.md §10.1; can start alongside phase 2): `roostack registry watch` in the registry's CI reading OSV, GitHub's advisories, both KEV lists, EPSS, oss-security, projects' notices and new CrowdSec patch rules; matching on `built_with:`; draft advisory pull requests, a weekly digest, ntfy notifications for critical exploited matches; Syft bills of materials for exact matches, and its findings compared with `built_with:` in the registry's pull-request checks; then an AI first pass once the watcher works without it. Publishing with nobody around: not now, revisit after a few months of accurate drafts
 
 ## Single sign-on: what's next (SPEC §5.2)

@@ -358,6 +358,14 @@ type RelayRequest struct {
 	// Cloud's website (Relay.Paused): only when the lab's Owner asks. A
 	// Cloud from before it ignores it (and never pauses there).
 	Resume bool `json:"resume,omitempty"`
+	// Pause: the lab has closed its public access completely (Roostack's
+	// SPEC.md §6.16), so the edges should close connections for its names,
+	// as for Relay.Paused, while the lab's requests say so. The lab sends
+	// it with every request while closed; a request without it ends the
+	// lab's own pause, never one from Cloud's website, which Relay.Paused
+	// alone reports. A Cloud from before it ignores it: the lab's firewall
+	// refuses the relay's visitors anyway.
+	Pause bool `json:"pause,omitempty"`
 }
 
 // RelayDomain is how the lab's own domain stands: the TXT record that

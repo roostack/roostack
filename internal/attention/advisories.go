@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/registry"
 )
@@ -30,6 +31,35 @@ func (lab *Lab) advisoryItems(ctx context.Context, services []Service, l *List) 
 			}
 		}
 		l.add(advisoryItem(svc.Name, svc.Title, a))
+	}
+}
+
+// roostackItems are what Home says about security advisories affecting
+// Roostack itself (SPEC.md §6.16): a pause's page can't keep visitors from
+// a problem in Roostack or its Caddy, and Roostack never closes public
+// access completely by itself (that takes Roostack's own pages away on a
+// lab on the internet), so a serious one is a problem that asks the
+// Owner to. While public access is closed, the closing's item says it.
+func (lab *Lab) roostackItems(ctx context.Context, closed *config.Closed, l *List) {
+	if closed != nil {
+		return
+	}
+	for _, a := range lab.Manager.RoostackAdvisories(ctx) {
+		what := strings.TrimRight(a.Title, ".")
+		fix := "There's no fixed release yet."
+		if a.Fixed != "" {
+			fix = "Roostack " + a.Fixed + " will fix it."
+		}
+		it := Item{Key: "advisory:roostack:" + a.ID, Level: Problem}
+		if a.Severity == registry.SeverityLow {
+			it.Level = Info
+			it.Text = "The service registry has a security notice about Roostack " + a.Version + ": " + what + " (" + a.ID + "). " + fix
+		} else {
+			it.Text = "The service registry warns of a security problem in Roostack " + a.Version + " itself: " + what + " (" + a.ID + "). " +
+				"Pausing public access can't keep visitors from it, so close public access completely until Roostack is updated. " + fix
+			it.Link, it.LinkText = "/pause/close?advisory="+a.ID, "Close public access…"
+		}
+		l.add(it)
 	}
 }
 

@@ -288,6 +288,13 @@ func (p Public) AdvisoryPolicy() string {
 type PublicPause struct {
 	All       *Pause           `yaml:"all,omitempty" json:"all,omitempty"`
 	BuiltWith map[string]Pause `yaml:"built_with,omitempty" json:"built_with,omitempty"`
+	// Closed: public access is closed completely, for a security problem
+	// in Caddy or Roostack itself, which a pause's page relies on (SPEC.md
+	// §6.16): every server's firewall refuses connections to its web ports
+	// from outside the home network and the lab's VPN, the lab asks
+	// Roostack Cloud's relay to close its edges, and everything public is
+	// paused too.
+	Closed *Closed `yaml:"closed,omitempty" json:"closed,omitempty"`
 	// Advised are the services Roostack paused because of a security
 	// advisory, by name, each with the advisory's ID: worked out by the
 	// controller from the registry's index for each assignment, and
@@ -302,10 +309,19 @@ type Pause struct {
 	By string `yaml:"by,omitempty" json:"by,omitempty"`
 }
 
+// Closed is who closed public access completely, and when. Advisory is
+// the security advisory about Roostack it was closed for, if any: it
+// then opens again by itself once the advisory no longer affects the
+// Roostack the lab runs (updated, or the advisory changed).
+type Closed struct {
+	Pause    `yaml:",inline"`
+	Advisory string `yaml:"advisory,omitempty" json:"advisory,omitempty"`
+}
+
 // Covers says whether a service built with builtWith
 // (pkgspec.Package.BuiltWithNames) is paused.
 func (p PublicPause) Covers(builtWith []string) bool {
-	if p.All != nil {
+	if p.All != nil || p.Closed != nil {
 		return true
 	}
 	for _, b := range builtWith {
@@ -318,7 +334,7 @@ func (p PublicPause) Covers(builtWith []string) bool {
 
 // IsZero: nothing is paused (and yaml's omitempty leaves it out).
 func (p PublicPause) IsZero() bool {
-	return p.All == nil && len(p.BuiltWith) == 0 && len(p.Advised) == 0
+	return p.All == nil && len(p.BuiltWith) == 0 && len(p.Advised) == 0 && p.Closed == nil
 }
 
 // Countries lets in only visitors from Allow, or everyone but those from

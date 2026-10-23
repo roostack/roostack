@@ -63,6 +63,7 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	}
 	fw = agent.DefaultFirewall()
 	fw.SetupPort = roles.SetupPort
+	defer func() { fw = WithClosed(fw, lab.Public.Pause.Closed != nil) }()
 	fw.SSHFrom = map[string]string{config.SSHFromLAN: agent.FromLAN, config.SSHFromAny: agent.FromAny,
 		config.SSHOff: agent.FromOff}[lab.Firewall.SSH]
 	for _, s := range services {
@@ -147,6 +148,25 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 			Reason: "roostack direct links between servers"})
 	}
 	return fw, true
+}
+
+// WithClosed is fw with public access closed completely, or not (SPEC.md
+// §6.16): Caddy's web ports for the home network only, and everyone else
+// refused (agent.Firewall.Closed). A server applies it on its own as soon
+// as a closing arrives, to the firewall it last applied, rather than wait
+// for the apply's other changes (node.Local).
+func WithClosed(fw agent.Firewall, closed bool) agent.Firewall {
+	if fw.Unchosen {
+		return fw
+	}
+	fw.Closed = closed
+	fw.Allow = slices.Clone(fw.Allow)
+	for i, r := range fw.Allow {
+		if web := r.Port == 80 && r.Proto == "tcp" || r.Port == 443; web && (r.For == trust.Anyone || r.For == trust.Home) {
+			fw.Allow[i].For = map[bool]trust.Class{true: trust.Home, false: trust.Anyone}[closed]
+		}
+	}
+	return fw
 }
 
 // Controller is the controller's address on Roostack's network, seen from

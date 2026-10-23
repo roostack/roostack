@@ -714,15 +714,18 @@ type fakePauses struct {
 	advisories map[string][]*manager.ServiceAdvisory
 	advPolicy  string
 	keptPublic []string
+	// closed completely, and the advisories about Roostack.
+	closed   *config.Closed
+	roostack []*manager.ServiceAdvisory
 }
 
 func (f *fakePauses) PublicPauses() (manager.PublicPauses, error) {
 	if f.public == nil {
 		f.public = []manager.PublicService{{Name: "vaultwarden", Title: "Vaultwarden", Hosts: []string{"passwords.lab.example.com"}, BuiltWith: []string{"rust", "sqlite"}}}
 	}
-	out := manager.PublicPauses{All: f.all, BuiltWith: f.builtW, Titles: map[string]string{"rust": "Rust"}}
+	out := manager.PublicPauses{Closed: f.closed, All: f.all, BuiltWith: f.builtW, Titles: map[string]string{"rust": "Rust"}}
 	for _, s := range f.public {
-		s.Own, s.ByAll, s.ByBuiltWith = f.own[s.Name], f.all != nil, nil
+		s.Own, s.ByClosed, s.ByAll, s.ByBuiltWith = f.own[s.Name], f.closed != nil, f.all != nil, nil
 		for _, a := range f.advisories[s.Name] {
 			if a.Paused {
 				s.Advisory = a
@@ -740,11 +743,14 @@ func (f *fakePauses) PublicPauses() (manager.PublicPauses, error) {
 }
 
 func (f *fakePauses) PausePublic(by string, r manager.PauseRequest) error {
-	if !r.All && len(r.BuiltWith) == 0 && len(r.Services) == 0 {
+	if !r.All && len(r.BuiltWith) == 0 && len(r.Services) == 0 && !r.Closed {
 		return &usererr.Error{Msg: "Choose what to pause: everything public, what services are built with, or some services."}
 	}
 	f.paused, f.pausedBy = append(f.paused, r), append(f.pausedBy, by)
 	p := config.Pause{Since: time.Now(), By: by}
+	if r.Closed {
+		f.closed = &config.Closed{Pause: p, Advisory: r.Advisory}
+	}
 	if r.All {
 		f.all = &p
 	}
@@ -768,6 +774,9 @@ func (f *fakePauses) PausePublic(by string, r manager.PauseRequest) error {
 
 func (f *fakePauses) Advisories(context.Context) map[string][]*manager.ServiceAdvisory {
 	return f.advisories
+}
+func (f *fakePauses) RoostackAdvisories(context.Context) []*manager.ServiceAdvisory {
+	return f.roostack
 }
 func (f *fakePauses) AdvisoryPolicy() string { return cmp.Or(f.advPolicy, config.AdvisoriesExploited) }
 func (f *fakePauses) SetAdvisoryPolicy(p string) error {
@@ -793,6 +802,9 @@ func (f *fakePauses) LiftPause(r manager.PauseRequest) error {
 	f.lifted = append(f.lifted, r)
 	if r.All {
 		f.all = nil
+	}
+	if r.Closed {
+		f.closed = nil
 	}
 	for _, b := range r.BuiltWith {
 		delete(f.builtW, b)

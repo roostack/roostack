@@ -244,3 +244,36 @@ func TestSetupPortFirewall(t *testing.T) {
 		}
 	}
 }
+
+// TestClosedFirewall: with public access closed completely (SPEC.md
+// §6.16), Caddy's web ports take the home network only, and everyone
+// else, the relay and the lab's edges included, is refused at once.
+func TestClosedFirewall(t *testing.T) {
+	fw := DefaultFirewall()
+	fw.Edges = []string{"100.96.0.2"}
+	fw.Closed = true
+	for i := range fw.Allow {
+		fw.Allow[i].For = trust.Home
+	}
+	if err := fw.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	rs := fw.Ruleset()
+	for _, want := range []string{
+		"\t\tip saddr @lan4 tcp dport 443 accept\n",
+		"\t\tip6 saddr @lan6 tcp dport 80 accept\n",
+		"\t\ttcp dport { 80, 443 } reject with tcp reset\n\t\tudp dport 443 reject\n\t}",
+		`iifname "roostack-relay" tcp dport 8474 reject with tcp reset`,
+		`iifname "roostack" ip saddr { 100.96.0.2 } tcp dport 8474 reject with tcp reset`,
+	} {
+		if !strings.Contains(rs, want) {
+			t.Errorf("missing %q:\n%s", want, rs)
+		}
+	}
+	if strings.Contains(rs, "dport 8474 accept") || strings.Contains(rs, "\t\ttcp dport 443 accept") {
+		t.Errorf("open to outside while closed:\n%s", rs)
+	}
+	if rs := DefaultFirewall().Ruleset(); strings.Contains(rs, "reject") {
+		t.Errorf("refusing while open:\n%s", rs)
+	}
+}

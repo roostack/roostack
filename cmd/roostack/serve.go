@@ -375,7 +375,7 @@ func (c *controller) wireCloud() error {
 		// Roostack Cloud's relay as a way in (SPEC.md §10.5): its
 		// interface through the agent, its edges for Caddy and DNS.
 		link.WireGuard = c.agent
-		mgr.Relay = manager.Relay{Set: link.Relay, Stop: link.StopRelay, Edges: func() (relay, pub []string) {
+		mgr.Relay = manager.Relay{Set: link.Relay, Stop: link.StopRelay, Pause: link.PauseRelay, Edges: func() (relay, pub []string) {
 			for _, e := range link.RelayEdges() {
 				relay, pub = append(relay, e.Addr), append(pub, e.PublicIPv4)
 			}

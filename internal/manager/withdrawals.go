@@ -332,6 +332,10 @@ func (m *Manager) RegistryChanged() {
 		}
 	}
 	slices.Sort(advised)
+	// And those about Roostack itself, in markAdvisories' order.
+	for _, a := range m.roostackAdvisories() {
+		advised = append(advised, roostackService+"="+a.ID)
+	}
 	switch {
 	case strings.Join(advised, ",") != m.advisedKey:
 		m.startApplyNowLocked("The service registry published or changed a security advisory")

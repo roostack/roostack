@@ -26,12 +26,17 @@
   <p>Nothing is public.</p>
   {{end}}
 </section>
-{{with .Pauses}}{{if or .All .BuiltWith .PausedServices}}
+{{with .Pauses}}{{if or .Closed .All .BuiltWith .PausedServices}}
 {{/* What's paused (SPEC.md §6.16), each to open again. */}}
 <section class="card section" id="paused">
   <div class="card-head"><h2>Paused now</h2><a class="button outline-danger small" href="/pause">{{icon "pause"}}Pause public access…</a></div>
-  <p class="hint">Visitors from the internet are seeing a page saying these are closed for a while, and they're working at home as usual.</p>
-  <ul class="rows">
+  <p class="hint">{{if .Closed}}Visitors from the internet can't connect at all{{else}}Visitors from the internet are seeing a page saying these are closed
+    for a while{{end}}, and everything is working at home as usual.</p>
+  <ul class="rows pauses">
+    {{with .Closed}}<li class="row-split"><span><strong>Closed completely</strong><br><small class="hint">Since {{when .Since}}{{with .By}} by {{.}}{{else}} from
+      the server's command line{{end}}{{with .Advisory}}, for security advisory {{.}}: Roostack will open it again by itself once it's updated past it{{end}}</small></span>
+      <form method="post" action="/pause/lift"><input type="hidden" name="closed" value="yes"><input type="hidden" name="next" value="/settings/public#paused">
+        {{confirmSubmit "Open public access again? Visitors from the internet will be able to connect within a few seconds, and every public service that nothing else pauses will be reachable." "Open it again" ""}}</form></li>{{end}}
     {{with .All}}<li class="row-split"><span><strong>Everything public</strong><br><small class="hint">Since {{when .Since}}{{with .By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
       <form method="post" action="/pause/lift"><input type="hidden" name="all" value="yes"><input type="hidden" name="next" value="/settings/public#paused">
         {{confirmSubmit "Open everything to the internet again? Every public service that nothing else pauses will be reachable from the internet straight away." "Open it again" ""}}</form></li>{{end}}
@@ -39,7 +44,7 @@
       <form method="post" action="/pause/lift"><input type="hidden" name="built_with" value="{{$b}}"><input type="hidden" name="next" value="/settings/public#paused">
         {{confirmSubmit (printf "Open services built with %s to the internet again? Those that nothing else pauses will be reachable from the internet straight away." ($.Pauses.Title $b)) "Open them again" ""}}</form></li>{{end}}
     {{range .PausedServices}}{{$ps := .}}{{with .Advisory}}<li class="row-split"><span><strong>{{$ps.Title}}</strong><br><small class="hint">By Roostack, for a security problem
-      ({{.ID}}): {{.Title}}{{if .Fixed}} It will be public again once it's updated to {{appVersion .Fixed}}.{{else}} There's no fixed version yet.{{end}}</small></span>
+      ({{.ID}}): {{clause .Title}}.{{if .Fixed}} It will be public again once it's updated to {{appVersion .Fixed}}.{{else}} There's no fixed version yet.{{end}}</small></span>
       <a class="button secondary small" href="/services/{{$ps.Name}}#advisory">What to do</a></li>{{end}}{{end}}
     {{range .PausedServices}}{{if .Own}}<li class="row-split"><span><strong>{{.Title}}</strong><br><small class="hint">Since {{when .Own.Since}}{{with .Own.By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
       <form method="post" action="/pause/lift"><input type="hidden" name="service" value="{{.Name}}"><input type="hidden" name="next" value="/settings/public#paused">

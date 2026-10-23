@@ -276,6 +276,11 @@ type Local struct {
 	// again (caddyNow).
 	caddyMu  sync.Mutex
 	caddyGen atomic.Int64
+	// fwMu keeps the firewall's applies one at a time, and lastFW is the
+	// one applied last, which a closing of public access changes at once
+	// (firewallNow).
+	fwMu   sync.Mutex
+	lastFW *agent.Firewall
 
 	hooksBusy, hooksAgain bool
 	hooksRunning          map[string]bool
@@ -387,6 +392,13 @@ func (n *Local) Apply(a Assignment) {
 		}
 	}
 	ch := Change{Reason: cmp.Or(a.Reason, startedReason), Early: a.CaddyFirst}
+	// Closing public access completely, or opening it again, reaches the
+	// firewall at once, on every server (SPEC.md §6.16).
+	go func() {
+		if err := n.firewallNow(context.Background()); err != nil {
+			n.Log.Error("closing or opening public access at the firewall at once", "reason", ch.Reason, "err", err)
+		}
+	}()
 	if a.CaddyFirst {
 		go func() {
 			if err := n.caddyNow(context.Background()); err != nil {
@@ -443,6 +455,48 @@ func (n *Local) caddyNow(ctx context.Context) error {
 		n.Log.Info("applied changes to web addresses at once")
 	}
 	return err
+}
+
+// firewallNow applies the newest assignment's closing of public access
+// (config.PublicPause.Closed) to the firewall applied last, without
+// waiting for an apply that's running: visitors from outside are refused
+// within seconds, even while a download holds the apply up. The apply
+// itself takes the newest closing too (applyFirewall), so one planned
+// before can't undo it.
+func (n *Local) firewallNow(ctx context.Context) error {
+	n.fwMu.Lock()
+	defer n.fwMu.Unlock()
+	closed := n.closedNow()
+	if n.lastFW == nil || n.Firewall == nil || n.lastFW.Closed == closed {
+		return nil
+	}
+	fw := firewall.WithClosed(*n.lastFW, closed)
+	if err := n.Firewall.ApplyFirewall(ctx, fw); err != nil {
+		return err
+	}
+	n.lastFW = &fw
+	n.Log.Info("applied the firewall at once", "closed", closed)
+	return nil
+}
+
+// applyFirewall applies an apply's firewall, closed or not as the newest
+// assignment says.
+func (n *Local) applyFirewall(ctx context.Context, fw agent.Firewall) error {
+	n.fwMu.Lock()
+	defer n.fwMu.Unlock()
+	fw = firewall.WithClosed(fw, n.closedNow())
+	if err := n.Firewall.ApplyFirewall(ctx, fw); err != nil {
+		return err
+	}
+	n.lastFW = &fw
+	return nil
+}
+
+// closedNow says whether the newest assignment closes public access.
+func (n *Local) closedNow() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.assignment.Lab.Pause.Closed != nil
 }
 
 // userSecret is a value typed in for a secret not created yet.
@@ -614,7 +668,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	}
 	if fw, ok := firewall.Desired(n.lab(a), desired.Services, roles); ok && n.Firewall != nil {
 		act.Step("Updating the firewall")
-		if err := n.Firewall.ApplyFirewall(ctx, fw); err != nil {
+		if err := n.applyFirewall(ctx, fw); err != nil {
 			return fmt.Errorf("applying the firewall: %w", err)
 		}
 	}

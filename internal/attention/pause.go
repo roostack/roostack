@@ -25,6 +25,14 @@ func pauseItems(pp manager.PublicPauses, owner bool) []Item {
 		}
 		return it
 	}
+	if c := pp.Closed; c != nil {
+		text := "Public access is closed completely, since " + since(c.Pause) + ". Visitors from the internet can't connect at all, " +
+			"and everything is working at home as usual."
+		if c.Advisory != "" {
+			text += " Roostack will open it again by itself once it's updated past security advisory " + c.Advisory + "."
+		}
+		out = append(out, link(Item{Key: "paused:closed", Level: Info, Text: text}, "/settings/public#paused"))
+	}
 	if p := pp.All; p != nil {
 		out = append(out, link(Item{Key: "paused:all", Level: Info,
 			Text: "Public access to everything is paused, since " + since(*p) + ". Visitors from the internet are seeing a page " +

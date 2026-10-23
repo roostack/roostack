@@ -159,6 +159,16 @@ func TestSecurityEvents(t *testing.T) {
 		{store.AuditEntry{Action: AuditPublicPaused, Username: "system", Detail: RelayPauseWhat + ViaCloud, At: at},
 			"", "Public access to everything coming through Roostack Cloud's relay was paused from Roostack Cloud's website (5 October at 09:30). " +
 				"Visitors from the internet are getting a connection error, and everything is still working at home.", ""},
+		{store.AuditEntry{Action: AuditPublicPaused, Username: "sam", Detail: manager.ClosedWhat, At: at},
+			"", "Public access was closed completely by sam (5 October at 09:30). Visitors from the internet can't connect at all, " +
+				"and everything is still working at home.", ""},
+		{store.AuditEntry{Action: AuditPublicOpened, Username: "system", Detail: manager.ClosedWhat + " via command line", At: at},
+			"", "Public access was opened again from the server's command line (5 October at 09:30) after it was closed completely.", ""},
+		{store.AuditEntry{Action: manager.AuditAdvisoryOpened, Username: "system", Detail: manager.ClosedWhat + ": security advisory 2026-0009 no longer affects Roostack 0.4.1", At: at},
+			"", "Roostack opened public access again after it was closed completely (5 October at 09:30): security advisory 2026-0009 no longer affects Roostack 0.4.1.", ""},
+		{store.AuditEntry{Action: manager.AuditAdvisory, Username: "system", Detail: "Roostack 0.4.1: Caddy lets anyone read any file (2026-0009, critical)", At: at},
+			"", "The service registry warns of a security problem in Roostack 0.4.1 itself (5 October at 09:30): Caddy lets anyone read any file " +
+				"(2026-0009, critical). Pausing public access can't keep visitors from it, so close public access completely from Home until Roostack is updated.", ""},
 		{store.AuditEntry{Action: AuditPublicOpened, Username: "tom", Detail: RelayPauseWhat, At: at},
 			"", "Public access to everything coming through Roostack Cloud's relay was opened again by tom (5 October at 09:30).", ""},
 	} {

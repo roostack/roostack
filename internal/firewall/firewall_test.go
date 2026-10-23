@@ -180,3 +180,33 @@ func TestDesiredSetupPort(t *testing.T) {
 		t.Error("a node without a choice: no firewall")
 	}
 }
+
+// TestDesiredClosed: closing public access completely (SPEC.md §6.16)
+// leaves Caddy's web ports to the home network, and opening it again
+// gives them back to anyone; package ports are left as they were.
+func TestDesiredClosed(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.Public.Pause.Closed = &config.Closed{}
+	pub := agent.Rule{Port: 2222, Proto: "tcp", For: trust.Anyone, Reason: "forgejo ssh"}
+	fw, _ := Desired(lab, []*generate.Output{{Service: "forgejo", HostPorts: []generate.HostPort{
+		{Name: "ssh", Port: 2222, Protocol: "tcp", Exposure: "public"}}}}, Roles{})
+	if !fw.Closed || !slices.Contains(fw.Allow, pub) || fw.Validate() != nil {
+		t.Fatalf("closed: %+v", fw)
+	}
+	for _, r := range fw.Allow {
+		if (r.Port == 80 || r.Port == 443) && r.For != trust.Home {
+			t.Errorf("%d/%s for %s while closed", r.Port, r.Proto, r.For)
+		}
+	}
+	open := WithClosed(fw, false)
+	if open.Closed || !slices.Equal(open.Allow, append(agent.DefaultFirewall().Allow, pub)) {
+		t.Errorf("opened again: %+v", open.Allow)
+	}
+	if fw.Allow[0].For != trust.Home {
+		t.Error("WithClosed changed the firewall it was given")
+	}
+	if u := WithClosed(agent.Firewall{Unchosen: true}, true); u.Closed || u.Validate() != nil {
+		t.Error("an unchosen firewall stays as it is")
+	}
+}

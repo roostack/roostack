@@ -114,4 +114,24 @@ func TestPublicCmd(t *testing.T) {
 	if s := pauseStatus(pp); !strings.Contains(s, "Vaultwarden (vaultwarden): paused (by Roostack for security advisory 2026-0007: Vaultwarden lets anyone read every vault)") {
 		t.Errorf("an advisory's pause:\n%s", s)
 	}
+
+	// Closed completely: on its own, said, and opened again.
+	if err := run("pause", "-closed", "-all"); err == nil || !strings.Contains(err.Error(), "on its own") {
+		t.Errorf("closing with something else: %v", err)
+	}
+	if err := run("pause", "-closed"); err != nil {
+		t.Fatal(err)
+	}
+	lab, _ = config.Load(labFile)
+	pp = manager.PublicPausesOf(lab, services)
+	if s := pauseStatus(pp); lab.Public.Pause.Closed == nil || !strings.Contains(s, "Public access is closed completely, since") ||
+		!strings.Contains(s, "Vaultwarden (vaultwarden): paused (closed completely)") {
+		t.Errorf("closed:\n%s", s)
+	}
+	if err := run("resume", "-closed"); err != nil {
+		t.Fatal(err)
+	}
+	if lab, _ = config.Load(labFile); !lab.Public.Pause.IsZero() {
+		t.Errorf("opened again: %+v", lab.Public.Pause)
+	}
 }

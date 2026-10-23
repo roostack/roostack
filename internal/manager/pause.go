@@ -16,21 +16,34 @@ import (
 	"roostack.cloud/roostack/internal/words"
 )
 
+// ClosedWhat is what closing public access completely covers, for the
+// audit log and the Owners' email.
+const ClosedWhat = "everything, closed completely"
+
 // PauseRequest is what to pause, or to open again (SPEC.md §6.16):
 // everything public, every service built with something, or chosen
-// services. Any of them may be given at once.
+// services, any of them at once; or Closed, public access closed
+// completely, on its own. Advisory is the security advisory about
+// Roostack a closing is for, if any (config.Closed).
 type PauseRequest struct {
 	All       bool
 	BuiltWith []string
 	Services  []string
+	Closed    bool
+	Advisory  string
 }
 
-func (r PauseRequest) empty() bool { return !r.All && len(r.BuiltWith) == 0 && len(r.Services) == 0 }
+func (r PauseRequest) empty() bool {
+	return !r.All && len(r.BuiltWith) == 0 && len(r.Services) == 0 && !r.Closed
+}
 
 // Check says what's wrong with a request to pause, in a sentence.
 func (r PauseRequest) Check() error {
 	if r.empty() {
 		return usererr.New("Choose what to pause: everything public, what services are built with, or some services.")
+	}
+	if r.Closed && (r.All || len(r.BuiltWith) > 0 || len(r.Services) > 0) {
+		return usererr.New("Close public access completely on its own: it covers everything.")
 	}
 	for _, b := range r.BuiltWith {
 		if !pkgspec.ValidBuiltWith(b) {
@@ -44,6 +57,8 @@ func (r PauseRequest) Check() error {
 // pages: the lab's own pauses, and every service with a public address or
 // port.
 type PublicPauses struct {
+	// Closed: public access is closed completely (config.Closed).
+	Closed    *config.Closed
 	All       *config.Pause
 	BuiltWith map[string]config.Pause
 	Services  []PublicService
@@ -89,9 +104,11 @@ type PublicService struct {
 	Hosts []string
 	// BuiltWith is what it's built with (pkgspec.Package.BuiltWithNames).
 	BuiltWith []string
-	// Own is its own pause; ByAll and ByBuiltWith are the lab's that
-	// cover it; Advisory is the security advisory Roostack paused it for.
+	// Own is its own pause; ByClosed, ByAll and ByBuiltWith are the
+	// lab's that cover it; Advisory is the security advisory Roostack
+	// paused it for.
 	Own         *config.Pause
+	ByClosed    bool
 	ByAll       bool
 	ByBuiltWith []string
 	Advisory    *ServiceAdvisory
@@ -99,7 +116,7 @@ type PublicService struct {
 
 // Paused says whether its public access is paused, whichever way.
 func (s PublicService) Paused() bool {
-	return s.Own != nil || s.ByAll || len(s.ByBuiltWith) > 0 || s.Advisory != nil
+	return s.Own != nil || s.ByClosed || s.ByAll || len(s.ByBuiltWith) > 0 || s.Advisory != nil
 }
 
 // PausedServices are the public services whose public access is paused.
@@ -173,13 +190,13 @@ func (m *Manager) BuiltWith(name string) []string {
 // command line has no manager).
 func PublicPausesOf(lab config.Lab, services []state.Service) PublicPauses {
 	pause := lab.Public.Pause
-	out := PublicPauses{All: pause.All, BuiltWith: pause.BuiltWith}
+	out := PublicPauses{Closed: pause.Closed, All: pause.All, BuiltWith: pause.BuiltWith}
 	for _, s := range services {
 		ps, ok := PublicServiceOf(lab, s)
 		if !ok {
 			continue
 		}
-		ps.Own, ps.ByAll = s.Instance.PublicPause, pause.All != nil
+		ps.Own, ps.ByClosed, ps.ByAll = s.Instance.PublicPause, pause.Closed != nil, pause.All != nil
 		for _, b := range ps.BuiltWith {
 			if _, ok := pause.BuiltWith[b]; ok {
 				ps.ByBuiltWith = append(ps.ByBuiltWith, b)
@@ -227,7 +244,10 @@ func (m *Manager) PausePublic(by string, r PauseRequest) error {
 		return err
 	}
 	p := config.Pause{Since: time.Now().UTC().Truncate(time.Second), By: by}
-	if r.All || len(r.BuiltWith) > 0 {
+	if r.Closed && !slices.ContainsFunc(m.roostackAdvisories(), func(a *registry.Advisory) bool { return a.ID == r.Advisory }) {
+		r.Advisory = "" // only one that affects this Roostack opens it again by itself
+	}
+	if r.All || len(r.BuiltWith) > 0 || r.Closed {
 		if err := m.saveLab(func(l *config.Lab) { l.Public.Pause = r.Paused(l.Public.Pause, p) }); err != nil {
 			return err
 		}
@@ -235,8 +255,33 @@ func (m *Manager) PausePublic(by string, r PauseRequest) error {
 	if err := SaveServicePauses(m.Lab, services, &p); err != nil {
 		return err
 	}
-	m.startApplyNowLocked("Pausing public access to " + PauseWhat(r, services, m.builtWithTitle))
+	m.startApplyNowLocked(pauseReason(r, services, m.builtWithTitle))
 	return nil
+}
+
+// pauseReason is a pause's reason for its apply.
+func pauseReason(r PauseRequest, services []state.Service, title func(string) string) string {
+	if r.Closed {
+		return "Closing public access completely"
+	}
+	return "Pausing public access to " + PauseWhat(r, services, title)
+}
+
+// relayClosed tells Roostack Cloud's relay whether public access is
+// closed completely, at each apply: it closes its edges for the lab's
+// names, or opens them again, in the background (the firewall refuses the
+// relay's visitors meanwhile); asking again what it has is no request.
+// Callers hold mu.
+func (m *Manager) relayClosed() {
+	closed := m.labNow().Public.Pause.Closed != nil
+	if m.Relay.Pause == nil || !m.labNow().Public.Relay {
+		return
+	}
+	go func() {
+		if err := m.Relay.Pause(context.Background(), closed); err != nil {
+			m.Log.Warn("asking Roostack Cloud's relay to close or open its edges", "closed", closed, "err", err)
+		}
+	}()
 }
 
 // Paused is the lab's pauses with r's added (its services aside), each
@@ -245,6 +290,9 @@ func (m *Manager) PausePublic(by string, r PauseRequest) error {
 func (r PauseRequest) Paused(pause config.PublicPause, p config.Pause) config.PublicPause {
 	if r.All && pause.All == nil {
 		pause.All = &p
+	}
+	if r.Closed && pause.Closed == nil {
+		pause.Closed = &config.Closed{Pause: p, Advisory: r.Advisory}
 	}
 	bw := maps.Clone(pause.BuiltWith)
 	for _, b := range r.BuiltWith {
@@ -263,6 +311,9 @@ func (r PauseRequest) Paused(pause config.PublicPause, p config.Pause) config.Pu
 func (r PauseRequest) Lifted(pause config.PublicPause) config.PublicPause {
 	if r.All {
 		pause.All = nil
+	}
+	if r.Closed {
+		pause.Closed = nil
 	}
 	bw := maps.Clone(pause.BuiltWith)
 	for _, b := range r.BuiltWith {
@@ -313,7 +364,7 @@ func (m *Manager) LiftPause(r PauseRequest) error {
 		}
 		services = append(services, all[i])
 	}
-	if r.All || len(r.BuiltWith) > 0 {
+	if r.All || len(r.BuiltWith) > 0 || r.Closed {
 		if err := m.saveLab(func(l *config.Lab) { l.Public.Pause = r.Lifted(l.Public.Pause) }); err != nil {
 			return err
 		}
@@ -321,7 +372,11 @@ func (m *Manager) LiftPause(r PauseRequest) error {
 	if err := SaveServicePauses(m.Lab, services, nil); err != nil {
 		return err
 	}
-	m.startApplyNowLocked("Opening public access again to " + PauseWhat(r, services, m.builtWithTitle))
+	if r.Closed {
+		m.startApplyNowLocked("Opening public access again after it was closed completely")
+	} else {
+		m.startApplyNowLocked("Opening public access again to " + PauseWhat(r, services, m.builtWithTitle))
+	}
 	return nil
 }
 
@@ -373,6 +428,9 @@ func PublicServicesNamed(lab config.Lab, all []state.Service, names []string) ([
 // built with PHP", "Lychee"), for the apply's reason and the audit log;
 // title is how a built-with name is written (PublicPauses.Title).
 func PauseWhat(r PauseRequest, services []state.Service, title func(string) string) string {
+	if r.Closed {
+		return ClosedWhat
+	}
 	var parts []string
 	if r.All {
 		parts = append(parts, "everything")

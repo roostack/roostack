@@ -326,6 +326,10 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 	case AuditGuestJoined:
 		return "", "Another lab started storing its backups here: " + e.Detail + " (" + when + ").", ""
 	case AuditPublicPaused:
+		if paused == manager.ClosedWhat {
+			return "", "Public access was closed completely " + by + " (" + when + "). Visitors from the internet can't connect at all, " +
+				"and everything is still working at home.", ""
+		}
 		if paused == RelayPauseWhat {
 			return "", "Public access to " + paused + " was paused " + by + " (" + when + "). Visitors from the internet are getting a connection " +
 				"error, and everything is still working at home.", ""
@@ -339,11 +343,21 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 			"Updating it will fix it.", ""
 	case manager.AuditAdvisoryOpened:
 		svc, why, _ := strings.Cut(e.Detail, ": ")
+		if svc == manager.ClosedWhat {
+			return "", "Roostack opened public access again after it was closed completely (" + when + "): " + why + ".", ""
+		}
 		return "", "Roostack opened public access to " + svc + " again (" + when + "): " + why + ".", ""
 	case manager.AuditAdvisory:
 		svc, what, _ := strings.Cut(e.Detail, ": ")
+		if strings.HasPrefix(svc, "Roostack ") {
+			return "", "The service registry warns of a security problem in " + svc + " itself (" + when + "): " + what + ". Pausing public " +
+				"access can't keep visitors from it, so close public access completely from Home until Roostack is updated.", ""
+		}
 		return "", "The service registry warns of a security problem in " + svc + " (" + when + "): " + what + ".", ""
 	case AuditPublicOpened:
+		if paused == manager.ClosedWhat {
+			return "", "Public access was opened again " + by + " (" + when + ") after it was closed completely.", ""
+		}
 		return "", "Public access to " + paused + " was opened again " + by + " (" + when + ").", ""
 	}
 	return "", "", ""

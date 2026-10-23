@@ -75,6 +75,7 @@ type Manager interface {
 	// registry's security advisories affecting each service.
 	PublicPauses() (manager.PublicPauses, error)
 	Advisories(ctx context.Context) map[string][]*manager.ServiceAdvisory
+	RoostackAdvisories(ctx context.Context) []*manager.ServiceAdvisory
 	Edge(ctx context.Context) (manager.EdgeServer, bool)
 	RelayOn() bool
 	Withdrawals(ctx context.Context) map[string]*manager.Withdrawal

@@ -279,13 +279,16 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 					Link: "/backups#restoring", LinkText: "Restore"})
 			}
 			// Public access paused (SPEC.md §6.16).
-			if pp, err := lab.Manager.PublicPauses(); err == nil {
+			pp, err := lab.Manager.PublicPauses()
+			if err == nil {
 				for _, it := range pauseItems(pp, owner) {
 					l.add(it)
 				}
 			}
-			// Security advisories (SPEC.md §6.16).
+			// Security advisories (SPEC.md §6.16), about services and
+			// about Roostack itself.
 			lab.advisoryItems(ctx, services, &l)
+			lab.roostackItems(ctx, pp.Closed, &l)
 			// Versions the service registry withdrew (SPEC.md §8.3.4).
 			lab.withdrawals(ctx, services, &l)
 			// Restores and moves that didn't finish (SPEC.md §6.9, §10.10).

@@ -9,6 +9,7 @@ import (
 
 	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/registry"
@@ -198,5 +199,64 @@ func TestAdvisoryPages(t *testing.T) {
 	}
 	if code, _ := h.post("/services/vaultwarden/public-anyway", url.Values{"advisory": {"2026-0007"}}, h.srv.URL); code != http.StatusForbidden {
 		t.Errorf("an Admin keeping it public: %d", code)
+	}
+}
+
+// Closing public access completely (SPEC.md §6.16): its page says what
+// will happen, and for an advisory about Roostack, which; Admins can
+// close and only Owners open it again; Home and Settings → Public access
+// say it's closed.
+func TestClosePublic(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.roostack = []*manager.ServiceAdvisory{{Advisory: &registry.Advisory{ID: "2026-0009", Title: "Caddy lets anyone read any file",
+		Severity: registry.SeverityCritical, Exploited: true}, Version: "0.4.1", Fixed: "0.4.2"}}
+	if _, body := h.get("/pause"); !strings.Contains(body, `href="/pause/close"`) {
+		t.Error("the pause page doesn't point to closing")
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "security problem in Roostack 0.4.1 itself") || !strings.Contains(body, `href="/pause/close?advisory=2026-0009"`) {
+		t.Errorf("Home doesn't ask to close:\n%s", body)
+	}
+	code, body := h.get("/pause/close?advisory=2026-0009")
+	for _, want := range []string{"Close public access completely", "every server's firewall will refuse connections", "Close it now",
+		`name="advisory" value="2026-0009"`, "Roostack 0.4.2 will fix it"} {
+		if code != http.StatusOK || !strings.Contains(body, want) {
+			t.Errorf("the close page lacks %q (%d)", want, code)
+		}
+	}
+	if strings.Contains(body, "ssh -L") {
+		t.Error("the tunnel's command at home")
+	}
+	// On the internet, Roostack's own pages close too: how to reach them.
+	fs := h.server.Setup.(*fakeSetup)
+	fs.network = config.NetworkInternet
+	if _, body := h.get("/pause/close"); !strings.Contains(body, "Roostack's own pages will be closed too") ||
+		!strings.Contains(body, "ssh -L 8480:127.0.0.1:8480 you@") {
+		t.Errorf("on the internet:\n%s", body)
+	}
+	fs.network = ""
+
+	a, fa := loggedIn(t, auth.RoleAdmin)
+	a.post("/pause/close", url.Values{"advisory": {"2026-0009"}}, a.srv.URL)
+	if fa.closed == nil || fa.closed.Advisory != "2026-0009" || fa.pausedBy[0] != "u" {
+		t.Fatalf("an Admin closing: %+v", fa.closed)
+	}
+	if code, _ := a.post("/pause/lift", url.Values{"closed": {"yes"}}, a.srv.URL); code == http.StatusOK && fa.closed == nil {
+		t.Error("an Admin opened it again")
+	}
+
+	h.post("/pause/close", nil, h.srv.URL)
+	if _, body := h.get("/"); !strings.Contains(body, "Public access is closed completely, since") || strings.Contains(body, "security problem in Roostack") {
+		t.Errorf("Home while closed:\n%s", body)
+	}
+	if _, body := h.get("/settings/public"); !strings.Contains(body, "Closed completely") || !strings.Contains(body, "can't connect at all") ||
+		!strings.Contains(body, `name="closed" value="yes"`) {
+		t.Errorf("Settings → Public access while closed:\n%s", body)
+	}
+	if _, body := h.get("/pause/close"); !strings.Contains(body, "Public access is closed completely</strong>") || strings.Contains(body, "Close it now") {
+		t.Error("the close page while closed")
+	}
+	h.post("/pause/lift", url.Values{"closed": {"yes"}, "next": {"/settings/public#paused"}}, h.srv.URL)
+	if fm.closed != nil {
+		t.Error("not opened again")
 	}
 }

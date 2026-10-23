@@ -32,6 +32,9 @@ type relayState struct {
 	// Domain is the lab's own domain whose names are relayed ("": none).
 	Domain string         `json:"domain,omitempty"`
 	Relay  cloudapi.Relay `json:"relay"`
+	// Closed: the lab's public access is closed completely, so every
+	// request asks the edges to close too (RelayRequest.Pause, PauseRelay).
+	Closed bool `json:"closed,omitempty"`
 }
 
 // same says whether a relay asked for is the one there is.
@@ -81,15 +84,17 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 	if err != nil {
 		return fmt.Errorf("setting up the relay's network: %w", err)
 	}
+	closed := cur != nil && cur.Closed
 	var relay cloudapi.Relay
-	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, cloudapi.RelayRequest{PublicKey: pub, Hosts: hosts, Countries: c, TimeZone: tz, Domain: domain}, &relay); err != nil {
+	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, cloudapi.RelayRequest{PublicKey: pub, Hosts: hosts, Countries: c, TimeZone: tz, Domain: domain,
+		Pause: closed}, &relay); err != nil {
 		return err
 	}
 	a, err := netip.ParseAddr(relay.Addr)
 	if err != nil || !agent.RelayRange.Contains(a) || len(relay.Edges) == 0 {
 		return errors.New("Roostack Cloud's answer had no relay address or edges")
 	}
-	st := &relayState{Hosts: hosts, Countries: c, TimeZone: tz, Domain: domain, Relay: relay}
+	st := &relayState{Hosts: hosts, Countries: c, TimeZone: tz, Domain: domain, Relay: relay, Closed: closed}
 	if _, err := s.WireGuard.ApplyWireGuard(ctx, s.relayInterface(fmt.Sprintf("%s/%d", relay.Addr, relay.Prefix), st)); err != nil {
 		return fmt.Errorf("connecting to Roostack Cloud's edges: %w", err)
 	}
@@ -123,7 +128,7 @@ func (s *Service) edgesChanged() {
 // asked, with TurnOn. Only the Owner asks this: the lab's own updates
 // leave it off (Roostack Cloud's DESIGN §3f).
 func (s *Service) TurnRelayOn(ctx context.Context) error {
-	return s.askRelayAgain(ctx, "turned on", func(r *cloudapi.RelayRequest) { r.TurnOn = true }, func(r cloudapi.Relay) string {
+	return s.askRelayAgain(ctx, "turned on again", func(r *cloudapi.RelayRequest) { r.TurnOn = true }, func(r cloudapi.Relay) string {
 		if !r.TurnedOff.IsZero() {
 			return "Roostack Cloud kept the relay off"
 		}
@@ -143,8 +148,24 @@ func (s *Service) ResumeRelay(ctx context.Context) error {
 	})
 }
 
+// PauseRelay asks the relay's edges to close for the lab's names while
+// its public access is closed completely, or to open again (SPEC.md
+// §6.16): every request says so from then on (RelayRequest.Pause). Not
+// relayed, or already so: nothing to ask.
+func (s *Service) PauseRelay(ctx context.Context, closed bool) error {
+	s.mu.Lock()
+	cur := s.st.Relay
+	same := cur == nil || cur.Closed == closed
+	s.mu.Unlock()
+	if same {
+		return nil
+	}
+	return s.askRelayAgain(ctx, map[bool]string{true: "asked to close its edges", false: "asked to open its edges again"}[closed],
+		func(r *cloudapi.RelayRequest) { r.Pause = closed }, func(cloudapi.Relay) string { return "" })
+}
+
 // askRelayAgain asks for the relay as last asked, changed by ask (TurnOn,
-// Resume), and keeps Cloud's answer unless refused says why it didn't
+// Resume, Pause), and keeps Cloud's answer unless refused says why it didn't
 // take ("": it did); done is what the log says happened.
 func (s *Service) askRelayAgain(ctx context.Context, done string, ask func(*cloudapi.RelayRequest), refused func(cloudapi.Relay) string) error {
 	s.relayMu.Lock()
@@ -160,7 +181,8 @@ func (s *Service) askRelayAgain(ctx context.Context, done string, ask func(*clou
 	if err != nil {
 		return fmt.Errorf("setting up the relay's network: %w", err)
 	}
-	req := cloudapi.RelayRequest{PublicKey: pub, Hosts: cur.Hosts, Countries: cur.Countries, TimeZone: cur.TimeZone, Domain: cur.Domain}
+	req := cloudapi.RelayRequest{PublicKey: pub, Hosts: cur.Hosts, Countries: cur.Countries, TimeZone: cur.TimeZone, Domain: cur.Domain,
+		Pause: cur.Closed}
 	ask(&req)
 	var relay cloudapi.Relay
 	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, req, &relay); err != nil {
@@ -190,7 +212,8 @@ func (s *Service) askRelayAgain(ctx context.Context, done string, ask func(*clou
 		return errors.New("the relay changed meanwhile: try again")
 	}
 	s.st.Relay.Relay, s.st.Names = relay, relay.Names
-	s.log.Info("Roostack Cloud: the relay was " + done + " again")
+	s.st.Relay.Closed = req.Pause
+	s.log.Info("Roostack Cloud: the relay was " + done)
 	err = s.save()
 	s.mu.Unlock()
 	if changed {

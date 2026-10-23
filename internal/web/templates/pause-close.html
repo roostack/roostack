@@ -1,0 +1,56 @@
+{{define "title"}}Close public access completely{{end}}
+{{define "crumbs"}}<a href="/">Home</a><strong aria-current="page">Close public access completely</strong>{{end}}
+{{define "content"}}
+{{/* Close public access completely (SPEC.md §6.16; docs/RED-BUTTON-PLAN.md
+     §2.6): for a problem in Roostack itself or in Caddy, which a pause's
+     page relies on. The firewall refuses visitors before Caddy sees them. */}}
+<div class="page-head">
+  <div>
+    <h1>Close public access completely</h1>
+    <p class="lede">For a security problem in Roostack itself or in Caddy, which every visitor reaches first. Pausing shows visitors a page;
+      closing won't let their connections in at all.</p>
+  </div>
+</div>
+<div class="grid">
+{{if .Closed}}
+<section class="card span-8">
+  <p class="notice notice-warn" role="status"><strong>Public access is closed completely</strong>, since {{when .Closed.Since}}{{with .Closed.By}} by {{.}}{{else}} from the server's command line{{end}}.</p>
+  <p>{{if .IsOwner}}<a href="/settings/public#paused">Open it again in Settings → Public access</a>{{else}}An Owner can open it again from Settings → Public access.{{end}}</p>
+</section>
+{{else}}
+<form class="card span-8 pause-form" method="post" action="/pause/close">
+  {{with .Advisory}}<input type="hidden" name="advisory" value="{{.ID}}">
+  <p class="notice notice-error" role="alert"><strong>The service registry warns of a security problem in Roostack {{.Version}} itself:</strong>
+    {{clause .Title}} ({{.ID}}{{if .Exploited}}, being used in attacks{{end}}).
+    {{if .Fixed}}Roostack {{.Fixed}} will fix it, and Roostack will open public access again by itself once it's updated.{{else}}There's no fixed release yet.{{end}}</p>{{end}}
+  <h2 class="form-section">What will happen</h2>
+  <ul class="plain will-list">
+    <li>{{icon "globe"}}Within a few seconds, every server's firewall will refuse connections from the internet to your web addresses, whichever way
+      they come in, so visitors will get a connection error rather than a page.{{if .Relay}} Roostack Cloud's relay will be asked to close its
+      edges for your addresses too.{{end}}</li>
+    <li>{{icon "home"}}At home and on your lab's VPN, everything will keep working as it is.</li>
+    <li>{{icon "check"}}Nothing else will change: the services will keep running, and their addresses, settings, and certificates will stay as they are.</li>
+    <li>{{icon "pause"}}It will stay closed until an Owner opens it again{{if .Advisory}}, or Roostack is updated past the problem{{end}}, and Roostack
+      will email the Owners now to say who closed it.</li>
+  </ul>
+  {{if .Internet}}
+  <div class="notice notice-warn" role="status">
+    <p><strong>This server is on the internet, so Roostack's own pages will be closed too.</strong> You'll reach them only through your lab's VPN
+      or an SSH tunnel. Before you close, check that one of them works: run this on your computer, then open
+      <code>http://127.0.0.1:8480</code>.</p>
+    <pre class="output">ssh -L 8480:127.0.0.1:8480 you@{{.TunnelHost}}</pre>
+  </div>
+  {{end}}
+  <div class="actions-row"><button type="submit" class="danger">{{icon "pause"}}Close it now</button><a href="/">Cancel</a></div>
+</form>
+{{end}}
+<aside class="card span-4">
+  <div class="card-head"><h2>Good to know</h2></div>
+  <p class="hint">For a problem in one of your services, <a href="/pause">pausing</a> is enough, and Roostack's own pages stay open.</p>
+  <p class="hint">From the controller's command line, a technical user can close it with <code class="nowrap">sudo roostack public pause -closed</code>
+    and open it again with <code class="nowrap">sudo roostack public resume -closed</code>.</p>
+</aside>
+</div>
+{{end}}
+
+{{define "page-help"}}{{help "services/public#closing-public-access-completely" "Closing public access completely"}}{{end}}

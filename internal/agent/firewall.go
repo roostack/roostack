@@ -40,6 +40,12 @@ type Firewall struct {
 	// SSHFrom is off (SPEC.md §10.2). The lab's servers reach nothing else
 	// that isn't opened for them (internal/trust).
 	Controller string `json:"controller,omitempty"`
+	// Closed: public access is closed completely (SPEC.md §6.16). Caddy's
+	// web ports take connections from the home network and VPN only, and
+	// everyone else's, the lab's edges' and Roostack Cloud's relay's
+	// included, are refused at once (a reset) rather than left to time
+	// out, so nothing from the internet reaches Caddy.
+	Closed bool `json:"closed,omitempty"`
 	// SetupPort, while first-run setup lasts, is the setup pages' HTTPS
 	// port, open to the home network only (SPEC.md §6.3.2). 0 once setup
 	// is done.
@@ -208,11 +214,16 @@ func (f Firewall) Ruleset() string {
 	// Roostack Cloud's relay brings visitors to Caddy, and nothing else
 	// (Roostack Cloud's DESIGN §5: the lab accepts only its forwarded ports
 	// from the tunnel).
-	fmt.Fprintf(&b, "\t\tiifname %q tcp dport %d accept\n", RelayInterface, EdgePort)
+	edgeVerdict := "accept"
+	if f.Closed {
+		b.WriteString("\t\t# public access closed completely: the relay's and the edges' visitors are refused\n")
+		edgeVerdict = "reject with tcp reset"
+	}
+	fmt.Fprintf(&b, "\t\tiifname %q tcp dport %d %s\n", RelayInterface, EdgePort, edgeVerdict)
 	fmt.Fprintf(&b, "\t\tiifname %q drop\n", RelayInterface)
 	if len(f.Edges) > 0 {
-		fmt.Fprintf(&b, "\t\tiifname %q ip saddr { %s } tcp dport %d accept\n", WireGuardInterface,
-			strings.Join(f.Edges, ", "), EdgePort)
+		fmt.Fprintf(&b, "\t\tiifname %q ip saddr { %s } tcp dport %d %s\n", WireGuardInterface,
+			strings.Join(f.Edges, ", "), EdgePort, edgeVerdict)
 	}
 	// On the hub, a server still joining reaches only the lab API.
 	if f.JoinPort != 0 {
@@ -265,6 +276,11 @@ func (f Firewall) Ruleset() string {
 		default:
 			fmt.Fprintf(&b, "\t\t%s dport %d accept\n", r.Proto, r.Port)
 		}
+	}
+	if f.Closed {
+		b.WriteString("\t\t# public access closed completely: everyone else is refused at once\n")
+		b.WriteString("\t\ttcp dport { 80, 443 } reject with tcp reset\n")
+		b.WriteString("\t\tudp dport 443 reject\n")
 	}
 	b.WriteString("\t}\n\n")
 	// Roostack's network is never a way through this server, except for

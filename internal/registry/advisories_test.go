@@ -92,6 +92,27 @@ local: possibly
 	if _, err := Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now}); err != nil {
 		t.Errorf("a name on the list: %v", err)
 	}
+
+	// One about Roostack itself: its releases, which labs match by their
+	// own version.
+	roostack := "title: Caddy lets anyone read any file\nseverity: critical\npublished: 2026-10-23\naffects:\n  roostack:\n    versions: [0.4.0, 0.4.1]\n    fixed: 0.4.2\n"
+	r.write(AdvisoriesDir+"/2026-0009.yaml", roostack)
+	ix, err = Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ix.AffectingRoostack("0.4.1"); len(got) != 1 || got[0].ID != "2026-0009" || got[0].Roostack.Fixed != "0.4.2" ||
+		ix.AffectingRoostack("0.4.2") != nil || len(ix.Affecting("forgejo", "15.0.9-roostack.1", file)) != 1 {
+		t.Errorf("AffectingRoostack: %+v", got)
+	}
+	for bad, with := range map[string]string{"[0.4.0, 0.4.1]": "[0.4.0, v4]", "fixed: 0.4.2": "fixed: 0.4.1"} {
+		want := map[string]string{"[0.4.0, 0.4.1]": "isn't a Roostack release", "fixed: 0.4.2": "both affected and the fix"}[bad]
+		r.write(AdvisoriesDir+"/2026-0009.yaml", strings.Replace(roostack, bad, with, 1))
+		if _, err := Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now}); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: %v, want %q", with, err, want)
+		}
+	}
+	os.Remove(filepath.Join(r.repo, AdvisoriesDir, "2026-0009.yaml"))
 	os.Rename(filepath.Join(r.repo, AdvisoriesDir, "2026-0007.yaml"), filepath.Join(r.repo, AdvisoriesDir, "php-bug.yaml"))
 	if _, err := Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now}); err == nil || !strings.Contains(err.Error(), "must be the year and a number") {
 		t.Errorf("an ID that isn't one: %v", err)

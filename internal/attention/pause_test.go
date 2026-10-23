@@ -1,6 +1,7 @@
 package attention
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -85,5 +86,36 @@ func TestAdvisoryItems(t *testing.T) {
 		if it.Level != c.level || !strings.HasPrefix(it.Text, c.text) || it.Link != "/services/lychee#advisory" {
 			t.Errorf("%+v:\n%+v", c.a, it)
 		}
+	}
+}
+
+// Closing public access completely (SPEC.md §6.16) is information on
+// Home, like a pause, saying it will open again by itself when it was
+// closed for an advisory about Roostack. Such an advisory is a problem
+// asking the Owner to close, until it's closed.
+func TestClosedItems(t *testing.T) {
+	at := time.Now().Add(-time.Hour)
+	c := &config.Closed{Pause: config.Pause{Since: at, By: "tom"}, Advisory: "2026-0009"}
+	items := pauseItems(manager.PublicPauses{Closed: c}, true)
+	if len(items) != 1 || items[0].Level != Info || items[0].Link != "/settings/public#paused" ||
+		items[0].Text != "Public access is closed completely, since "+words.When(at)+" by tom. Visitors from the internet can't connect at all, "+
+			"and everything is working at home as usual. Roostack will open it again by itself once it's updated past security advisory 2026-0009." {
+		t.Errorf("closed: %+v", items)
+	}
+
+	fm := &fakeManager{roostack: []*manager.ServiceAdvisory{{Advisory: &registry.Advisory{ID: "2026-0009",
+		Title: "Caddy lets anyone read any file.", Severity: registry.SeverityCritical}, Version: "0.4.1", Fixed: "0.4.2"}}}
+	lab := &Lab{Manager: fm}
+	var l List
+	lab.roostackItems(context.Background(), nil, &l)
+	if len(l) != 1 || l[0].Level != Problem || l[0].Link != "/pause/close?advisory=2026-0009" ||
+		l[0].Text != "The service registry warns of a security problem in Roostack 0.4.1 itself: Caddy lets anyone read any file (2026-0009). "+
+			"Pausing public access can't keep visitors from it, so close public access completely until Roostack is updated. Roostack 0.4.2 will fix it." {
+		t.Errorf("Roostack's advisory: %+v", l)
+	}
+	l = List{}
+	lab.roostackItems(context.Background(), c, &l)
+	if len(l) != 0 {
+		t.Errorf("asked again while closed: %+v", l)
 	}
 }

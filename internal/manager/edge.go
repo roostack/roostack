@@ -174,6 +174,10 @@ type Relay struct {
 	// they're the same), Stop stops.
 	Set  func(ctx context.Context, hosts []string, countries config.Countries, tz, domain string) error
 	Stop func(ctx context.Context) error
+	// Pause asks the relay to close its edges for the lab's names while
+	// public access is closed completely, or open them again (SPEC.md
+	// §6.16).
+	Pause func(ctx context.Context, closed bool) error
 	// Edges are its edges' relay addresses (for Caddy) and public IPv4
 	// addresses (for DNS), when it's on.
 	Edges func() (relayAddrs, public []string)

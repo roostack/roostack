@@ -25,10 +25,15 @@ const publicUsage = `Usage:
   roostack public status
   roostack public pause  [-all] [-built-with php,log4j] [-service lychee,ghost]
   roostack public resume [-all] [-built-with php,log4j] [-service lychee,ghost]
+  roostack public pause  -closed
+  roostack public resume -closed
 
 Pausing public access takes services off the internet: visitors from
 outside will see a page saying it's closed for a while, and at home
 everything will keep working. It's for when the web UI can't be reached.
+Closing it completely (-closed) is for a security problem in Roostack
+itself or in Caddy: every server's firewall will refuse visitors from the
+internet before they reach Caddy, Roostack's own pages included.
 Run it on the lab's controller as root: the change will be saved as the
 roostack user, and root will then tell the running Roostack to apply it.
 `
@@ -47,8 +52,9 @@ func publicCmd(args []string) error {
 	all := fs.Bool("all", false, "everything public")
 	builtWith := fs.String("built-with", "", "services built with these names, separated by commas")
 	services := fs.String("service", "", "these services, separated by commas")
+	closed := fs.Bool("closed", false, "close public access completely, Roostack's own pages included")
 	fs.Parse(args[1:])
-	req := manager.PauseRequest{All: *all, BuiltWith: splitList(*builtWith), Services: splitList(*services)}
+	req := manager.PauseRequest{All: *all, BuiltWith: splitList(*builtWith), Services: splitList(*services), Closed: *closed}
 
 	say := func(format string, args ...any) { fmt.Printf("==> "+format+"\n", args...) }
 	// The roostack user's files are changed as that user; root only
@@ -94,8 +100,8 @@ func publicCmd(args []string) error {
 		fmt.Print(pauseStatus(pp))
 		return nil
 	}
-	if !req.All && len(req.BuiltWith) == 0 && len(req.Services) == 0 {
-		return fmt.Errorf("say what to %s: -all, -built-with or -service", map[string]string{"pause": "pause", "resume": "open again"}[sub])
+	if !req.All && len(req.BuiltWith) == 0 && len(req.Services) == 0 && !req.Closed {
+		return fmt.Errorf("say what to %s: -all, -built-with, -service, or -closed", map[string]string{"pause": "pause", "resume": "open again"}[sub])
 	}
 	if err := req.Check(); err != nil {
 		return err
@@ -121,7 +127,7 @@ func publicCmd(args []string) error {
 			}
 		}
 	}
-	if sub == "resume" && !req.All && len(req.BuiltWith) == 0 && !slices.ContainsFunc(named, func(s state.Service) bool { return s.Instance.PublicPause != nil }) {
+	if sub == "resume" && !req.All && len(req.BuiltWith) == 0 && !req.Closed && !slices.ContainsFunc(named, func(s state.Service) bool { return s.Instance.PublicPause != nil }) {
 		// Nothing a person paused: say why each is paused, if it is.
 		for _, s := range named {
 			if i := slices.IndexFunc(pp.Services, func(ps manager.PublicService) bool { return ps.Name == s.Name() }); i < 0 || !pp.Services[i].Paused() {
@@ -138,7 +144,7 @@ func publicCmd(args []string) error {
 	if sub == "pause" {
 		pause = &config.Pause{Since: time.Now().UTC().Truncate(time.Second)}
 	}
-	if req.All || len(req.BuiltWith) > 0 {
+	if req.All || len(req.BuiltWith) > 0 || req.Closed {
 		err := config.Update(*labPath, func(l *config.Lab) {
 			if pause != nil {
 				l.Public.Pause = req.Paused(l.Public.Pause, *pause)
@@ -157,6 +163,9 @@ func publicCmd(args []string) error {
 	action, done := attention.AuditPublicPaused, "Paused public access to "+what
 	if pause == nil {
 		action, done = attention.AuditPublicOpened, "Opened public access to "+what+" again"
+	}
+	if req.Closed {
+		done = map[bool]string{true: "Closed public access completely", false: "Opened public access again after it was closed completely"}[pause != nil]
 	}
 	// Recorded like the web UI's changes, so the Owners will hear of it
 	// by email (SPEC.md §6.13).
@@ -200,6 +209,13 @@ func servicesNamed(all []state.Service, names []string) ([]state.Service, error)
 // pauseStatus says what's public and what's paused, for status.
 func pauseStatus(pp manager.PublicPauses) string {
 	var b strings.Builder
+	if c := pp.Closed; c != nil {
+		fmt.Fprintf(&b, "Public access is closed completely, since %s", pauseSince(c.Pause))
+		if c.Advisory != "" {
+			fmt.Fprintf(&b, ", for security advisory %s: Roostack will open it again by itself once it's updated past it", c.Advisory)
+		}
+		b.WriteString(".\n")
+	}
 	if len(pp.Services) == 0 {
 		b.WriteString("Nothing is open to the internet.\n")
 	}
@@ -215,6 +231,9 @@ func pauseStatus(pp manager.PublicPauses) string {
 			var why []string
 			if s.Own != nil {
 				why = append(why, "its own pause, since "+pauseSince(*s.Own))
+			}
+			if s.ByClosed {
+				why = append(why, "closed completely")
 			}
 			if s.ByAll {
 				why = append(why, "everything")

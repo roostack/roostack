@@ -64,6 +64,9 @@ func templateFuncs() template.FuncMap {
 		// then what follows (a stack trace, at worst), shown under Details.
 		"firstLine":  words.FirstLine,
 		"otherLines": otherLines,
+		// clause is a sentence without its full stop, to go on in another
+		// (an advisory's title, which may or may not end with one).
+		"clause": func(s string) string { return strings.TrimRight(strings.TrimSpace(s), ".") },
 		// shownRepo is a backup's address without its password.
 		"shownRepo": labrestore.Shown,
 		// date is a day, e.g. 28 September 2027.

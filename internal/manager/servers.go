@@ -272,6 +272,10 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	// CrowdSec shares nothing until the Owner has answered (SPEC.md §6.11):
 	// on a lab on the internet it can start with the public UI, before
 	// anything asks.
+	// Closed completely for an advisory about Roostack that's been
+	// dealt with: open again (SPEC.md §6.16).
+	m.liftClosed(context.Background())
+	m.relayClosed()
 	pub := m.labNow().Public
 	// Services the registry's security advisories pause (SPEC.md §6.16),
 	// worked out now and sent with the lab's own pauses, never saved.
