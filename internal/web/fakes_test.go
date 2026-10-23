@@ -346,6 +346,38 @@ type fakeServers struct {
 	linkAddrs  map[string]string
 	linkPath   string
 	linkFailed bool
+	// locations are where the Owner said each server is, kept as the
+	// manager keeps them (manager.LocationKey).
+	locations settingsKV
+}
+
+// settingsKV is the controller's settings (manager.KV), in memory.
+type settingsKV map[string]string
+
+func (kv settingsKV) Setting(_ context.Context, key string) (string, error) { return kv[key], nil }
+
+func (kv settingsKV) SetSetting(_ context.Context, key, value string) error {
+	kv[key] = value
+	return nil
+}
+
+// ServerLocation and ServerPlace are the manager's own, on the fake's
+// settings.
+func (f *fakeServers) ServerLocation(ctx context.Context, id string) string {
+	return (&manager.Manager{Settings: f.locations}).ServerLocation(ctx, id)
+}
+
+func (f *fakeServers) ServerPlace(ctx context.Context, from, host string) (bool, bool, []string) {
+	return (&manager.Manager{Settings: f.locations}).ServerPlace(ctx, from, host)
+}
+
+func (f *fakeServers) SetServerLocation(ctx context.Context, id, loc string) error {
+	if f.locations == nil {
+		f.locations = settingsKV{}
+	}
+	f.locations[manager.LocationKey+id] = loc
+	f.ApplyBecause("A server's location changed")
+	return nil
 }
 
 func (f *fakeServers) KeptData(_ context.Context, id string) ([]node.KeptFolder, error) {

@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/store"
@@ -513,7 +514,7 @@ func (s *Server) backupAttention(ctx context.Context, m serverRef, n ServiceNode
 			l.add(attentionItem{Key: "copy-failed:" + m.ID + ":" + c.Name, Level: levelWarning,
 				Text: "The last copy of backups" + m.on() + " to " + c.Title + " didn't finish: " + words.FirstLine(c.Last.Error) + retryText(c.Retry),
 				Link: link, LinkText: "View backups"})
-		case c.LastOK != nil && isStale(c.LastOK.Finished):
+		case c.LastOK != nil && manager.BackupStale(c.LastOK.Finished):
 			l.add(attentionItem{Key: "copy-stale:" + m.ID + ":" + c.Name, Level: levelWarning,
 				Text: "Backups" + m.on() + " haven't been copied to " + c.Title + " since " + whenText(c.LastOK.Finished) + ".",
 				Link: link, LinkText: "View backups"})
@@ -529,7 +530,7 @@ func (s *Server) backupAttention(ctx context.Context, m serverRef, n ServiceNode
 		l.add(attentionItem{Key: "backup-first:" + m.ID, Level: levelInfo,
 			Text: "The first backup" + m.on() + " runs " + whenText(st.Next) + ". You can also back up now.",
 			Link: link, LinkText: "Back up now"})
-	case isStale(st.LastOK.Finished):
+	case manager.BackupStale(st.LastOK.Finished):
 		l.add(attentionItem{Key: "backup-stale:" + m.ID, Level: levelWarning,
 			Text: "No backup has finished" + m.on() + " in the last two days.",
 			Link: link, LinkText: "View backups"})

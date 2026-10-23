@@ -353,7 +353,7 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 	data["Servers"] = servers
 	locations := map[string]string{}
 	for _, mc := range servers {
-		locations[mc.ID] = s.serverLocation(r.Context(), mc.ID)
+		locations[mc.ID] = s.Manager.ServerLocation(r.Context(), mc.ID)
 	}
 	data["Locations"] = locations
 	links := map[string]string{}

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 )
 
@@ -119,7 +120,7 @@ func summarizeBackups(r *http.Request, n ServiceNode) (string, string) {
 		return "The last backup didn't finish", "problem"
 	case st.LastOK == nil:
 		return "Not backed up yet", "warn"
-	case isStale(st.LastOK.Finished):
+	case manager.BackupStale(st.LastOK.Finished):
 		return "Last backed up " + whenText(st.LastOK.Finished), "warn"
 	}
 	return "Backed up " + whenText(st.LastOK.Finished), "ok"

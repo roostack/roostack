@@ -11,9 +11,6 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 )
 
-// backupStale is when the dashboard warns that backups aren't happening.
-const backupStale = 48 * time.Hour
-
 // whenText formats a time for people, e.g. "today 02:00" or "Mon 3 Oct 02:00".
 func whenText(t time.Time) string {
 	if t.IsZero() {
@@ -45,9 +42,6 @@ func retryText(r *backup.Retry) string {
 	}
 	return " Roostack tries again " + whenText(r.At) + "."
 }
-
-// isStale reports whether the last backup is too old.
-func isStale(t time.Time) bool { return time.Since(t) > backupStale }
 
 // backupView is the dashboard's backup card.
 func (s *Server) backupView(r *http.Request) any {

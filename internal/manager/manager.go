@@ -977,3 +977,17 @@ func MainRoute(p *pkgspec.Package) string {
 	}
 	return names[0]
 }
+
+// NewServiceNames are what a new service from p is called until someone
+// changes them: its title and main address are the package's, or for
+// another copy of one that's installed, "(2)" and "-2" are added, and
+// suffix "2" to its name (SPEC.md §8.2).
+func NewServiceNames(p *pkgspec.Package, another bool) (subdomain, title, suffix string) {
+	if route := MainRoute(p); route != "" {
+		subdomain = p.Routes[route].Subdomain
+	}
+	if another {
+		return subdomain + "-2", p.Title + " (2)", "2"
+	}
+	return subdomain, p.Title, ""
+}

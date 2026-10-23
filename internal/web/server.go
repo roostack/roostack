@@ -303,6 +303,11 @@ type LabServers interface {
 	LinkPath(ctx context.Context, from, to string) string
 	LinkFailed(ctx context.Context, a, b string) bool
 	ApplyBecause(reason string)
+	// Where each server is, at home or away, as the Owner says (SPEC.md
+	// §6.9), and what that makes a backup on another server.
+	ServerLocation(ctx context.Context, id string) string
+	SetServerLocation(ctx context.Context, id, loc string) error
+	ServerPlace(ctx context.Context, from, host string) (atHome, away bool, unknown []string)
 }
 
 // BackupPlan is each server's backups (SPEC.md §6.9): the main one, its

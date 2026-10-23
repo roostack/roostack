@@ -28,9 +28,6 @@ import (
 // 3 a second backup; any more are optional extras, not numbered. Empty
 // places show what to add, and one chooser adds a backup anywhere.
 
-// planCopies is how many numbered copies the plan shows (the 3 of 3-2-1).
-const planCopies = 3
-
 // planEntry is one of a server's backups.
 type planEntry struct {
 	// Number is its place in the plan (2 for the main backup); Extra: past
@@ -93,12 +90,6 @@ type planSlot struct {
 	Suggest string
 }
 
-// planChecks are the 3-2-1 checks, and Safe: one backup the server can't
-// delete, so ransomware on it can't take every backup (SPEC.md §6.9).
-type planChecks struct {
-	Copies, TwoKinds, Away, Safe, BackedUp bool
-}
-
 // planView is a server's plan for the page.
 type planView struct {
 	Server  serverRef
@@ -106,10 +97,9 @@ type planView struct {
 	Entries []planEntry
 	Slots   []planSlot
 	More    int // the number the next backup gets
-	Checks  planChecks
-	// Hint suggests a change to the plan (e.g. an at-home copy as the main
-	// backup).
-	Hint string
+	// Checks are how it stands against the 3-2-1 rule, with a hint for
+	// the main backup and what's missing for the empty places.
+	Checks manager.PlanCheck
 	// Adding is the number whose chooser is open (0 if none); Replacing:
 	// it replaces the main backup. ChooserTitle and ChooserButton say so.
 	Adding                      int
@@ -182,7 +172,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	used := map[string]bool{}
 	add := func(e planEntry) {
 		e.Number = len(p.Entries) + 2
-		e.Extra = e.Number > planCopies
+		e.Extra = e.Number > manager.PlanCopies
 		e.Kind = s.Manager.BackupKind(ctx, m.ID, e.Ref)
 		e.KindTitle = kindTitle(e.Kind)
 		e.Free = -1
@@ -258,29 +248,13 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		add(e)
 	}
 
-	// 3-2-1: three copies (the data here and two backups), two kinds of
-	// storage (the data here is on a disk), one away from home; and backed
-	// up lately.
-	p.Checks.Copies = len(p.Entries) >= planCopies-1
+	// 3-2-1, and what's missing (manager.PlanChecks).
+	var backups []manager.PlanBackup
 	for _, e := range p.Entries {
-		p.Checks.TwoKinds = p.Checks.TwoKinds || manager.StorageFamily(e.Kind) != manager.StorageFamily(manager.KindSystem)
-		p.Checks.Away = p.Checks.Away || e.Away
-		p.Checks.Safe = p.Checks.Safe || e.Access.Safe()
+		backups = append(backups, manager.PlanBackup{Title: e.Title, Kind: e.Kind, AtHome: e.AtHome, Away: e.Away,
+			Access: e.Access, LastOK: e.LastOK})
 	}
-	if len(p.Entries) > 0 && p.Entries[0].LastOK != nil && !isStale(p.Entries[0].LastOK.Finished) {
-		p.Checks.BackedUp = true
-	}
-	// The main backup is best at home: restores from it are quick. (A cloud
-	// server has no home to suggest.)
-	if len(p.Entries) > 1 && !p.Entries[0].AtHome && !p.Internet {
-		for i := range p.Entries[1:] {
-			if e := &p.Entries[i+1]; e.AtHome {
-				p.Hint = "Restores use the main backup first, so it's best at home, where restoring is quick: consider making " +
-					e.Title + " the main backup."
-				break
-			}
-		}
-	}
+	p.Checks = manager.PlanChecks(backups, p.Internet)
 	for i := range p.Entries {
 		p.Entries[i].CanPromote = i > 0
 	}
@@ -288,30 +262,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	// Empty places, each with a suggestion from what's there; only the
 	// next one can be added.
 	p.More = len(p.Entries) + 2
-	need := func() (title, suggest string) {
-		switch {
-		case !p.Checks.Away && p.Internet:
-			return "A backup away from this server", "Suggested: online storage with another company, or space at your own or a friend's lab. " +
-				"It survives losing this server, or your account with its provider."
-		case !p.Checks.Away:
-			return "A backup away from home", "Suggested: online storage, or space at a friend's lab. It survives a fire or theft at home."
-		case !p.Checks.TwoKinds:
-			return "A different kind of storage", "Suggested: online storage, or a friend's lab: not a disk like the one your data is on."
-		case !p.Checks.Safe:
-			// Backblaze already, with the account's key: a better key is the
-			// quickest way there.
-			for _, e := range p.Entries {
-				if e.Access.B2 && e.Access.CanDelete {
-					return "A backup safe from ransomware", "Suggested: give Roostack a Backblaze key that can make keys (see " + e.Title +
-						"), or use another server in your lab, a friend's lab or Roostack Cloud. This server can add backups there but not delete them."
-				}
-			}
-			return "A backup safe from ransomware", "Suggested: another server in your lab, a friend's lab, Roostack Cloud or Backblaze B2. " +
-				"This server can add backups there but not delete them."
-		}
-		return "", ""
-	}
-	for n := p.More; n <= planCopies; n++ {
+	for n := p.More; n <= manager.PlanCopies; n++ {
 		slot := planSlot{Number: n}
 		switch {
 		case n == 2 && p.Internet:
@@ -322,7 +273,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		case n > p.More:
 			slot.Title, slot.Suggest = "A second backup", "Add your main backup first."
 		default:
-			if slot.Title, slot.Suggest = need(); slot.Title == "" {
+			if slot.Title, slot.Suggest = p.Checks.Missing, p.Checks.Suggest; slot.Title == "" {
 				slot.Title, slot.Suggest = "A second backup", "Anywhere you like, so losing one backup still leaves another."
 			}
 		}
@@ -330,10 +281,10 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	}
 	// Past the three copies, once they're all there: an optional extra
 	// backup.
-	if p.More > planCopies {
+	if p.More > manager.PlanCopies {
 		extra := planSlot{Extra: true, Number: p.More, Title: "An extra backup (optional)"}
-		if title, suggest := need(); title != "" {
-			extra.Title, extra.Suggest = title+" (optional)", suggest
+		if p.Checks.Missing != "" {
+			extra.Title, extra.Suggest = p.Checks.Missing+" (optional)", p.Checks.Suggest
 		} else {
 			extra.Suggest = "Another copy, anywhere you like. The 3-2-1 rule is met already."
 		}
@@ -350,12 +301,12 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		p.Adding, p.ChooserTitle, p.ChooserButton = 2, "Where should the main backup go instead?", "Use this for the main backup"
 	case p.Adding == 2 || p.Lost != nil:
 		p.ChooserTitle, p.ChooserButton = "Where should your main backup go?", "Add the main backup"
-	case p.Adding > planCopies:
+	case p.Adding > manager.PlanCopies:
 		p.ChooserTitle, p.ChooserButton = "Where should the extra backup go?", "Add the extra backup"
 	default:
 		p.ChooserTitle, p.ChooserButton = "Where should backup "+strconv.Itoa(p.Adding)+" go?", "Add backup "+strconv.Itoa(p.Adding)
 	}
-	p.ChooserNum = planSlot{Number: p.Adding, Extra: p.Adding > planCopies}
+	p.ChooserNum = planSlot{Number: p.Adding, Extra: p.Adding > manager.PlanCopies}
 	if p.Adding > 0 {
 		p.Options = s.planOptions(r, m, main, hasMain, used, wizard)
 	}

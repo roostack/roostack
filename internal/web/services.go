@@ -383,10 +383,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		base = p.Routes[route].Subdomain
 	}
 	if submitted == nil {
-		sub, title = base, p.Title
-		if another {
-			sub, title, suffix = base+"-2", p.Title+" (2)", "2"
-		}
+		sub, title, suffix = manager.NewServiceNames(p, another)
 	}
 	// Where to run it, once the lab has more than one server (SPEC.md §10.4).
 	var servers []manager.Server
@@ -400,7 +397,8 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 	noBuild, noBuildText := map[string]string{}, ""
 	if len(servers) > 0 {
 		var names, arches []string
-		for _, nb := range s.Manager.NoBuildOn(p) {
+		nbs := s.Manager.NoBuildOn(p)
+		for _, nb := range nbs {
 			noBuild[nb.ID] = nb.Arch
 			names = append(names, nb.Name)
 			if !slices.Contains(arches, nb.Arch) {
@@ -415,19 +413,8 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 			noBuildText = fmt.Sprintf("%s can't run on %s: it has no version for %s kind of processor (%s).",
 				p.Title, words.Or(names), its, words.And(arches))
 		}
-		chosen := host
-		for _, m := range servers {
-			if chosen == "" && m.This {
-				chosen = m.ID // "" is this server
-			}
-		}
-		if _, no := noBuild[chosen]; no && submitted == nil {
-			for _, m := range servers {
-				if _, no := noBuild[m.ID]; !no {
-					host = m.ID
-					break
-				}
-			}
+		if submitted == nil {
+			host = manager.InstallServer(servers, nbs, host)
 		}
 	}
 	// On a lab on the internet: public from the start, unless the package

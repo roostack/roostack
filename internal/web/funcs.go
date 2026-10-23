@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/internal/errpage"
 	"roostack.cloud/roostack/internal/labrestore"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/photoimport"
@@ -56,7 +57,7 @@ func templateFuncs() template.FuncMap {
 		// retryText says when a failed backup is tried again (" Roostack tries
 		// again today 14:00."), or nothing.
 		"retryText": retryText,
-		"stale":     isStale,
+		"stale":     manager.BackupStale,
 		// firstLine and otherLines split an error: restic's own first line,
 		// then what follows (a stack trace, at worst), shown under Details.
 		"firstLine":  words.FirstLine,
