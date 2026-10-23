@@ -35,7 +35,13 @@ func Pull(ctx context.Context, launch Launch, image string, w io.Writer) error {
 	}
 	cmd := launch(ctx, nil, "podman", "pull", image)
 	var out bytes.Buffer
-	cmd.Stdout, cmd.Stderr = io.MultiWriter(w, &out), io.MultiWriter(w, &out)
+	// One writer for both, so exec gives podman one pipe for its output
+	// and its errors: the lines arrive in the order podman wrote them,
+	// and only one goroutine writes to w and out. With two writers, the
+	// "Error: …" line could come before the progress it followed, and the
+	// reason was lost.
+	both := io.MultiWriter(w, &out)
+	cmd.Stdout, cmd.Stderr = both, both
 	return pullError(cmd.Run(), out.String(), image, runtime.GOARCH)
 }
 
@@ -52,9 +58,13 @@ func pullError(err error, out, image, arch string) error {
 	if strings.Contains(out, "no image found in") {
 		return &NoImageForArch{Image: image, Arch: arch}
 	}
+	// The last "Error: …" line, wherever it is: podman may print more
+	// after it.
 	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if why, ok := strings.CutPrefix(strings.TrimSpace(lines[len(lines)-1]), "Error: "); ok {
-		return fmt.Errorf("%w: %s", err, why)
+	for i := len(lines) - 1; i >= 0; i-- {
+		if why, ok := strings.CutPrefix(strings.TrimSpace(lines[i]), "Error: "); ok {
+			return fmt.Errorf("%w: %s", err, why)
+		}
 	}
 	return err
 }
