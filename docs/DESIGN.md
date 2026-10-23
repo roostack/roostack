@@ -143,7 +143,7 @@ Template components are called as functions; everything else is plain HTML with 
 
 | Component | How | Notes |
 |---|---|---|
-| Buttons | `<button>` (primary), `.secondary`, `.danger`, `.quiet` (looks like a link), `.quiet.danger`; `<a class="button">` for navigation | One primary per form or card. A label stays on one line, except on phones (640 px and less), where a long one ("Link and go back to …") wraps rather than leaving its card |
+| Buttons | `<button>` (primary), `.secondary`, `.danger`, `.outline-danger` (outlined in red: the way to something drastic but safe, such as **Pause public access…**), `.quiet` (looks like a link), `.quiet.danger`; `<a class="button">` for navigation | One primary per form or card. A label stays on one line, except on phones (640 px and less), where a long one ("Link and go back to …") wraps rather than leaving its card |
 | Confirm | `{{confirm ACTION QUESTION TEXT KIND ["name=value"…]}}` | For anything hard to undo. KIND is the button class (`danger`, `secondary`, `quiet`, `""`); trailing `name=value` are hidden fields. The question goes through a data attribute, never into script |
 | Confirm a form | `{{confirmSubmit QUESTION TEXT KIND}}` inside a form | For a form with fields of its own (checkboxes, choices); its required fields are checked before the dialog opens. KIND is the dialog button's class (`danger` or `""`) |
 | Notice | `{{notice KIND TEXT ["link=…" "linkText=…"]}}` | KIND: `info`, `ok`, `warn`, `error` |

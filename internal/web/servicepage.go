@@ -59,6 +59,15 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		http.NotFound(w, r)
 		return
 	}
+	// Its public access, if it has any, and whether that's paused (SPEC.md
+	// §6.16).
+	if pp, err := s.Manager.PublicPauses(); err == nil {
+		for _, ps := range pp.Services {
+			if ps.Name == name {
+				data["PublicService"] = ps
+			}
+		}
+	}
 	// Installing: its log, for the step list's Details. Once it's done, the
 	// step list's polling reloads the page (status, Open link).
 	if install := data["Service"].(ServiceView).Install; install != nil {

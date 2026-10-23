@@ -17,7 +17,7 @@
       {{- with .Servers}} on {{len .}} {{if eq (len .) 1}}server{{else}}servers{{end}}{{end}}
       {{- with .Figures}}{{if not .LastBackup.IsZero}}. Every server backed up {{when .LastBackup}}{{end}}{{end}}.</p>
   </div>
-  {{if .CanManage}}<div class="page-head-actions"><a class="button" href="/catalog">Add a service</a></div>{{end}}
+  {{if .CanManage}}<div class="page-head-actions">{{if .CanPause}}<a class="button outline-danger" href="/pause">{{icon "pause"}}Pause public access…</a>{{end}}<a class="button" href="/catalog">Add a service</a></div>{{end}}
 </div>
 {{template "attention" .}}
 {{with .Figures}}

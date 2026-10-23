@@ -313,6 +313,14 @@ button.secondary:hover, a.button.secondary:hover, summary.button.secondary:hover
 /* Small: in tables, notices and card headings. */
 button.small, a.button.small { padding: 5px 12px; font-size: var(--text-sm); }
 button.danger, a.button.danger { background: var(--bad); color: var(--bad-fg); }
+/* Outlined in red: a way to something drastic but safe, such as pausing
+   public access (SPEC.md §6.16), which shouldn't look like the page's
+   main action. */
+button.outline-danger, a.button.outline-danger { background: none; color: var(--bad); border-color: var(--bad); }
+button.outline-danger:hover, a.button.outline-danger:hover { background: var(--bad-bg); filter: none; }
+/* An icon in a coloured button takes the button's text colour (icons are
+   muted elsewhere, which would show the accent's green on red). */
+button.danger .icon, a.button.danger .icon, button.outline-danger .icon, a.button.outline-danger .icon { color: currentColor; }
 /* Quiet: looks like a link (for small or less important actions). */
 button.quiet { background: none; border: 0; padding: 0; color: var(--accent); font-weight: var(--weight-normal);
   text-decoration: underline; text-underline-offset: 2px; }

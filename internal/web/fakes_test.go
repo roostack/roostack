@@ -52,6 +52,7 @@ type fakeManager struct {
 	fakeBackupPlan
 	fakeStorage
 	fakePublic
+	fakePauses
 	fakeKeys
 	fakeLabRestores
 	fakeWithdrawals
@@ -697,6 +698,76 @@ func (f *fakeStorage) RemoteStorages(context.Context) []manager.RemoteStorage {
 
 func (f *fakeStorage) RemoteUsage(context.Context, manager.RemoteStorage) (labnet.GuestUsage, error) {
 	return labnet.GuestUsage{Used: 3 * units.GB, Quota: 50 * units.GB}, nil
+}
+
+// fakePauses is pausing public access (pause_test.go): Vaultwarden is
+// public and built with rust, unless public is set.
+type fakePauses struct {
+	public   []manager.PublicService
+	all      *config.Pause
+	builtW   map[string]config.Pause
+	own      map[string]*config.Pause
+	paused   []manager.PauseRequest
+	lifted   []manager.PauseRequest
+	pausedBy []string
+}
+
+func (f *fakePauses) PublicPauses() (manager.PublicPauses, error) {
+	if f.public == nil {
+		f.public = []manager.PublicService{{Name: "vaultwarden", Title: "Vaultwarden", Hosts: []string{"passwords.lab.example.com"}, BuiltWith: []string{"rust", "sqlite"}}}
+	}
+	out := manager.PublicPauses{All: f.all, BuiltWith: f.builtW}
+	for _, s := range f.public {
+		s.Own, s.ByAll, s.ByBuiltWith = f.own[s.Name], f.all != nil, nil
+		for _, b := range s.BuiltWith {
+			if _, ok := f.builtW[b]; ok {
+				s.ByBuiltWith = append(s.ByBuiltWith, b)
+			}
+		}
+		out.Services = append(out.Services, s)
+	}
+	return out, nil
+}
+
+func (f *fakePauses) PausePublic(by string, r manager.PauseRequest) error {
+	if !r.All && len(r.BuiltWith) == 0 && len(r.Services) == 0 {
+		return &usererr.Error{Msg: "Choose what to pause: everything public, what services are built with, or some services."}
+	}
+	f.paused, f.pausedBy = append(f.paused, r), append(f.pausedBy, by)
+	p := config.Pause{Since: time.Now(), By: by}
+	if r.All {
+		f.all = &p
+	}
+	for _, b := range r.BuiltWith {
+		if f.builtW == nil {
+			f.builtW = map[string]config.Pause{}
+		}
+		f.builtW[b] = p
+	}
+	for _, n := range r.Services {
+		if n != "vaultwarden" {
+			return manager.ErrNotFound
+		}
+		if f.own == nil {
+			f.own = map[string]*config.Pause{}
+		}
+		f.own[n] = &p
+	}
+	return nil
+}
+
+func (f *fakePauses) LiftPause(r manager.PauseRequest) error {
+	f.lifted = append(f.lifted, r)
+	if r.All {
+		f.all = nil
+	}
+	for _, b := range r.BuiltWith {
+		delete(f.builtW, b)
+	}
+	for _, n := range r.Services {
+		delete(f.own, n)
+	}
+	return nil
 }
 
 // fakePublic is public access (public_test.go).

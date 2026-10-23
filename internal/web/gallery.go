@@ -150,6 +150,11 @@ Network=roostack-immich.network</code></pre>
   <button class="danger">Remove</button>
   <button class="quiet">Set this up later</button>
 </div>`},
+			{"Outlined in red", "A way to something drastic but safe, such as pausing public access, which shouldn't look like the page's main action. An icon in it takes the text's colour.", `
+<div class="actions-row">
+  <a class="button outline-danger" href="#">{{icon "pause"}}Pause public access…</a>
+  <button class="danger">{{icon "pause"}}Pause now</button>
+</div>`},
 			{"Link styled as a button", "For navigation that looks like an action.", `
 <a class="button" href="#">Add a service</a>
 <a class="button secondary" href="#">Open backups</a>`},

@@ -50,6 +50,8 @@ var icons = map[string]string{
 	"copy":     `<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>`,
 	"check":    `<path d="m5 12.5 4.5 4.5L19 7.5"/>`,
 	"plus":     `<path d="M12 5v14M5 12h14"/>`,
+	// Pausing public access (SPEC.md §6.16).
+	"pause": `<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>`,
 	// The package editor's (SPEC.md §8.3.7): importing a file, and a
 	// suggestion. internal/editor/static/editor.js draws its own copies
 	// (TestEditorIcons).

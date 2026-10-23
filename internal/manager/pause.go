@@ -25,10 +25,10 @@ type PauseRequest struct {
 
 func (r PauseRequest) empty() bool { return !r.All && len(r.BuiltWith) == 0 && len(r.Services) == 0 }
 
-// PublicAccess is what's public in the lab and what's paused, for the
+// PublicPauses is what's public in the lab and what's paused, for the
 // pages: the lab's own pauses, and every service with a public address or
 // port.
-type PublicAccess struct {
+type PublicPauses struct {
 	All       *config.Pause
 	BuiltWith map[string]config.Pause
 	Services  []PublicService
@@ -52,7 +52,7 @@ type PublicService struct {
 func (s PublicService) Paused() bool { return s.Own != nil || s.ByAll || len(s.ByBuiltWith) > 0 }
 
 // PausedServices are the public services whose public access is paused.
-func (a PublicAccess) PausedServices() []PublicService {
+func (a PublicPauses) PausedServices() []PublicService {
 	var out []PublicService
 	for _, s := range a.Services {
 		if s.Paused() {
@@ -62,15 +62,15 @@ func (a PublicAccess) PausedServices() []PublicService {
 	return out
 }
 
-// PublicAccess lists the lab's public services and its pauses.
-func (m *Manager) PublicAccess() (PublicAccess, error) {
+// PublicPauses lists the lab's public services and its pauses.
+func (m *Manager) PublicPauses() (PublicPauses, error) {
 	lab := m.labNow()
 	services, err := state.LoadServices(m.Lab)
 	if err != nil && len(services) == 0 {
-		return PublicAccess{}, err
+		return PublicPauses{}, err
 	}
 	pause := lab.Public.Pause
-	out := PublicAccess{All: pause.All, BuiltWith: pause.BuiltWith}
+	out := PublicPauses{All: pause.All, BuiltWith: pause.BuiltWith}
 	for _, s := range services {
 		ps, ok := publicService(lab, s)
 		if !ok {

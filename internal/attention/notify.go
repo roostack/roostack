@@ -86,6 +86,12 @@ const (
 	AuditNewDevice    = "new device"
 	AuditServerJoined = "server joined"
 	AuditGuestJoined  = "storage guest joined"
+	// Pausing public access and opening it again (SPEC.md §6.16), with
+	// what in the detail ("everything", "services built with php",
+	// "Lychee"): every Owner hears at once, so a pause nobody expected is
+	// seen.
+	AuditPublicPaused = "public access paused"
+	AuditPublicOpened = "public access opened"
 )
 
 // Timing: a problem is emailed once it has lasted notifyDelay, something
@@ -302,6 +308,11 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 		return "", "A server joined the lab: " + e.Detail + " (" + when + ").", ""
 	case AuditGuestJoined:
 		return "", "Another lab started storing its backups here: " + e.Detail + " (" + when + ").", ""
+	case AuditPublicPaused:
+		return "", "Public access to " + e.Detail + " was paused " + by + " (" + when + "). Visitors from the internet are seeing a page " +
+			"saying it's closed for a while, and it's still working at home.", ""
+	case AuditPublicOpened:
+		return "", "Public access to " + e.Detail + " was opened again " + by + " (" + when + ").", ""
 	}
 	return "", "", ""
 }

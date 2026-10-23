@@ -39,9 +39,9 @@ func TestPausePublic(t *testing.T) {
 		if got := strings.Contains(string(b), "error @vaultwarden-web-outside 503"); got != want {
 			t.Errorf("%s: paused %v, want %v:\n%s", why, got, want, b)
 		}
-		pa, err := m.PublicAccess()
+		pa, err := m.PublicPauses()
 		if err != nil || len(pa.Services) != 1 || pa.Services[0].Paused() != want || len(pa.PausedServices()) != map[bool]int{true: 1}[want] {
-			t.Errorf("%s: PublicAccess %+v %v", why, pa, err)
+			t.Errorf("%s: PublicPauses %+v %v", why, pa, err)
 		}
 	}
 	paused(false, "public")
@@ -69,7 +69,7 @@ func TestPausePublic(t *testing.T) {
 	}
 	m.Wait()
 	paused(true, "still built with rust")
-	pa, _ := m.PublicAccess()
+	pa, _ := m.PublicPauses()
 	if s := pa.Services[0]; s.ByAll || strings.Join(s.ByBuiltWith, " ") != "rust" || pa.BuiltWith["php"].By != "sam" {
 		t.Errorf("by what it's built with: %+v", pa)
 	}

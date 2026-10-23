@@ -30,6 +30,7 @@ type fakeManager struct {
 	updates  map[string]*manager.Update
 	last     map[string]*manager.UpdateRecord
 	withdraw map[string]*manager.Withdrawal
+	pauses   manager.PublicPauses
 }
 
 func (f *fakeManager) Servers() ([]manager.Server, error)                     { return f.servers, nil }
@@ -41,6 +42,7 @@ func (f *fakeManager) LostMainBackup(context.Context, string) (store.LostBackup,
 }
 func (f *fakeManager) JunkReports(context.Context) []manager.JunkReport { return nil }
 func (f *fakeManager) PublicHosts() []string                            { return nil }
+func (f *fakeManager) PublicPauses() (manager.PublicPauses, error)      { return f.pauses, nil }
 func (f *fakeManager) Edge(context.Context) (manager.EdgeServer, bool) {
 	return manager.EdgeServer{}, false
 }
