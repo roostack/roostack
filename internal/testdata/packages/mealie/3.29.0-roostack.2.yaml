@@ -16,6 +16,7 @@ about:
   icon: icon.png
   categories: [home]
   keywords: [recipes, cooking, meal plan, shopping list, food, kitchen]
+built_with: [python]
 requires:
   roostack: "0.1"
 

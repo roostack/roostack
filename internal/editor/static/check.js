@@ -866,6 +866,12 @@
       if (seen.has(k.toLowerCase())) add(`about.keywords[${i}]: ${goQuote(k)} is listed twice`);
       seen.add(k.toLowerCase());
     });
+    const bw = p.built_with || [];
+    if (bw.length > S.limits.maxBuiltWith) add(`built_with: at most ${S.limits.maxBuiltWith}; name what the app is built on, not every library it uses`);
+    bw.forEach((b, i) => {
+      if (!re.builtWith.test(b)) add(`built_with[${i}]: ${goQuote(b)} must be a short name such as php or log4j: lowercase letters, digits, and dashes, starting with a letter`);
+      if (bw.indexOf(b) !== i) add(`built_with[${i}]: ${goQuote(b)} is listed twice`);
+    });
     const rv = p.requires.roostack;
     if (rv !== "" && !re.roostack.test(rv)) add(`requires.roostack: ${goQuote(rv)} must be a Roostack release such as "0.6" or "0.6.1"`);
     const notes = new Set();

@@ -13,6 +13,7 @@ about:                           # the project, credited in the catalog
   icon: icon.png
   categories: [passwords]
   keywords: [password manager, bitwarden, two-factor, passkeys]
+built_with: [rust]
 requires:
   roostack: "0.1"                # the oldest Roostack that can run it
 

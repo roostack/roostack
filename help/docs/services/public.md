@@ -336,6 +336,56 @@ rarely need, such as an admin page.
 3. Open `https://git.example.com` in your browser. Remove the hosts line
    when you're done, or the address won't work without the tunnel.
 
+## Pausing public access
+
+When something is wrong, such as a security problem in something your
+services are built with, you can take them off the internet in one step
+and put them back just as easily. On **Home**, choose **Pause public
+access…**, then what to pause:
+
+- **Everything public**: every service you've made public.
+- **By what it's built with**: every public service built with what you
+  tick, such as `php`, as its package says. Services installed later that
+  are built with the same thing will be paused too.
+- **Chosen services**: only the ones you tick. A service's own page has
+  **Pause public access to…** as well.
+
+Within a few seconds, visitors from the internet will see a page saying
+the service is closed for a while, whichever way they come in. It won't say
+why. At home and on your lab's VPN, everything will keep working as it is,
+and nothing else will change: the services will keep running, and their
+addresses, settings, and certificates will stay as they are. Roostack's own
+pages are never paused, so you can always open things again from them.
+
+Owners and Admins can pause, and Roostack will email the Owners straight
+away to say who did. A pause will last until an Owner opens it again,
+from **Settings → Public access** or the service's page: Home and the
+weekly summary will keep saying what's paused until then.
+
+??? note "For technical users"
+
+    - The lab's pauses are in `lab.yaml`, under `public.pause` (`all`, and
+      `built_with` by name), each with when and by whom; a service's own is
+      `public_pause` in its instance file.
+    - A paused service's public routes answer visitors from outside with a
+      503 first thing in their `route` block (`error`), setting
+      `roostack_blocked`, which makes the error page say it's closed.
+      Visitors from home pass through as before, and CrowdSec keeps
+      running.
+    - Its public package ports are opened to home only at its server's
+      firewall, and the sign-in page for services stays public only for
+      services that aren't paused.
+    - Monitoring still checks it from inside the lab; the public status
+      page shows it as paused.
+    - When Roostack's pages can't be reached, pause from the controller's
+      command line: `sudo roostack public pause -all` (or `-built-with
+      php`, or `-service lychee`), `sudo roostack public resume …` to open
+      it again, and `sudo roostack public status`. It saves the change
+      as the roostack user, records it like the pages do (so the Owners
+      will be emailed), and restarts Roostack so that it applies it; if
+      Roostack isn't running, it applies it to that server's own services
+      itself.
+
 ## Making it private again
 
 On the same page, choose **Make private**. The service will be reachable

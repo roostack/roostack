@@ -247,7 +247,47 @@ type Public struct {
 	// (SPEC.md §10.5). Only Roostack Cloud's relay enforces it, at its
 	// edges, before visitors reach the lab.
 	Countries Countries `yaml:"countries,omitempty"`
+	// Pause is public access the Owner or an Admin paused for the whole
+	// lab, or for every service built with something (SPEC.md §6.16).
+	// One service's own pause is in its instance (PublicPause).
+	Pause PublicPause `yaml:"pause,omitempty"`
 }
+
+// PublicPause is public access paused for the whole lab (All), or for
+// every service built with a name in BuiltWith, now and installed later
+// (SPEC.md §6.16). A paused service's public addresses answer visitors
+// from outside with a page saying it's closed for a while, and its public
+// ports take connections from home only; everything else stays as it is.
+// It lasts until someone lifts it: a pause lifting by itself could reopen
+// a vulnerable service while nobody's looking.
+type PublicPause struct {
+	All       *Pause           `yaml:"all,omitempty" json:"all,omitempty"`
+	BuiltWith map[string]Pause `yaml:"built_with,omitempty" json:"built_with,omitempty"`
+}
+
+// Pause is who paused public access, and when.
+type Pause struct {
+	Since time.Time `yaml:"since" json:"since"`
+	// By is the person's username; empty from the command line.
+	By string `yaml:"by,omitempty" json:"by,omitempty"`
+}
+
+// Covers says whether a service built with builtWith
+// (pkgspec.Package.BuiltWithNames) is paused.
+func (p PublicPause) Covers(builtWith []string) bool {
+	if p.All != nil {
+		return true
+	}
+	for _, b := range builtWith {
+		if _, ok := p.BuiltWith[b]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// IsZero: nothing is paused (and yaml's omitempty leaves it out).
+func (p PublicPause) IsZero() bool { return p.All == nil && len(p.BuiltWith) == 0 }
 
 // Countries lets in only visitors from Allow, or everyone but those from
 // Block (ISO 3166 codes, such as AU; never both; neither is anyone).

@@ -17,6 +17,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -75,6 +76,11 @@ type Instance struct {
 	// firewall) for this service's public addresses, after a warning
 	// (SPEC.md §6.10 item 4). Only the Owner can: a package has no say.
 	NoWAF bool `yaml:"no_waf,omitempty"`
+	// PublicPause: the Owner or an Admin paused this service's public
+	// access (SPEC.md §6.16): visitors from outside get a page saying it's
+	// closed for a while, until someone lifts it. The lab's own pauses
+	// (everything, or by what services are built with) are in lab.yaml.
+	PublicPause *config.Pause `yaml:"public_pause,omitempty"`
 	// SSO: single sign-on is on (SPEC.md §5.2), for a package that takes
 	// it. Who may sign in is runtime data (store.Access).
 	SSO bool `yaml:"sso,omitempty"`

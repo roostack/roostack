@@ -85,6 +85,7 @@ func Describe() Description {
 			"spdxID":         spdxIDRe.String(),
 			"icon":           iconRe.String(),
 			"roostack":       roostackVersionRe.String(),
+			"builtWith":      builtWithRe.String(),
 			"memory":         memoryRe.String(),
 			"quadletKey":     quadlet.KeyPattern,
 			// Single sign-on's (sso.go).
@@ -108,6 +109,7 @@ func Describe() Description {
 		Limits: map[string]int64{
 			"maxCategories":   MaxCategories,
 			"maxKeywords":     MaxKeywords,
+			"maxBuiltWith":    MaxBuiltWith,
 			"maxMakerBytes":   maxMaker,
 			"maxKeywordBytes": maxKeyword,
 			"maxStorageTitle": maxStorageTitle,

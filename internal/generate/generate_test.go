@@ -119,6 +119,57 @@ func TestNoWAF(t *testing.T) {
 	}
 }
 
+// TestPaused: a service whose public access is paused (SPEC.md §6.16), by
+// its own pause, the lab's for everything, or the lab's for something it's
+// built with, answers visitors from outside with the paused page, opens
+// its public ports to home only, and no longer needs the sign-in page
+// public; a pause of something else leaves it as it was.
+func TestPaused(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("forgejo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "forgejo-sso.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	on := true
+	in.Routes["web"] = instance.RouteOverride{Port: in.Routes["web"].Port, Exposure: pkgspec.ExposurePublic}
+	in.Ports = map[string]instance.PortOverride{"ssh": {Enabled: &on, Exposure: pkgspec.ExposurePublic}}
+	since := config.Pause{Since: time.Date(2026, 10, 23, 9, 14, 0, 0, time.UTC), By: "tom"}
+	paused := func(t *testing.T, lab config.Lab, in *instance.Instance, want bool) {
+		t.Helper()
+		out, err := Service(lab, p, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		site := out.CaddySite.Content
+		if got := strings.Contains(site, "error @forgejo-web-outside 503"); got != want {
+			t.Errorf("paused route = %v, want %v:\n%s", got, want, site)
+		}
+		if len(out.HostPorts) != 1 || (out.HostPorts[0].Exposure == pkgspec.ExposurePrivate) != want {
+			t.Errorf("ports: %+v", out.HostPorts)
+		}
+		if !out.Public || out.SSOPublic == want {
+			t.Errorf("public %v, sign-in page public %v: CrowdSec stays, and the sign-in page follows", out.Public, out.SSOPublic)
+		}
+		if want != Paused(lab, p, in) {
+			t.Errorf("Paused = %v", !want)
+		}
+	}
+	paused(t, testLab(), in, false)
+	lab := testLab()
+	lab.Public.Pause.BuiltWith = map[string]config.Pause{"php": since}
+	paused(t, lab, in, false)
+	lab.Public.Pause.BuiltWith["postgres"] = since // from its database
+	paused(t, lab, in, true)
+	lab = testLab()
+	lab.Public.Pause.All = &since
+	paused(t, lab, in, true)
+	in.PublicPause = &since
+	paused(t, testLab(), in, true)
+}
+
 func TestErrors(t *testing.T) {
 	p, err := pkgspec.Load(pkgtest.File("immich"))
 	if err != nil {

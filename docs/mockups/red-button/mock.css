@@ -1,0 +1,26 @@
+/* Red button mock-ups (2026-10-22): only what the real stylesheet lacks. */
+/* The pause button: red-outlined, not a primary action, so it isn't pressed by mistake. */
+a.button.pause-button { background: none; color: var(--bad); border: 1px solid var(--bad); }
+a.button.pause-button:hover { background: var(--bad-bg); }
+/* An icon in a button takes the button's text colour (the stylesheet's .icon is muted, which shows green on red). */
+a.button.pause-button .icon, button.danger .icon { width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px; color: currentColor; }
+.page-head-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+/* What would be paused, on the pause page. */
+.pause-list { display: grid; gap: var(--space-3); margin: var(--space-3) 0; }
+.pause-list li { display: flex; gap: var(--space-3); align-items: center; }
+.pause-list li span { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.built-with { flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: var(--space-3) 0; }
+.built-with small { margin-left: 4px; }
+.pause-actions { display: flex; gap: var(--space-4); align-items: center; margin-top: var(--space-5); }
+.will-list li { display: flex; gap: var(--space-3); align-items: flex-start; margin: var(--space-2) 0; }
+.will-list .icon { flex: none; margin-top: 2px; }
+/* The advisory on a service's page. */
+.advisory { border-left: 4px solid var(--bad); }
+.advisory blockquote { margin: var(--space-3) 0; padding-left: var(--space-3); border-left: 2px solid var(--edge-strong); }
+.advisory h3 { margin-top: var(--space-5); }
+.title-line { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+/* The resume confirmation, shown open in the page for the mock-up. */
+dialog.resume-dialog { position: static; display: block; margin: 0 0 var(--space-5); max-width: 36rem; padding: var(--space-5);
+  border-radius: var(--radius-lg); border: 1px solid var(--edge-strong); background: var(--surface); color: var(--fg); }
+.automation label.check { display: block; margin: var(--space-3) 0; }
+.automation label.check small { display: block; margin-left: 1.6rem; }

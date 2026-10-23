@@ -24,7 +24,7 @@
         <td><div class="list-name"><span class="logo-tile">{{icon "server"}}</span><div><a href="#server-{{.ID}}">{{.Name}}</a>
           <small>{{if .Controller}}Runs the lab{{else}}Runs services{{end}}{{if .This}} · this server{{end}}</small></div></div></td>
         <td>{{if not .Reachable}}<span class="pill pill-bad">Not connected</span>
-          {{- else if .Status.Running}}<span class="pill pill-info">Applying changes</span>
+          {{- else if .Status.Running}}<span class="pill pill-info">Applying changes</span>{{with .Status.Waiting}} <small class="hint">{{len .}} more waiting</small>{{end}}
           {{- else if .Status.LastErr}}<span class="pill pill-bad">The last change didn't finish</span>
           {{- else if .Status.Finished}}<span class="pill pill-ok">Up to date</span>
           {{- else}}<span class="pill">Not applied yet</span>{{end}}</td>

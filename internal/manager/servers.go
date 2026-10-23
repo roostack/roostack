@@ -244,7 +244,15 @@ func (m *Manager) ApplyBecause(reason string) {
 // startApplyLocked builds each server's assignment and hands it over,
 // saying why in the servers' logs ("" for a change to backups, storage or
 // the lab's servers); servers apply in the background. Callers hold mu.
-func (m *Manager) startApplyLocked(reason string) {
+func (m *Manager) startApplyLocked(reason string) { m.startApply(reason, false) }
+
+// startApplyNowLocked is startApplyLocked for a change to web addresses
+// that mustn't wait behind an apply that's running (a pause of public
+// access, SPEC.md §6.16): the controller's Caddy takes it at once
+// (node.Assignment.CaddyFirst). Callers hold mu.
+func (m *Manager) startApplyNowLocked(reason string) { m.startApply(reason, true) }
+
+func (m *Manager) startApply(reason string, caddyFirst bool) {
 	reason = cmp.Or(reason, "A change to backups, storage, or the lab's servers")
 	services, err := state.LoadServices(m.Lab)
 	if err == nil {
@@ -266,7 +274,7 @@ func (m *Manager) startApplyLocked(reason string) {
 	// anything asks.
 	pub := m.labNow().Public
 	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked,
-		StatusPage: m.StatusPageOn()}
+		StatusPage: m.StatusPageOn(), Pause: pub.Pause}
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
 		nodes = append(nodes, r)
@@ -281,7 +289,7 @@ func (m *Manager) startApplyLocked(reason string) {
 		if n == m.Node {
 			id = m.Lab.NodeID
 		}
-		a := node.Assignment{Services: m.onNode(services, id), Lab: lab, Reason: reason}
+		a := node.Assignment{Services: m.onNode(services, id), Lab: lab, Reason: reason, CaddyFirst: caddyFirst && n == m.Node}
 		for _, s := range a.Services {
 			name := s.Name()
 			for k, v := range m.secrets[name] {

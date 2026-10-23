@@ -84,6 +84,13 @@
     ]
    },
    {
+    "name": "built_with",
+    "type": "list",
+    "item": {
+     "type": "string"
+    }
+   },
+   {
     "name": "upgrade_notes",
     "type": "list",
     "item": {
@@ -713,6 +720,7 @@
   ]
  },
  "patterns": {
+  "builtWith": "^[a-z][a-z0-9-]{0,31}$",
   "clientIPHeader": "^[Xx]-[A-Za-z0-9-]+$",
   "envName": "^[A-Za-z_][A-Za-z0-9_]*$",
   "icon": "^[A-Za-z0-9][A-Za-z0-9._-]*\\.png$",
@@ -828,6 +836,7 @@
  "limits": {
   "iconMaxBytes": 100000,
   "iconMinSize": 256,
+  "maxBuiltWith": 20,
   "maxCategories": 3,
   "maxKeywordBytes": 40,
   "maxKeywords": 10,
@@ -1263,6 +1272,12 @@
    "label": "Website",
    "help": "The project's own site, an https:// address. Leave it out if the project has none beyond its code.",
    "example": "https://myapp.example",
+   "link": "reference/packages#the-parts"
+  },
+  "built_with": {
+   "label": "Built with",
+   "help": "What the app is built on, as short names such as php, node, laravel or log4j, not every library it uses. If that thing has a security problem, the Owner will be able to pause public access to every service built with it at once. Roostack will add the databases it runs for the app by itself.",
+   "example": "php, laravel",
    "link": "reference/packages#the-parts"
   },
   "containers": {

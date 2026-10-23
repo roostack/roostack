@@ -18,6 +18,17 @@
 {{end}}
 {{end}}
 
+{{/* apply-waiting (a node.ApplyStatus): the changes waiting for the apply
+     that's running to finish, oldest first, so a change someone made that
+     hasn't happened yet says why. Nothing when none are waiting. */}}
+{{define "apply-waiting"}}{{with .}}{{if .Waiting}}
+<section class="notice notice-info apply-waiting" role="status">
+  <p><strong>{{len .Waiting}} {{if eq (len .Waiting) 1}}change is{{else}}changes are{{end}} waiting for the one being applied now{{with .Doing}} ({{(index . 0).Reason}}){{end}} to finish.</strong>
+    {{if eq (len .Waiting) 1}}It{{else}}They{{end}} will be applied straight after, in this order:</p>
+  <ol>{{range .Waiting}}<li>{{.Reason}}{{if .Early}} <small class="hint">· its web addresses have changed already</small>{{end}}</li>{{end}}</ol>
+</section>
+{{end}}{{end}}{{end}}
+
 {{/* server-switcher: a per-server settings area's state on each server,
      which also switches between them (switcher.go). */}}
 {{define "server-switcher"}}{{with .Switcher}}
@@ -78,7 +89,7 @@
           {{- else if eq .Status "waiting"}}Its server, {{or .WasOn "a server that's gone"}}, is gone
           {{- else if and .Package (ne .Package .Name)}}{{.Package}}{{end}}</small>
         {{- if not $.CanManage}}{{with $.Migratable}}{{if index . $svc.Name}}<small><a href="/immich-photos/{{$svc.Name}}">Migrate your photos into it</a></small>{{end}}{{end}}{{end}}</div></div></td>
-      <td>{{status .Status}}{{if and .Update $.CanManage (ne .Status "updating")}} <a href="/services/{{.Name}}#update">{{badge "Update" "highlight"}}</a>{{end}}</td>
+      <td>{{status .Status}}{{with $.Paused}}{{if index . $svc.Name}} <span class="pill pill-warn">Public access paused</span>{{end}}{{end}}{{if and .Update $.CanManage (ne .Status "updating")}} <a href="/services/{{.Name}}#update">{{badge "Update" "highlight"}}</a>{{end}}</td>
       <td class="hide-phone wrap">{{if .Install}}{{range .URLs}}<span class="address-pending">{{trimScheme .}}</span>{{end}}
         {{- else if .NoAddress}}{{template "address-waiting" $}}
         {{- else}}{{range $i, $u := .URLs}}{{if $i}}<br>{{end}}<a href="{{$u}}" target="_blank" rel="noopener">{{trimScheme $u}}{{template "new-window"}}</a>{{end}}{{end}}</td>

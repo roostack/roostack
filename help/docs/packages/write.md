@@ -86,6 +86,7 @@ about:
   icon: icon.png
   categories: [documents]
   keywords: [notes, wiki, markdown]
+built_with: [php, laravel]
 requires:
   roostack: "0.1"
 ```
@@ -99,6 +100,11 @@ most 100 KB. `releases` is where the project describes each version, with
 updates, Roostack links to what's new in the version it updates to.
 `requires.roostack` is the oldest Roostack release your package works
 with: the one you tried it on, unless you know better.
+`built_with` says what the app is built on: its language, its own web
+server if it has one, and any framework or library known for security
+problems. The project's source usually shows it (a `composer.json` is
+PHP, a `package.json` Node). Name a few things, not every library, and
+leave out the databases: Roostack will add the ones it runs by itself.
 
 ## Containers and images
 

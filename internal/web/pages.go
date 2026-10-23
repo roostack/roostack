@@ -108,7 +108,7 @@ func (n nav) Section() *crumb {
 // (TestNavTabs checks every template).
 func navTab(page string) string {
 	if tab, ok := map[string]string{
-		"home": "home", "catalog": "services", "local-add": "services", "local-editor": "services", "install": "services", "remove": "services", "move": "services", "visitors": "services",
+		"home": "home", "pause": "home", "catalog": "services", "local-add": "services", "local-editor": "services", "install": "services", "remove": "services", "move": "services", "visitors": "services",
 		"import": "services", "import-folders": "services",
 		"restore": "backups", "recovery-key": "settings", "users": "settings", "dns-takeover": "settings",
 		"account": "account", "twofactor": "account", "account-appearance": "account", "account-notifications": "account",
@@ -300,6 +300,7 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 		data["Migratable"] = m
 	}
 	if data["CanManage"] == true {
+		s.pauseData(data)
 		servers := s.serverViews(r)
 		data["Servers"] = servers
 		f := homeFiguresOf(data["Services"].([]ServiceView), servers)
@@ -487,6 +488,7 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 		data["BuildActivity"] = a
 	}
 	s.addBuiltIns(r, data)
+	s.pauseData(data)
 	// Visitors through the relay, for those who manage services.
 	data["Relayed"] = s.Manager.RelayOn() && auth.Can(currentUser(r).Role, auth.ManageServices)
 	s.render(w, "services", data)
@@ -498,6 +500,7 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.addBuiltIns(r, data)
+	s.pauseData(data)
 	s.renderLive(w, r, "services", "services-live", data)
 }
 

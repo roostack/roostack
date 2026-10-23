@@ -20,6 +20,7 @@ about:
   icon: icon.png
   categories: [development]
   keywords: [git, code, issues, pull requests, github alternative]
+built_with: [go]
 requires:
   roostack: "0.1"
 

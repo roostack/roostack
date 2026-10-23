@@ -173,6 +173,38 @@ func TestPullNoImageForArch(t *testing.T) {
 	}
 }
 
+// An apply that fails after writing its files (here a download) still
+// reloads Caddy with them, so a change to web addresses, such as pausing
+// public access, doesn't wait for the next apply that works (SPEC.md
+// §6.16); AfterWrite runs once the files are written, before anything
+// starts.
+func TestFailedApplyReloadsCaddy(t *testing.T) {
+	e := newEnv(t)
+	e.apply(t, e.desired(t))
+	e.systemd.calls = nil
+	e.r.Pull = func(context.Context, string, io.Writer) error { return errors.New("no network") }
+	var order []string
+	e.r.AfterWrite = func(context.Context) error {
+		_, err := os.Stat(filepath.Join(e.lab.Paths.CaddySitesDir(), "vaultwarden.caddy"))
+		order = append(order, fmt.Sprintf("after write (site written: %v, calls %d)", err == nil, len(e.systemd.calls)))
+		return nil
+	}
+	ctx := context.Background()
+	plan, err := e.r.Plan(ctx, e.desired(t, "vaultwarden"))
+	if err != nil || !plan.ReloadCaddy {
+		t.Fatalf("plan: %v, reload %v", err, plan.ReloadCaddy)
+	}
+	if err := e.r.Apply(ctx, plan); err == nil || !strings.Contains(err.Error(), "no network") {
+		t.Fatalf("apply: %v", err)
+	}
+	if got := e.systemd.calls; len(got) == 0 || got[len(got)-1] != "reload-or-restart "+generate.CaddyUnit+".service" {
+		t.Errorf("Caddy wasn't reloaded after the failure: %v", got)
+	}
+	if len(order) != 1 || !strings.HasPrefix(order[0], "after write (site written: true, calls 0)") {
+		t.Errorf("AfterWrite: %v (calls %v)", order, e.systemd.calls)
+	}
+}
+
 // A new container whose download failed (or Roostack restarted halfway)
 // has its Quadlet file already: listed as unfinished, the next apply
 // starts it as a new one again, downloading first.

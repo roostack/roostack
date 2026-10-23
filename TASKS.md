@@ -270,6 +270,22 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
 
 Nothing at the moment.
 
+## The big red button (SPEC §6.16, decided 2026-10-22)
+
+Waited for the code-quality review to finish (the maintainer, 2026-10-22); the maintainer started the build on 2026-10-23. Everything is decided, `built_with:`'s shape included (docs/RED-BUTTON-PLAN.md §4.1).
+
+- [ ] Phase 1, the button (built 2026-10-23, SPEC §6.16 "As built"): `public.pause` and `public_pause`; Caddy's page for outside visitors (first in the route block), the error page, public ports home-only, the sign-in page following its services, Paused on the status page; `built_with:` in pkgspec, the editor and the format reference; Home's **Pause public access…** page, the service page, Settings → Public access, lifting; roles, audit, Security emails, the weekly summary; `roostack public pause | resume | status`. Checked on VM7 (docs/ASSUMPTIONS.md P13). Left: a check through the lab's own edge and Roostack Cloud's relay, the status page, and the emails, on a VM
+  - [ ] Require `built_with:` in the package policy once the registry's packages have it (installs refuse a registry package with any policy problem, so not before)
+  - [ ] Pages show `built_with:` names as written (`php`): show the registry's titles (PHP) once its list is in the index
+  - [x] A pause waited behind the rest of an apply, and a failed apply didn't reload Caddy: pauses now reach Caddy at once, a failed apply still reloads it, and the changes waiting are listed (SPEC §6.16 "Pausing doesn't wait", 2026-10-23)
+  - [ ] `TestPhotoMigration` (internal/node) fails under `go test -race`: the test reads values its callback writes from the migration's goroutine without a lock (found 2026-10-23, not from this change)
+  - [ ] `roostack public` restarts Roostack to apply a change (the daemon reads `lab.yaml` only at start), which stops a running backup: a way to tell the running daemon (a signal, or a socket) would avoid it
+  - [ ] `words.And` has no Oxford comma ("a, b and c"), which the writing rules now ask for (2026-10-23); it's shared, so for wave 4
+- [ ] Phase 1, in the registry: `built_with:` for every package, and the list of names (title, a line, and the purls and CPEs the watcher will map from) in the index
+- [ ] Phase 2, advisories: `advisories/` in the registry and the index's field, with CI's checks; matching on the controller; the automation setting; worked out each time and lifting by themselves; **Keep it public anyway**; updating at once; hourly fetching; emails; a line in the report to Cloud
+- [ ] Phase 3: Cloud's nudge; pausing at the relay's edges from Cloud's website (Cloud's repository); the "closed" level (firewall, edge, relay) for problems in Caddy or Roostack
+- [ ] Phase 4, the watcher (docs/RED-BUTTON-PLAN.md §10.1; can start alongside phase 2): `roostack registry watch` in the registry's CI reading OSV, GitHub's advisories, both KEV lists, EPSS, oss-security, projects' notices and new CrowdSec patch rules; matching on `built_with:`; draft advisory pull requests, a weekly digest, ntfy notifications for critical exploited matches; Syft bills of materials for exact matches, and its findings compared with `built_with:` in the registry's pull-request checks; then an AI first pass once the watcher works without it. Publishing with nobody around: not now, revisit after a few months of accurate drafts
+
 ## Single sign-on: what's next (SPEC §5.2)
 
 - [ ] Run the conformance suite again before each release that changes `internal/sso` or the sign-in page (docs/SSO-CONFORMANCE.md)

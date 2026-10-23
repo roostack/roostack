@@ -59,6 +59,11 @@ type LabContext struct {
 	// StatusPage: the server running Caddy serves the public status page
 	// (config.Monitoring, SPEC.md §6.15).
 	StatusPage bool `json:"status_page,omitempty"`
+	// Pause is the lab's pauses of public access (config.Public, SPEC.md
+	// §6.16): the server running Caddy answers a paused service's
+	// visitors from outside, and the server running it closes its public
+	// ports to them.
+	Pause config.PublicPause `json:"pause,omitzero"`
 }
 
 // WireService is a service's instance and package files.
@@ -165,6 +170,10 @@ type WireStatus struct {
 	LastRun  time.Time `json:"last_run"`
 	LastErr  string    `json:"last_err,omitempty"`
 	Finished bool      `json:"finished"`
+	// Doing and Waiting are the changes it's applying, and the ones
+	// waiting for that to finish (ApplyStatus).
+	Doing   []Change `json:"doing,omitempty"`
+	Waiting []Change `json:"waiting,omitempty"`
 	// Version is the assignment the node has.
 	Version int64 `json:"version"`
 	// Which maintenance jobs and settings the node has.
@@ -186,7 +195,7 @@ type WireStatus struct {
 }
 
 func (w WireStatus) apply() ApplyStatus {
-	st := ApplyStatus{Running: w.Running, LastRun: w.LastRun, Finished: w.Finished}
+	st := ApplyStatus{Running: w.Running, LastRun: w.LastRun, Finished: w.Finished, Doing: w.Doing, Waiting: w.Waiting}
 	if w.LastErr != "" {
 		st.LastErr = errors.New(w.LastErr)
 	}

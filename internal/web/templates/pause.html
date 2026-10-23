@@ -1,0 +1,68 @@
+{{define "title"}}Pause public access{{end}}
+{{define "crumbs"}}<a href="/">Home</a><strong aria-current="page">Pause public access</strong>{{end}}
+{{define "content"}}
+{{/* Pause public access (SPEC.md §6.16; mock-ups in docs/mockups/red-button):
+     what to pause, what will happen, and one red button. A page rather
+     than a dialog, so it works on a phone. */}}
+<div class="page-head">
+  <div>
+    <h1>Pause public access</h1>
+    <p class="lede">For when something is wrong and you want to take services off the internet now. You'll be able to open them again just as easily.</p>
+  </div>
+</div>
+{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+<div class="grid">
+{{if .Pauses.Services}}
+<form class="card span-8 pause-form" method="post" action="/pause">
+  <input type="hidden" name="next" value="{{.Next}}">
+  <h2 class="form-section">What to pause</h2>
+  <div class="seg-group">
+    {{segmented "scope" "What to pause" (or .Scope "all") (choice "all" "Everything public") (choice "built" "By what it's built with") (choice "some" "Chosen services")}}
+    <div class="seg-panel" data-seg="1">
+      <p class="seg-hint hint">Every service you've made public: {{len .Pauses.Services}} {{if eq (len .Pauses.Services) 1}}service{{else}}services{{end}}.</p>
+      <ul class="plain pause-list">
+        {{range .Pauses.Services}}<li><strong>{{.Title}}</strong>{{with .Hosts}} <small class="hint">{{joinAnd .}}</small>{{end}}{{if .Paused}} <small class="hint">· already paused</small>{{end}}</li>{{end}}
+      </ul>
+    </div>
+    <div class="seg-panel" data-seg="2">
+      <p class="seg-hint hint">What your public services are built with, from their packages. Services installed later that are built with the same thing will be paused too.</p>
+      <div class="check-row pause-built-with">
+        {{range .BuiltWith}}<label class="check"><input type="checkbox" name="built_with" value="{{.Name}}"{{if .Paused}} checked disabled{{end}}>
+          <code>{{.Name}}</code> <small class="hint">{{joinAnd .Services}}{{if .Paused}} · already paused{{end}}</small></label>{{end}}
+      </div>
+      <p class="hint">Roostack knows only what each package says it's built with, and services you added yourself may not say: choose those by name instead.</p>
+    </div>
+    <div class="seg-panel" data-seg="3">
+      <p class="seg-hint hint">Only the services you tick.</p>
+      <div class="check-row">
+        {{range .Pauses.Services}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}"{{if .Own}} checked disabled{{else if has $.Chosen .Name}} checked{{end}}>
+          {{.Title}}{{if .Own}} <small class="hint">already paused</small>{{end}}</label>{{end}}
+      </div>
+    </div>
+  </div>
+  <hr class="form-rule">
+  <h2 class="form-section">What will happen</h2>
+  <ul class="plain will-list">
+    <li>{{icon "globe"}}Within a few seconds, visitors from the internet will see a page saying it's closed for a while, whichever way they come in.</li>
+    <li>{{icon "home"}}At home and on your lab's VPN, everything will keep working as it is.</li>
+    <li>{{icon "check"}}Nothing else will change: the services will keep running, and their addresses, settings, and certificates will stay as they are.</li>
+    <li>{{icon "pause"}}It will stay paused until an Owner opens it again, and Roostack will email the Owners now to say who paused it.</li>
+  </ul>
+  <div class="actions-row"><button type="submit" class="danger">{{icon "pause"}}Pause now</button><a href="{{.Next}}">Cancel</a></div>
+</form>
+{{else}}
+<section class="card span-8">
+  <p>Nothing is open to the internet, so there's nothing to pause.</p>
+  <p><a href="/">Back to Home</a></p>
+</section>
+{{end}}
+<aside class="card span-4">
+  <div class="card-head"><h2>Good to know</h2></div>
+  <p class="hint">Roostack's own pages won't be paused, so you'll be able to open things again from here.</p>
+  <p class="hint">Away from home? This page works over your lab's VPN too. If Roostack's pages can't be reached at all, a technical user can
+    pause from the server's command line: <code class="nowrap">sudo roostack public pause -all</code></p>
+</aside>
+</div>
+{{end}}
+
+{{define "page-help"}}{{help "services/public#pausing-public-access" "Pausing public access"}}{{end}}

@@ -110,6 +110,10 @@ type Route struct {
 	// request on a public route (SPEC.md §6.10 item 4): on unless the
 	// Owner turned it off for the service. Needs MainConfig.AppSecURL.
 	WAF bool
+	// Blocked: the service's public access is paused (SPEC.md §6.16), so
+	// on a public route outside visitors get the paused page, before
+	// anything else runs, and home visitors go through as before.
+	Blocked bool
 	// Wall puts the route behind single sign-on's forward auth (SPEC.md
 	// §5.2); nil: none.
 	Wall *Wall
@@ -180,6 +184,11 @@ const CrowdSecAPIKeyEnv = "CROWDSEC_API_KEY"
 // banned address and a request AppSec matched with the same 403, so the
 // refused page (internal/errpage) tells them apart by it.
 const WAFVar = "roostack_waf"
+
+// BlockedVar is set on a paused route's request (SPEC.md §6.16) when it's
+// answered with the paused page: the error pages' 503.html shows that page
+// rather than "Still hatching" by it.
+const BlockedVar = "roostack_blocked"
 
 // AppSecMaxBody is how much of a request's body the bouncer sends to
 // AppSec (SPEC.md §6.10 item 4). The bouncer otherwise reads the whole
@@ -260,16 +269,22 @@ func quoteTitle(t string) string {
 // anyway, and a rule that wrongly matches a request of the household's
 // doesn't lock it out. It comes after the limits, so a flood doesn't reach
 // it. Their refusals go to the error pages (handle_errors), and WAFVar
-// says which of them refused.
+// says which of them refused. A paused route (Blocked) answers outside
+// visitors with a 503 before any of that, which BlockedVar makes the
+// paused page.
 func publicRoute(b *strings.Builder, r Route) {
 	if len(r.PrivatePaths) > 0 {
 		fmt.Fprintf(b, "\t@%s-private-paths {\n\t\t%s\n\t\tpath %s\n\t}\n",
 			r.ID, r.notPrivate("\t\t"), pathPatterns(r.PrivatePaths))
 	}
-	if r.WAF {
+	if r.WAF || r.Blocked {
 		fmt.Fprintf(b, "\t@%s-outside %s\n", r.ID, r.notPrivate("\t"))
 	}
 	b.WriteString("\troute {\n")
+	if r.Blocked {
+		fmt.Fprintf(b, "\t\tvars @%s-outside %s yes\n", r.ID, BlockedVar)
+		fmt.Fprintf(b, "\t\terror @%s-outside 503\n", r.ID)
+	}
 	if len(r.PrivatePaths) > 0 {
 		fmt.Fprintf(b, "\t\tabort @%s-private-paths\n", r.ID)
 	}

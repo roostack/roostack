@@ -340,6 +340,22 @@ version: "1"
 about: { keywords: [git, Git] }
 containers:
   web: { image: x }`, `about.keywords[1]: "Git" is listed twice`},
+		{"built with a phrase", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+built_with: [php, "Node JS"]
+containers:
+  web: { image: x }`, `built_with[1]: "Node JS" must be a short name such as php or log4j`},
+		{"built with twice", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+built_with: [php, php]
+containers:
+  web: { image: x }`, `built_with[1]: "php" is listed twice`},
 		{"requires a release", `
 schema: roostack/v1alpha1
 name: app
@@ -382,6 +398,30 @@ containers:
 				t.Errorf("error = %v, want it to contain %q", err, tt.want)
 			}
 		})
+	}
+}
+
+// What a service is built with (SPEC.md §6.16): its package's names, then
+// its databases' types, a redis database as valkey unless its own image
+// is something else, each name once.
+func TestBuiltWithNames(t *testing.T) {
+	p, err := Parse([]byte(`
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+built_with: [php, laravel, postgres]
+databases:
+  db: { type: postgres }
+  cache: { type: redis }
+  queue: { type: redis, image: "docker.io/library/redis:7@sha256:` + strings.Repeat("a", 64) + `" }
+containers:
+  web: { image: x }`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(p.BuiltWithNames(), " "); got != "php laravel postgres valkey redis" {
+		t.Errorf("BuiltWithNames = %q", got)
 	}
 }
 

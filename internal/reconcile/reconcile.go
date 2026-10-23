@@ -86,6 +86,11 @@ type Reconciler struct {
 	// started as new ones again, downloading first, though their Quadlet
 	// files are written already (optional).
 	Unfinished map[string]bool
+	// AfterWrite runs once the plan's files are written, before anything
+	// starts (optional): Local writes Caddy's files again if a pause of
+	// public access was applied to them since this plan was made, so an
+	// older plan can't undo it (SPEC.md §6.16).
+	AfterWrite func(ctx context.Context) error
 }
 
 // UnitStatuser reads units' states; a Systemd that implements it lets a
@@ -457,9 +462,25 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 }
 
 // Apply carries out a plan. It stops at the first error; running Plan and
-// Apply again continues from where it left off.
-func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
+// Apply again continues from where it left off. Caddy reloads last, once
+// new services are running, so their web addresses don't go live before
+// they do; if a later step fails, Caddy still reloads with the files
+// already written, so changes to web addresses (a pause of public access,
+// SPEC.md §6.16) don't wait for the next apply that works.
+func (r *Reconciler) Apply(ctx context.Context, p *Plan) (err error) {
 	log := r.Log
+	caddy := generate.CaddyUnit + ".service"
+	_, newCaddy := p.StartNotes[caddy]
+	written, reloaded := false, false
+	defer func() {
+		if err == nil || !written || reloaded || !p.ReloadCaddy || newCaddy {
+			return
+		}
+		log.Step("Reloading Caddy anyway, so that changes to web addresses apply")
+		if rerr := r.Systemd.ReloadOrRestart(ctx, caddy); rerr != nil {
+			log.Printf("Reloading Caddy didn't work either: %v", rerr)
+		}
+	}()
 	if len(p.Dirs) > 0 {
 		log.Step("Creating folders")
 	}
@@ -512,6 +533,12 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 			return err
 		}
 	}
+	written = true
+	if r.AfterWrite != nil {
+		if err := r.AfterWrite(ctx); err != nil {
+			return err
+		}
+	}
 	if p.DaemonReload {
 		log.Step("Reloading systemd")
 		if err := r.Systemd.DaemonReload(ctx); err != nil {
@@ -536,13 +563,10 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 	// ones one at a time: download, then start, saying what each involves.
 	// A new Caddy comes last: its first start waits for its image build
 	// (minutes), which new services don't need.
-	caddy := generate.CaddyUnit + ".service"
 	var running, fresh []string
-	newCaddy := false
 	for _, u := range p.StartUnits {
 		switch _, ok := p.StartNotes[u]; {
 		case ok && u == caddy:
-			newCaddy = true
 		case ok:
 			fresh = append(fresh, u)
 		default:
@@ -590,11 +614,43 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 			log.Step("Reloading Caddy (web addresses and certificates)")
 		}
 		r.progress(StageProxy, "", false, nil)
+		reloaded = true
 		err := r.Systemd.ReloadOrRestart(ctx, caddy)
 		r.progress(StageProxy, "", true, err)
 		return err
 	}
 	return nil
+}
+
+// ApplyCaddy carries out only a plan's changes to Caddy's files, and
+// reloads Caddy if it's running (SPEC.md §6.16): a pause of public access
+// mustn't wait for an apply's downloads. It says whether anything changed.
+// A Caddy that hasn't started yet, or waits for a secret, is left for the
+// apply.
+func (r *Reconciler) ApplyCaddy(ctx context.Context, p *Plan) (bool, error) {
+	dir := r.Paths.CaddyDir() + string(filepath.Separator)
+	changed := false
+	for _, f := range p.Write {
+		if strings.HasPrefix(f.Path, dir) {
+			if err := writeAtomic(f.Path, f.Content); err != nil {
+				return changed, err
+			}
+			changed = true
+		}
+	}
+	for _, f := range p.Remove {
+		if strings.HasPrefix(f.Path, dir) {
+			if err := os.Remove(f.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return changed, err
+			}
+			changed = true
+		}
+	}
+	caddy := generate.CaddyUnit + ".service"
+	if _, isNew := p.StartNotes[caddy]; !changed || !p.ReloadCaddy || isNew {
+		return changed, nil
+	}
+	return true, r.Systemd.ReloadOrRestart(ctx, caddy)
 }
 
 func (r *Reconciler) hasUserSecret(name string) bool {

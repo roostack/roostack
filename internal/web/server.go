@@ -191,6 +191,7 @@ type ServiceManager interface {
 	BackupPlan
 	StorageAtOtherLabs
 	PublicAccess
+	Pauses
 	LabRestores
 	Withdrawals
 	Holds
@@ -483,7 +484,7 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
-		"import", "import-folders", "photos", "photos-home", "photos-folders"} {
+		"import", "import-folders", "photos", "photos-home", "photos-folders", "pause"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs()).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -628,6 +629,11 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /services/{name}/held/start", s.requireOwner(s.heldStartSubmit))
 	mux.Handle("POST /services/{name}/held/put-back", s.requireOwner(s.heldPutBackSubmit))
 	mux.Handle("GET /settings/public", s.requireOwner(s.publicSettingsPage))
+	// Pausing public access (SPEC.md §6.16): Owners and Admins pause, only
+	// Owners open it again.
+	mux.Handle("GET /pause", s.require(auth.ManageServices, s.pausePage))
+	mux.Handle("POST /pause", s.require(auth.ManageServices, s.pauseSubmit))
+	mux.Handle("POST /pause/lift", s.requireOwner(s.liftSubmit))
 	mux.Handle("POST /settings/public/sharing", s.requireOwner(s.publicSharingSubmit))
 	mux.Handle("POST /settings/public/edge", s.requireOwner(s.publicEdgeSubmit))
 	mux.Handle("POST /settings/public/countries", s.requireOwner(s.publicCountriesSubmit))

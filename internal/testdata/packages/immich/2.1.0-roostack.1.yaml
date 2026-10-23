@@ -16,6 +16,7 @@ about:
   icon: icon.png
   categories: [photos]
   keywords: [photos, videos, phone backup, albums, face recognition, google photos alternative]
+built_with: [node, python]
 requires:
   roostack: "0.1"
 

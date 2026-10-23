@@ -26,6 +26,25 @@
   <p>Nothing is public.</p>
   {{end}}
 </section>
+{{with .Pauses}}{{if or .All .BuiltWith .PausedServices}}
+{{/* What's paused (SPEC.md §6.16), each to open again. */}}
+<section class="card section" id="paused">
+  <div class="card-head"><h2>Paused now</h2><a class="button outline-danger small" href="/pause">{{icon "pause"}}Pause public access…</a></div>
+  <p class="hint">Visitors from the internet are seeing a page saying these are closed for a while, and they're working at home as usual.</p>
+  <ul class="rows">
+    {{with .All}}<li class="row-split"><span><strong>Everything public</strong><br><small class="hint">Since {{when .Since}}{{with .By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
+      <form method="post" action="/pause/lift"><input type="hidden" name="all" value="yes"><input type="hidden" name="next" value="/settings/public#paused">
+        {{confirmSubmit "Open everything to the internet again? Every public service that nothing else pauses will be reachable from the internet straight away." "Open it again" ""}}</form></li>{{end}}
+    {{range $b, $p := .BuiltWith}}<li class="row-split"><span><strong>Services built with <code>{{$b}}</code></strong><br><small class="hint">Since {{when $p.Since}}{{with $p.By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
+      <form method="post" action="/pause/lift"><input type="hidden" name="built_with" value="{{$b}}"><input type="hidden" name="next" value="/settings/public#paused">
+        {{confirmSubmit (printf "Open services built with %s to the internet again? Those that nothing else pauses will be reachable from the internet straight away." $b) "Open them again" ""}}</form></li>{{end}}
+    {{range .PausedServices}}{{if .Own}}<li class="row-split"><span><strong>{{.Title}}</strong><br><small class="hint">Since {{when .Own.Since}}{{with .Own.By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
+      <form method="post" action="/pause/lift"><input type="hidden" name="service" value="{{.Name}}"><input type="hidden" name="next" value="/settings/public#paused">
+        {{confirmSubmit (printf "Open %s to the internet again? Anyone on the internet will be able to reach it straight away, unless something else still pauses it." .Title) "Open it again" ""}}</form></li>{{end}}{{end}}
+  </ul>
+  {{with .PausedServices}}<p class="hint">Paused now: {{range $i, $s := .}}{{if $i}}, {{end}}{{$s.Title}}{{end}}.</p>{{end}}
+</section>
+{{end}}{{end}}
 {{with .NotDeleted}}
 <section class="card section" id="not-deleted">
   <h2>Records Roostack couldn't delete</h2>

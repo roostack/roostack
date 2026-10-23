@@ -137,6 +137,39 @@ func TestPublicRouteWAF(t *testing.T) {
 	}
 }
 
+// TestPublicRouteBlocked: a paused route (SPEC.md §6.16) answers outside
+// visitors with the paused page first thing in its route block, before
+// private paths, CrowdSec, AppSec, the check link and the service, and
+// lets home visitors through as before. A private route has nothing to
+// pause.
+func TestPublicRouteBlocked(t *testing.T) {
+	site, err := Site("vw", []Route{{ID: "vw-web", Host: "vault.example.com", Upstream: "169.254.1.3:20001",
+		PrivatePaths: []string{"/admin"}, CheckUpstream: "169.254.1.3:8480", Blocked: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `	@vw-web-outside not {
+		remote_ip PRIVATE
+		not vars roostack_edge yes
+	}
+	route {
+		vars @vw-web-outside roostack_blocked yes
+		error @vw-web-outside 503
+		abort @vw-web-private-paths
+`
+	want = strings.Replace(want, "PRIVATE", PrivateRanges, 1)
+	if !strings.Contains(site, want) {
+		t.Errorf("paused public route:\n%s\nwant:\n%s", site, want)
+	}
+	if strings.Contains(site, "appsec") || !strings.Contains(site, "reverse_proxy 169.254.1.3:20001") {
+		t.Errorf("home visitors still reach the service, and the WAF stays as it was (off):\n%s", site)
+	}
+	site, _ = Site("vw", []Route{{ID: "vw-web", Host: "vault.example.com", Upstream: "169.254.1.3:20001", Private: true, Blocked: true}})
+	if strings.Contains(site, BlockedVar) || strings.Contains(site, "error") {
+		t.Errorf("a private route isn't paused:\n%s", site)
+	}
+}
+
 // TestMainAppSec: the bouncer's settings (its refusals as Caddy errors,
 // for the refused page; AppSec failing open, a body cap), and the UI
 // checked by AppSec when it's public.
@@ -192,6 +225,7 @@ func TestCaddyAdapt(t *testing.T) {
 		{ID: "svc-api", Host: "api.lab.example.com", Upstream: "roostack-svc-api:8080",
 			PrivatePaths: []string{"/admin", "/-/admin"}, LoginPaths: []string{"/login"}, MaxBodySize: "1GB",
 			CheckUpstream: "169.254.1.3:8480", WAF: true},
+		{ID: "svc-paused", Host: "paused.lab.example.com", Upstream: "roostack-svc-api:8080", WAF: true, Blocked: true},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -210,7 +244,7 @@ func TestCaddyAdapt(t *testing.T) {
 	for _, want := range []string{`"web.lab.example.com"`, `"api.lab.example.com"`, `"*.lab.example.com"`, `"cloudflare"`,
 		`"handler":"crowdsec"`, `"handler":"rate_limit"`, `"/-/admin/*"`, `"crowdsec":{`, `"filename":"/var/log/caddy/access.log"`, `"path_regexp"`,
 		`"handler":"appsec"`, `"appsec_url":"http://169.254.1.3:8475/"`, `"appsec_fail_open":true`, `"appsec_max_body_bytes":1048576`,
-		`"enable_caddy_error":true`, `"roostack_waf":"yes"`} {
+		`"enable_caddy_error":true`, `"roostack_waf":"yes"`, `"roostack_blocked":"yes"`, `"status_code":503`} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("adapted config missing %s", want)
 		}

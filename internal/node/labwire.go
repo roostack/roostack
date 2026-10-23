@@ -72,7 +72,7 @@ func (s *Server) labRoutes(handle handleFunc) {
 	n := s.Node
 	handle("GET "+statusPath, func(r *http.Request) (any, error) {
 		st := n.Status()
-		w := WireStatus{Running: st.Running, LastRun: st.LastRun, Finished: st.Finished, Version: s.Version(),
+		w := WireStatus{Running: st.Running, LastRun: st.LastRun, Finished: st.Finished, Doing: st.Doing, Waiting: st.Waiting, Version: s.Version(),
 			Backups: n.Backups() != nil, Restores: n.Restores() != nil, Updates: n.Updates() != nil,
 			Settings: n.Settings() != nil, Imports: n.Imports() != nil, Kept: n.Mover() != nil}
 		if p := n.Processor(); p != nil {

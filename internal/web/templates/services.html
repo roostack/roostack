@@ -27,7 +27,7 @@
 
 {{define "services-live"}}
 {{with .Apply}}
-  {{if .Running}}{{notice "info" "Applying changes… Downloading a new service can take a few minutes."}}
+  {{if .Running}}{{if .Waiting}}{{template "apply-waiting" .}}{{else}}{{notice "info" "Applying changes… Downloading a new service can take a few minutes."}}{{end}}
   {{else if .LastErr}}{{notice "error" (printf "The last change didn't finish: %v" .LastErr)}}{{end}}
 {{end}}
 <section class="card">

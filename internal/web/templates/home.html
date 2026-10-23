@@ -17,8 +17,9 @@
       {{- with .Servers}} on {{len .}} {{if eq (len .) 1}}server{{else}}servers{{end}}{{end}}
       {{- with .Figures}}{{if not .LastBackup.IsZero}}. Every server backed up {{when .LastBackup}}{{end}}{{end}}.</p>
   </div>
-  {{if .CanManage}}<div class="page-head-actions"><a class="button" href="/catalog">Add a service</a></div>{{end}}
+  {{if .CanManage}}<div class="page-head-actions">{{if .CanPause}}<a class="button outline-danger" href="/pause">{{icon "pause"}}Pause public access…</a>{{end}}<a class="button" href="/catalog">Add a service</a></div>{{end}}
 </div>
+{{template "apply-waiting" .Apply}}
 {{template "attention" .}}
 {{with .Figures}}
 <ul class="figures">
@@ -48,7 +49,7 @@
           <td><div class="list-name"><span class="logo-tile">{{icon "server"}}</span><div>{{.Name}}
             <small>{{if .Controller}}Runs the lab{{else}}Runs services{{end}}{{if .This}} · this server{{end}}</small></div></div></td>
           <td>{{if not .Reachable}}<span class="pill pill-bad">Can't reach it</span>
-            {{- else if .Status.Running}}<span class="pill pill-info">Applying changes</span>
+            {{- else if .Status.Running}}<span class="pill pill-info">Applying changes</span>{{with .Status.Waiting}} <small class="hint">{{len .}} more waiting</small>{{end}}
             {{- else if .Status.LastErr}}<span class="pill pill-bad">The last change didn't finish</span>
             {{- else if .UpdatesFailed}}<span class="pill pill-bad">The last OS update didn't finish</span>
             {{- else if .RestartNeeded}}<span class="pill pill-warn">Needs a restart</span>

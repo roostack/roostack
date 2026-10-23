@@ -26,6 +26,7 @@ Commands:
   render   Show or write the files generated for a service (no side effects)
   validate Check a package file and the registry's package policy
   node     Join this server to a lab
+  public   Pause public access to services, open it again, or see what's paused
   registry The service registry's keys and signed index
 
 Run 'roostack <command> -h' for command flags.
@@ -77,6 +78,8 @@ func run(cmd string, args []string) error {
 		return validate(args)
 	case "node":
 		return nodeCmd(args)
+	case "public":
+		return publicCmd(args)
 	case "registry":
 		return registryCmd(args)
 	case "-h", "--help", "help":

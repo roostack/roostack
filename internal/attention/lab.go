@@ -71,6 +71,8 @@ type Manager interface {
 	LostMainBackup(ctx context.Context, serverID string) (store.LostBackup, bool)
 	JunkReports(ctx context.Context) []manager.JunkReport
 	PublicHosts() []string
+	// PublicPauses is what's paused (SPEC.md §6.16).
+	PublicPauses() (manager.PublicPauses, error)
 	Edge(ctx context.Context) (manager.EdgeServer, bool)
 	RelayOn() bool
 	Withdrawals(ctx context.Context) map[string]*manager.Withdrawal

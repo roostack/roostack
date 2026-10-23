@@ -1,0 +1,152 @@
+<!doctype html><html lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+  <title>Pause public access · Roostack (mock-up)</title>
+  <link rel="icon" href="/internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/internal/web/static/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" href="/internal/web/static/apple-touch-icon.png">
+  <link rel="preload" href="/internal/web/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/tokyo-night.css">
+  
+  <link rel="stylesheet" href="/internal/web/static/css/app.css">
+    <link rel="stylesheet" href="mock.css">
+</head>
+
+<body x-data="{ menu: false }" x-on:keydown.escape.window="menu = false" x-bind:class="menu && 'menu-open'">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="/"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Smiths' lab">Smiths' lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="home.html" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="/services"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        <div class="nav-children">
+          <a class="nav-sub" href="#">Ghost</a><a class="nav-sub" href="#">Immich</a><a class="nav-sub" href="service.html">Lychee</a><a class="nav-sub" href="#">Vaultwarden</a>
+          <a class="nav-sub" href="/catalog">Add a service…</a>
+        </div>
+        <a class="nav-item" href="/backups"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="/servers"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+      </nav>
+      
+      <nav class="nav-group" aria-label="Settings">
+        <p class="nav-heading">Settings</p>
+        <a class="nav-item" href="/settings/history"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>History</a>
+        <a class="nav-item" href="/settings/people"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.8 0 5 2.2 5 5"/></svg>People</a>
+        <a class="nav-item" href="/settings/domain"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg>Your lab&#39;s address</a>
+        <a class="nav-item" href="/settings/updates"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.5-4.5L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.5 4.5L21 15"/><path d="M21 20v-5h-5"/></svg>Updates and restarts</a>
+        
+        <a class="nav-item" href="settings.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>All settings</a>
+      </nav>
+      
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="/help/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="/account" class="who-link"><span class="avatar" aria-hidden="true">O</span>
+            <span class="who-name"><strong title="owner">owner</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" x-show="menu" x-cloak x-on:click="menu = false"></div>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" x-on:click="menu = true; $nextTick(() => document.querySelector('#sidebar .nav-item').focus())" aria-controls="sidebar" x-bind:aria-expanded="menu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="home.html">Home</a><strong aria-current="page">Pause public access</strong></nav>
+        <a class="page-help" href="/help/services/settings/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Public access<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+      </header>
+      <main class="page">
+
+<div class="page-head">
+  <div>
+    <h1>Pause public access</h1>
+    <p class="lede">For when something is wrong and you want to take services off the internet now. You can open them again just as easily.</p>
+  </div>
+</div>
+<div class="grid">
+<form class="card span-8 pause-form" method="post" action="paused.html">
+  <h2 class="form-section">What to pause</h2>
+  <div class="seg-group">
+    <div class="segmented" role="radiogroup" aria-label="What to pause">
+      <label><input type="radio" name="scope" value="all" checked><span>Everything public</span></label>
+      <label><input type="radio" name="scope" value="built"><span>By what it's built with</span></label>
+      <label><input type="radio" name="scope" value="some"><span>Chosen services</span></label>
+    </div>
+    <div class="seg-panel" data-seg="1">
+      <p class="seg-hint hint">Every service you've made public: 3 services, 4 addresses.</p>
+      <ul class="plain pause-list">
+        <li><span class="logo-tile"><img src="ghost.png" alt="" width="40" height="40" loading="lazy"></span><span><strong>Ghost</strong><small>blog.smiths.example.com</small></span></li>
+        <li><span class="logo-tile"><img src="immich.png" alt="" width="40" height="40" loading="lazy"></span><span><strong>Immich</strong><small>photos.smiths.example.com, share.smiths.example.com</small></span></li>
+        <li><span class="logo-tile"><img src="lychee.png" alt="" width="40" height="40" loading="lazy"></span><span><strong>Lychee</strong><small>albums.smiths.example.com · already paused</small></span></li>
+      </ul>
+    </div>
+    <div class="seg-panel" data-seg="2">
+      <p class="seg-hint hint">What your public services are built with, from their packages. Services installed later that are built with the same thing will be paused too.</p>
+      <div class="check-row built-with">
+        <label class="check"><input type="checkbox" name="built_with" value="node"> Node <small class="hint">Ghost, Immich</small></label>
+        <label class="check"><input type="checkbox" name="built_with" value="php" checked> PHP <small class="hint">Lychee</small></label>
+        <label class="check"><input type="checkbox" name="built_with" value="python"> Python <small class="hint">Immich</small></label>
+        <label class="check"><input type="checkbox" name="built_with" value="postgres"> PostgreSQL <small class="hint">Immich, Lychee</small></label>
+        <label class="check"><input type="checkbox" name="built_with" value="mysql"> MySQL <small class="hint">Ghost</small></label>
+        <label class="check"><input type="checkbox" name="built_with" value="frankenphp"> FrankenPHP <small class="hint">Lychee</small></label>
+      </div>
+      <details class="form-more"><summary>Not listed?</summary><p class="hint">Roostack knows only what each package says it's built with. Services you added yourself may not say. Choose them by name instead.</p></details>
+    </div>
+    <div class="seg-panel" data-seg="3">
+      <p class="seg-hint hint">Only the services you tick.</p>
+      <div class="check-row">
+        <label class="check"><input type="checkbox" name="service" value="ghost"> Ghost</label>
+        <label class="check"><input type="checkbox" name="service" value="immich"> Immich</label>
+        <label class="check"><input type="checkbox" name="service" value="lychee" checked disabled> Lychee <small class="hint">already paused</small></label>
+      </div>
+    </div>
+  </div>
+  <hr class="form-rule">
+  <h2 class="form-section">What will happen</h2>
+  <ul class="plain will-list">
+    <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>Visitors from the internet will see a page saying it's closed for a while, within a few seconds, whichever way they come in.</li>
+    <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><circle cx="12" cy="14.5" r="2.5"/></svg>At home and on your lab's VPN, everything will keep working as it is.</li>
+    <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Nothing else will change: the services will keep running, and their addresses, settings and certificates will stay as they are.</li>
+    <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>It will stay paused until the Owner opens it again. Roostack will email the Owners now to say who paused it.</li>
+  </ul>
+  <p class="pause-actions"><button type="submit" class="danger"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>Pause now</button> <a href="home.html">Cancel</a></p>
+</form>
+<aside class="card span-4">
+  <div class="card-head"><h2>Good to know</h2></div>
+  <p class="hint">Roostack's own pages aren't paused, so you can open things again from here.</p>
+  <p class="hint">Away from home? This page works over your lab's VPN, or from Roostack Cloud's website if your lab uses its relay.</p>
+  <p class="hint">On the command line: <code class="nowrap">sudo roostack public pause</code></p>
+</aside>
+</div>
+
+      </main>
+      <footer class="site">Roostack <span class="version" title="Roostack's version">13bc0b5-dirty</span> · <a href="/about">About</a> · <a href="/design" target="_blank" rel="noopener">Design system<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></footer>
+    </div>
+  </div>
+  
+<script src="mock.js"></script>
+</body>
+</html>
+
+
+

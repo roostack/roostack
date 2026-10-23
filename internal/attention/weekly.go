@@ -83,6 +83,13 @@ func (n *Notifier) weeklySummary(ctx context.Context, lab *Lab, u *store.User, n
 			}
 		}
 	}
+	// What's paused, and since when (SPEC.md §6.16): it lasts until
+	// someone lifts it, so the summary says so each week.
+	if auth.Can(u.Role, auth.ManageServices) {
+		if pp, err := lab.Manager.PublicPauses(); err == nil {
+			b.WriteString(pauseSummary(pp))
+		}
+	}
 	var open []string
 	for _, it := range lab.For(ctx, u) {
 		if it.Level == Problem || it.Level == Warning {
