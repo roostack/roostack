@@ -132,6 +132,7 @@ Grouped by layer, from the commands down. Sub-packages that exist only for tests
 | Package | Purpose |
 |---|---|
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |
+| `internal/kept` | Kept copies (SPEC.md §8.4): data set aside rather than deleted, before a restore, a move, bringing data in or a put back, or left by one that didn't finish. Its folders' names (`<folder>.<why>-<time>`), why each is kept and its label, and finding a server's copies; `node.Local` lists, puts back and deletes them (`kept.go`, `keptwire.go`) |
 | `internal/destination` | A backup destination's reference (`server:<id>`, `drive:<id>`, `provider:<id>`, `cloud`…), parsed and written in one place |
 | `internal/b2` | Backblaze B2 application keys limited to one server's folder, made and deleted over B2's native API |
 | `internal/s3api` | The few S3 calls Roostack makes beside restic (path-style, signed with `awssig`): a bucket's versioning and lifecycle rules, the probe that shows a key can't erase old versions, and listing and copying back old versions to roll a server's folder back (Backblaze's S3-compatible API too); `s3api/s3fake` is an in-memory versioned bucket for tests |

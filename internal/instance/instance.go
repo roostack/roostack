@@ -108,7 +108,7 @@ type Hold struct {
 	// Kept is the data from before, set aside on the server it runs on,
 	// for putting back ("" if there's none). KeptByRestore: the server's
 	// own restore kept it (backup.Restores.PutBack puts it back);
-	// otherwise the controller's (node.Mover.PutBackKeptData).
+	// otherwise the controller's (node.Mover.PutBackKept).
 	Kept          string `yaml:"kept,omitempty"`
 	KeptByRestore bool   `yaml:"kept_by_restore,omitempty"`
 	// MovedFrom is the server a move through a backup came from, when its

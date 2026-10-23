@@ -965,3 +965,25 @@
   {{end}}
 </section>
 {{end}}
+
+{{/* kept-copies: a "Kept copies" list (keptList, kept.go): each copy's
+     label, what it is (on the Servers page, its service; on the restore
+     page, its server), when, its size and folders, and its buttons. */}}
+{{define "kept-copies"}}{{$l := .}}
+<ul class="kept">
+  {{range .Copies}}{{$c := .}}
+  <li>
+    <span>{{if .Why.Unfinished}}{{badge .Label "warn"}}{{else}}{{badge .Label}}{{end}}<br>
+      {{with .ServiceTitle}}<strong>{{.}}</strong> · {{end}}{{.AboutStart}}{{if not .ServiceTitle}}{{.OnServer}}{{server .ServerName}}{{end}}{{.AboutEnd}}<br>
+      <small>{{.When}}{{if ge .Size 0}} · {{size .Size}}{{end}}</small>{{with .Note}}<br><small>{{.}}</small>{{end}}
+      <details class="kept-where"><summary>Where it is</summary><span class="kept-paths">{{range $i, $p := .Paths}}{{if $i}}<br>{{end}}<code>{{$p}}</code>{{end}}</span></details></span>
+    <span class="kept-actions">
+      {{with .PutBack}}{{confirm (printf "%s/put-back" $l.Action) . "Put back…" "secondary"
+        (printf "path=%s" $c.Path) (printf "server=%s" $c.Server) (printf "restore=%s" $c.Restore)}}{{end}}
+      {{confirm (printf "%s/remove" $l.Action) .Remove "Delete" "quiet danger" (printf "path=%s" .Path) (printf "server=%s" .Server)}}
+    </span>
+  </li>
+  {{end}}
+</ul>
+<p class="hint">{{.Total}}</p>
+{{end}}

@@ -77,9 +77,9 @@ take a single file out of a backup by hand (see below).
     streams its folders from the snapshot (`restic dump`) to the server it
     goes onto, with the secrets saved in the backup, and that server
     starts it and loads its databases. Data already there is kept as
-    `<folder>.before-move-<time>`, and the old server's copy as
+    `<folder>.before-restore-<time>`, and the old server's copy as
     `<folder>.moved-to-<server>-<time>`; both are listed under **Kept
-    copies**.
+    copies**, here and on the **Servers** page.
 
     From the command line:
 

@@ -18,6 +18,7 @@ import (
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/reconcile"
@@ -32,7 +33,7 @@ func direct(ctx context.Context, env []string, name string, args ...string) *exe
 	return exec.CommandContext(ctx, name, args...)
 }
 
-func TestKeptData(t *testing.T) {
+func TestKeptCopies(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("kept data is measured with GNU du, as on the servers")
 	}
@@ -52,22 +53,28 @@ func TestKeptData(t *testing.T) {
 		mk(p)
 	}
 	ctx := context.Background()
-	kept, err := n.KeptData(ctx)
-	if err != nil || len(kept) != 2 {
-		t.Fatalf("kept = %+v, %v", kept, err)
+	copies, err := n.KeptCopies(ctx)
+	if err != nil || len(copies) != 2 {
+		t.Fatalf("kept = %+v, %v", copies, err)
 	}
-	if kept[0].Path != moved || !kept[0].MovedAway || kept[0].Service != "forgejo" || kept[0].Size <= 0 {
-		t.Errorf("newest = %+v", kept[0])
+	if c := copies[0]; !slices.Equal(c.Paths, []string{moved}) || c.Why != kept.MovedAway || c.Note != "to-vps" || c.Service != "forgejo" ||
+		!c.Whole || c.Size <= 0 {
+		t.Errorf("newest = %+v", c)
 	}
-	if kept[1].Path != before || kept[1].MovedAway {
-		t.Errorf("older = %+v", kept[1])
+	if c := copies[1]; !slices.Equal(c.Paths, []string{before}) || c.Why != kept.BeforeMove {
+		t.Errorf("older = %+v", c)
 	}
+	// Forgejo doesn't run here: what a restore kept inside its folder
+	// isn't listed.
 	for _, bad := range []string{live, restoreKept, "/etc", filepath.Join(root, "other.moved-x-20260101-000000"), moved + "/.."} {
-		if err := n.RemoveKeptData(ctx, bad); !errors.Is(err, ErrNotFound) {
+		if err := n.RemoveKept(ctx, bad); !errors.Is(err, ErrNotFound) {
 			t.Errorf("%s: want ErrNotFound, got %v", bad, err)
 		}
 	}
-	if err := n.RemoveKeptData(ctx, moved); err != nil {
+	if err := n.PutBackKept(ctx, moved); err == nil {
+		t.Error("an old copy left by a move away can't be put back")
+	}
+	if err := n.RemoveKept(ctx, moved); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(moved); !os.IsNotExist(err) {
@@ -91,14 +98,11 @@ func TestFailedMoveSetAside(t *testing.T) {
 	if err != nil || len(aside) != 1 || !strings.HasPrefix(filepath.Base(aside[0]), "immich.failed-move-") {
 		t.Fatalf("aside %v, %v", aside, err)
 	}
-	if service, _, ok := strings.Cut(filepath.Base(aside[0]), FailedMoveSuffix); !ok || service != "immich" {
-		t.Errorf("FailedMoveSuffix doesn't cut %s", aside[0])
+	copies, err := n.keptCopies()
+	if err != nil || len(copies) != 1 || copies[0].Why != kept.FailedMove || copies[0].Service != "immich" {
+		t.Errorf("kept %+v, %v", copies, err)
 	}
-	kept, err := n.KeptData(ctx)
-	if err != nil || len(kept) != 1 || !kept[0].FailedMove || kept[0].MovedAway || kept[0].Service != "immich" {
-		t.Errorf("kept %+v, %v", kept, err)
-	}
-	if err := n.PutBackKeptData(ctx, aside[0]); err == nil {
+	if err := n.PutBackKept(ctx, aside[0]); err == nil {
 		t.Error("it doesn't run here, so it can't be put back here")
 	}
 }

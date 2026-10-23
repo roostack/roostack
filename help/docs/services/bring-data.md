@@ -64,7 +64,7 @@ the app's own settings for anything that names the old machine.
 
 The data the service had before the switch is kept, until you delete it. On
 **Backups → Restore** for the service, under *Kept copies*, choose **Put
-back…** on "Before bringing data in". What it replaces is kept in turn.
+back…** on "From before bringing data in". What it replaces is kept in turn.
 
 ## Files Roostack can't read
 

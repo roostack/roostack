@@ -36,13 +36,11 @@ func (r *ownRestores) Pending(context.Context) (bool, error) {
 	defer r.mu.Unlock()
 	return r.pending, nil
 }
-func (r *ownRestores) Kept(context.Context, string) ([]backup.KeptCopy, error) { return nil, nil }
 func (r *ownRestores) Outcome(context.Context, string) (backup.RestoreOutcome, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.outcome, nil
 }
-func (r *ownRestores) RemoveKept(context.Context, string, string) error { return nil }
 func (r *ownRestores) PutBack(_ context.Context, _, path string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

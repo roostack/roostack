@@ -292,9 +292,12 @@ type LabServers interface {
 	AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns
 	RemoveServer(ctx context.Context, id string) error
 	RenameServer(ctx context.Context, id, name string) error
-	KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error)
-	RemoveKeptData(ctx context.Context, serverID, path string) error
-	PutBackKeptData(ctx context.Context, serverID, path string) error
+	// KeptCopies lists the data set aside on a server (SPEC.md §8.4);
+	// PutBackKept and RemoveKept put back or delete a copy, named by one
+	// of its folders.
+	KeptCopies(ctx context.Context, serverID string) ([]manager.KeptCopy, error)
+	PutBackKept(ctx context.Context, serverID, path string) error
+	RemoveKept(ctx context.Context, serverID, path string) error
 	// Direct links between servers for backups (SPEC.md §10.10): where a
 	// server is reached directly (typed by the Owner), and how one server
 	// reaches another's backup store.
@@ -567,7 +570,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/link-address", s.requireOwner(s.linkAddressSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
-	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
+	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptServerSubmit))
+	mux.Handle("POST /settings/servers/{server}/kept/put-back", s.requireOwner(s.putBackKeptServerSubmit))
 	mux.Handle("GET /settings/servers/{server}/gone", s.requireOwner(s.serverGonePage))
 	mux.Handle("POST /settings/servers/{server}/gone", s.requireOwner(s.serverGoneSubmit))
 	mux.Handle("POST /services/{name}/remove-waiting", s.requireOwner(s.removeWaitingSubmit))

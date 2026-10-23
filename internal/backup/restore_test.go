@@ -187,7 +187,8 @@ func TestRestoreService(t *testing.T) {
 func TestUndoFailedRestore(t *testing.T) {
 	root := t.TempDir()
 	svc := &generate.Output{Service: "app", Units: []string{"roostack-app-app.service"}}
-	const suffix = keptBefore + "20260926-120000"
+	at := time.Date(2026, 9, 26, 12, 0, 0, 0, time.Local)
+	suffix := ".before-restore-20260926-120000"
 	cause := errors.New("restic failed")
 
 	// Put back: the partial restore is kept aside, the data is back and
@@ -198,7 +199,7 @@ func TestUndoFailedRestore(t *testing.T) {
 	units := &fakeUnits{}
 	r := &Restorer{Units: units}
 	res := &RestoreResult{MovedAside: map[string]string{dir: dir + suffix}}
-	err := r.undo(context.Background(), svc, res, suffix, cause)
+	err := r.undo(context.Background(), svc, res, at, cause)
 	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "put back unchanged") {
 		t.Errorf("err = %v", err)
 	}
@@ -217,7 +218,7 @@ func TestUndoFailedRestore(t *testing.T) {
 	lost := filepath.Join(root, "lost")
 	units.calls = nil
 	res = &RestoreResult{MovedAside: map[string]string{lost: lost + suffix}}
-	err = r.undo(context.Background(), svc, res, suffix, cause)
+	err = r.undo(context.Background(), svc, res, at, cause)
 	if err == nil || strings.Contains(err.Error(), "put back unchanged") || !strings.Contains(err.Error(), lost+suffix) {
 		t.Errorf("err = %v", err)
 	}

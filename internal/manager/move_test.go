@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/state"
@@ -44,6 +45,8 @@ type movingServer struct {
 	beforeStop func()
 	backups    node.Backups
 	status     node.ApplyStatus
+	// committed is why the data there was kept, at the last commit.
+	committed kept.Why
 }
 
 func (m *movingServer) Backups() node.Backups { return m.backups }
@@ -140,12 +143,13 @@ func (m *movingServer) PruneData(_ context.Context, _ string, dir int, keep []st
 	}
 	return nil
 }
-func (m *movingServer) CommitData(context.Context, string) ([]string, error) {
+func (m *movingServer) CommitData(_ context.Context, _ string, why kept.Why) ([]string, error) {
 	if err := m.did("commit"); err != nil {
 		return nil, err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.committed = why
 	for i := range dataDirs {
 		m.data[i], m.staged[i] = m.staged[i], map[string]file{}
 	}
@@ -174,13 +178,14 @@ func (m *movingServer) ImportSecrets(_ context.Context, s map[string][]byte) err
 }
 func (m *movingServer) DataSize(context.Context, string) (int64, error) { return 1234, nil }
 func (m *movingServer) LoadDumps(context.Context, string) error         { return m.did("load dumps") }
-func (m *movingServer) KeptData(context.Context) ([]node.KeptFolder, error) {
-	return []node.KeptFolder{{Path: "/srv/roostack/services/forgejo.moved-to-vps-20260928-002806", Service: "forgejo", MovedAway: true}}, nil
+func (m *movingServer) KeptCopies(context.Context) ([]kept.Copy, error) {
+	return []kept.Copy{{Service: "forgejo", Why: kept.MovedAway, Note: "to-vps", Whole: true,
+		Paths: []string{"/srv/roostack/services/forgejo.moved-to-vps-20260928-002806"}}}, nil
 }
-func (m *movingServer) RemoveKeptData(_ context.Context, path string) error {
+func (m *movingServer) RemoveKept(_ context.Context, path string) error {
 	return m.did("remove " + path)
 }
-func (m *movingServer) PutBackKeptData(_ context.Context, path string) error {
+func (m *movingServer) PutBackKept(_ context.Context, path string) error {
 	return m.did("put back " + path)
 }
 
@@ -250,6 +255,14 @@ func TestMoveService(t *testing.T) {
 	}
 	if m.NodeFor("forgejo").Identity().Name != "vps" {
 		t.Error("forgejo should run on the vps now")
+	}
+	if b.committed != kept.BeforeMove {
+		t.Errorf("what vps had is kept as %q", b.committed)
+	}
+	// Its old copy on home can't go back there: it runs on vps now.
+	copies, err := m.KeptCopies(ctx, "n-0000000002")
+	if err != nil || len(copies) != 1 || copies[0].Server != "n-0000000002" || copies[0].Host != "n-0000000003" || copies[0].CanPutBack {
+		t.Errorf("kept %+v, %v", copies, err)
 	}
 }
 
@@ -426,7 +439,7 @@ func TestMoveThroughBackupGoesBack(t *testing.T) {
 		t.Errorf("failed moves %+v", m.FailedMoves(ctx))
 	}
 	// Deleting what was copied forgets it.
-	m.RemoveKeptData(ctx, "n-0000000003", "/srv/roostack/services/forgejo.failed-move-20261022-141200")
+	m.RemoveKept(ctx, "n-0000000003", "/srv/roostack/services/forgejo.failed-move-20261022-141200")
 	if _, ok := m.FailedMoves(ctx)["forgejo"]; ok {
 		t.Error("the failed move should be forgotten once its copy is deleted")
 	}

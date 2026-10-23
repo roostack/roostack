@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/fsutil"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/node"
 )
 
@@ -137,12 +138,17 @@ func (j *transferJob) backedUpSecrets(ctx context.Context) (map[string][]byte, e
 	return secrets, nil
 }
 
-// commit puts the copied data in place on to; what was there is kept.
+// commit puts the copied data in place on to; what was there is kept,
+// from before a restore or a move.
 func (j *transferJob) commit(ctx context.Context) error {
 	j.act.Step("Putting the data in place%s", j.m.onServer(j.to))
-	kept, err := j.dst.CommitData(ctx, j.name)
-	j.kept = kept
-	for _, k := range kept {
+	why := kept.BeforeMove
+	if j.restore {
+		why = kept.BeforeRestore
+	}
+	aside, err := j.dst.CommitData(ctx, j.name, why)
+	j.kept = aside
+	for _, k := range aside {
 		j.act.Printf("The data that was there is kept at %s until you delete it", k)
 	}
 	return err

@@ -75,7 +75,11 @@ sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) systemctl --user st
 | `backups/` | Backups kept on this server's own disk, and other servers' and labs' backups it stores |
 
 A folder named `<folder>.before-restore-<time>` is the data a restore
-replaced, kept until you delete it from the restore page.
+replaced, and one ending `.before-move-`, `.moved-to-<server>-`,
+`.before-import-` or `.before-put-back-` and a time is data a move,
+bringing data in or a put back set aside. Each is listed under **Kept
+copies**, on the **Servers** page and the service's restore page, with why
+it's there, until you delete it.
 
 ## Roostack itself
 

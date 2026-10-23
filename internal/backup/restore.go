@@ -14,6 +14,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
 
@@ -85,7 +86,8 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 		return nil, fmt.Errorf("stopping %s: %w", svc.Service, err)
 	}
 	res := &RestoreResult{Snapshot: *snap, MovedAside: map[string]string{}}
-	suffix := keptBefore + r.Now().Format(keptTimeLayout)
+	at := r.Now()
+	suffix := kept.Suffix(kept.BeforeRestore, "", at)
 	r.Log.Step("Moving the current data aside (nothing is deleted)")
 	for _, dir := range dirs {
 		if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
@@ -93,7 +95,7 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 		}
 		aside := dir + suffix
 		if err := os.Rename(dir, aside); err != nil {
-			return nil, r.undo(ctx, svc, res, suffix, fmt.Errorf("moving %s aside: %w", dir, err))
+			return nil, r.undo(ctx, svc, res, at, fmt.Errorf("moving %s aside: %w", dir, err))
 		}
 		res.MovedAside[dir] = aside
 		r.Log.Printf("%s → %s", dir, aside)
@@ -110,7 +112,7 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 		r.Log.Printf("%s", dir)
 		err := r.Repo.RestoreDir(ctx, snap.ID, dir)
 		if err != nil {
-			return nil, r.undo(ctx, svc, res, suffix, err)
+			return nil, r.undo(ctx, svc, res, at, err)
 		}
 	}
 
@@ -149,12 +151,13 @@ func (r *Repo) ServiceSnapshot(ctx context.Context, service, id string) (*Snapsh
 	return nil, fmt.Errorf("no backup with ID %q", id)
 }
 
-// undo puts the original data back after a failed restore and starts the
-// service again, as it was before. The error adds to cause whether that
-// worked, so nobody is told their data is back when it isn't.
-func (r *Restorer) undo(ctx context.Context, svc *generate.Output, res *RestoreResult, suffix string, cause error) error {
+// undo puts the original data back after a failed restore (set aside at
+// at) and starts the service again, as it was before. The error adds to
+// cause whether that worked, so nobody is told their data is back when it
+// isn't.
+func (r *Restorer) undo(ctx context.Context, svc *generate.Output, res *RestoreResult, at time.Time, cause error) error {
 	r.Log.Step("Putting the current data back")
-	if err := r.rollback(res, suffix); err != nil {
+	if err := r.rollback(res, at); err != nil {
 		r.Log.Printf("%v", err)
 		return fmt.Errorf("%w; putting your data back failed too, so %s stays stopped: %w", cause, svc.Service, err)
 	}
@@ -170,11 +173,11 @@ func (r *Restorer) undo(ctx context.Context, svc *generate.Output, res *RestoreR
 // A partial restore is moved out of the way rather than deleted: its files
 // may belong to container users that can't be removed from here. What
 // couldn't be put back stays in res.MovedAside, and the error says where.
-func (r *Restorer) rollback(res *RestoreResult, suffix string) error {
+func (r *Restorer) rollback(res *RestoreResult, at time.Time) error {
 	var errs []error
 	for dir, aside := range res.MovedAside {
 		if _, err := os.Stat(dir); err == nil {
-			if err := os.Rename(dir, strings.Replace(dir+suffix, keptBefore, keptFailed, 1)); err != nil {
+			if err := os.Rename(dir, dir+kept.Suffix(kept.FailedRestore, "", at)); err != nil {
 				errs = append(errs, fmt.Errorf("the previous data is still at %s (moving the partial restore out of the way: %w)", aside, err))
 				continue
 			}
@@ -252,61 +255,20 @@ func (r *Restorer) run(ctx context.Context, stdin *os.File, name string, args ..
 	return nil
 }
 
-// Suffixes of directories a restore keeps: the data it replaced, and a
-// partial restore that was rolled back.
-const (
-	keptBefore     = ".before-restore-"
-	keptFailed     = ".failed-restore-"
-	keptTimeLayout = "20060102-150405"
-)
-
-// KeptCopy is a directory a restore left behind.
-type KeptCopy struct {
-	Path   string
-	Of     string // the data directory it is a copy of
-	Failed bool   // a rolled-back partial restore, not the previous data
-	Time   time.Time
-}
-
-// KeptCopies lists the directories restores left behind for a service.
-func KeptCopies(svc *generate.Output) ([]KeptCopy, error) {
-	var kept []KeptCopy
-	for _, dir := range svc.Backup.Include {
-		for _, suffix := range []string{keptBefore, keptFailed} {
-			matches, err := filepath.Glob(dir + suffix + "*")
-			if err != nil {
-				return nil, err
-			}
-			for _, m := range matches {
-				t, err := time.ParseInLocation(keptTimeLayout, strings.TrimPrefix(m, dir+suffix), time.Local)
-				if err != nil {
-					continue // not one of ours
-				}
-				kept = append(kept, KeptCopy{Path: m, Of: dir, Failed: suffix == keptFailed, Time: t})
-			}
-		}
-	}
-	slices.SortFunc(kept, func(a, b KeptCopy) int { return b.Time.Compare(a.Time) })
-	return kept, nil
-}
-
-// PutBack puts a kept copy back in place of a service's data, with the
-// copies of its other folders from the same moment, and its databases
-// from the dumps among them (SPEC.md §8.4: every kept copy can be put
-// back). The data it replaces is kept in turn, as before a restore, so
-// changing one's mind again is a put back too. The service is stopped
-// meanwhile and started again.
+// PutBack puts a copy a restore on this server kept (kept.Copy, not
+// Whole) back in place of a service's data, with the copies of its other
+// folders from the same moment, and its databases from the dumps among
+// them (SPEC.md §8.4: every kept copy can be put back). The data it
+// replaces is kept in turn (kept.BeforePutBack), so changing one's mind
+// again is a put back too. The service is stopped meanwhile and started
+// again.
 func (r *Restorer) PutBack(ctx context.Context, svc *generate.Output, path string) error {
-	kept, err := KeptCopies(svc)
+	f, err := keptInside(svc, path)
 	if err != nil {
 		return err
 	}
-	i := slices.IndexFunc(kept, func(k KeptCopy) bool { return k.Path == path })
-	if i < 0 {
-		return fmt.Errorf("%s is not a copy kept by a restore", path)
-	}
-	suffix := strings.TrimPrefix(path, kept[i].Of)
-	now := keptBefore + r.Now().Format(keptTimeLayout)
+	suffix := strings.TrimPrefix(f.Path, f.Of)
+	now := kept.Suffix(kept.BeforePutBack, "", r.Now())
 	r.Log.Step("Stopping %s", svc.Service)
 	if err := r.Units.Stop(ctx, svc.Units...); err != nil {
 		return err
@@ -337,18 +299,18 @@ func (r *Restorer) PutBack(ctx context.Context, svc *generate.Output, path strin
 	return r.Units.Start(ctx, svc.Units...)
 }
 
-// RemoveKept deletes a kept copy. Only paths KeptCopies returns for the
-// service are accepted. Files may belong to container users, so it runs
-// inside podman unshare.
-func (r *Restorer) RemoveKept(ctx context.Context, svc *generate.Output, path string) error {
-	kept, err := KeptCopies(svc)
+// keptInside is the kept folder at path, if it's one of a service's
+// backed-up folders that can go back (kept.Find).
+func keptInside(svc *generate.Output, path string) (kept.Folder, error) {
+	copies, err := kept.Find(nil, map[string][]string{svc.Service: svc.Backup.Include})
 	if err != nil {
-		return err
+		return kept.Folder{}, err
 	}
-	if !slices.ContainsFunc(kept, func(k KeptCopy) bool { return k.Path == path }) {
-		return fmt.Errorf("%s is not a copy kept by a restore", path)
+	f, ok := kept.Parse(path)
+	if !ok || !slices.ContainsFunc(copies, func(c kept.Copy) bool { return c.Has(path) && c.Why.CanGoBack() }) {
+		return kept.Folder{}, fmt.Errorf("%s is not a copy of %s's data that can be put back", path, svc.Service)
 	}
-	return r.run(ctx, nil, "podman", "unshare", "rm", "-rf", "--", path)
+	return f, nil
 }
 
 // SQLiteRestore replaces a live SQLite database with a backed-up copy. The

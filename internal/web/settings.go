@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net"
@@ -20,7 +21,6 @@ import (
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/usererr"
 )
@@ -373,16 +373,25 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		}
 	}
 	data["ApplyActivities"] = applies
-	// Folders moves left behind, per server (asked of each at once).
-	kept := make([][]node.KeptFolder, len(servers))
+	// Each server's kept copies (asked of each at once).
+	found := make([][]manager.KeptCopy, len(servers))
 	var wg sync.WaitGroup
 	for i, mc := range servers {
-		wg.Go(func() { kept[i], _ = s.Manager.KeptData(r.Context(), mc.ID) })
+		wg.Go(func() { found[i], _ = s.Manager.KeptCopies(r.Context(), mc.ID) })
 	}
 	wg.Wait()
-	keptBy := map[string][]node.KeptFolder{}
+	names, titles := serverNames(servers), s.serviceTitles(r.Context())
+	keptBy := map[string]keptList{}
 	for i, mc := range servers {
-		keptBy[mc.ID] = kept[i]
+		if len(found[i]) == 0 {
+			continue
+		}
+		list := keptList{Action: "/settings/servers/" + mc.ID + "/kept"}
+		for _, c := range found[i] {
+			list.Copies = append(list.Copies, newKeptView(c, cmp.Or(titles[c.Service], c.Service), names, false))
+		}
+		list.Total = keptTotal(list.Copies)
+		keptBy[mc.ID] = list
 	}
 	data["Kept"] = keptBy
 	// Each server's disk space, asked of each at once.
@@ -592,21 +601,6 @@ func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirect(w, r, "/servers")
-}
-
-func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
-	id, path := r.PathValue("server"), r.FormValue("path")
-	err := s.Manager.RemoveKeptData(r.Context(), id, path)
-	if errors.Is(err, manager.ErrNotFound) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	s.Store.Audit(r.Context(), currentUser(r), "servers", "deleted kept folder "+path+" on "+id)
-	redirect(w, r, "/servers#server-"+id)
 }
 
 // linkAddressSubmit sets where other servers reach a server directly

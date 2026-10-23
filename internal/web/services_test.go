@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
@@ -534,13 +535,28 @@ func TestServers(t *testing.T) {
 	fm.serverOps = nil
 	_, body = h.get("/servers")
 	if !strings.Contains(body, "forgejo.moved-to-nuc-20260928-002806") || !strings.Contains(body, "70.0 MB") ||
-		!strings.Contains(body, "forgejo before it moved away") {
+		!strings.Contains(body, "From before a move") || !strings.Contains(body, "Its old copy, from before it moved to nuc") ||
+		!strings.Contains(body, "forgejo runs on nuc now, so this copy can&#39;t be put back on vps") || strings.Contains(body, "Put back…") {
 		t.Errorf("servers page should list kept copies:\n%s", body)
 	}
 	h.post("/settings/servers/n-9876543210/kept/remove", url.Values{"path": {"/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806"}}, h.srv.URL)
 	if len(fm.serverOps) != 1 || fm.serverOps[0] != "delete /srv/roostack/services/forgejo.moved-to-nuc-20260928-002806 on n-9876543210" {
 		t.Errorf("ops = %v", fm.serverOps)
 	}
+	// A copy that can go back has Put back here too; one a restore kept
+	// goes back in the background, so its restore page follows.
+	fm.kept = []manager.KeptCopy{{Copy: kept.Copy{Service: "vaultwarden", Why: kept.BeforeRestore, Time: time.Now(), Size: -1,
+		Paths: []string{"/srv/roostack/services/vaultwarden/data.before-restore-20260926-130602"}},
+		Server: "n-0123456789", Host: "n-0123456789", CanPutBack: true}}
+	if _, body = h.get("/servers"); !strings.Contains(body, "Put back…") || !strings.Contains(body, `name="restore" value="vaultwarden"`) {
+		t.Error("no Put back on the Servers page")
+	}
+	fm.serverOps = nil
+	h.post("/settings/servers/n-0123456789/kept/put-back", url.Values{"path": {fm.kept[0].Paths[0]}, "restore": {"vaultwarden"}}, h.srv.URL)
+	if len(fm.serverOps) != 1 || fm.serverOps[0] != "put back "+fm.kept[0].Paths[0]+" on n-0123456789" {
+		t.Errorf("ops = %v", fm.serverOps)
+	}
+	fm.kept = nil
 
 	// A server's own pages; an unknown server is not found.
 	fm.updates = &fakeUpdates{}

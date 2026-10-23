@@ -2,11 +2,13 @@ package node
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
 
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/labnet"
 )
 
@@ -20,6 +22,10 @@ func dataPath(service, rest string, dir int) string {
 
 // noteRequest says why a service's folders are set aside (SetAsideData).
 type noteRequest struct{ Note string }
+
+// commitRequest says why the data already there is kept (CommitData). A
+// controller from before 2026-10-23 sends none: kept.BeforeMove.
+type commitRequest struct{ Why kept.Why }
 
 // Mover asks the server to move its services' data.
 func (r *Remote) Mover() Mover { return r }
@@ -78,9 +84,9 @@ func (r *Remote) PruneData(ctx context.Context, service string, dir int, keep []
 	return r.call(ctx, http.MethodPost, dataPath(service, "/prune", dir), keep, nil)
 }
 
-func (r *Remote) CommitData(ctx context.Context, service string) ([]string, error) {
+func (r *Remote) CommitData(ctx context.Context, service string, why kept.Why) ([]string, error) {
 	var out []string
-	err := r.call(ctx, http.MethodPost, servicePath(service, "/data/commit"), struct{}{}, &out)
+	err := r.call(ctx, http.MethodPost, servicePath(service, "/data/commit"), commitRequest{Why: why}, &out)
 	return out, err
 }
 
@@ -116,20 +122,6 @@ func (r *Remote) ExportSecrets(ctx context.Context, service string) (map[string]
 
 func (r *Remote) ImportSecrets(ctx context.Context, secrets map[string][]byte) error {
 	return r.call(ctx, http.MethodPut, "/v1/secrets", secrets, nil)
-}
-
-func (r *Remote) KeptData(ctx context.Context) ([]KeptFolder, error) {
-	var out []KeptFolder
-	err := r.call(ctx, http.MethodGet, "/v1/kept", nil, &out)
-	return out, err
-}
-
-func (r *Remote) PutBackKeptData(ctx context.Context, path string) error {
-	return r.call(ctx, http.MethodPost, "/v1/kept/put-back", pathRequest{Path: path}, nil)
-}
-
-func (r *Remote) RemoveKeptData(ctx context.Context, path string) error {
-	return r.call(ctx, http.MethodPost, "/v1/kept/remove", pathRequest{Path: path}, nil)
 }
 
 // dirOf is the data folder a route names (-1: none, which the node
@@ -196,7 +188,11 @@ func (s *Server) moveRoutes(mux *http.ServeMux, handle handleFunc) {
 		return nil, mv.PruneData(r.Context(), svcOf(r), dirOf(r), keep)
 	})
 	move("POST /v1/services/{service}/data/commit", func(mv Mover, r *http.Request) (any, error) {
-		return mv.CommitData(r.Context(), svcOf(r))
+		req, err := body[commitRequest](r)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, err
+		}
+		return mv.CommitData(r.Context(), svcOf(r), req.Why)
 	})
 	move("POST /v1/services/{service}/data/set-aside", func(mv Mover, r *http.Request) (any, error) {
 		req, err := body[noteRequest](r)
@@ -227,19 +223,5 @@ func (s *Server) moveRoutes(mux *http.ServeMux, handle handleFunc) {
 		}
 		return nil, mv.ImportSecrets(r.Context(), secrets)
 	})
-	move("GET /v1/kept", func(mv Mover, r *http.Request) (any, error) { return mv.KeptData(r.Context()) })
-	move("POST /v1/kept/put-back", func(mv Mover, r *http.Request) (any, error) {
-		req, err := body[pathRequest](r)
-		if err != nil {
-			return nil, err
-		}
-		return nil, mv.PutBackKeptData(r.Context(), req.Path)
-	})
-	move("POST /v1/kept/remove", func(mv Mover, r *http.Request) (any, error) {
-		req, err := body[pathRequest](r)
-		if err != nil {
-			return nil, err
-		}
-		return nil, mv.RemoveKeptData(r.Context(), req.Path)
-	})
+	keptRoutes(move)
 }

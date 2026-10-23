@@ -127,7 +127,7 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 		if mv == nil {
 			return ErrNotFound
 		}
-		if err := mv.PutBackKeptData(ctx, h.Kept); err != nil {
+		if err := mv.PutBackKept(ctx, h.Kept); err != nil {
 			return err
 		}
 		_, err := m.releaseHold(name, "Starting "+title+" again: its data from before its restore is back")

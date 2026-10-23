@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -15,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
@@ -376,37 +375,60 @@ func (m *Manager) switchHost(name, to string) error {
 	return m.assignErr
 }
 
-// KeptData lists folders moves left on a server.
-func (m *Manager) KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error) {
+// KeptCopy is data set aside on one of the lab's servers (SPEC.md §8.4).
+type KeptCopy struct {
+	kept.Copy
+	// Server is where it is, Host where its service runs ("" if it isn't
+	// installed any more).
+	Server, Host string
+	// CanPutBack: it can go back in place of its service's data, there.
+	CanPutBack bool
+}
+
+// KeptCopies lists the data set aside on a server, newest first.
+func (m *Manager) KeptCopies(ctx context.Context, serverID string) ([]KeptCopy, error) {
 	mv := node.Capability(m.node(serverID), node.Node.Mover)
 	if mv == nil {
 		return nil, ErrNotFound
 	}
-	return mv.KeptData(ctx)
+	copies, err := mv.KeptCopies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]KeptCopy, len(copies))
+	for i, c := range copies {
+		out[i] = KeptCopy{Copy: c, Server: serverID}
+		if _, in, err := m.installedService(c.Service); err == nil {
+			out[i].Host = in.HostOr(m.Lab.NodeID)
+		}
+		out[i].CanPutBack = out[i].Host == serverID && c.Why.CanGoBack()
+	}
+	return out, nil
 }
 
-// RemoveKeptData deletes a folder a move left on a server, for good.
-// PutBackKeptData puts a folder kept on a server back in place of its
-// service's data (node.Local.PutBackKeptData).
-func (m *Manager) PutBackKeptData(ctx context.Context, serverID, path string) error {
+// PutBackKept puts a copy kept on a server (named by one of its folders)
+// back in place of its service's data (node.Local.PutBackKept).
+func (m *Manager) PutBackKept(ctx context.Context, serverID, path string) error {
 	mv := node.Capability(m.node(serverID), node.Node.Mover)
 	if mv == nil {
 		return ErrNotFound
 	}
-	return mv.PutBackKeptData(ctx, path)
+	return mv.PutBackKept(ctx, path)
 }
 
-func (m *Manager) RemoveKeptData(ctx context.Context, serverID, path string) error {
+// RemoveKept deletes a copy kept on a server, named by one of its
+// folders, for good.
+func (m *Manager) RemoveKept(ctx context.Context, serverID, path string) error {
 	mv := node.Capability(m.node(serverID), node.Node.Mover)
 	if mv == nil {
 		return ErrNotFound
 	}
-	if err := mv.RemoveKeptData(ctx, path); err != nil {
+	if err := mv.RemoveKept(ctx, path); err != nil {
 		return err
 	}
 	// What a failed move copied is gone: so is its note.
-	if service, _, ok := strings.Cut(filepath.Base(path), node.FailedMoveSuffix); ok {
-		m.forgetFailedMove(ctx, service)
+	if f, ok := kept.Parse(path); ok && f.Why == kept.FailedMove {
+		m.forgetFailedMove(ctx, f.Service)
 	}
 	return nil
 }

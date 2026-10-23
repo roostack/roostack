@@ -29,6 +29,8 @@
 //   - history.go: finished activity logs kept as history (SPEC.md §6.14);
 //   - move.go, update.go: a server's side of moving and updating a
 //     service;
+//   - kept.go: the data set aside on the server, one list whatever set it
+//     aside (internal/kept);
 //   - import*.go: bringing data in from the person's own copy (SPEC.md
 //     §8.4);
 //   - photos.go: running immich-go for photo migration (SPEC.md §8.5);

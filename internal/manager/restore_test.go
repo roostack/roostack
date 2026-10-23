@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
@@ -292,6 +293,9 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 	}
 	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Host != "n-0000000003" {
 		t.Errorf("runs on %q", in.Host)
+	}
+	if vps.committed != kept.BeforeRestore {
+		t.Errorf("what vps had is kept as %q", vps.committed)
 	}
 
 	// vps is lost: restored onto home without stopping it there.

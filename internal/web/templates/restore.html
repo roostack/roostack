@@ -68,24 +68,11 @@
     {{range .Notes}}<p class="hint">{{.}}</p>{{end}}
   {{end}}
 
-  {{with .Kept}}
+  {{with .Kept.Copies}}
   <h2>Kept copies</h2>
-  <p class="hint">Data a restore, a move or bringing data in set aside. Put one back if you'd rather have it, or delete it once you're happy,
-    to free up space.</p>
-  <ul class="kept">
-    {{range .}}
-    <li>
-      <span><strong>{{.What}}</strong>, {{when .Time}}{{with .ServerName}} on {{.}}{{end}}<br><code>{{.Path}}</code></span>
-      <span class="kept-actions">
-        {{if .CanPutBack}}{{confirm (printf "/backups/restore/%s/kept/put-back" $.Service.Name)
-          (printf "Put back %s's data from this copy? %s stops for a moment; its data now is kept here instead, so you can change your mind again." $.Service.Title $.Service.Title)
-          "Put back…" "secondary" (printf "path=%s" .Path) (printf "server=%s" .Server)}}{{end}}
-        {{confirm (printf "/backups/restore/%s/kept/remove" $.Service.Name) "Delete this copy permanently?" "Delete" "quiet danger"
-          (printf "path=%s" .Path) (printf "server=%s" .Server)}}
-      </span>
-    </li>
-    {{end}}
-  </ul>
+  <p class="hint">Data Roostack set aside rather than deleting it: before a restore, a move or bringing data in. Each copy will stay
+    until you delete it. Put one back if you'd rather have it, or delete it once you're happy, to free up space.</p>
+  {{template "kept-copies" $.Kept}}
   {{end}}
   </div>
 </section>
