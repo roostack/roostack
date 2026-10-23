@@ -60,6 +60,23 @@ CONTRIBUTING.md's "Writing" applies to everything you write: British English, sh
 - **The present continuous for what's happening now:** "Immich is starting again on server-1."
 - **What's fine as it is:** states with "is" ("Immich is stopped"), past results ("its restore didn't finish") and instructions ("Choose what to do").
 - **Not clipped, and not too long.** Stay concise, but don't string short statements together: join them where a person would. Not "Its databases didn't load. Roostack keeps it stopped. Choose what to do." but "Its databases didn't load, so Roostack will keep the service stopped until you choose what to do."
+- **Habits and standing facts stay in the present simple** (2026-10-23): a routine that always runs ("Every minute, Roostack checks that each service answers at its address"), what Roostack is ("Roostack runs useful services on a computer you own") and a fact that always holds ("Codes change every 30 seconds"). Field help takes the future, since it says what will happen once a package uses the field: "Roostack will create a random value".
+- **Commas where grammar needs them, not for a pause** (2026-10-23). There's no comma before a clause of purpose ("once the current job has finished so that it isn't interrupted") or before "because" after the main clause. Keep one after an opening clause, before "so" when it means "and so", around a "which" that adds detail, and wherever leaving it out would let the sentence be misread.
+
+Examples the user approved (2026-10-23; all 37 are in [docs/wording-examples.md](docs/wording-examples.md), which the wave 4 batches follow):
+
+| Rule | Before | After |
+|---|---|---|
+| Future | Roostack tries again tomorrow, or as soon as you change the address. | Roostack will try again tomorrow or as soon as you change the address. |
+| Future | The lab has no recovery key yet: it's made with the first backup. | The lab has no recovery key yet: Roostack will make one with the first backup. |
+| Future | They choose their own password when they next log in. | They'll choose their own password when they next log in. |
+| Continuous | Roostack Cloud has suspended this lab's relay: (reason). Public services don't come through it. | Roostack Cloud has suspended this lab's relay: (reason). Public services aren't coming through it. |
+| Continuous | Roostack can't reach server-2, where Immich ran: it's restored without stopping it there | Roostack can't reach server-2, where Immich ran, so it's restoring Immich without stopping it there |
+| Joined | DNS changes can take a few minutes. Roostack checks again by itself. | DNS changes can take a few minutes, and Roostack will check again by itself. |
+| Joined | Copy your files first; switching copies only what changed since. | Copy your files first: when you switch, Roostack will copy only what's changed since. |
+| Tightened | So it is while the sign-in page can't be reached yet, such as while the first service to use it is still downloading: Roostack checks every few seconds. | It's also the way in while the sign-in page can't be reached yet, such as while the first service to use it is still downloading, and Roostack will check for the sign-in page every few seconds. |
+| Fine | That backup isn't there any more. Choose another. | (unchanged: a state, then an instruction) |
+| Fine | Every minute, Roostack checks that each service answers at its address, and tells you when one stops. | (unchanged: a routine) |
 
 Existing text doesn't follow these rules everywhere yet; a later pass will rework it area by area (docs/QUALITY-REVIEW-2026-10-21.md, wave 4). Until then, write new and changed text this way, and leave other sentences alone unless the task is about them.
 
