@@ -16,6 +16,8 @@ type Pauses interface {
 	PublicPauses() (manager.PublicPauses, error)
 	PausePublic(by string, r manager.PauseRequest) error
 	LiftPause(r manager.PauseRequest) error
+	// BuiltWith is what a service is built with, as people write it.
+	BuiltWith(name string) []string
 }
 
 // builtWithChoice is something the lab's public services are built with,
@@ -24,6 +26,8 @@ type builtWithChoice struct {
 	Name     string
 	Services []string
 	Paused   bool
+	// Title is the registry's title for it, or "" when it has none.
+	Title string
 }
 
 // builtWithChoices are what the public services are built with, in the
@@ -35,7 +39,7 @@ func builtWithChoices(pp manager.PublicPauses) []builtWithChoice {
 			i := slices.IndexFunc(out, func(c builtWithChoice) bool { return c.Name == b })
 			if i < 0 {
 				_, paused := pp.BuiltWith[b]
-				out = append(out, builtWithChoice{Name: b, Paused: paused})
+				out = append(out, builtWithChoice{Name: b, Paused: paused, Title: pp.Titles[b]})
 				i = len(out) - 1
 			}
 			out[i].Services = append(out[i].Services, s.Title)
@@ -151,14 +155,19 @@ func (s *Server) pauseDetail(req manager.PauseRequest) string {
 	if req.All {
 		parts = append(parts, "everything")
 	}
-	if len(req.BuiltWith) > 0 {
-		parts = append(parts, "services built with "+words.And(req.BuiltWith))
-	}
 	titles := map[string]string{}
-	if pp, err := s.Manager.PublicPauses(); err == nil {
+	pp, err := s.Manager.PublicPauses()
+	if err == nil {
 		for _, ps := range pp.Services {
 			titles[ps.Name] = ps.Title
 		}
+	}
+	if len(req.BuiltWith) > 0 {
+		var bw []string
+		for _, b := range req.BuiltWith {
+			bw = append(bw, pp.Title(b))
+		}
+		parts = append(parts, "services built with "+words.And(bw))
 	}
 	for _, name := range req.Services {
 		parts = append(parts, cmp.Or(titles[name], name))

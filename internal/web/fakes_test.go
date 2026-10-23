@@ -716,7 +716,7 @@ func (f *fakePauses) PublicPauses() (manager.PublicPauses, error) {
 	if f.public == nil {
 		f.public = []manager.PublicService{{Name: "vaultwarden", Title: "Vaultwarden", Hosts: []string{"passwords.lab.example.com"}, BuiltWith: []string{"rust", "sqlite"}}}
 	}
-	out := manager.PublicPauses{All: f.all, BuiltWith: f.builtW}
+	out := manager.PublicPauses{All: f.all, BuiltWith: f.builtW, Titles: map[string]string{"rust": "Rust"}}
 	for _, s := range f.public {
 		s.Own, s.ByAll, s.ByBuiltWith = f.own[s.Name], f.all != nil, nil
 		for _, b := range s.BuiltWith {
@@ -752,6 +752,13 @@ func (f *fakePauses) PausePublic(by string, r manager.PauseRequest) error {
 			f.own = map[string]*config.Pause{}
 		}
 		f.own[n] = &p
+	}
+	return nil
+}
+
+func (f *fakePauses) BuiltWith(name string) []string {
+	if name == "vaultwarden" {
+		return []string{"Rust", "SQLite"}
 	}
 	return nil
 }

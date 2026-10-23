@@ -98,6 +98,10 @@ type Index struct {
 	// can find exactly these files.
 	Commit   string              `json:"commit,omitempty"`
 	Packages map[string]*Package `json:"packages"`
+	// BuiltWith is the registry's list of the names packages may say
+	// they're built with (BuiltWithFile), for their titles; older indexes
+	// have none.
+	BuiltWith []BuiltWith `json:"built_with,omitempty"`
 }
 
 // Package is one package in the index: the registry's facts about it, and
@@ -188,6 +192,9 @@ func (ix *Index) Check() error {
 		return errors.New("no serial or date")
 	}
 	var errs []error
+	if err := checkBuiltWith(ix.BuiltWith); err != nil {
+		errs = append(errs, fmt.Errorf("built_with: %w", err))
+	}
 	for name, p := range ix.Packages {
 		if !pkgspec.ValidName(name) || p == nil {
 			errs = append(errs, fmt.Errorf("package %q: not a valid package name", name))

@@ -42,7 +42,7 @@ func pauseItems(pp manager.PublicPauses, owner bool) []Item {
 			covers = words.And(titles) + " " + words.Plural(len(titles), "is", "are") + " paused by it"
 		}
 		out = append(out, link(Item{Key: "paused:built-with:" + b, Level: Info,
-			Text: "Public access to services built with " + b + " is paused, since " + since(pp.BuiltWith[b]) + ". " +
+			Text: "Public access to services built with " + pp.Title(b) + " is paused, since " + since(pp.BuiltWith[b]) + ". " +
 				words.Capitalise(covers) + "."}, "/settings/public#paused"))
 	}
 	for _, s := range pp.Services {

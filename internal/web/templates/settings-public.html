@@ -35,9 +35,9 @@
     {{with .All}}<li class="row-split"><span><strong>Everything public</strong><br><small class="hint">Since {{when .Since}}{{with .By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
       <form method="post" action="/pause/lift"><input type="hidden" name="all" value="yes"><input type="hidden" name="next" value="/settings/public#paused">
         {{confirmSubmit "Open everything to the internet again? Every public service that nothing else pauses will be reachable from the internet straight away." "Open it again" ""}}</form></li>{{end}}
-    {{range $b, $p := .BuiltWith}}<li class="row-split"><span><strong>Services built with <code>{{$b}}</code></strong><br><small class="hint">Since {{when $p.Since}}{{with $p.By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
+    {{range $b, $p := .BuiltWith}}<li class="row-split"><span><strong>Services built with {{$.Pauses.Title $b}}</strong><br><small class="hint">Since {{when $p.Since}}{{with $p.By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
       <form method="post" action="/pause/lift"><input type="hidden" name="built_with" value="{{$b}}"><input type="hidden" name="next" value="/settings/public#paused">
-        {{confirmSubmit (printf "Open services built with %s to the internet again? Those that nothing else pauses will be reachable from the internet straight away." $b) "Open them again" ""}}</form></li>{{end}}
+        {{confirmSubmit (printf "Open services built with %s to the internet again? Those that nothing else pauses will be reachable from the internet straight away." ($.Pauses.Title $b)) "Open them again" ""}}</form></li>{{end}}
     {{range .PausedServices}}{{if .Own}}<li class="row-split"><span><strong>{{.Title}}</strong><br><small class="hint">Since {{when .Own.Since}}{{with .Own.By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
       <form method="post" action="/pause/lift"><input type="hidden" name="service" value="{{.Name}}"><input type="hidden" name="next" value="/settings/public#paused">
         {{confirmSubmit (printf "Open %s to the internet again? Anyone on the internet will be able to reach it straight away, unless something else still pauses it." .Title) "Open it again" ""}}</form></li>{{end}}{{end}}

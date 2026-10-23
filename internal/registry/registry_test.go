@@ -355,6 +355,46 @@ func TestBuildRefusesBrokenPackage(t *testing.T) {
 	}
 }
 
+// The registry's list of built-with names (SPEC.md §6.16) is optional;
+// once there, it's published in the index with each name's title, every
+// package's names must be on it, and a broken entry fails the build.
+func TestBuildBuiltWith(t *testing.T) {
+	r := newTestRegistry(t)
+	ix, err := Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now})
+	if err != nil || ix.BuiltWith != nil {
+		t.Fatalf("no list: %v %v", ix.BuiltWith, err)
+	}
+	list := `
+- { name: go, title: Go }
+- { name: java, title: Java }
+- { name: spring, title: Spring, about: A Java framework., purls: ["pkg:maven/org.springframework/spring-core"] }
+- { name: node, title: Node.js, cpes: ["cpe:2.3:a:nodejs:node.js:*:*:*:*:*:*:*:*"] }
+- { name: python, title: Python }
+`
+	r.write(BuiltWithFile, list)
+	if _, err := Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now}); err == nil ||
+		!strings.Contains(err.Error(), `built_with: "rust" isn't in the registry's built-with.yaml`) {
+		t.Errorf("a name not on the list: %v", err)
+	}
+	r.write(BuiltWithFile, list+"- { name: rust, title: Rust }\n")
+	ix, err = Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now})
+	if err != nil || len(ix.BuiltWith) != 6 || ix.BuiltWithTitle("node") != "Node.js" || ix.BuiltWithTitle("php") != "" {
+		t.Fatalf("with the list: %+v %v", ix.BuiltWith, err)
+	}
+	for bad, want := range map[string]string{
+		"- { name: PHP, title: PHP }\n":               "not a name built_with: takes",
+		"- { name: php }\n":                           "give it a title",
+		"- { name: go, title: Go }\n":                 "listed twice",
+		"- { name: php, title: PHP, purls: [php] }\n": "isn't a package URL",
+		"- { name: php, title: PHP, wiki: x }\n":      "field wiki not found",
+	} {
+		r.write(BuiltWithFile, list+"- { name: rust, title: Rust }\n"+bad)
+		if _, err := Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now}); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: %v, want %q", bad, err, want)
+		}
+	}
+}
+
 // The index's date is how stale a lab's catalog is.
 func TestStale(t *testing.T) {
 	now := time.Now()

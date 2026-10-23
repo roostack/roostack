@@ -65,9 +65,15 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		for _, ps := range pp.Services {
 			if ps.Name == name {
 				data["PublicService"] = ps
+				var titles []string
+				for _, b := range ps.ByBuiltWith {
+					titles = append(titles, pp.Title(b))
+				}
+				data["PausedByTitles"] = titles
 			}
 		}
 	}
+	data["BuiltWith"] = s.Manager.BuiltWith(name)
 	// Installing: its log, for the step list's Details. Once it's done, the
 	// step list's polling reloads the page (status, Open link).
 	if install := data["Service"].(ServiceView).Install; install != nil {

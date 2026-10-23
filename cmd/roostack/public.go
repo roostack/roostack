@@ -6,13 +6,16 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"maps"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/words"
@@ -80,8 +83,12 @@ func publicCmd(args []string) error {
 	if err != nil && len(installed) == 0 {
 		return err
 	}
+	// Titles of built-with names, from the registry's index the lab
+	// fetched last (none before the first).
+	ix, _ := (&registry.Fetcher{Dir: lab.Paths.CatalogDir}).Index()
+	pp := manager.PublicPausesOf(lab, installed).WithTitles(ix)
 	if sub == "status" {
-		fmt.Print(pauseStatus(manager.PublicPausesOf(lab, installed)))
+		fmt.Print(pauseStatus(pp))
 		return nil
 	}
 	if !req.All && len(req.BuiltWith) == 0 && len(req.Services) == 0 {
@@ -121,7 +128,7 @@ func publicCmd(args []string) error {
 	if err := manager.SaveServicePauses(lab, named, pause); err != nil {
 		return err
 	}
-	what := manager.PauseWhat(req, named)
+	what := manager.PauseWhat(req, named, pp.Title)
 	action, done := attention.AuditPublicPaused, "Paused public access to "+what
 	if pause == nil {
 		action, done = attention.AuditPublicOpened, "Opened public access to "+what+" again"
@@ -167,8 +174,8 @@ func pauseStatus(pp manager.PublicPauses) string {
 	if p := pp.All; p != nil {
 		fmt.Fprintf(&b, "Everything public is paused, since %s.\n", pauseSince(*p))
 	}
-	for name, p := range pp.BuiltWith {
-		fmt.Fprintf(&b, "Services built with %s are paused, since %s.\n", name, pauseSince(p))
+	for _, name := range slices.Sorted(maps.Keys(pp.BuiltWith)) {
+		fmt.Fprintf(&b, "Services built with %s are paused, since %s.\n", pp.Title(name), pauseSince(pp.BuiltWith[name]))
 	}
 	for _, s := range pp.Services {
 		state := "public"
@@ -181,7 +188,11 @@ func pauseStatus(pp manager.PublicPauses) string {
 				why = append(why, "everything")
 			}
 			if len(s.ByBuiltWith) > 0 {
-				why = append(why, "built with "+words.And(s.ByBuiltWith))
+				var bw []string
+				for _, n := range s.ByBuiltWith {
+					bw = append(bw, pp.Title(n))
+				}
+				why = append(why, "built with "+words.And(bw))
 			}
 			state = "paused (" + strings.Join(why, "; ") + ")"
 		}

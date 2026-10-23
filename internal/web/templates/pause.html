@@ -28,7 +28,7 @@
       <p class="seg-hint hint">What your public services are built with, from their packages. Services installed later that are built with the same thing will be paused too.</p>
       <div class="check-row pause-built-with">
         {{range .BuiltWith}}<label class="check"><input type="checkbox" name="built_with" value="{{.Name}}"{{if .Paused}} checked disabled{{end}}>
-          <code>{{.Name}}</code> <small class="hint">{{joinAnd .Services}}{{if .Paused}} · already paused{{end}}</small></label>{{end}}
+          {{with .Title}}{{.}}{{else}}<code>{{.Name}}</code>{{end}} <small class="hint">{{joinAnd .Services}}{{if .Paused}} · already paused{{end}}</small></label>{{end}}
       </div>
       <p class="hint">Roostack knows only what each package says it's built with, and services you added yourself may not say: choose those by name instead.</p>
     </div>

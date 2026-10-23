@@ -94,12 +94,22 @@ func Build(opts BuildOptions) (*Index, error) {
 		return nil, err
 	}
 	platforms := map[string][]string{} // image → its architectures, asked once
+	if ix.BuiltWith, err = readBuiltWith(opts.Repo); err != nil {
+		return nil, err
+	}
+	var known map[string]bool // nil: no list, so names aren't checked
+	if ix.BuiltWith != nil {
+		known = map[string]bool{}
+		for _, b := range ix.BuiltWith {
+			known[b.Name] = true
+		}
+	}
 	var errs []error
 	for _, d := range dirs {
 		if !d.IsDir() {
 			continue
 		}
-		p, pkgFiles, err := buildPackage(filepath.Join(opts.Repo, "packages"), d.Name(), opts.Platforms, platforms)
+		p, pkgFiles, err := buildPackage(filepath.Join(opts.Repo, "packages"), d.Name(), opts.Platforms, platforms, known)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -140,8 +150,8 @@ func Build(opts BuildOptions) (*Index, error) {
 
 // buildPackage reads one package folder: its registry.yaml, each
 // <version>.yaml and its icon. It returns the index's entry and the files
-// to publish.
-func buildPackage(root, name string, lookup func(string) ([]string, error), seen map[string][]string) (*Package, map[string][]byte, error) {
+// to publish. known are the names built_with: may use (nil: any).
+func buildPackage(root, name string, lookup func(string) ([]string, error), seen map[string][]string, known map[string]bool) (*Package, map[string][]byte, error) {
 	dir := filepath.Join(root, name)
 	fail := func(format string, args ...any) (*Package, map[string][]byte, error) {
 		return nil, nil, fmt.Errorf("packages/%s: %s", name, fmt.Sprintf(format, args...))
@@ -191,6 +201,11 @@ func buildPackage(root, name string, lookup func(string) ([]string, error), seen
 		}
 		for _, problem := range pkg.Policy() {
 			errs = append(errs, fmt.Sprintf("%s: package policy: %s", e.Name(), problem))
+		}
+		for _, b := range pkg.BuiltWith {
+			if known != nil && !known[b] {
+				errs = append(errs, fmt.Sprintf("%s: built_with: %q isn't in the registry's %s: add it there, with its title, in the same change", e.Name(), b, BuiltWithFile))
+			}
 		}
 		if err := generate.Check(pkg); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", e.Name(), err))
