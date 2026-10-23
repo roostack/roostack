@@ -9,6 +9,8 @@ import (
 
 	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/node"
 )
 
 // Pausing public access (SPEC.md §6.16): Home offers it while anything is
@@ -105,5 +107,28 @@ func TestPauseRoles(t *testing.T) {
 	}
 	if code, _ := h.post("/pause", url.Values{"scope": {"all"}}, h.srv.URL); code != http.StatusForbidden || fm.all != nil {
 		t.Errorf("a Member pausing: %d", code)
+	}
+}
+
+// Changes waiting for a slow apply say so, in order, on Home and Services,
+// and a pause whose web addresses have changed already says that too; the
+// servers table says how many are waiting.
+func TestApplyWaiting(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	fm.status = manager.ApplyStatus{Running: true, Doing: []node.Change{{Reason: "Installing immich"}},
+		Waiting: []node.Change{{Reason: "Pausing public access to everything", Early: true}, {Reason: "Changing Vaultwarden's settings"}}}
+	for _, page := range []string{"/", "/services"} {
+		_, body := h.get(page)
+		for _, want := range []string{"2 changes are waiting for the one being applied now (Installing immich) to finish.",
+			"<li>Pausing public access to everything <small class=\"hint\">· its web addresses have changed already</small></li>",
+			"<li>Changing Vaultwarden&#39;s settings</li>"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s lacks %q", page, want)
+			}
+		}
+	}
+	fm.status.Waiting = nil
+	if _, body := h.get("/"); strings.Contains(body, "waiting for the one being applied") {
+		t.Error("nothing waiting says nothing")
 	}
 }

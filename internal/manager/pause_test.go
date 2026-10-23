@@ -2,13 +2,17 @@ package manager
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -97,5 +101,55 @@ func TestPausePublic(t *testing.T) {
 	paused(false, "its own lifted")
 	if err := m.LiftPause(PauseRequest{Services: []string{"nothing"}}); err != ErrNotFound {
 		t.Errorf("an unknown service: %v", err)
+	}
+}
+
+// A pause doesn't wait behind an apply that's running (SPEC.md §6.16):
+// while a new service's download holds it up, the controller's Caddy gets
+// the pause at once, the change shows as waiting (its web addresses done
+// already) behind the install, and the install's own Caddy files don't
+// undo it.
+func TestPauseDoesntWait(t *testing.T) {
+	m, _ := newManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if err := m.SetPublic(ctx, "vaultwarden", PublicRequest{Route: "web", Public: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	release := make(chan struct{})
+	downloading := make(chan struct{}, 10)
+	m.Node.(*node.Local).Reconciler.Pull = func(context.Context, string, io.Writer) error {
+		downloading <- struct{}{}
+		<-release
+		return nil
+	}
+	if err := m.Install(ctx, "immich", InstallRequest{Settings: map[string]string{"machine_learning": "on"}}); err != nil {
+		t.Fatal(err)
+	}
+	<-downloading
+	site := func() string {
+		b, _ := os.ReadFile(filepath.Join(m.Lab.Paths.CaddySitesDir(), "vaultwarden.caddy"))
+		return string(b)
+	}
+	if err := m.PausePublic("tom", PauseRequest{All: true}); err != nil {
+		t.Fatal(err)
+	}
+	testwait.For(t, 5*time.Second, func() bool { return strings.Contains(site(), "error @vaultwarden-web-outside 503") })
+	st := m.Status()
+	if len(st.Doing) != 1 || st.Doing[0].Reason != "Installing immich" || len(st.Waiting) != 1 ||
+		st.Waiting[0] != (node.Change{Reason: "Pausing public access to everything", Early: true}) {
+		t.Errorf("while the download runs: doing %+v, waiting %+v", st.Doing, st.Waiting)
+	}
+	close(release)
+	m.Wait()
+	if !strings.Contains(site(), "error @vaultwarden-web-outside 503") {
+		t.Errorf("the install's apply undid the pause:\n%s", site())
+	}
+	if st := m.Status(); st.Running || len(st.Doing)+len(st.Waiting) != 0 {
+		t.Errorf("after: %+v", st)
 	}
 }

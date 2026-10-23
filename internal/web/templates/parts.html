@@ -18,6 +18,17 @@
 {{end}}
 {{end}}
 
+{{/* apply-waiting (a node.ApplyStatus): the changes waiting for the apply
+     that's running to finish, oldest first, so a change someone made that
+     hasn't happened yet says why. Nothing when none are waiting. */}}
+{{define "apply-waiting"}}{{with .}}{{if .Waiting}}
+<section class="notice notice-info apply-waiting" role="status">
+  <p><strong>{{len .Waiting}} {{if eq (len .Waiting) 1}}change is{{else}}changes are{{end}} waiting for the one being applied now{{with .Doing}} ({{(index . 0).Reason}}){{end}} to finish.</strong>
+    {{if eq (len .Waiting) 1}}It{{else}}They{{end}} will be applied straight after, in this order:</p>
+  <ol>{{range .Waiting}}<li>{{.Reason}}{{if .Early}} <small class="hint">· its web addresses have changed already</small>{{end}}</li>{{end}}</ol>
+</section>
+{{end}}{{end}}{{end}}
+
 {{/* server-switcher: a per-server settings area's state on each server,
      which also switches between them (switcher.go). */}}
 {{define "server-switcher"}}{{with .Switcher}}

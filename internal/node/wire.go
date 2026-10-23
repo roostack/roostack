@@ -170,6 +170,10 @@ type WireStatus struct {
 	LastRun  time.Time `json:"last_run"`
 	LastErr  string    `json:"last_err,omitempty"`
 	Finished bool      `json:"finished"`
+	// Doing and Waiting are the changes it's applying, and the ones
+	// waiting for that to finish (ApplyStatus).
+	Doing   []Change `json:"doing,omitempty"`
+	Waiting []Change `json:"waiting,omitempty"`
 	// Version is the assignment the node has.
 	Version int64 `json:"version"`
 	// Which maintenance jobs and settings the node has.
@@ -191,7 +195,7 @@ type WireStatus struct {
 }
 
 func (w WireStatus) apply() ApplyStatus {
-	st := ApplyStatus{Running: w.Running, LastRun: w.LastRun, Finished: w.Finished}
+	st := ApplyStatus{Running: w.Running, LastRun: w.LastRun, Finished: w.Finished, Doing: w.Doing, Waiting: w.Waiting}
 	if w.LastErr != "" {
 		st.LastErr = errors.New(w.LastErr)
 	}

@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -143,7 +144,17 @@ type Assignment struct {
 	Libraries []agent.Library
 	// Reason says why it was sent, for the apply's log.
 	Reason string
+	// CaddyFirst: the change is to web addresses and mustn't wait behind
+	// an apply that's running, such as a download (a pause of public
+	// access, SPEC.md §6.16). The server running Caddy writes Caddy's
+	// files and reloads it at once, then applies as usual. Not sent to
+	// other servers: only the controller's Caddy serves the lab's
+	// addresses.
+	CaddyFirst bool
 }
+
+// startedReason is why an apply with no reason ran.
+const startedReason = "Roostack started, or its settings changed"
 
 // Storage is who may use a server's backup store: bcrypt password hashes
 // (never the passwords) for each server, and for the controller's admin
@@ -162,6 +173,18 @@ type ApplyStatus struct {
 	LastRun  time.Time
 	LastErr  error
 	Finished bool // at least one apply has finished
+	// Doing are the changes the running apply is making, and Waiting the
+	// ones that arrived since, oldest first: they'll apply together once
+	// it has finished, so people can see why a change they made hasn't
+	// happened yet.
+	Doing, Waiting []Change
+}
+
+// Change is a change sent to a server: why (Assignment.Reason), and
+// whether its part for web addresses is applied already (CaddyFirst).
+type Change struct {
+	Reason string `json:"reason"`
+	Early  bool   `json:"early,omitempty"`
 }
 
 // FirewallApplier is roostack-agent's firewall operation.
@@ -248,6 +271,11 @@ type Local struct {
 	// apply runs afterwards.
 	again bool
 	done  chan struct{}
+	// caddyMu keeps caddyNow's writes of Caddy's files one at a time, and
+	// caddyGen counts them, so an apply planned before one writes them
+	// again (caddyNow).
+	caddyMu  sync.Mutex
+	caddyGen atomic.Int64
 
 	hooksBusy, hooksAgain bool
 	hooksRunning          map[string]bool
@@ -358,13 +386,71 @@ func (n *Local) Apply(a Assignment) {
 			}
 		}
 	}
+	ch := Change{Reason: cmp.Or(a.Reason, startedReason), Early: a.CaddyFirst}
+	if a.CaddyFirst {
+		go func() {
+			if err := n.caddyNow(context.Background()); err != nil {
+				n.Log.Error("applying web address changes at once", "reason", ch.Reason, "err", err)
+			}
+		}()
+	}
 	if n.status.Running {
 		n.again = true
+		// The same change twice (pausing, then pausing more) waits once.
+		if w := n.status.Waiting; len(w) > 0 && w[len(w)-1].Reason == ch.Reason {
+			w[len(w)-1].Early = w[len(w)-1].Early || ch.Early
+		} else {
+			n.status.Waiting = append(n.status.Waiting, ch)
+		}
 		return
 	}
-	n.status.Running = true
+	n.status.Running, n.status.Doing = true, []Change{ch}
 	n.done = make(chan struct{})
 	go n.applyLoop(n.done)
+}
+
+// caddyNow writes Caddy's files for this server's newest assignment and
+// reloads Caddy, without waiting for an apply that's running (SPEC.md
+// §6.16): visitors from outside are turned away within seconds of a pause,
+// even while a download holds the apply up. Only Caddy's files change;
+// the apply that follows does the rest (public ports at the firewall). An
+// apply planned before this writes Caddy's files again from the newest
+// assignment once it has written its own (applyOnce's AfterWrite), so it
+// can't undo it.
+func (n *Local) caddyNow(ctx context.Context) error {
+	n.caddyMu.Lock()
+	defer n.caddyMu.Unlock()
+	n.mu.Lock()
+	a := n.assignment
+	n.mu.Unlock()
+	lab := n.lab(a)
+	if lab.IsNode() || n.Reconciler == nil {
+		return nil // the controller's Caddy serves the lab's addresses
+	}
+	desired, err := state.Desired(lab, n.withInstallValues(ctx, a.Services), a.Proxied...)
+	if err != nil {
+		return err
+	}
+	r := *n.Reconciler
+	r.Log, r.UserSecret = nil, n.userSecret
+	plan, err := r.Plan(ctx, desired)
+	if err != nil {
+		return err
+	}
+	changed, err := r.ApplyCaddy(ctx, plan)
+	n.caddyGen.Add(1)
+	if err == nil && changed {
+		n.Log.Info("applied changes to web addresses at once")
+	}
+	return err
+}
+
+// userSecret is a value typed in for a secret not created yet.
+func (n *Local) userSecret(name string) ([]byte, bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	v, ok := n.userSecrets[name]
+	return v, ok
 }
 
 // LatestActivity is this server's latest log of a kind.
@@ -374,7 +460,9 @@ func (n *Local) LatestActivity(kind string) (activity.Snapshot, bool) { return n
 func (n *Local) Status() ApplyStatus {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return n.status
+	st := n.status
+	st.Doing, st.Waiting = slices.Clone(st.Doing), slices.Clone(st.Waiting)
+	return st
 }
 
 // Wait blocks until the current apply finishes (for tests and tools).
@@ -399,11 +487,12 @@ func (n *Local) applyLoop(done chan struct{}) {
 			defer n.startInstallHooks() // after unlocking
 		}
 		if !n.again {
-			n.status.Running = false
+			n.status.Running, n.status.Doing = false, nil
 			n.mu.Unlock()
 			return
 		}
 		n.again = false
+		n.status.Doing, n.status.Waiting = n.status.Waiting, nil
 		n.mu.Unlock()
 	}
 }
@@ -414,10 +503,17 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	// latest, not kept as history (SPEC.md §6.14).
 	n.mu.Lock()
 	a := n.assignment
+	doing := slices.Clone(n.status.Doing)
 	n.mu.Unlock()
+	gen := n.caddyGen.Load()
 	act := n.Activity.Start(activity.Apply, "Applying changes")
 	defer func() { act.Finish(err) }()
-	act.Printf("Why: %s.", cmp.Or(a.Reason, "Roostack started, or its settings changed"))
+	if len(doing) == 0 {
+		doing = []Change{{Reason: startedReason}}
+	}
+	for _, ch := range doing {
+		act.Printf("Why: %s.", ch.Reason)
+	}
 	desired, err := state.Desired(n.lab(a), n.withInstallValues(ctx, a.Services), a.Proxied...)
 	if err != nil {
 		return err
@@ -442,11 +538,14 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		desired.System.Units = append(desired.System.Units, edge.Units...)
 	}
 	r := *n.Reconciler
-	r.UserSecret = func(name string) ([]byte, bool) {
-		n.mu.Lock()
-		defer n.mu.Unlock()
-		v, ok := n.userSecrets[name]
-		return v, ok
+	r.UserSecret = n.userSecret
+	// Changes to web addresses applied at once since this apply began
+	// (caddyNow) are written again over its older Caddy files.
+	r.AfterWrite = func(ctx context.Context) error {
+		if n.caddyGen.Load() == gen {
+			return nil
+		}
+		return n.caddyNow(ctx)
 	}
 	// An install a failed download or a restart cut off starts again.
 	r.Unfinished = n.unfinishedUnits()

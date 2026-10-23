@@ -150,7 +150,7 @@ func (m *Manager) PausePublic(by string, r PauseRequest) error {
 	if err := SaveServicePauses(m.Lab, services, &p); err != nil {
 		return err
 	}
-	m.startApplyLocked("Pausing public access to " + PauseWhat(r, services))
+	m.startApplyNowLocked("Pausing public access to " + PauseWhat(r, services))
 	return nil
 }
 
@@ -236,7 +236,7 @@ func (m *Manager) LiftPause(r PauseRequest) error {
 	if err := SaveServicePauses(m.Lab, services, nil); err != nil {
 		return err
 	}
-	m.startApplyLocked("Opening public access again to " + PauseWhat(r, services))
+	m.startApplyNowLocked("Opening public access again to " + PauseWhat(r, services))
 	return nil
 }
 
