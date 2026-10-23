@@ -377,6 +377,14 @@ weekly summary will keep saying what's paused until then.
       services that aren't paused.
     - Monitoring still checks it from inside the lab; the public status
       page shows it as paused.
+    - When Roostack's pages can't be reached, pause from the controller's
+      command line: `sudo roostack public pause -all` (or `-built-with
+      php`, or `-service lychee`), `sudo roostack public resume …` to open
+      it again, and `sudo roostack public status`. It saves the change
+      as the roostack user, records it like the pages do (so the Owners
+      will be emailed), and restarts Roostack so that it applies it; if
+      Roostack isn't running, it applies it to that server's own services
+      itself.
 
 ## Making it private again
 

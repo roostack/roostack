@@ -25,6 +25,19 @@ type PauseRequest struct {
 
 func (r PauseRequest) empty() bool { return !r.All && len(r.BuiltWith) == 0 && len(r.Services) == 0 }
 
+// Check says what's wrong with a request to pause, in a sentence.
+func (r PauseRequest) Check() error {
+	if r.empty() {
+		return usererr.New("Choose what to pause: everything public, what services are built with, or some services.")
+	}
+	for _, b := range r.BuiltWith {
+		if !pkgspec.ValidBuiltWith(b) {
+			return usererr.New("%q isn't a name of something services are built with, such as php or log4j.", b)
+		}
+	}
+	return nil
+}
+
 // PublicPauses is what's public in the lab and what's paused, for the
 // pages: the lab's own pauses, and every service with a public address or
 // port.
@@ -64,15 +77,20 @@ func (a PublicPauses) PausedServices() []PublicService {
 
 // PublicPauses lists the lab's public services and its pauses.
 func (m *Manager) PublicPauses() (PublicPauses, error) {
-	lab := m.labNow()
 	services, err := state.LoadServices(m.Lab)
 	if err != nil && len(services) == 0 {
 		return PublicPauses{}, err
 	}
+	return PublicPausesOf(m.labNow(), services), nil
+}
+
+// PublicPausesOf is PublicPauses for a lab's settings and services (the
+// command line has no manager).
+func PublicPausesOf(lab config.Lab, services []state.Service) PublicPauses {
 	pause := lab.Public.Pause
 	out := PublicPauses{All: pause.All, BuiltWith: pause.BuiltWith}
 	for _, s := range services {
-		ps, ok := publicService(lab, s)
+		ps, ok := PublicServiceOf(lab, s)
 		if !ok {
 			continue
 		}
@@ -85,12 +103,12 @@ func (m *Manager) PublicPauses() (PublicPauses, error) {
 		out.Services = append(out.Services, ps)
 	}
 	slices.SortFunc(out.Services, func(a, b PublicService) int { return strings.Compare(a.Title, b.Title) })
-	return out, nil
+	return out
 }
 
-// publicService is s as a PublicService, if any of its addresses or ports
-// is public.
-func publicService(lab config.Lab, s state.Service) (PublicService, bool) {
+// PublicServiceOf is s as a PublicService, if any of its addresses or
+// ports is public.
+func PublicServiceOf(lab config.Lab, s state.Service) (PublicService, bool) {
 	ps := PublicService{Name: s.Name(), Title: s.Title(), BuiltWith: s.Package.BuiltWithNames()}
 	_, routes := generate.Values(lab, s.Package, s.Instance)
 	public := false
@@ -114,13 +132,8 @@ func publicService(lab config.Lab, s state.Service) (PublicService, bool) {
 // in, and the services' public ports will take connections from home only.
 // Pausing something already paused keeps its first pause.
 func (m *Manager) PausePublic(by string, r PauseRequest) error {
-	if r.empty() {
-		return usererr.New("Choose what to pause: everything public, what services are built with, or some services.")
-	}
-	for _, b := range r.BuiltWith {
-		if !pkgspec.ValidBuiltWith(b) {
-			return usererr.New("%q isn't a name of something services are built with, such as php or log4j.", b)
-		}
+	if err := r.Check(); err != nil {
+		return err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -128,39 +141,68 @@ func (m *Manager) PausePublic(by string, r PauseRequest) error {
 	if err != nil {
 		return err
 	}
-	now := time.Now().UTC().Truncate(time.Second)
-	p := config.Pause{Since: now, By: by}
+	p := config.Pause{Since: time.Now().UTC().Truncate(time.Second), By: by}
 	if r.All || len(r.BuiltWith) > 0 {
-		err := m.saveLab(func(l *config.Lab) {
-			pause := &l.Public.Pause
-			if r.All && pause.All == nil {
-				pause.All = &p
-			}
-			bw := maps.Clone(pause.BuiltWith)
-			for _, b := range r.BuiltWith {
-				if _, ok := bw[b]; !ok {
-					if bw == nil {
-						bw = map[string]config.Pause{}
-					}
-					bw[b] = p
-				}
-			}
-			pause.BuiltWith = bw
-		})
-		if err != nil {
+		if err := m.saveLab(func(l *config.Lab) { l.Public.Pause = r.Paused(l.Public.Pause, p) }); err != nil {
 			return err
 		}
 	}
+	if err := SaveServicePauses(m.Lab, services, &p); err != nil {
+		return err
+	}
+	m.startApplyLocked("Pausing public access to " + PauseWhat(r, services))
+	return nil
+}
+
+// Paused is the lab's pauses with r's added (its services aside), each
+// from p; what's paused already keeps its first pause. The lab's own isn't
+// changed: its map is copied, since a runtime copy may share it.
+func (r PauseRequest) Paused(pause config.PublicPause, p config.Pause) config.PublicPause {
+	if r.All && pause.All == nil {
+		pause.All = &p
+	}
+	bw := maps.Clone(pause.BuiltWith)
+	for _, b := range r.BuiltWith {
+		if _, ok := bw[b]; !ok {
+			if bw == nil {
+				bw = map[string]config.Pause{}
+			}
+			bw[b] = p
+		}
+	}
+	pause.BuiltWith = bw
+	return pause
+}
+
+// Lifted is the lab's pauses without r's (its services aside).
+func (r PauseRequest) Lifted(pause config.PublicPause) config.PublicPause {
+	if r.All {
+		pause.All = nil
+	}
+	bw := maps.Clone(pause.BuiltWith)
+	for _, b := range r.BuiltWith {
+		delete(bw, b)
+	}
+	if len(bw) == 0 {
+		bw = nil
+	}
+	pause.BuiltWith = bw
+	return pause
+}
+
+// SaveServicePauses sets each service's own pause to p, or lifts it when
+// p is nil, in its instance file; a service already paused keeps its
+// first pause.
+func SaveServicePauses(lab config.Lab, services []state.Service, p *config.Pause) error {
 	for _, s := range services {
-		if s.Instance.PublicPause != nil {
+		if (s.Instance.PublicPause != nil) == (p != nil) {
 			continue
 		}
-		s.Instance.PublicPause = &p
-		if err := s.Instance.Save(state.InstanceFile(m.Lab, s.Name())); err != nil {
+		s.Instance.PublicPause = p
+		if err := s.Instance.Save(state.InstanceFile(lab, s.Name())); err != nil {
 			return err
 		}
 	}
-	m.startApplyLocked("Pausing public access to " + pauseWhat(r, services))
 	return nil
 }
 
@@ -187,34 +229,14 @@ func (m *Manager) LiftPause(r PauseRequest) error {
 		services = append(services, all[i])
 	}
 	if r.All || len(r.BuiltWith) > 0 {
-		err := m.saveLab(func(l *config.Lab) {
-			pause := &l.Public.Pause
-			if r.All {
-				pause.All = nil
-			}
-			bw := maps.Clone(pause.BuiltWith)
-			for _, b := range r.BuiltWith {
-				delete(bw, b)
-			}
-			if len(bw) == 0 {
-				bw = nil
-			}
-			pause.BuiltWith = bw
-		})
-		if err != nil {
+		if err := m.saveLab(func(l *config.Lab) { l.Public.Pause = r.Lifted(l.Public.Pause) }); err != nil {
 			return err
 		}
 	}
-	for _, s := range services {
-		if s.Instance.PublicPause == nil {
-			continue
-		}
-		s.Instance.PublicPause = nil
-		if err := s.Instance.Save(state.InstanceFile(m.Lab, s.Name())); err != nil {
-			return err
-		}
+	if err := SaveServicePauses(m.Lab, services, nil); err != nil {
+		return err
 	}
-	m.startApplyLocked("Opening public access again to " + pauseWhat(r, services))
+	m.startApplyLocked("Opening public access again to " + PauseWhat(r, services))
 	return nil
 }
 
@@ -228,14 +250,19 @@ func (m *Manager) publicServices(names []string) ([]state.Service, error) {
 	if err != nil && len(all) == 0 {
 		return nil, err
 	}
-	lab := m.labNow()
+	return PublicServicesNamed(m.labNow(), all, names)
+}
+
+// PublicServicesNamed are the named services of all, each of which must
+// have a public address or port.
+func PublicServicesNamed(lab config.Lab, all []state.Service, names []string) ([]state.Service, error) {
 	var out []state.Service
 	for _, name := range names {
 		i := slices.IndexFunc(all, func(s state.Service) bool { return s.Name() == name })
 		if i < 0 {
 			return nil, ErrNotFound
 		}
-		if _, public := publicService(lab, all[i]); !public {
+		if _, public := PublicServiceOf(lab, all[i]); !public {
 			return nil, usererr.New("%s isn't open to the internet, so there's nothing to pause.", all[i].Title())
 		}
 		out = append(out, all[i])
@@ -243,8 +270,9 @@ func (m *Manager) publicServices(names []string) ([]state.Service, error) {
 	return out, nil
 }
 
-// pauseWhat says what a pause or lift is about, for the apply's reason.
-func pauseWhat(r PauseRequest, services []state.Service) string {
+// PauseWhat says what a pause or lift is about ("everything", "services
+// built with php", "Lychee"), for the apply's reason and the audit log.
+func PauseWhat(r PauseRequest, services []state.Service) string {
 	var parts []string
 	if r.All {
 		parts = append(parts, "everything")

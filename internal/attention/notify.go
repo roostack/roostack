@@ -309,10 +309,10 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 	case AuditGuestJoined:
 		return "", "Another lab started storing its backups here: " + e.Detail + " (" + when + ").", ""
 	case AuditPublicPaused:
-		return "", "Public access to " + e.Detail + " was paused " + by + " (" + when + "). Visitors from the internet are seeing a page " +
+		return "", "Public access to " + strings.TrimSuffix(e.Detail, " via command line") + " was paused " + by + " (" + when + "). Visitors from the internet are seeing a page " +
 			"saying it's closed for a while, and it's still working at home.", ""
 	case AuditPublicOpened:
-		return "", "Public access to " + e.Detail + " was opened again " + by + " (" + when + ").", ""
+		return "", "Public access to " + strings.TrimSuffix(e.Detail, " via command line") + " was opened again " + by + " (" + when + ").", ""
 	}
 	return "", "", ""
 }
