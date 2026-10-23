@@ -1196,6 +1196,25 @@ Each its own session, in any order, once waves 1 and 2 have landed:
 - **S17:** Cloud's `accounts`, `relay` and `controlplane` packages and the `cmd/cloud` tidy; T3 (template database, `t.Parallel`) and T6's tests alongside.
 - **T2:** parallel restic tests and a template repository.
 
+**Wave 3 status (2026-10-23).** The pieces overlap, so they run in rounds of sessions on separate files, each merged locally once it passes.
+- **Round 1, merged:**
+  - **D11** (one `transferJob` for every move and restore; a move through a backup now clears an earlier attempt's leftovers first, as a restore did);
+  - **D12** (`internal/kept`: one kept-copy system and one "Kept copies" list, built from a mock-up the maintainer approved; servers on older versions keep working through the old routes, which TASKS.md says to remove later);
+  - **S12** (`serve`'s controller struct; `podman.Pull`, `web.ServiceViews` and `web.SetupToken` tested);
+  - **S13** (the agent's routes as a table with shared request types; every change logged; internal failures answer 500);
+  - **D9** (each DNS provider's check through the records code; the few request details that changed are listed in TASKS.md);
+  - **S17**'s structure in Cloud (`internal/relay`, one relay-statistics function, `controlplane.New` for `serve` and the end-to-end tests, `cmd/cloud` tidied with a tested `admin.Add`; `serve`'s coverage from 2% to 76%);
+  - the websites (J2, and X6's static-site headers).
+- **Round 2, merged:**
+  - **S2** steps 2 and 4 (the backup plan's and location rules in `manager`; `internal/attention` for the attention list and the notifier; every item and email identical before and after);
+  - Cloud's helpers and tests (the rest of S16, B9, B10, T3, T6, T7, T9; Cloud's suite from about 45 s to 25 s);
+  - the portal's sidebar following Roostack's layout (the maintainer's decision, 2026-10-23).
+- **Still to do:** S8 and S11 (splitting `Manager` and `node.Local`), then T2 with the rest of T8 and T9 (Roostack's test speed and helpers).
+- **Found along the way, filed in TASKS.md:**
+  - two backup drives with one label get one mount point;
+  - `podman.Pull` can lose podman's reason when its error line comes first;
+  - stopping a continuity request that isn't running still says someone was told (Cloud).
+
 ### Wave 4: wording, after waves 1–3
 
 Added by the Owner on 2026-10-22. Across both repositories, find sentences people read that use the present simple for actions, or that are short and clipped, and rework them to sound natural.
