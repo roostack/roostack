@@ -2,9 +2,11 @@
 // 2026-10-19): HTTP Basic Auth, checked here before anything is served.
 // Any user name; the password is the Worker's secret SITE_PASSWORD (from
 // sops, set by Roostack Cloud's ops/site-deploy.sh). wrangler.jsonc's GATE
-// var turns it on ("password") or off ("off", at launch). On, without a
-// password set, every request is refused: the help is never served open
-// by mistake. While it's on, every answer also says not to index it.
+// var turns it on ("password") or off ("off", at launch), or opens the help
+// to everyone while still asking search engines to leave it out
+// ("noindex", the Owner, 2026-10-23). On, without a password set, every
+// request is refused: the help is never served open by mistake. Unless
+// it's off, every answer says not to index it.
 //
 // Roostack Cloud's website (site/worker/gate.js in its repository) has
 // the same gate: keep the two alike.
@@ -21,6 +23,7 @@ export async function gate(request, env) {
     url.protocol = "https:";
     return Response.redirect(url.toString(), 301);
   }
+  if (env.GATE === "noindex") return null;
   if (!env.SITE_PASSWORD) {
     return plain(503, "This site isn't open yet.\n");
   }
@@ -35,7 +38,7 @@ export function gated(response, env) {
   if (env.GATE === "off") return response;
   const res = new Response(response.body, response);
   res.headers.set("X-Robots-Tag", "noindex, nofollow");
-  res.headers.set("Cache-Control", "private, no-store");
+  if (env.GATE !== "noindex") res.headers.set("Cache-Control", "private, no-store");
   return res;
 }
 

@@ -35,6 +35,18 @@ test("off, everything goes on, unmarked", async () => {
   assert.equal(res.headers.get("X-Robots-Tag"), null);
 });
 
+test("noindex: everything goes on without a password, marked not to index", async () => {
+  assert.equal(await gate(req(), { GATE: "noindex" }), null);
+  const res = gated(new Response("x"), { GATE: "noindex" });
+  assert.equal(res.headers.get("X-Robots-Tag"), "noindex, nofollow");
+  assert.equal(res.headers.get("Cache-Control"), null);
+});
+
+test("noindex: plain HTTP still goes to HTTPS", async () => {
+  const res = await gate(new Request("http://roostack.cloud/x"), { GATE: "noindex" });
+  assert.equal(res.status, 301);
+});
+
 test("served while on: not indexed, not cached by others", () => {
   const res = gated(new Response("x", { headers: { "Content-Security-Policy": "default-src 'self'" } }), env);
   assert.equal(res.headers.get("X-Robots-Tag"), "noindex, nofollow");

@@ -9,9 +9,11 @@
 //   publishes it with an API token, never a personal login.
 //
 // Until launch a small Worker (worker/index.js) runs first for every
-// address, for the help's password (worker/gate.js): GATE "password", and
-// the secret SITE_PASSWORD, which ops/site-deploy.sh sets from sops. At
-// launch: GATE "off" (and the Worker can go).
+// address (worker/gate.js): the preview keeps the password (GATE
+// "password", and the secret SITE_PASSWORD, which ops/site-deploy.sh sets
+// from sops); help.roostack.cloud is open but marked not to be indexed
+// (GATE "noindex", the Owner, 2026-10-23). At launch: GATE "off" (and the
+// Worker can go).
 {
   "name": "roostack-help-preview",
   "compatibility_date": "2026-09-28",
@@ -26,7 +28,7 @@
       "workers_dev": false,
       "routes": [{ "pattern": "help.roostack.cloud", "custom_domain": true }],
       "assets": { "directory": "./site", "binding": "ASSETS", "not_found_handling": "404-page", "run_worker_first": true },
-      "vars": { "GATE": "password" }
+      "vars": { "GATE": "noindex" }
     }
   }
 }
