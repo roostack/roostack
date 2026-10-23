@@ -15,10 +15,10 @@
     {{notice "info" "A restore is in progress. This page shows how it's going."}}
   {{else if .Groups}}
   {{$m := .Chosen}}{{$p := .ChosenPlace}}
-  {{if .JustDone}}{{notice "ok" (printf "%s is restored. Check it works; its previous data is kept below until you delete it." .Service.Title)}}
+  {{if .JustDone}}{{notice "ok" (printf "%s is restored. Check it works; its previous data will be kept below until you delete it." .Service.Title)}}
   <details class="restore-again">
     <summary>Restore it again…</summary>{{end}}
-  <p>Puts {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} stops for a few minutes while this happens.</p>
+  <p>Roostack will put {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} will stop for a few minutes while this happens.</p>
   <form method="post" action="/backups/restore/{{.Service.Name}}" data-moment="{{$m.ID}}" data-label="{{$m.Label}}" data-place="{{$p.Title}}"
     x-data="{ moment: $el.dataset.moment, label: $el.dataset.label, place: $el.dataset.place }">
     <p>Restoring from <strong x-text="label">{{$m.Label}}</strong>
@@ -52,11 +52,11 @@
     {{if gt (len .Servers) 1}}
     <label>Restore onto
       <select name="to">{{range .Servers}}<option value="{{.ID}}"{{if eq .ID $.Host}} selected{{end}}>{{.Name}}{{if eq .ID $.Host}} (where it runs now){{end}}</option>{{end}}</select>
-      <small>On another server, {{.Service.Title}} moves there; its data where it ran now is kept aside.</small>
+      <small>On another server, {{.Service.Title}} will move there; its data where it ran now will be kept aside.</small>
     </label>
     {{end}}
-    <p class="notice notice-warn">Anything changed in {{.Service.Title}} since that backup will be undone. The current data isn't deleted:
-      it's kept aside, listed below, until you delete it.</p>
+    <p class="notice notice-warn">Anything changed in {{.Service.Title}} since that backup will be undone. The current data won't be deleted:
+      it will be kept aside, listed below, until you delete it.</p>
     <label class="check"><input type="checkbox" name="confirm" required>
       <span>I understand, restore {{.Service.Title}}</span></label>
     <button type="submit">Restore {{.Service.Title}}</button>

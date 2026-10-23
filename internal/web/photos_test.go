@@ -253,7 +253,7 @@ func TestPhotoSteps(t *testing.T) {
 	}
 	post("stop", url.Values{})
 	_, body = h.get(base)
-	if !strings.Contains(body, ">Carry on</button>") || !strings.Contains(body, "nothing comes twice") {
+	if !strings.Contains(body, ">Carry on</button>") || !strings.Contains(body, "nothing will come twice") {
 		t.Errorf("stopped:\n%s", body)
 	}
 

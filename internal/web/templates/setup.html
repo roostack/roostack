@@ -8,7 +8,7 @@
   <form method="post" action="/setup/code">
     <label>Setup code
       <input name="token" autocomplete="off" required autofocus>
-      <small>Shown when Roostack was installed, and saved in <code>{{.SetupTokenFile}}</code> on the server.</small>
+      <small>Shown when Roostack was installed and saved in <code>{{.SetupTokenFile}}</code> on the server.</small>
     </label>
     <button type="submit">Continue</button>
   </form>
@@ -19,10 +19,10 @@
     <fieldset>
       <legend>What's this server for?</legend>
       <label class="check"><input type="radio" name="choice" value="new" x-model="choice"{{if eq .Choice "new"}} checked{{end}}>
-        <span>A new lab<small>Start your lab here. You create the Owner account, who can change every setting.</small></span></label>
+        <span>A new lab<small>Start your lab here. You'll create the Owner account, who can change every setting.</small></span></label>
       {{if .CanJoin}}<label class="check"><input type="radio" name="choice" value="join" x-model="choice"{{if eq .Choice "join"}} checked{{end}}>
-        <span>Add it to a lab you already have<small>Another server runs your lab already. This one joins it, to run services or keep
-          backups, and you manage it from there.</small></span></label>{{end}}
+        <span>Add it to a lab you already have<small>Another server runs your lab already. This one will join it to run services or keep
+          backups, and you'll manage it from there.</small></span></label>{{end}}
       {{if .CanRestore}}<label class="check"><input type="radio" name="choice" value="restore" x-model="choice">
         <span>Restore a lab from its backups<small>Moving your lab to a new server, or rebuilding it after a failure.</small></span></label>{{end}}
     </fieldset>
@@ -30,7 +30,7 @@
     <form method="post" action="/setup" x-data="{ pw: '', confirm: '' }" x-show="choice === 'new'"{{if ne .Choice "new"}} x-cloak{{end}}>
       <label>Name your lab <small>(optional)</small>
         <input name="lab_name" value="{{.LabName}}" maxlength="60" placeholder="The Smiths' lab">
-        <small>Shown at the top of every page, and to other labs you share backup storage with. You can change it later.</small>
+        <small>It will be shown at the top of every page and to other labs you share backup storage with. You can change it later.</small>
       </label>
       <div class="field-row">
         <label>Username
@@ -38,7 +38,7 @@
         </label>
         <label>Email address
           <input name="email" type="email" value="{{.Email}}" autocomplete="email" placeholder="you@example.com" required>
-          <small>Where Roostack emails you when the lab needs you, once email is set up. You can change it later.</small>
+          <small>Where Roostack will email you when the lab needs you, once email is set up. You can change it later.</small>
         </label>
       </div>
       <div class="field-row">
@@ -65,11 +65,11 @@
       </label>
       <label>Name for this server
         <input name="name" value="{{.ServerName}}" maxlength="40" required>
-        <small>How the lab shows it, such as "nas" or "vps". You can change it later.</small>
+        <small>How the lab will show it, such as "nas" or "vps". You can change it later.</small>
       </label>
       <button type="submit" x-bind:disabled="busy">Join the lab</button>
       <span class="hint" x-show="busy" x-cloak><span class="spinner" aria-hidden="true"></span> Connecting to your lab (up to a minute)…</span>
-      <p class="hint">This server connects to your lab over its own encrypted network (UDP port 51820) and restarts as part of it.</p>
+      <p class="hint">This server will connect to your lab over its own encrypted network (UDP port 51820) and restart as part of it.</p>
     </form>
     {{end}}
 

@@ -42,7 +42,7 @@ func TestPublicEdge(t *testing.T) {
 		t.Errorf("a server that can't be the edge: %d", code)
 	}
 	_, body = h.post("/settings/public/edge", url.Values{"edge": {"n-0000000002"}}, h.srv.URL)
-	if fm.edge != "n-0000000002" || !strings.Contains(body, `value="n-0000000002" checked`) || !strings.Contains(body, "Saved. Public addresses follow") {
+	if fm.edge != "n-0000000002" || !strings.Contains(body, `value="n-0000000002" checked`) || !strings.Contains(body, "Saved. Public addresses will follow") {
 		t.Errorf("choosing the edge: edge %q", fm.edge)
 	}
 	// The edge gone from the lab's network: said so.
@@ -287,7 +287,7 @@ func TestPublicCountries(t *testing.T) {
 	}
 	_, body = h.post("/settings/public/countries/open", url.Values{"action": {"open"}, "days": {"14"}}, h.srv.URL)
 	if until := time.Until(fm.countries.OpenUntil); until < 13*24*time.Hour || !strings.Contains(body, "Everyone can visit until") ||
-		!strings.Contains(body, "only visitors from\n      Australia and New Zealand again") {
+		!strings.Contains(body, "only visitors from\n      Australia and New Zealand will be able to visit again") {
 		t.Errorf("opening: %v\n%s", fm.countries.OpenUntil, body)
 	}
 	if code, _ := h.post("/settings/public/countries/open", url.Values{"action": {"open"}, "days": {"400"}}, h.srv.URL); code != 400 {

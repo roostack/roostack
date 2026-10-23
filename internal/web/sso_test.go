@@ -388,7 +388,7 @@ func TestServiceSSOCard(t *testing.T) {
 	ctx := context.Background()
 	family, _ := h.store.CreateGroup(ctx, "Family")
 	_, body := h.get("/services/mealie")
-	for _, want := range []string{`id="sso"`, "Turn on single sign-on", "Mealie restarts", "Family", `name="who" value="all" checked`,
+	for _, want := range []string{`id="sso"`, "Turn on single sign-on", "Mealie will restart", "Family", `name="who" value="all" checked`,
 		"API tokens"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("off card missing %q", want)

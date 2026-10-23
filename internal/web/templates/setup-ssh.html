@@ -47,13 +47,13 @@
       {{end}}
       <fieldset>
         <label class="check"><input type="radio" name="login" value="key"{{if eq .Login "key"}} checked{{end}}>
-          <span>With an SSH key only (recommended)<small>Passwords are refused, and nobody can log in as root: log in as yourself and use
+          <span>With an SSH key only (recommended)<small>Passwords will be refused, and nobody will be able to log in as root: log in as yourself and use
             <code>sudo</code>.</small></span></label>
         <label class="check"><input type="radio" name="login" value="password"{{if eq .Login "password"}} checked{{end}}>
-          <span>With a key or a password<small>Anyone who can reach SSH can try to guess a password. Roostack shows a warning until it's
+          <span>With a key or a password<small>Anyone who can reach SSH can try to guess a password. Roostack will show a warning until it's
             keys only.</small></span></label>
       </fieldset>
-      {{if and (eq .SavedLogin "key") (not .SSHD.KeysOnly)}}{{notice "warn" (printf "Roostack's file in SSH's settings (%s) is missing, so SSH works as its own settings say. Save to write it again." .DropIn)}}{{end}}
+      {{if and (eq .SavedLogin "key") (not .SSHD.KeysOnly)}}{{notice "warn" (printf "Roostack's file in SSH's settings (%s) is missing, so SSH is working as its own settings say. Save to write it again." .DropIn)}}{{end}}
       {{if and .PasswordsOpen .SSHD.PasswordsMatch .SSHD.KeysOnly}}{{notice "warn" (printf "SSH still takes passwords from some addresses: “%s” in its settings turns them back on, and Roostack's file can't change what a Match block says. Edit that block (in /etc/ssh/sshd_config or a file in /etc/ssh/sshd_config.d) to make SSH keys only." .SSHD.PasswordsMatch)}}{{end}}
       {{with .SSHDError}}{{notice "warn" (printf "Roostack couldn't read SSH's settings: %s" .)}}{{end}}
     </div>
@@ -64,8 +64,8 @@
       <label class="check"><input type="checkbox" name="confirm"><span>I understand</span></label>
     </div>
     {{end}}
-    {{if .Wizard}}<p class="hint">The firewall takes effect when setup finishes (Roostack restarts once, then).{{if .SSHD.Installed}} How people
-      log in changes at once.{{end}}</p>{{end}}
+    {{if .Wizard}}<p class="hint">The firewall will take effect when setup finishes (Roostack will restart once, then).{{if .SSHD.Installed}} How people
+      log in will change at once.{{end}}</p>{{end}}
     <button type="submit">{{if .Wizard}}Continue{{else}}Save{{end}}</button>
   </form>
 {{if .SSHD.Installed}}

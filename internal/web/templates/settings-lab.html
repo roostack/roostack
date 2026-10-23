@@ -6,12 +6,12 @@
   </div>
 </div>
 <section class="card">
-  <p>What you call your lab. It's shown at the top of every page, and to other labs you share backup storage with
+  <p>What you call your lab. It's shown at the top of every page and to other labs you share backup storage with
     (they see it as "{{.LabName}}'s storage").</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/settings/lab">
     <label>Name <input name="name" value="{{.LabName}}" maxlength="60" required></label>
-    <p class="hint">Roostack restarts to use the new name everywhere; that takes a few seconds.</p>
+    <p class="hint">Roostack will restart to use the new name everywhere, which will take a few seconds.</p>
     <button type="submit">Save</button>
   </form>
 </section>

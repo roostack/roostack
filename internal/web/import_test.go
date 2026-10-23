@@ -97,7 +97,7 @@ func TestImportPage(t *testing.T) {
 
 	// Its page says it waits for its data.
 	_, body := h.get("/services/immich")
-	if !strings.Contains(body, "Immich is installed, and waiting for its data.") || !strings.Contains(body, `href="/services/immich/import">Bring its data in…`) ||
+	if !strings.Contains(body, "Immich is installed and waiting for its data.") || !strings.Contains(body, `href="/services/immich/import">Bring its data in…`) ||
 		!strings.Contains(body, "ready once its data is in") || !strings.Contains(body, "Waiting for its data") {
 		t.Error("the service page doesn't say it's waiting for its data")
 	}
@@ -171,7 +171,7 @@ func TestImportPage(t *testing.T) {
 	// 6: the switch, with what to do first.
 	_, body = h.get("/services/immich/import")
 	for _, want := range []string{`id="step-6"`, "docker compose stop immich-server immich-machine-learning", "Switch to this data",
-		"Copy again", "Immich has no data yet, so nothing is set aside."} {
+		"Copy again", "Immich has no data yet, so nothing will be set aside."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("step 6 lacks %q", want)
 		}

@@ -99,7 +99,7 @@ func TestInstallFlow(t *testing.T) {
 	}
 
 	_, body = h.get("/services/vaultwarden/remove")
-	if !strings.Contains(body, "Your data is kept") || !strings.Contains(body, "/srv/roostack/services/vaultwarden") {
+	if !strings.Contains(body, "Your data will be kept") || !strings.Contains(body, "/srv/roostack/services/vaultwarden") {
 		t.Error("remove page should explain that data is kept, and where")
 	}
 	h.post("/services/vaultwarden/remove", nil, h.srv.URL)
@@ -721,7 +721,7 @@ func TestStorageForOthers(t *testing.T) {
 	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821",
 		"Space on nuc", "<strong>180.0 GB free</strong> of 250.0 GB", "Backups of other labs",
 		"can be given up to <strong>16.3 GB</strong> more", `value="16"`,
-		"leaves about\n            <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
+		"will leave about\n            <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
 		// Nothing known yet: they type it.
 		`value="other" x-model="choice" checked`, `name="address_other"`,
 		// The invite is a form in a dialog, closed until asked for.
@@ -1072,7 +1072,7 @@ func TestBackupOnTheSameDiskWarns(t *testing.T) {
 		t.Error("online storage isn't on the same disk")
 	}
 	fm.destination = "drive:system"
-	if _, body := h.get("/backups"); !strings.Contains(body, "if the disk fails, or ransomware gets onto the server") {
+	if _, body := h.get("/backups"); !strings.Contains(body, "if the disk fails or ransomware gets onto the server") {
 		t.Error("a backup on this server's disk should warn")
 	}
 }
@@ -1092,7 +1092,7 @@ func TestBackupPlanSpace(t *testing.T) {
 	// Nearly full: the card says so, starting with a capital whatever
 	// the place is called.
 	fs.drives = []agent.Drive{{ID: "system", Kind: "system", Name: "This server's own disk", Usable: true, Size: 100 * units.GB, Free: units.GB}}
-	if _, body := h.get("/backups"); !strings.Contains(body, "Nearly full: 1.0 GB free on this server&#39;s disk. When it&#39;s full, backups here fail.") {
+	if _, body := h.get("/backups"); !strings.Contains(body, "Nearly full: 1.0 GB free on this server&#39;s disk. When it&#39;s full, backups here will fail.") {
 		t.Errorf("a nearly full disk on the plan:\n%s", body[strings.Index(body, `id="plan"`):])
 	}
 }
@@ -1359,7 +1359,7 @@ func TestInstallSummary(t *testing.T) {
 	fm.serverMemory = manager.ServerMemory{Name: "pi", Servers: 2, Total: 4_000_000_000, Available: 1_900_000_000}
 	_, body = h.get("/install/immich")
 	if !strings.Contains(body, "pi has 4.0 GB, and 1.9 GB is free right now.") ||
-		!strings.Contains(body, "Immich needs about 2.8 GB, but only 1.9 GB is free on pi right now. It may be slow, or stop working. Run it on another server, or free some memory first.") ||
+		!strings.Contains(body, "Immich needs about 2.8 GB, but only 1.9 GB is free on pi right now. It may be slow or stop working. Run it on another server or free some memory first.") ||
 		!strings.Contains(body, `<button type="submit">Install</button>`) {
 		t.Error("install page: the warning when it won't fit is missing")
 	}
@@ -1381,7 +1381,7 @@ func TestInstallSummary(t *testing.T) {
 	// Forgejo's administrator may then be left empty (it keeps its own).
 	_, body = h.get("/install/forgejo")
 	field, _, _ := strings.Cut(body[strings.Index(body, `name="setting.admin_username"`):], ">")
-	if !strings.Contains(body, "With its data from before, leave these empty: Forgejo keeps what it has") || strings.Contains(field, "required") {
+	if !strings.Contains(body, "With its data from before, leave these empty: Forgejo will keep what it has") || strings.Contains(field, "required") {
 		t.Errorf("install page over data from before: the administrator is still asked for (%s)", field)
 	}
 	fm.leftData = nil

@@ -51,7 +51,7 @@ func TestRegistryStop(t *testing.T) {
 		}
 	}
 	_, body = h.get("/services/vaultwarden")
-	if !strings.Contains(body, "It keeps running, but it can't be installed any more.") || strings.Contains(body, "start-anyway") {
+	if !strings.Contains(body, "It will keep running, but it can't be installed any more.") || strings.Contains(body, "start-anyway") {
 		t.Error("a warning says it keeps running, with nothing to start")
 	}
 

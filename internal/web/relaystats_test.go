@@ -132,7 +132,7 @@ func TestRelayOwnDomain(t *testing.T) {
 		Public: []dnsrecords.PublicRecord{{Host: "vault.lab.example.com", Type: "CNAME", IP: "r-abc.relay.roost.test", State: dnsrecords.PublicOK}},
 		Proof:  &dnsrecords.PublicRecord{Host: "_roostack.lab.example.com", Type: "TXT", IP: "roostack-proof=t0k", State: dnsrecords.PublicOK}}}
 	_, body := h.get("/settings/public")
-	for _, want := range []string{"Waiting for the record proving lab.example.com", "roostack-proof=t0k", "Roostack adds it at your DNS provider by itself",
+	for _, want := range []string{"Waiting for the record proving lab.example.com", "roostack-proof=t0k", "Roostack will add it at your DNS provider by itself",
 		"There&#39;s no TXT record", "Check now", "(CNAME r-abc.relay.roost.test)", "Proves the domain is this lab's"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q", want)

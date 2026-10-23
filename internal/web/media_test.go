@@ -224,7 +224,7 @@ func TestLibraryDriveGone(t *testing.T) {
 	libs.reader, libs.svcPaths, libs.gone = "forgejo", map[string]string{"films": "/movies"}, []string{"Films"}
 	h.server.Libraries = libs
 	_, body := h.get("/services/forgejo")
-	for _, want := range []string{"Plex can't see Films: its drive isn't connected.", "restarts Plex by itself",
+	for _, want := range []string{"Plex can't see Films: its drive isn't connected.", "will restart Plex by itself",
 		"Films, at <code>/movies</code> <span class=\"pill pill-warn\">Drive not connected</span>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("its page lacks %q", want)

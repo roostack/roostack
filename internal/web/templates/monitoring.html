@@ -26,7 +26,7 @@
 </div>
 
 {{if not .On}}
-{{notice "warn" "Monitoring is off: Roostack isn't checking anything, and won't tell you when a service stops answering."}}
+{{notice "warn" "Monitoring is off: Roostack isn't checking anything and won't tell you when a service stops answering."}}
 {{end}}
 {{range .Down}}
 {{notice "error" .Down (printf "link=%s" .Href) "linkText=See what's wrong"}}
@@ -37,7 +37,7 @@
   <div class="card-head"><h2>Services</h2>{{with .CheckedFrom}}<span class="hint">Checked every minute from {{.}}</span>{{end}}</div>
   {{if .Services}}{{template "check-rows" .Services}}
   {{else if .StatusHost}}<p class="hint">No service has a web address to check yet.</p>
-  {{else}}<p class="hint">Services get web addresses once your lab has an address: <a href="/setup/domain">give it one</a>.</p>{{end}}
+  {{else}}<p class="hint">Services will get web addresses once your lab has an address: <a href="/setup/domain">give it one</a>.</p>{{end}}
 </section>
 
 {{if .Servers}}
@@ -64,8 +64,8 @@
         <label>Address <input name="address" value="{{.Form.address}}" placeholder="nas.local or 192.168.1.20" required
           autocapitalize="off" spellcheck="false"></label>
       </div>
-      <p class="hint">The address: a web address (<code>https://nas.local</code>), to check it answers; a name or IP address, to
-        check it answers a ping; or one with a port (<code>printer.local:631</code>), to check something listens there.</p>
+      <p class="hint">The address: a web address (<code>https://nas.local</code>) to check it answers; a name or IP address to
+        check it answers a ping; or one with a port (<code>printer.local:631</code>) to check something listens there.</p>
       <label class="check"><input type="checkbox" class="switch" role="switch" name="alert"{{if or (not .FormError) (eq .Form.alert "on")}} checked{{end}}>
         <span>Tell me when it stops answering</span></label>
       <details{{if eq .Form.skip_verify "on"}} open{{end}}>
@@ -88,7 +88,7 @@
   <div class="card-head"><h2>Public status page</h2>{{if .StatusOn}}<span class="pill pill-ok">On</span>{{else}}<span class="pill">Off</span>{{end}}</div>
   <p>{{if .StatusOn}}Anyone can see{{else}}Turned on, anyone can see{{end}} the services you tick at
     {{if .StatusOn}}<a href="https://{{.StatusHost}}" target="_blank" rel="noopener">{{.StatusHost}}{{template "new-window"}}</a>{{else}}<code>{{.StatusHost}}</code>{{end}}:
-    whether each is up, and its uptime. Never an address or what went wrong.</p>
+    whether each is up and its uptime. Never an address or what went wrong.</p>
   <form method="post" action="/monitoring/status-page" class="stack">
     <input type="hidden" name="choices" value="yes">
     {{if .StatusChoices}}
@@ -98,7 +98,7 @@
         <span>{{.Name}} <small class="hint">{{.Hint}}</small></span></label>
       {{end}}
     </fieldset>
-    {{else}}<p class="hint">Nothing to show yet: services appear here once they have addresses.</p>{{end}}
+    {{else}}<p class="hint">Nothing to show yet: services will appear here once they have addresses.</p>{{end}}
     <p class="actions">
       {{if .StatusOn}}<button type="submit">Save</button> <button type="submit" name="on" value="no" class="secondary">Turn the page off</button>
       {{else}}<button type="submit" name="on" value="yes">Turn the page on</button>{{end}}
@@ -118,8 +118,8 @@
       <input type="hidden" name="on" value="no">
       <noscript><button type="submit" class="secondary">Save</button></noscript>
     </form></div>
-  <p class="hint">{{if .On}}Turning monitoring off stops the checks and their emails.{{else}}Monitoring is off: nothing is checked, and
-    nobody is emailed.{{end}} Services' own health checks, and the rest of "needs attention", carry on.</p>
+  <p class="hint">{{if .On}}Turning monitoring off will stop the checks and their emails.{{else}}Monitoring is off: nothing is checked, and
+    nobody is emailed.{{end}} Services' own health checks and the rest of "needs attention" carry on.</p>
 </section>
 {{end}}
 
@@ -134,7 +134,7 @@
       <dt>Servers</dt><dd>Each of the lab's other servers must accept a connection on the lab network (port 8471).</dd>
       <dt>Problems</dt><dd>Three failed checks in a row (so one slow answer emails nobody), shown under "needs attention" and
         emailed once they've lasted a few minutes; fixed at the first good one. A service stopped on purpose, starting,
-        being set up, updated or restored, or whose server isn't answering, is paused.</dd>
+        being set up, updated, or restored, or whose server isn't answering, is paused.</dd>
       <dt>Certificates</dt><dd>A warning when less than a fifth of a certificate's life is left: Caddy renews at a third, so
         renewing is failing.</dd>
       <dt>History</dt><dd>Every result for two days, then each hour's summary, kept as long as
