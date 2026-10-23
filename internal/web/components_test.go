@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -8,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v3"
 )
 
 func TestComponents(t *testing.T) {
@@ -96,9 +99,6 @@ func TestPageHelpTargets(t *testing.T) {
 		regexp.MustCompile(`\{\{help "([^"]*)" "[^"]+"\}\}`),
 		regexp.MustCompile(`href="/help/([^"]*)"`),
 	}
-	heading := regexp.MustCompile(`(?m)^#{1,6} +(.+?) *$`)
-	anchorID := regexp.MustCompile(`\{ *#([^ }]+) *\}$`)
-	docs := filepath.Join("..", "..", "help", "docs")
 	files, err := fs.Glob(templateFS, "templates/*.html")
 	if err != nil {
 		t.Fatal(err)
@@ -109,27 +109,8 @@ func TestPageHelpTargets(t *testing.T) {
 		for _, link := range links {
 			for _, m := range link.FindAllStringSubmatch(string(page), -1) {
 				n++
-				path, section, _ := strings.Cut(m[1], "#")
-				path = strings.Trim(path, "/")
-				src, err := os.ReadFile(filepath.Join(docs, path+".md"))
-				if err != nil {
-					src, err = os.ReadFile(filepath.Join(docs, path, "index.md"))
-				}
-				if err != nil {
-					t.Errorf("%s: no help page %q", f, path)
-					continue
-				}
-				found := section == ""
-				for _, h := range heading.FindAllStringSubmatch(string(src), -1) {
-					// A heading's own anchor: "## Title { #id }".
-					if m := anchorID.FindStringSubmatch(h[1]); m != nil {
-						found = found || m[1] == section
-						continue
-					}
-					found = found || helpSlug(h[1]) == section
-				}
-				if !found {
-					t.Errorf("%s: help page %q has no section #%s", f, path, section)
+				if problem := helpTarget(m[1]); problem != "" {
+					t.Errorf("%s: %s", f, problem)
 				}
 			}
 		}
@@ -137,6 +118,72 @@ func TestPageHelpTargets(t *testing.T) {
 	if n < 20 {
 		t.Errorf("found only %d help links; is the pattern still right?", n)
 	}
+}
+
+// Every field's link in the package editor's help (internal/editor's
+// help.yaml) names a page and section that the help has, like the pages'
+// links above.
+func TestEditorHelpTargets(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "editor", "help.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entries map[string]struct {
+		Link string `yaml:"link"`
+	}
+	if err := yaml.Unmarshal(data, &entries); err != nil {
+		t.Fatalf("help.yaml: %v", err)
+	}
+	n := 0
+	for path, e := range entries {
+		if e.Link == "" {
+			continue
+		}
+		n++
+		if problem := helpTarget(e.Link); problem != "" {
+			t.Errorf("help.yaml: %s: %s", path, problem)
+		}
+	}
+	if n < 100 {
+		t.Errorf("found only %d links in help.yaml; is it still read right?", n)
+	}
+}
+
+var (
+	helpHeading  = regexp.MustCompile(`(?m)^#{1,6} +(.+?) *$`)
+	helpAnchorID = regexp.MustCompile(`\{ *#([^ }]+) *\}$`)
+)
+
+// helpTarget says what's wrong with a help link's target ("backups",
+// "settings/people#roles"), or "" when the help has that page and section.
+// It reads the source in help/docs.
+func helpTarget(target string) string {
+	path, section, _ := strings.Cut(target, "#")
+	path = strings.Trim(path, "/")
+	docs := filepath.Join("..", "..", "help", "docs")
+	src, err := os.ReadFile(filepath.Join(docs, path+".md"))
+	if err != nil {
+		src, err = os.ReadFile(filepath.Join(docs, path, "index.md"))
+	}
+	if err != nil {
+		return fmt.Sprintf("no help page %q", path)
+	}
+	if section == "" {
+		return ""
+	}
+	for _, h := range helpHeading.FindAllStringSubmatch(string(src), -1) {
+		// A heading's own anchor: "## Title { #id }".
+		if m := helpAnchorID.FindStringSubmatch(h[1]); m != nil {
+			if m[1] == section {
+				return ""
+			}
+			continue
+		}
+		if helpSlug(h[1]) == section {
+			return ""
+		}
+	}
+	return fmt.Sprintf("help page %q has no section #%s", path, section)
 }
 
 // helpSlug is the id the help gives a heading: Python-Markdown's toc

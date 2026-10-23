@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // TestReport: after checking in, the lab tells Cloud its report (cut to
@@ -108,7 +109,7 @@ func TestReportName(t *testing.T) {
 	if err := f.Confirm(s.Status().Waiting.Code); err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, func() bool { return s.Status().Linked })
+	testwait.For(t, 10*time.Second, func() bool { return s.Status().Linked })
 	s.Report = func(context.Context) (cloudapi.LabReport, error) { return cloudapi.LabReport{}, nil }
 	for _, c := range []struct{ name, want string }{
 		{"Test", "Test"},
@@ -198,7 +199,7 @@ func TestRelayTurnedOff(t *testing.T) {
 		rctx, stop := context.WithCancel(ctx)
 		defer stop()
 		go s.RefreshRelay(rctx, 5*time.Millisecond)
-		waitFor(t, want)
+		testwait.For(t, 10*time.Second, want)
 	}
 	refresh(func() bool { off, sus := s.RelayStanding(); return !off.IsZero() && sus == "Phishing" })
 	if !s.st.onHold() {

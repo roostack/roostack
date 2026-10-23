@@ -8,14 +8,20 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/trust"
 )
 
@@ -36,6 +42,7 @@ type fakeHost struct {
 	unmounted string
 	views     []string
 	share     string
+	useErr    error
 }
 
 func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
@@ -67,6 +74,9 @@ func (f *fakeHost) Drives() ([]Drive, error) {
 	return []Drive{{ID: "system", Kind: "system", Usable: true}, {ID: "disk:/dev/sdb", Kind: "usb", Disk: "/dev/sdb", Erasable: true}}, nil
 }
 func (f *fakeHost) UseDrive(id string) (UsedDrive, error) {
+	if f.useErr != nil {
+		return UsedDrive{}, f.useErr
+	}
 	return UsedDrive{Dir: "/mnt/roostack-x", UUID: "u"}, nil
 }
 func (f *fakeHost) EraseDrive(disk, label string) error { f.erased = disk; return nil }
@@ -122,11 +132,35 @@ func (f *fakeHost) SSHStatus() (SSHStatus, error) {
 func (f *fakeHost) SetSSHKeysOnly(on bool) error { f.keysOnly = on; return nil }
 
 // start runs a real server on a Unix socket, so SO_PEERCRED is exercised.
+// Peer credentials are Linux's: elsewhere the server runs on a loopback
+// port, and every connection is this process's user, as the kernel would
+// say.
 func start(t *testing.T, allowed []uint32) (*Client, *fakeHost) {
+	c, host, _ := startLogged(t, allowed)
+	return c, host
+}
+
+// startLogged is start, with what the agent logs.
+func startLogged(t *testing.T, allowed []uint32) (*Client, *fakeHost, *strings.Builder) {
 	t.Helper()
 	host := &fakeHost{}
+	var log strings.Builder
 	s := &Server{Host: host, AllowedUIDs: allowed, Version: "test",
-		Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+		Log: slog.New(slog.NewTextHandler(&syncWriter{w: &log}, nil))}
+	if runtime.GOOS != "linux" {
+		srv := httptest.NewUnstartedServer(s.Handler())
+		srv.Config.ConnContext = func(ctx context.Context, _ net.Conn) context.Context {
+			return context.WithValue(ctx, ctxKey{}, uint32(os.Getuid()))
+		}
+		srv.Start()
+		t.Cleanup(srv.Close)
+		c := NewClient("")
+		c.http.Transport = &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "tcp", srv.Listener.Addr().String())
+		}}
+		return c, host, &log
+	}
 	socket := filepath.Join(t.TempDir(), "agent.sock")
 	ctx, cancel := context.WithCancel(context.Background())
 	errc := make(chan error, 1)
@@ -137,13 +171,23 @@ func start(t *testing.T, allowed []uint32) (*Client, *fakeHost) {
 			t.Error(err)
 		}
 	})
-	for i := 0; i < 100; i++ {
-		if _, err := os.Stat(socket); err == nil {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	return NewClient(socket), host
+	testwait.For(t, 10*time.Second, func() bool {
+		_, err := os.Stat(socket)
+		return err == nil
+	})
+	return NewClient(socket), host, &log
+}
+
+// syncWriter lets the server's handlers log at once.
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (w *syncWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.w.Write(p)
 }
 
 func TestAPI(t *testing.T) {
@@ -215,6 +259,133 @@ func TestUnknownFieldsRefused(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "unknown field") {
 			t.Errorf("%s: %v", path, err)
 		}
+	}
+}
+
+// The names that make paths are checked at the boundary: a bad one is
+// refused with a 400 before the host is asked anything (the quality
+// review of 2026-10-21, S13).
+func TestBadNamesRefused(t *testing.T) {
+	c, host := start(t, []uint32{uint32(os.Getuid())})
+	ctx := t.Context()
+	l := Library{Drive: "1111-2222"}
+	for what, call := range map[string]func() error{
+		"a library's name":   func() error { return c.MountLibrary(ctx, Library{Name: "Films", Drive: "1111-2222"}) },
+		"removing a library": func() error { return c.UnmountLibrary(ctx, "a.b") },
+		"a service's views":  func() error { return c.SetLibraryViews(ctx, "Jellyfin", nil, nil) },
+		"a library in views": func() error { return c.SetLibraryViews(ctx, "jellyfin", []string{"a b"}, nil) },
+		"a folder of libraries": func() error {
+			return c.SetLibraryViews(ctx, "jellyfin", []string{"films"}, map[string]string{".x": "films"})
+		},
+		"a library it doesn't read": func() error {
+			return c.SetLibraryViews(ctx, "jellyfin", []string{"films"}, map[string]string{"Films": "music"})
+		},
+		"removing a service's views": func() error { return c.RemoveLibraryViews(ctx, "a.b") },
+		"a share's library":          func() error { return c.SaveShareLogin(ctx, "a b", Share{Type: "smb", Server: "nas", Path: "m"}) },
+		"an import's service": func() error {
+			_, err := c.MountImport(ctx, "a.b", l)
+			return err
+		},
+		"removing an import": func() error { return c.UnmountImport(ctx, "a/b") },
+		"a migration's service": func() error {
+			_, err := c.MountPhotos(ctx, "Immich", "anna", l)
+			return err
+		},
+		"a migration's person": func() error {
+			_, err := c.MountPhotos(ctx, "immich", ".anna", l)
+			return err
+		},
+		"removing a migration": func() error { return c.UnmountPhotos(ctx, "immich", "a/b") },
+		"an interface": func() error {
+			_, err := c.WireGuardStatus(ctx, "eth0")
+			return err
+		},
+		"removing an interface": func() error { return c.RemoveWireGuard(ctx, "eth0") },
+		"a time zone":           func() error { return c.SetTimezone(ctx, "../etc/passwd") },
+	} {
+		if err := call(); err == nil || !strings.Contains(err.Error(), "400 Bad Request") {
+			t.Errorf("%s: %v", what, err)
+		}
+		if !reflect.DeepEqual(*host, fakeHost{}) {
+			t.Errorf("%s reached the host: %+v", what, *host)
+			*host = fakeHost{}
+		}
+	}
+}
+
+// A host's refusal is the caller's to fix (400); any other error is the
+// agent's own failure (500).
+func TestHostErrorStatus(t *testing.T) {
+	c, host := start(t, []uint32{uint32(os.Getuid())})
+	for err, want := range map[error]string{
+		refuse("that drive isn't connected any more"):                         "400 Bad Request: that drive isn't connected any more",
+		fmt.Errorf("mounting it: %w", refuse("that drive has no filesystem")): "400 Bad Request: mounting it: that drive has no filesystem",
+		errors.New("lsblk: exit status 1"):                                    "500 Internal Server Error: lsblk: exit status 1",
+	} {
+		host.useErr = err
+		if _, got := c.UseDrive(t.Context(), "uuid:x"); got == nil || !strings.HasSuffix(got.Error(), want) {
+			t.Errorf("%v: %v, want %q", err, got, want)
+		}
+	}
+}
+
+// Every route that changes something logs what it did, and who asked.
+func TestChangesAreLogged(t *testing.T) {
+	c, _, log := startLogged(t, []uint32{uint32(os.Getuid())})
+	ctx := t.Context()
+	l := Library{Drive: "1111-2222", Share: &Share{Type: "smb", Server: "nas", Path: "m", Password: "hunter2"}}
+	for msg, call := range map[string]func() error{
+		"set unprivileged port start": func() error { return c.SetUnprivilegedPortStart(ctx) },
+		"apply firewall":              func() error { return c.ApplyFirewall(ctx, DefaultFirewall()) },
+		"open wireguard for joining":  func() error { return c.AllowWireGuardJoin(ctx) },
+		"set time zone":               func() error { return c.SetTimezone(ctx, "Europe/Berlin") },
+		"OS updates":                  func() error { return c.RunUpdates(ctx, "", io.Discard) },
+		"reboot":                      func() error { return c.Reboot(ctx) },
+		"apply wireguard": func() error {
+			_, err := c.ApplyWireGuard(ctx, WireGuard{Address: "100.96.0.2/24"})
+			return err
+		},
+		"remove wireguard":   func() error { return c.RemoveWireGuard(ctx, WireGuardInterface) },
+		"apply direct links": func() error { return c.ApplyLinks(ctx, Links{}) },
+		"use backup drive": func() error {
+			_, err := c.UseDrive(ctx, "system")
+			return err
+		},
+		"erase disk for backups": func() error { return c.EraseDrive(ctx, "/dev/sdb", "BACKUPS") },
+		"prepare backup folder": func() error {
+			_, err := c.PrepareBackupFolder(ctx, "/mnt/backups")
+			return err
+		},
+		"mount media library":  func() error { return c.MountLibrary(ctx, Library{Name: "films", Drive: "1111-2222"}) },
+		"remove media library": func() error { return c.UnmountLibrary(ctx, "films") },
+		"set library views":    func() error { return c.SetLibraryViews(ctx, "jellyfin", []string{"films"}, nil) },
+		"remove library views": func() error { return c.RemoveLibraryViews(ctx, "jellyfin") },
+		"save share login":     func() error { return c.SaveShareLogin(ctx, "media", *l.Share) },
+		"mount place to bring data in from": func() error {
+			_, err := c.MountImport(ctx, "immich", l)
+			return err
+		},
+		"unmount place to bring data in from": func() error { return c.UnmountImport(ctx, "immich") },
+		"mount export to migrate photos from": func() error {
+			_, err := c.MountPhotos(ctx, "immich", "anna", l)
+			return err
+		},
+		"unmount export to migrate photos from": func() error { return c.UnmountPhotos(ctx, "immich", "anna") },
+		"set ssh keys only":                     func() error { return c.SetSSHKeysOnly(ctx, true) },
+	} {
+		before := log.Len()
+		if err := call(); err != nil {
+			t.Errorf("%s: %v", msg, err)
+			continue
+		}
+		got := log.String()[before:]
+		if !strings.Contains(got, fmt.Sprintf("msg=%q", msg)) && !strings.Contains(got, "msg="+msg+" ") ||
+			!strings.Contains(got, fmt.Sprintf("uid=%d", os.Getuid())) {
+			t.Errorf("%s logged %q", msg, got)
+		}
+	}
+	if strings.Contains(log.String(), "hunter2") {
+		t.Errorf("a password reached the log:\n%s", log)
 	}
 }
 

@@ -51,16 +51,19 @@ git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null ||
 COMMIT=$(git rev-parse "$TAG^{commit}")
 
 # What the release workflow built with, as the tag has it: the image (by
-# digest) and uv. Go comes from the tag's build-release.sh, which makes
-# the go tool fetch the release's own Go.
+# digest, in release.yml) and uv (in .github/versions.env). Go comes from
+# the tag's build-release.sh, which makes the go tool fetch the release's
+# own Go.
 WORKFLOW=$(git show "$TAG:.github/workflows/release.yml") || fail "$TAG has no release workflow"
+VERSIONS=$(git show "$TAG:.github/versions.env") || fail "$TAG has no .github/versions.env"
 wf() { sed -n "s/^ *$1: *\"\{0,1\}\([^\"]*\)\"\{0,1\} *$/\1/p" <<<"$WORKFLOW" | head -1; }
+ver() { sed -n "s/^$1=//p" <<<"$VERSIONS" | head -1; }
 IMAGE=$(wf image)
-UV_VERSION=$(wf UV_VERSION)
-UV_SHA256=$(wf UV_SHA256)
-UV_SHA256_AARCH64=$(wf UV_SHA256_AARCH64)
+UV_VERSION=$(ver UV_VERSION)
+UV_SHA256=$(ver UV_SHA256)
+UV_SHA256_AARCH64=$(ver UV_SHA256_AARCH64)
 [[ $IMAGE == *@sha256:* ]] || fail "$TAG's release.yml doesn't pin its image by digest"
-[[ -n $UV_VERSION && -n $UV_SHA256 ]] || fail "$TAG's release.yml doesn't say which uv it uses"
+[[ -n $UV_VERSION && -n $UV_SHA256 ]] || fail "$TAG's .github/versions.env doesn't say which uv it uses"
 
 # Only its own two folders in OUT are replaced, whatever OUT is.
 OUT=${OUT:-dist/verify-$VER}

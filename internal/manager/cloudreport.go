@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/destination"
 )
 
 // CloudBackups are the lab's servers that back up to Roostack Cloud (their
@@ -31,11 +32,11 @@ func (m *Manager) CloudBackups(ctx context.Context) ([]cloudapi.ServerBackup, er
 		id := n.Identity().ID
 		main := false
 		for _, t := range targets {
-			main = main || t.ServerID == id && t.Provider == CloudChoice
+			main = main || t.ServerID == id && t.Provider == destination.Cloud
 		}
 		var repos []string // its copies in Cloud
 		for _, c := range copies {
-			if c.ServerID == id && c.Provider == CloudChoice {
+			if c.ServerID == id && c.Provider == destination.Cloud {
 				repos = append(repos, c.Repository)
 			}
 		}

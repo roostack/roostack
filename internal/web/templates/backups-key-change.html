@@ -9,10 +9,10 @@
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
 
   {{if .NewKey}}
-  <p>This is your <strong>new</strong> recovery key. Save it now: once you confirm, Roostack changes every backup to use it,
-    and the old key stops working.</p>
+  <p>This is your <strong>new</strong> recovery key. Save it now: once you confirm, Roostack will change every backup to use it,
+    and the old key will stop working.</p>
   <code class="secret recovery">{{.NewKey}}</code>
-  <p>Print it, or write it down, and keep it somewhere safe away from this server. Then destroy the old one.</p>
+  <p>Print it or write it down, and keep it somewhere safe away from this server. Then destroy the old one.</p>
   <p x-data><button type="button" class="secondary" x-on:click="window.print()">Print</button></p>
   <form method="post" action="/backups/recovery-key/change/confirm">
     <label class="check"><input type="checkbox" name="saved" required>
@@ -25,19 +25,19 @@
 
   {{else if and .Change (ne .Change.Phase "confirm")}}
   {{with .Change}}
-  <p>{{if eq .Phase "adding"}}Adding the new key to your backups: {{.Done}} of {{len .Repos}} done. The old key keeps working until
+  <p>{{if eq .Phase "adding"}}Adding the new key to your backups: {{.Done}} of {{len .Repos}} done. The old key will keep working until
     every backup has the new one.{{else}}The new key is your lab's key. Removing the old key from your backups: {{.Done}} of {{len .Repos}} done.{{end}}</p>
   <ul class="plain">
     {{range .Repos}}<li><code>{{shownRepo .Repository}}</code>:
       {{if .Removed}}done{{else if and .Added (eq $.Change.Phase "adding")}}has the new key{{else if .Error}}waiting ({{.Error}}){{else}}to do{{end}}</li>{{end}}
   </ul>
-  <p class="hint">Backups that can't be reached now (a drive that's unplugged, a friend's lab that's offline) are tried again every hour.</p>
+  <p class="hint">Backups that can't be reached now (a drive that's unplugged, a friend's lab that's offline) will be tried again every hour.</p>
   {{end}}
 
   {{else}}
-  <p>Change your recovery key if someone else may have seen it. Roostack makes a new key and shows it; once you've saved it,
-    every backup is changed to open with the new key, and the old one stops working.</p>
-  {{notice "warn" "This protects you if only the key leaked. If someone may also have copied your backups themselves, they could still read those copies with the old key, and a new key alone doesn't stop that."}}
+  <p>Change your recovery key if someone else may have seen it. Roostack will make a new key and show it to you. Once you've saved it,
+    Roostack will change every backup to open with the new key, and the old one will stop working.</p>
+  {{notice "warn" "This will protect you if only the key leaked. If someone may also have copied your backups themselves, they could still read those copies with the old key, and a new key alone won't stop that."}}
   {{if .Change}}<p><strong>A new key was made, but you haven't confirmed saving it.</strong> Enter your password and a code to see it again.</p>{{end}}
   <form method="post" action="/backups/recovery-key/change">
     <label>Your password

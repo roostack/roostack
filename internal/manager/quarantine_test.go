@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -15,9 +14,11 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 // fakeBackups is a server's backups as the controller reads them.
@@ -30,15 +31,8 @@ func (f fakeBackups) RunNow(context.Context) error                  { return nil
 // with the recovery key, removed through the store's admin access, and
 // reported until the Owner dismisses it; the prune then works.
 func TestJunkJob(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
-	defer func(d time.Duration) { backup.JunkRecheck = d }(backup.JunkRecheck)
-	backup.JunkRecheck = 0
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
@@ -47,11 +41,7 @@ func TestJunkJob(t *testing.T) {
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore, m.Settings = st, st
 	// The repository is a folder here, reached as the store's would be.
 	dir := t.TempDir()
@@ -59,7 +49,8 @@ func TestJunkJob(t *testing.T) {
 	os.WriteFile(recovery, []byte("the recovery key\n"), 0o600)
 	repoDir := filepath.Join(dir, "repo")
 	m.OpenRepo = func(url string, env []string) *backup.Repo {
-		return &backup.Repo{Bin: bin, URL: repoDir, PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache")}
+		return &backup.Repo{Bin: bin, URL: repoDir, PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache"),
+			JunkRecheck: time.Millisecond}
 	}
 	ctx := context.Background()
 	if err := m.SetBackupDestination(ctx, "n-0000000002", "server:n-0000000001"); err != nil {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Key hints (docs/ASSUMPTIONS.md O5, O6). restic opens a repository by
@@ -127,19 +128,7 @@ func (h *KeyHints) write(m map[string]string) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(filepath.Dir(h.File), ".key-hints-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), h.File)
+	return fsutil.WritePrivate(h.File, data)
 }
 
 // SetFor records the key ID for a repository and the key in keyFile.

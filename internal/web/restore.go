@@ -3,13 +3,15 @@ package web
 import (
 	"errors"
 	"net/http"
+	"slices"
+	"sync"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Restoring a service (SPEC.md §6.9, §10.10 "Restoring across the lab"):
@@ -18,22 +20,15 @@ import (
 
 // restoreService finds the installed service named in the URL.
 func (s *Server) restoreService(w http.ResponseWriter, r *http.Request) (ServiceView, bool) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return ServiceView{}, false
-	}
-	services, err := s.Services(r.Context())
+	svc, ok, err := s.serviceByName(r.Context(), r.PathValue("name"))
 	if err != nil {
 		s.serverError(w, err)
 		return ServiceView{}, false
 	}
-	for _, svc := range services {
-		if svc.Name == r.PathValue("name") {
-			return svc, true
-		}
+	if !ok {
+		http.NotFound(w, r)
 	}
-	http.NotFound(w, r)
-	return ServiceView{}, false
+	return svc, ok
 }
 
 func (s *Server) restorePage(w http.ResponseWriter, r *http.Request) {
@@ -98,21 +93,6 @@ func restoreGroups(moments []manager.BackupMoment, now time.Time) []restoreGroup
 	return groups
 }
 
-// keptView is data a restore (or a move) kept aside, on the restore page.
-type keptView struct {
-	Path string
-	// Server and ServerName: where it is, if a restore from elsewhere or
-	// a move kept it (else on the server the service runs on).
-	Server, ServerName string
-	Failed             bool // a rolled-back partial restore
-	Time               time.Time
-	// What it is, for people: "Before bringing data in", say (SPEC.md §8.4).
-	What string
-	// CanPutBack: it can go back in place of the data (it's on the
-	// service's server, or kept by its restores).
-	CanPutBack bool
-}
-
 func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc ServiceView, errMsg string, status int) {
 	backups, notes, err := s.Manager.ServiceBackups(r.Context(), svc.Name)
 	if err != nil {
@@ -130,7 +110,6 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 		return
 	}
 	pending := s.Manager.Restoring(svc.Name)
-	var kept []keptView
 	if x := s.restores(r); x != nil {
 		p, err := x.Pending(r.Context())
 		if err != nil {
@@ -138,42 +117,25 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 			return
 		}
 		pending = pending || p
-		copies, err := x.Kept(r.Context(), svc.Name)
-		if err != nil {
-			s.serverError(w, err)
-			return
-		}
-		for _, k := range copies {
-			kept = append(kept, keptView{Path: k.Path, Failed: k.Failed, Time: k.Time, CanPutBack: !k.Failed,
-				What: map[bool]string{true: "From a restore that didn't finish", false: "Kept aside"}[k.Failed]})
-		}
 	}
-	// Data a restore from elsewhere (or a move) set aside, on any server.
-	for _, m := range servers {
-		folders, err := s.Manager.KeptData(r.Context(), m.ID)
-		if err != nil {
-			continue // a server that can't be reached
-		}
-		for _, f := range folders {
-			if f.Service == svc.Name {
-				v := keptView{Path: f.Path, Server: m.ID, ServerName: m.Name, Time: f.Time, What: "Kept aside",
-					CanPutBack: !f.MovedAway && m.ID == host}
-				switch {
-				case f.Imported:
-					v.What = "Before bringing data in"
-				case f.FailedImport:
-					v.What = "Brought in, then set aside"
-				case f.Replaced:
-					v.What = "Replaced by putting a copy back"
-				case f.MovedAway:
-					v.What = "The old copy, after moving"
-				case f.FailedMove:
-					v.What = "From a move that didn't finish"
-				}
-				kept = append(kept, v)
+	// Its kept copies on every server (asked of each at once).
+	found := make([][]manager.KeptCopy, len(servers))
+	var wg sync.WaitGroup
+	for i, mc := range servers {
+		wg.Go(func() { found[i], _ = s.Manager.KeptCopies(r.Context(), mc.ID) }) // nil from a server that can't be reached
+	}
+	wg.Wait()
+	names := serverNames(servers)
+	kept := keptList{Action: "/backups/restore/" + svc.Name + "/kept"}
+	for _, copies := range found {
+		for _, c := range copies {
+			if c.Service == svc.Name {
+				kept.Copies = append(kept.Copies, newKeptView(c, svc.Title, names, true))
 			}
 		}
 	}
+	slices.SortStableFunc(kept.Copies, func(a, b keptView) int { return b.Time.Compare(a.Time) })
+	kept.Total = keptTotal(kept.Copies)
 	data := map[string]any{"User": currentUser(r), "Service": svc, "Groups": groups, "Notes": notes,
 		"Servers": servers, "Host": host, "Kept": kept, "Pending": pending, "Error": errMsg}
 	if len(groups) > 0 {
@@ -279,7 +241,7 @@ func (s *Server) restoreSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderRestore(w, r, svc, "Another restore is already running. Wait until it has finished.", http.StatusConflict)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderRestore(w, r, svc, msg, http.StatusBadRequest)
 		return
 	}
@@ -302,17 +264,8 @@ func (s *Server) putBackKeptSubmit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	path, server := r.FormValue("path"), r.FormValue("server")
-	var err error
-	switch x := s.restores(r); {
-	case server != "":
-		err = s.Manager.PutBackKeptData(r.Context(), server, path)
-	case x != nil:
-		err = x.PutBack(r.Context(), svc.Name, path)
-	default:
-		err = node.ErrNotFound
-	}
-	if msg, ok := userMessage(err); ok {
+	_, err := s.putBackKept(r, s.keptServer(r, svc))
+	if msg, ok := usererr.Message(err); ok {
 		s.renderRestore(w, r, svc, msg, http.StatusBadRequest)
 		return
 	}
@@ -320,7 +273,6 @@ func (s *Server) putBackKeptSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderRestore(w, r, svc, "Couldn't put the copy back: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "restore", "put back kept copy "+path)
 	redirect(w, r, "/backups/restore/"+svc.Name)
 }
 
@@ -329,22 +281,21 @@ func (s *Server) removeKeptSubmit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	path, server := r.FormValue("path"), r.FormValue("server")
-	var err error
-	switch x := s.restores(r); {
-	case server != "":
-		// Kept by a restore from elsewhere or a move: only folders the
-		// server lists as kept are accepted (node.Local.RemoveKeptData).
-		err = s.Manager.RemoveKeptData(r.Context(), server, path)
-	case x != nil:
-		err = x.RemoveKept(r.Context(), svc.Name, path)
-	default:
-		err = node.ErrNotFound
-	}
-	if err != nil {
+	if err := s.removeKept(r, s.keptServer(r, svc)); err != nil {
 		s.renderRestore(w, r, svc, "Couldn't delete the copy: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "restore", "deleted kept copy "+path)
 	redirect(w, r, "/backups/restore/"+svc.Name)
+}
+
+// keptServer is the server a kept copy on the restore page is on: the
+// form's, or the one the service runs on.
+func (s *Server) keptServer(r *http.Request, svc ServiceView) string {
+	if server := r.FormValue("server"); server != "" {
+		return server
+	}
+	if n := s.Manager.NodeFor(svc.Name); n != nil {
+		return n.Identity().ID
+	}
+	return ""
 }

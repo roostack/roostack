@@ -1145,14 +1145,28 @@ They touch few files, but they overlap with waves 1 and 2, so they go first.
 | **1b. Web tidy** | Roostack | §9's web dead code, D13, D14, S1 (constructor and groups), S3, S5, S6, T8 (web's fakes) | `internal/web/**` only | Page HTML before/after; gallery unchanged; VM look |
 | **1c. Lab API wire** | Roostack | S9 (round-trip test first, then wire files), S10 if decided | `internal/node/api.go`, `remote.go`, new `*wire.go`, `remote_test.go` | The new round-trip test before and after; VM with a second server joined |
 | **1d. Store split** | Roostack | S14 step 1 (pure move), dead store functions | `internal/store/*` | Suite; `git diff --stat` shows only moves |
-| **1e. Docs and layout** | Roostack | N3, N4, N6, N7, N8, package docs for `cloud`, `node`, `setup` (new `doc.go`s), CONTRIBUTING, SECURITY; CLAUDE.md's writing rules gain the Owner's wording rules (2026-10-22; see wave 4): the future for what will happen, the present continuous for what's happening, not the present simple; and no short, clipped statements | `README.md`, `ARCHITECTURE.md`, `CLAUDE.md`, `docs/**`, `tools/maketakeout` (moved), new `doc.go`s | Links resolve; `go test ./tools/...` |
+| **1e. Docs and layout** | Roostack | N3, N4, N6, N7, N8, package docs for `cloud`, `node`, `setup` (new `doc.go`s), CONTRIBUTING, SECURITY (both products, `security@roostack.cloud`), the code of conduct, issue templates (one for Roostack Cloud); CLAUDE.md's writing rules gain the Owner's wording rules (2026-10-22; see wave 4): the future for what will happen, the present continuous for what's happening, not the present simple; and no short, clipped statements | `README.md`, `ARCHITECTURE.md`, `CLAUDE.md`, `docs/**`, `tools/maketakeout` (moved), new `doc.go`s | Links resolve; `go test ./tools/...` |
 | **1f. CI and generated files** | Roostack | G1, G2, G3 (if decided), the Makefile's `gofmt` | `.github/**`, `Makefile`, `scripts/*` (shellcheck fixes) | CI green on a branch |
 | **1g. Editor** | Roostack, then Cloud's sync | J1 (escape helper, split `importCompose`, script manifest) | `internal/editor/**`, then `cloud:tools/sync-editor.sh`, `cloud:site/src/pages/package-editor.astro` | `make editor-test`; corpus unchanged |
 | **1h. Cloud ui** | Cloud | S15, S16's JSON helpers and `Wait`, S4's `<no value>` test helper | `internal/web/**`, `internal/admin/**`, new `internal/ui` | Full suite; e2e; look at the website and the console |
 | **1i. Cloud CI, ops and build** | Cloud | X5 (stamp and refuse dirty), G1's Cloud rows, G2's Cloud rows, `ops/lib.sh`, N5 | `.github/**`, `Makefile`, `ops/*.sh`, `tools/*`, `.gitignore` | CI green; a deploy to test |
-| **1j. Cloud docs** | Cloud | N1, N2, the stale comments | new `CLAUDE.md`, `ARCHITECTURE.md`, `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `SECURITY.md`, `README.md`, `docs/DESIGN.md` headings | Read by the Owner |
+| **1j. Cloud docs** | Cloud | N1 as decided (a proprietary LICENSE, a NOTICE for Roostack's Apache-2.0 parts, Roostack's notice kept on the files the website serves, a README that says Cloud is private and where issues go), N2, the stale comments | new `CLAUDE.md`, `ARCHITECTURE.md`, `LICENSE`, `NOTICE`, `README.md`, `docs/DESIGN.md` headings, `tools/sync-*.sh` (the notice) | Read by the Owner |
 
 1b's and 1c's only shared file would be `internal/web`'s use of node capabilities if S10 is done: do S10 in 1c and leave web's call sites to it.
+
+**Wave 1 status (2026-10-22).** 1a–1e and 1h–1j are merged into both repositories' local `main` (Roostack `8585c66`, Cloud `0da7d41`; not pushed). Before merging, all eight were merged together in scratch worktrees and checked: `go vet` on both systems, and both suites. Roostack's suite failed once on `TestCloudLinking`, a T4 test that gives up silently under load; it passed five runs on its own, and 1f fixes it.
+- **1a** (T1, done): builds, vets and tests natively on a Mac; the Linux-only tests skip and say why. Left for later: splitting `agent` into portable wire types and the Linux server.
+- **1b** (S1, S2 steps 1 and 3, S3, S4's helper, S5, S6, D13, D14 apart from the update summary's wording, §9's web dead code, T8; done): twelve commits. The 597 pages the web tests render are identical before and after, apart from whitespace on one; the gallery is unchanged; the full suite and a look in the browser on VM 4. It also fixed `TestRestoreAgainChoosesTheBackup`, from wave 0, which failed after 06:00 local time.
+- **1c** (S9, done): `TestRoundTrip` calls all 94 lab API calls; one wire file per feature; `Server.Handler` is an 11-line route table. Checked with two VMs in every mix of old and new versions. It found that moving a service back to the controller with "copy directly" hung, a bug from before wave 1, fixed on 2026-10-22 (the import reads each tar stream to its end: SPEC.md §10.10). S10 is its follow-up, running.
+- **1d** (S14, done): `store.go` split by table (checked line by line), `queryAll[T]`, and the migrations squashed into one schema at version 37, with a test proving the schemas match.
+- **1e** (N3, N4, N6, N7, N8, the community files, done): CONTRIBUTING (approved by the Owner), SECURITY, the code of conduct, issue templates, CLAUDE.md with the wording rules, ARCHITECTURE by layer with "life of an install" and "life of a backup run", SPEC's contents and §10.3 as built, `TASKS-DONE.md`, `tools/maketakeout`, `docs/archive/`. All 374 relative links resolve.
+- **1h** (S15, S16's JSON helpers and `Wait`, S4's helper; done): `internal/ui`; `admin` no longer imports `web`; the static files moved there too. The pages the tests render are identical. Small behaviour changes: lock-outs say minutes up to 120 (they switched to hours at 90 in places); the API's answers aren't cached; a JSON body with trailing data is refused; two log lines are worded differently; a return path with a backslash is refused on both sites.
+- **1i** (X5, G1, G2, N5, §9's `SetEdgeToken`, the licence notice on copies; done): `ROOSTACK_REF`, CI checks for generated and copied files, shellcheck, actionlint, Dependabot, `ops/lib.sh`. Its follow-up, running, points the sync scripts and mock-ups at `internal/ui`, re-syncs the design copy and checks the portal, then makes stale design copies fail CI.
+- **1j** (N1, N2; done): LICENSE (the maintainer, all rights reserved), NOTICE, CLAUDE.md and ARCHITECTURE.md (approved by the Owner), README, `docs/RUNBOOK-CI.md`.
+- **1f** (G1, G2, G3, T4, N5's gofmt; done, merged as `f30df42`): staticcheck pinned in CI with ST1005 off, and its findings fixed; shellcheck pinned and run on every script, with its findings fixed; CI builds the help site strictly and regenerates the Python outputs and checks the diff; a test that the editor's `help.yaml` links name real help pages; `make generated`; `.github/versions.env` and Dependabot; one `waitFor` that fails on its deadline, used by the polling loops that gave up silently (`TestCloudLinking` among them). Checked: vet, staticcheck, shellcheck and actionlint clean, the full suite on the Mac with restic and in VM 3. None of the workflows has run on GitHub yet.
+- **1g** (J1; done, merged): `importCompose` split into named phases with byte-identical output on every Compose fixture; one script manifest, `internal/editor/static/scripts.json`; the corpus's packages listed once; an `.editorconfig`. Checked in the browser against `main`'s build. Cloud's copy reads the manifest since `0683d9d`, merged into Cloud's `main`.
+- **S10** (1c's follow-up; done, merged): every capability is a `Node` method that returns nil when the server lacks it; no type assertions left in `manager` or `web`. Checked with two VMs.
+- **The copy-directly hang** that 1c found: fixed and merged (the import now reads each tar stream to its end; SPEC §10.10).
 
 ### Wave 2: cross-cutting helpers, one session at a time
 
@@ -1161,6 +1175,15 @@ These touch many packages, so they run when wave 1 has merged and nothing else i
 1. **Roostack leaf helpers:** D1 (`fsutil`, which also fixes P7), D3 (one user error), D4 (`Within`, names), D5, D6, D7, D8. Verify with the suite plus a VM run of install, backup, restore and a move.
 2. **Roostack words:** D2. Page HTML before and after must match.
 3. **Shared with Cloud:** X1 (public `units`, then Cloud uses it), X4 (`SealFor`), X7 (the contract table in `cloudapi`, then Cloud's test and the fake). Roostack first, then Cloud against that commit, with X5's pin in place.
+
+**Wave 2 status (2026-10-22).** X4 and X7 touch none of the helpers' files, so they ran alongside step 1. All three were merged together in scratch worktrees and checked (vet, both full suites), then merged into both `main`s.
+- **Step 1** (D1, D3–D8, and wave 0's P5 follow-up; done): `fsutil.WriteFile` and `CopyFile` everywhere; one `internal/usererr`, with the five old types gone; one tested `fsutil.Within` and one service-name check; the duplicated pairs; `Paths.ServiceDataDirs`, `DatabaseFile` and `SetupTokenFile`, and `internal/destination`; `store.GetJSON` and `PutJSON`; `internal/sleep` for about 30 loops; transient units named after what they run; one parser for `/etc/fstab`'s blocks. Checked on VM 4 with an install, a backup and restore, a backup drive and media libraries. One small behaviour change: a few minute-long background checks now wait after each run rather than running on a fixed clock. TASKS.md has what was left and why.
+- **X4** (done): `SealFor`, `OpenFor` and `IsSealed` in `authkit`; Cloud's two-factor secrets use them, and its two older forms still open. Whether to reseal the older forms is the maintainer's call (TASKS).
+- **X7** (done): `cloudapi.Routes`; Cloud's `TestRoutes` checks its routes against it both ways; Roostack's fake Cloud follows it and its client is tested against suspensions and the write limit. It found a small misreport after a 429 and two test problems from before, filed in TASKS.
+- **Step 2, D2** (done, merged): `internal/words` (`Capitalise`, `And`, `Or`, `Count`, `Plural`, `FirstLine`, `RoughDuration`, `ExactDuration`) in place of about 30 copies in `web`, `manager`, `node` and `setup`; the template functions call it. Every page, activity line, audit line, user error and email the suite produces was recorded before and after: no sentence changed. One fix on purpose: `Capitalise` works on letters, not bytes, so a first letter outside ASCII ("émilie") is no longer broken. What kept its own formatter, so its output stays the same, is in TASKS.md for wave 4.
+- **X1** (done, merged): `units` is a public package, with `AsSold` (the portal's style) beside `Bytes` and `Count`; every size Roostack shows is unchanged. Cloud's own four formatters and `thousands` are gone: the portal and the owners' storage emails use `AsSold`, the console, the command line and the team's storage emails `Bytes`, so a size is written one way in each place (examples before and after in Cloud's commit `e687289`).
+
+Wave 2 is complete.
 
 ### Wave 3: structural, after the Owner decides
 
@@ -1173,7 +1196,31 @@ Each its own session, in any order, once waves 1 and 2 have landed:
 - **S17:** Cloud's `accounts`, `relay` and `controlplane` packages and the `cmd/cloud` tidy; T3 (template database, `t.Parallel`) and T6's tests alongside.
 - **T2:** parallel restic tests and a template repository.
 
+**Wave 3 status (2026-10-23).** The pieces overlap, so they run in rounds of sessions on separate files, each merged locally once it passes.
+- **Round 1, merged:**
+  - **D11** (one `transferJob` for every move and restore; a move through a backup now clears an earlier attempt's leftovers first, as a restore did);
+  - **D12** (`internal/kept`: one kept-copy system and one "Kept copies" list, built from a mock-up the maintainer approved; servers on older versions keep working through the old routes, which TASKS.md says to remove later);
+  - **S12** (`serve`'s controller struct; `podman.Pull`, `web.ServiceViews` and `web.SetupToken` tested);
+  - **S13** (the agent's routes as a table with shared request types; every change logged; internal failures answer 500);
+  - **D9** (each DNS provider's check through the records code; the few request details that changed are listed in TASKS.md);
+  - **S17**'s structure in Cloud (`internal/relay`, one relay-statistics function, `controlplane.New` for `serve` and the end-to-end tests, `cmd/cloud` tidied with a tested `admin.Add`; `serve`'s coverage from 2% to 76%);
+  - the websites (J2, and X6's static-site headers).
+- **Round 2, merged:**
+  - **S2** steps 2 and 4 (the backup plan's and location rules in `manager`; `internal/attention` for the attention list and the notifier; every item and email identical before and after);
+  - Cloud's helpers and tests (the rest of S16, B9, B10, T3, T6, T7, T9; Cloud's suite from about 45 s to 25 s);
+  - the portal's sidebar following Roostack's layout (the maintainer's decision, 2026-10-23).
+- **Round 2b, merged:** S8 steps 2–4 and S11: `Manager`'s fields grouped, apply reasons passed as arguments, one runtime `lab.yaml`; photo migration, storage for other labs and recovery key changes as types of their own in `manager`; `node.Local`'s photo migration and imports as types of their own. The recorded activity lines, attention items and emails match before and after.
+- **Round 3, merged:** T2, and the rest of T8 and T9: the restic tests in parallel, timing variables on structs, `b2test`, one base fake for `node.Node`, `pkgtest.Restic` and one test-store helper. The Mac suite went from 256 s to 109 s, and the VM's from 9½ to 4½ minutes.
+
+Wave 3 is complete.
+- **Found along the way, filed in TASKS.md:**
+  - two backup drives with one label get one mount point;
+  - `podman.Pull` can lose podman's reason when its error line comes first;
+  - stopping a continuity request that isn't running still says someone was told (Cloud).
+
 ### Wave 4: wording, after waves 1–3
+
+**Status (2026-10-23): complete.** All seven batches are merged into both repositories' local `main`, each with its before-and-after list for the maintainer in the shared notes. 4b also corrected four sentences it found wrong, with the maintainer's agreement. 4g listed the out-of-date facts it found in the documents without changing them; they're in TASKS.md, with the few documents it didn't cover.
 
 Added by the Owner on 2026-10-22. Across both repositories, find sentences people read that use the present simple for actions, or that are short and clipped, and rework them to sound natural.
 
@@ -1190,7 +1237,7 @@ Added by the Owner on 2026-10-22. Across both repositories, find sentences peopl
 **Why after waves 1–3:** those waves move much of this text. D2 gathers the words helpers, D3 the error type, S2 moves the attention items, and D13 the pickers. Rewording first would mean doing it twice and conflicting with every batch. Until then, new and changed wording follows the rules, which batch 1e writes into CLAUDE.md.
 
 **How:**
-1. **A sample first.** One session gathers about 30 representative sentences from every area below, with a proposed rewrite of each, for the Owner to approve. The approved pairs then become the examples in CLAUDE.md's writing rules, which the batches follow.
+1. **A sample first.** One session gathers about 30 representative sentences from every area below, with a proposed rewrite of each, for the Owner to approve. The approved pairs then become the examples in CLAUDE.md's writing rules, which the batches follow. Done (2026-10-23): 37 pairs, all approved, in [wording-examples.md](wording-examples.md). The Owner agreed that habits and standing facts stay in the present simple and that field help takes the future, and added two rules: commas go where grammar needs them, not for a pause, and a list of three or more takes the Oxford comma.
 2. **Batches by area,** in parallel since their files are disjoint:
    - **4a.** Roostack's pages: `internal/web` templates, and the Go strings web shows (attention items, errors, notices, emails from the notifier).
    - **4b.** Roostack's other messages people read: activity logs and errors people can fix, in `manager`, `node`, `backup`, `setup`, `osupdate`, `labrestore` and the rest; the CLI's output in `cmd/`.
@@ -1198,7 +1245,7 @@ Added by the Owner on 2026-10-22. Across both repositories, find sentences peopl
    - **4d.** The package editor's text (`help.yaml`, `editor.js`, `suggest.js`, `compose.js`'s notes). `pkgspec`'s check messages change with `check.js`'s, which the corpus test enforces, so the batch also covers `internal/pkgspec`.
    - **4e.** Cloud's website, console and emails (`internal/web`, `internal/admin`, the email templates and the Go strings they show).
    - **4f.** Cloud's site (`site/`) and status page (`status/`).
-   - **4g.** If the Owner wants it, the project documents (README, ARCHITECTURE, SPEC, DESIGN). These are written for contributors, so they come last.
+   - **4g.** The project documents (README, CONTRIBUTING, ARCHITECTURE, SPEC, DESIGN, in both repositories), after the other batches: decided by the maintainer on 2026-10-23. These are written for contributors, so they come last.
 3. **Checks:**
    - Tests that match exact wording are updated with the text: wave 1's helpers for finding a page's parts (T5) make this lighter.
    - The gallery and the editor's corpus regenerate.
@@ -1261,3 +1308,45 @@ Grouped. Everything not listed here can go ahead once the plan is agreed.
 - N8: which documents are history, and where `maketakeout` goes.
 - S14 step 3: squashing the store's migrations before the first release.
 - J3: the OpenTofu module layout and its timing.
+
+### Decided (the Owner, 2026-10-22)
+
+Every recommendation above was accepted, except where this list says otherwise:
+
+- **Wave 1:**
+  - **T1:** no direct `x/sys/unix`; build tags with the standard `syscall`.
+  - **S7:** web isn't split now; revisit after wave 3.
+  - **S10:** every capability is a `Node` method that returns nil when the server lacks it.
+  - **S14 step 3:** the migrations are squashed into a schema that counts as migration 37, so databases already at 37 carry on.
+  - **N3:** a CONTRIBUTING.md for people; CLAUDE.md keeps what's for agents, points to it, and gains the wording rules.
+  - **N6:** SPEC §10.3 is rewritten as built; "2.1 Licence" becomes §3.3 (four citations); §10.6 gets a one-line note, not a renumbering.
+  - **N7:** a reading order and contents list for SPEC; finished TASKS phases go to `TASKS-DONE.md`; "the maintainer" in project documents, "the Owner" for the role.
+  - **N8:** `maketakeout` moves to `tools/maketakeout`; `docs/migration-rehearsal` moves to `docs/archive/`; ARM64-PLAN, PLAN and the research documents stay.
+  - **G3:** staticcheck in CI, pinned, with a `staticcheck.conf` that turns off ST1005; not deadcode.
+  - **G2:** Dependabot, monthly, grouped, for GitHub Actions and Go modules; other pinned versions in one versions file per repository.
+  - **J1:** no JavaScript formatter yet; an `.editorconfig`.
+  - **X6:** keep the stricter hand-written `sameOrigin`.
+  - **X5:** a `ROOSTACK_REF` file in Cloud, read by CI and `deploy.sh`; the deploy refuses a dirty or different Roostack checkout; the binary records both commits. A real module version once Roostack is public.
+  - **X2, G1:** Cloud's CI fails when a copy doesn't match the Roostack commit it names, and warns when that commit is behind Roostack's `main`.
+- **Cloud is private, and stays private.** That changes N1 and N5:
+  - **Cloud's licence is a proprietary "all rights reserved" notice,** not an open-source licence. It also carries a NOTICE saying which parts come from Roostack under Apache-2.0, which allows this. When Cloud's website serves Roostack's editor, CSS and icons to browsers, those files keep Roostack's copyright and licence notice. The copyright holder, for now, is the maintainer.
+  - **No CONTRIBUTING, SECURITY or code of conduct in Cloud,** and no public pull requests. Issues about Roostack Cloud are raised in Roostack's repository; Cloud's README says so.
+  - **Roostack's SECURITY.md covers both products,** with reports to `security@roostack.cloud` (which exists) and GitHub's private vulnerability reporting.
+  - **Roostack's code of conduct** is the Contributor Covenant 2.1, with reports to `security@roostack.cloud` unless the Owner names another address.
+  - **Roostack's issue templates** include one for Roostack Cloud.
+  - **N5's "built from outside"** no longer applies to Cloud.
+- **N2:** CLAUDE.md and ARCHITECTURE.md for Cloud, drafted from the code and read by the Owner before they're committed.
+- **Waves 2 and 3:** every recommendation accepted:
+  - X1, a public `units`;
+  - X4, `SealFor` and `OpenFor`, still opening the old form;
+  - X7, a route table in `cloudapi`;
+  - D10;
+  - no shared mail package (X3);
+  - D2, `internal/words` with a rough and an exact duration style;
+  - D3, `internal/usererr`;
+  - S2 step 4, S8 step 4 (photos first) and S17 (the relay and `controlplane` now, `accounts` gradually);
+  - D12, one "Kept copies" list, with a mock-up first;
+  - J3, the OpenTofu module when production is planned;
+  - D14 left for wave 4;
+  - `SetEdgeToken` deleted, with "rotate an edge's token" filed in Cloud's TASKS.
+- **S1:** the dependencies that are always set in production become constructor arguments, and their nil checks go: the manager, the store, the log, the lab's settings, the setup steps, the sessions and the templates. The ones that come with a feature stay optional, grouped by feature.

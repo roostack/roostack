@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net"
@@ -12,9 +13,11 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/trust"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Direct links between servers (SPEC.md §10.10): servers dial only the
@@ -47,7 +50,7 @@ const (
 
 // How long a new direct link has to connect, and how long one that didn't
 // waits before it's tried again.
-var (
+const (
 	linkGrace = 3 * time.Minute
 	linkRetry = 24 * time.Hour
 )
@@ -97,11 +100,11 @@ func (m *Manager) linkPairs(ctx context.Context) [][2]string {
 	seen := map[string]bool{}
 	var out [][2]string
 	for _, t := range append(targets, copies...) {
-		kind, store, _ := strings.Cut(t.Provider, ":")
-		if kind != "server" {
+		r := destination.Parse(t.Provider)
+		if r.Kind != destination.Server {
 			continue
 		}
-		from := t.ServerID
+		from, store := t.ServerID, r.ID
 		if from == store || from == m.Lab.NodeID || store == m.Lab.NodeID || from == "" || store == "" {
 			continue
 		}
@@ -129,7 +132,7 @@ func (m *Manager) linkInfos(ctx context.Context) map[string]linkInfo {
 	out := map[string]linkInfo{}
 	for id, p := range peers {
 		info := linkInfo{Peer: p}
-		if l, ok := m.node(id).(node.Linked); ok {
+		if l := node.Capability(m.node(id), node.Node.Linked); l != nil {
 			info.Home, _ = l.LinkStatus(ctx)
 		}
 		out[id] = info
@@ -257,13 +260,13 @@ func (m *Manager) CheckLinks(ctx context.Context) {
 		m.links.mu.Lock()
 		since, ok := m.links.since[key]
 		m.links.mu.Unlock()
-		if !ok || time.Since(since) < linkGrace || m.linkFailed(ctx, p[0], p[1]) {
+		if !ok || time.Since(since) < cmp.Or(m.waits.linkGrace, linkGrace) || m.linkFailed(ctx, p[0], p[1]) {
 			continue
 		}
 		// Either side seeing a recent handshake is enough.
 		up := false
 		for _, side := range [][2]string{{p[0], p[1]}, {p[1], p[0]}} {
-			if l, ok := m.node(side[0]).(node.Linked); ok {
+			if l := node.Capability(m.node(side[0]), node.Node.Linked); l != nil {
 				_, hs := l.LinkStatus(ctx)
 				if t := hs[infos[side[1]].PublicKey]; t > 0 && time.Since(time.Unix(t, 0)) < linkFresh {
 					up = true
@@ -283,7 +286,7 @@ func (m *Manager) CheckLinks(ctx context.Context) {
 	}
 	if len(failed) > 0 {
 		m.Log.Warn("direct links didn't connect; backups between them go through the controller", "servers", strings.Join(failed, "; "))
-		m.ApplyBecause(strings.Join(failed, "; ") + " couldn't link directly: their backups go through the controller")
+		m.ApplyBecause(strings.Join(failed, "; ") + " couldn't link directly: their backups are going through the controller")
 	}
 }
 
@@ -305,7 +308,7 @@ func (m *Manager) SetLinkAddress(ctx context.Context, id, addr string) error {
 		host, port, err := net.SplitHostPort(addr)
 		if n, perr := strconv.Atoi(port); err != nil || perr != nil || n < 1 || n > 65535 || host == "" ||
 			strings.ContainsAny(host, " /") {
-			return formErrorf("Enter the address as host:port, e.g. 192.168.1.20:%d.", agent.WireGuardPort)
+			return usererr.New("Enter the address as host:port, e.g. 192.168.1.20:%d.", agent.WireGuardPort)
 		}
 	}
 	if err := m.Settings.SetSetting(ctx, linkAddrKey+id, addr); err != nil {

@@ -16,6 +16,9 @@ import (
 	"roostack.cloud/roostack/internal/s3api"
 	"roostack.cloud/roostack/internal/s3api/s3fake"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // s3Lab is a manager with an online storage account (provider:1, not
@@ -26,11 +29,7 @@ func s3Lab(t *testing.T, b *s3fake.Bucket) (*Manager, *store.Store) {
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
 	m.Activity = activity.New()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	m.BackupStore = st
 	srv := httptest.NewServer(b)
 	t.Cleanup(srv.Close)
@@ -123,6 +122,7 @@ func TestS3BucketKeepsWhatsDeleted(t *testing.T) {
 // file back as it was, erasing nothing, leaves lock files alone, and can
 // itself be undone (SPEC.md §10.10).
 func TestRollBack(t *testing.T) {
+	t.Parallel()
 	for _, markersFirst := range []bool{false, true} {
 		t.Run(map[bool]string{false: "AWS", true: "Backblaze"}[markersFirst], func(t *testing.T) { testRollBack(t, markersFirst) })
 	}
@@ -167,22 +167,18 @@ func testRollBack(t *testing.T, markersFirst bool) {
 		if err := m.CheckRollback(ctx, "n-0000000002", "provider:1", before); err != nil {
 			t.Fatal(err)
 		}
-		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-			if l, _ := m.Activity.Latest(kind); !l.Running() {
-				if l.Err != "" {
-					t.Fatalf("check: %s", l.Err)
-				}
-				return m.RollbackChecked("n-0000000002", "provider:1").Summary
-			}
+		var l activity.Snapshot
+		testwait.For(t, 10*time.Second, func() bool { l, _ = m.Activity.Latest(kind); return !l.Running() })
+		if l.Err != "" {
+			t.Fatalf("check: %s", l.Err)
 		}
-		t.Fatal("the check didn't finish")
-		return nil
+		return m.RollbackChecked("n-0000000002", "provider:1").Summary
 	}
 
 	// Nothing to roll back to before backups started, or in the future;
 	// and not without a check first.
 	for _, before := range []time.Time{time.Now().Add(-48 * time.Hour), time.Now().Add(time.Hour)} {
-		var fe *FormError
+		var fe *usererr.Error
 		if err := m.CheckRollback(ctx, "n-0000000002", "provider:1", before); !errors.As(err, &fe) {
 			t.Errorf("before %v: %v", before, err)
 		}
@@ -192,9 +188,9 @@ func testRollBack(t *testing.T, markersFirst bool) {
 	}
 
 	lines := check(at(2))
-	want := []string{"1 backup (a snapshot) and 1 other file hidden since then come back.",
-		"The repository's config file overwritten since then is put back as it was.",
-		"1 backup (a snapshot) added since then is hidden."}
+	want := []string{"1 backup (a snapshot) and 1 other file hidden since then will come back.",
+		"The repository's config file overwritten since then will be put back as it was.",
+		"1 backup (a snapshot) added since then will be hidden."}
 	if strings.Join(lines, "\n") != strings.Join(want, "\n") {
 		t.Errorf("check says:\n%s", strings.Join(lines, "\n"))
 	}
@@ -234,8 +230,8 @@ func testRollBack(t *testing.T, markersFirst bool) {
 	}
 	// Undone: back to just before the rollback.
 	lines = check(at(4))
-	if !strings.Contains(strings.Join(lines, "\n"), "added since then are hidden") ||
-		!strings.Contains(strings.Join(lines, "\n"), "1 backup (a snapshot) hidden since then comes back") {
+	if !strings.Contains(strings.Join(lines, "\n"), "added since then will be hidden") ||
+		!strings.Contains(strings.Join(lines, "\n"), "1 backup (a snapshot) hidden since then will come back") {
 		t.Errorf("undo:\n%s", strings.Join(lines, "\n"))
 	}
 }

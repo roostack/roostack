@@ -4,7 +4,7 @@
   {{if .Restoring}}
   <h1>Restoring your lab</h1>
   {{if .OnSetup}}
-  <p class="hint">Roostack puts your services' files, settings and accounts back, then restarts as your lab. Keep this page open
+  <p class="hint">Roostack is putting your services' files, settings, and accounts back, and will then restart as your lab. Keep this page open
     until it says where to go next. Large backups can take a while.</p>
   {{/* Once Roostack restarts, nothing answers here any more: the page
        then shows where to go next, as the last progress it got said. */}}
@@ -12,17 +12,17 @@
     <div hx-get="/setup/restore/progress" hx-trigger="every 2s" hx-swap="innerHTML">{{template "restore-progress" .}}</div>
   </div>
   {{else}}
-  <p class="hint">Roostack puts your services' files, settings and accounts back, then restarts as your lab. Keep this page open;
-    it moves on to the login page when it's done. Large backups can take a while.</p>
+  <p class="hint">Roostack is putting your services' files, settings, and accounts back, and will then restart as your lab. Keep this page open:
+    it will move on to the login page when it's done. Large backups can take a while.</p>
   <div hx-get="/setup/restore/progress" hx-trigger="every 2s" hx-swap="innerHTML">{{template "restore-progress" .}}</div>
   {{end}}
   {{else}}
   {{back "/setup" "Set up a new lab instead"}}
   <h1>Restore a lab from its backups</h1>
-  <p>Rebuild a lab on this server: its services and their data, settings and accounts come back from a backup.
+  <p>Rebuild a lab on this server: its services and their data, settings, and accounts will come back from a backup.
     You need the <strong>recovery key</strong> you saved when you set the lab up, and to know where its backups are.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  {{if .Unfinished}}{{notice "warn" "A restore onto this server started and didn't finish. Start it again below: it puts everything back from the backup again, over what the last one restored."}}{{end}}
+  {{if .Unfinished}}{{notice "warn" "A restore onto this server started and didn't finish. Start it again below: it will put everything back from the backup again, over what the last one restored."}}{{end}}
 
   {{if .Searched}}
   {{range .Forged}}{{notice "warn" (printf "Not offered: %s (%s)" (lowerFirst .Problem) (shownRepo .Repository))}}{{end}}
@@ -48,14 +48,14 @@
         in {{if eq $f.Folder $f.ServerID}}its own folder{{else if $f.Folder}}server {{$f.Folder}}'s folder{{else}}a folder not named after a server{{end}},
         <code>{{shownRepo $f.Repository}}</code></small>
       {{if $f.Controller}}
-      <br>{{confirm "/setup/restore/start" (printf "Restore %s onto this server? Its services, settings and accounts come back from the backup of %s." (or $f.Name $f.Domain "this lab") (date $f.Snapshot.Time)) "Restore this lab" "" (printf "backup=%d" $f.Index)}}
+      <br>{{confirm "/setup/restore/start" (printf "Restore %s onto this server? Its services, settings, and accounts will come back from the backup of %s." (or $f.Name $f.Domain "this lab") (date $f.Snapshot.Time)) "Restore this lab" "" (printf "backup=%d" $f.Index)}}
       {{end}}
     </li>
     {{end}}
   </ul>
   {{end}}
   {{end}}
-  <p class="hint">The lab's controller comes back on this server, from its latest backup. Its other servers (if any) reconnect by
+  <p class="hint">The lab's controller will come back on this server from its latest backup. Its other servers (if any) will reconnect by
     themselves if they can reach this one the way they reached the old one: the same address, and UDP port 51820
     forwarded to it if it's behind a router.</p>
   {{else}}
@@ -77,7 +77,7 @@
   <form method="post" action="/setup/restore" data-kind="{{.Kind}}" x-data="{ kind: $el.dataset.kind }">
     {{if not .Passed}}<label>Setup code
       <input name="token" autocomplete="off" required autofocus>
-      <small>Shown in the Roostack log, and saved in <code>/var/lib/roostack/setup-token</code>.</small>
+      <small>Shown in the Roostack log and saved in <code>{{.SetupTokenFile}}</code>.</small>
     </label>{{end}}
     {{/* Where the backups are: a segmented control, its fields following
          the choice (Alpine; without scripts every choice's fields show). */}}
@@ -87,7 +87,7 @@
       {{- else}}{{segmented "kind" "Where the backups are" .Kind (choice "s3" "Online storage" "globe") (choice "folder" "A disk here" "disk") (choice "url" "Another address" "network")}}{{end}}
     </div>
     <div x-show="kind === 's3'">
-      <p class="hint seg-hint">An S3-compatible account: Backblaze B2, Wasabi, AWS, … Roostack looks for every server's backups in the bucket.</p>
+      <p class="hint seg-hint">An S3-compatible account: Backblaze B2, Wasabi, AWS, … Roostack will look for every server's backups in the bucket.</p>
       <div class="field-row">
         <label>Endpoint <input name="endpoint" value="{{.S3.Endpoint}}" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off" spellcheck="false"></label>
         <label>Bucket <input name="bucket" value="{{.S3.Bucket}}" autocapitalize="off" spellcheck="false"></label>
@@ -109,11 +109,11 @@
       <div x-show="drive === 'other'">
         <label>Folder <input name="folder" value="{{.Folder}}" placeholder="/mnt/backup"></label>
       </div>
-      <p class="hint">Roostack looks on it (or in the folder) and a few levels below. Just plugged the drive in? <a href="/setup/restore">Look again</a>.</p>
+      <p class="hint">Roostack will look on it (or in the folder) and a few levels below. Just plugged the drive in? <a href="/setup/restore">Look again</a>.</p>
     </div>
     <div x-show="kind === 'cloud'" x-cloak>
-      <p class="hint seg-hint">If the lab backed up to Roostack Cloud, the recovery key is all it takes. Roostack proves to Roostack Cloud that you have the lab's recovery key, without sending it, and
-        Roostack Cloud lets this server read the lab's backups. Roostack Cloud emails the lab's account to say so.</p>
+      <p class="hint seg-hint">If the lab backed up to Roostack Cloud, the recovery key is all it takes. Roostack will prove to Roostack Cloud that you have the lab's recovery key, without sending it, and
+        Roostack Cloud will let this server read the lab's backups. Roostack Cloud will email the lab's account to say so.</p>
     </div>
     <div x-show="kind === 'url'" x-cloak>
       <p class="hint seg-hint">Any restic repository address, e.g. <code>rest:https://…</code>.</p>
@@ -153,7 +153,7 @@
      the SSH tunnel, which always works. */}}
 {{define "restore-next"}}
 <div class="notice" role="status">
-  <p><strong>This setup page closes as Roostack restarts as your lab.</strong>
+  <p><strong>This setup page will close as Roostack restarts as your lab.</strong>
     {{if .Address}}In a minute or two, open your lab at <a href="{{.Address}}">{{.Address}}</a> and log in with your account
     from the lab.{{else}}Your lab has no address that opens from here, so carry on through an SSH connection from your
     computer.{{end}}</p>

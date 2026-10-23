@@ -14,21 +14,12 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A service's Single sign-on card (SPEC.md §5.2; docs/mockups/sso): the
 // switch, who can sign in, and the details. Owners and Admins turn it on
 // (it changes a service); only Owners choose who can sign in.
-
-func init() {
-	// offText says what turning single sign-on off does, for its confirm.
-	templateFuncs["offText"] = func(c *ssoCard) string {
-		if c.Wall {
-			return "Anyone who can reach " + c.Title + " can use it again, without signing in."
-		}
-		return "People sign in with " + c.Title + "'s own passwords again; accounts it made at single sign-on have none, so they'd need one set in " + c.Title + "."
-	}
-}
 
 // ssoRoutes are single sign-on's pages in Roostack's own UI: the card
 // on a service's page, and groups and the sign-in page's look on People.
@@ -212,9 +203,8 @@ func (s *Server) ssoSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	err := s.SSO.SetSSO(r.Context(), name, on)
-	var fe *manager.FormError
-	if errors.As(err, &fe) {
-		s.renderServiceWith(w, r, map[string]any{"SSOError": fe.Msg}, true)
+	if msg, ok := usererr.Message(err); ok {
+		s.renderServiceWith(w, r, map[string]any{"SSOError": msg}, true)
 		return
 	}
 	if errors.Is(err, manager.ErrNotFound) {

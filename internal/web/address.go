@@ -68,9 +68,9 @@ func (s *Server) addressChoices(r *http.Request, legend string, port int, lan, h
 	if s.DNS != nil {
 		st = s.DNS.Status()
 	}
-	domain := s.Domain != "" && s.Setup != nil && s.domainDone(r)
+	domain := s.Domain != "" && s.domainDone(r)
 	if domain && (here || !internet) {
-		hint := "For a server or lab anywhere. Roostack keeps this name pointing at your home's public address, which can change; " +
+		hint := "For a server or lab anywhere. Roostack will keep this name pointing at your home's public address, which can change; " +
 			"the port has to be forwarded on your router."
 		if internet {
 			hint = "For a server or lab anywhere: your domain already points at this server."

@@ -1,9 +1,8 @@
 package manager
 
 import (
+	"cmp"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
@@ -21,12 +18,15 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/cloudkeys"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // Backups across servers (SPEC.md §10.10): each server chooses where it
@@ -75,9 +75,6 @@ type CloudBackup interface {
 	RegisterIdentity(ctx context.Context) error
 }
 
-// CloudChoice is Roostack Cloud backup's choice reference.
-const CloudChoice = "cloud"
-
 // cloudChoice is Roostack Cloud backup as a choice, if this lab's account
 // may use it (a storage grant, in the pilot).
 func (m *Manager) cloudChoice(ctx context.Context) (BackupChoice, bool) {
@@ -97,7 +94,7 @@ func (m *Manager) cloudChoice(ctx context.Context) (BackupChoice, bool) {
 		used = fmt.Sprintf("Your account's labs use %s of %s; this lab %s.", units.Bytes(u.AccountUsedBytes),
 			units.Bytes(u.QuotaBytes), units.Bytes(u.UsedBytes))
 	}
-	return BackupChoice{Ref: CloudChoice, Title: "Roostack Cloud",
+	return BackupChoice{Ref: destination.Cloud, Title: "Roostack Cloud",
 		Note: "Encrypted with your recovery key before it leaves; Roostack Cloud can't read it. " + used}, true
 }
 
@@ -128,8 +125,8 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 			return nil, err
 		}
 		for _, mc := range servers {
-			out = append(out, BackupChoice{Ref: "server:" + mc.ID, Title: mc.Name + "'s disk",
-				Note: "Kept in " + mc.Name + "'s backups folder. A copy somewhere else protects against theft, fire or a failed disk."})
+			out = append(out, BackupChoice{Ref: destination.New(destination.Server, mc.ID), Title: mc.Name + "'s disk",
+				Note: "Kept in " + mc.Name + "'s backups folder. A copy somewhere else protects against theft, fire, or a failed disk."})
 		}
 	}
 	if m.BackupStore == nil {
@@ -140,7 +137,7 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 		return nil, err
 	}
 	for _, p := range providers {
-		ref := fmt.Sprintf("provider:%d", p.ID)
+		ref := destination.OfProvider(p.ID)
 		d, err := m.destinationOf(ctx, ref)
 		if err != nil {
 			continue
@@ -167,10 +164,10 @@ func (m *Manager) AddS3Provider(ctx context.Context, name string, p S3Provider) 
 	p = p.Clean()
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return formErrorf("Give it a name, such as \"Backblaze\".")
+		return usererr.New("Give it a name, such as \"Backblaze\".")
 	}
 	if msg := p.Problem(); msg != "" {
-		return formErrorf("%s", msg)
+		return usererr.New("%s", msg)
 	}
 	cfg, _ := json.Marshal(p)
 	_, err := m.BackupStore.AddBackupProvider(ctx, store.BackupProvider{Kind: "s3", Name: name, Config: string(cfg)})
@@ -189,7 +186,7 @@ func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	if err := m.recoveryKey(); err != nil {
 		return err
@@ -199,7 +196,7 @@ func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string
 		return err
 	}
 	if choice == nil {
-		return formErrorf("Choose where backups go.")
+		return usererr.New("Choose where backups go.")
 	}
 	name := n.Identity().Name
 	title := "Setting up backups for " + name
@@ -243,17 +240,17 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 		return err
 	}
 	if m.alone() {
-		act.Step("Saving where backups go (Roostack restarts to use it)")
+		act.Step("Saving where backups go (Roostack will restart to use it)")
 	} else {
-		act.Step("Telling %s where to back up (it restarts Roostack)", m.nameOf(serverID))
+		act.Step("Telling %s where to back up (it will restart Roostack)", m.nameOf(serverID))
 	}
 	if err := n.Settings().SetBackupDestination(ctx, dest); err != nil {
 		return err
 	}
 	if m.alone() {
-		act.Step("Backups go to %s", inSentence(choice.Title))
+		act.Step("Backups will go to %s", inSentence(choice.Title))
 	} else {
-		act.Step("Backups for %s go to %s", m.nameOf(serverID), inSentence(choice.Title))
+		act.Step("Backups for %s will go to %s", m.nameOf(serverID), inSentence(choice.Title))
 	}
 	if err := m.BackupStore.RemoveLostBackup(ctx, serverID); err != nil {
 		m.Log.Warn("forgetting a lost main backup", "server", serverID, "err", err)
@@ -297,9 +294,10 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 	}
 	var admin *backup.Repo // the controller's access, with the recovery key
 	var dest node.BackupDestination
-	kind, id, _ := strings.Cut(choice.Ref, ":")
+	ref := destination.Parse(choice.Ref)
+	kind, id := ref.Kind, ref.ID
 	switch kind {
-	case CloudChoice:
+	case destination.Cloud:
 		// Roostack Cloud backup: the server's folder in Cloud's bucket,
 		// reached with keys that expire (fetched before each backup); the
 		// controller creates and prunes it with the lab's prune keys.
@@ -319,13 +317,13 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		dest = node.BackupDestination{Repository: keys.Repository, Cloud: true}
 		admin = m.OpenRepo(keys.Repository, nil)
 		admin.Credentials = m.cloudPruneKeys().Env
-	case "server":
+	case destination.Server:
 		host := id
 		addr := m.addressOf(host)
 		if addr == "" {
 			return fail(fmt.Errorf("no address for server %s", host))
 		}
-		password, hash, err := newPassword()
+		password, hash, err := labnet.NewPassword()
 		if err != nil {
 			return fail(err)
 		}
@@ -346,7 +344,7 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 			return fail(err)
 		}
 		m.Apply()
-	case "drive", "folder":
+	case destination.Drive, destination.Folder:
 		// A drive (or folder) on this server, readied by roostack-agent; the
 		// repository is a local folder on it.
 		if serverID != m.Lab.NodeID || m.Drives == nil {
@@ -354,7 +352,7 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		}
 		dir := id
 		var drive config.BackupDrive
-		if kind == "drive" {
+		if kind == destination.Drive {
 			act.Step("Getting the drive ready (mounting it for good if need be)")
 			used, err := m.Drives.UseDrive(ctx, id)
 			if err != nil {
@@ -367,7 +365,7 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		target.Repository = filepath.Join(dir, backup.ServerFolder("", labID, serverID))
 		dest = node.BackupDestination{Repository: target.Repository, Drive: drive}
 		admin = m.OpenRepo(target.Repository, nil)
-	case "provider":
+	case destination.Provider:
 		d, err := m.destinationOf(ctx, choice.Ref)
 		if err != nil {
 			return fail(err)
@@ -414,14 +412,14 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		if time.Now().After(deadline) {
 			return fail(fmt.Errorf("creating the repository: %w", err))
 		}
-		act.Printf("Attempt %d: %v; trying again shortly", attempt, firstLine(err.Error()))
+		act.Printf("Attempt %d: %v; trying again shortly", attempt, words.FirstLine(strings.TrimSpace(err.Error())))
 		time.Sleep(10 * time.Second)
 	}
 	// The controller's own backups use the recovery key itself; any other
 	// server gets a key of its own.
 	dest.PrunedByController = true
 	if serverID != m.Lab.NodeID {
-		key, _, err := newPassword()
+		key, _, err := labnet.NewPassword()
 		if err != nil {
 			return fail(err)
 		}
@@ -448,7 +446,7 @@ func (m *Manager) scopedB2Key(ctx context.Context, act *activity.Log, serverID, 
 	folder := backup.ServerFolder(s3.Prefix, labID, serverID) + "/"
 	key, err := m.b2(s3).CreateKey(ctx, "roostack-"+labID+"-"+serverID, s3.Bucket, folder)
 	if err != nil {
-		act.Printf("%v. %s uses the account's key instead, which can delete its backups there.", err, capital(name))
+		act.Printf("%v. %s will use the account's key instead, which can delete its backups there.", err, capital(name))
 		return
 	}
 	target.ScopedKey = key.ID
@@ -460,7 +458,7 @@ func (m *Manager) scopedB2Key(ctx context.Context, act *activity.Log, serverID, 
 	case days < 0:
 		act.Printf("Roostack couldn't read how long this bucket keeps hidden files.")
 	case days == 0:
-		act.Printf("This bucket keeps hidden files for good. Old backups the controller removes still take space until a lifecycle rule erases them.")
+		act.Printf("This bucket keeps hidden files for good. Old backups the controller removes will still take space until a lifecycle rule erases them.")
 	case days < MinKeepHidden:
 		after := fmt.Sprintf("after %d days", days)
 		if days == 1 {
@@ -532,13 +530,13 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 		}
 		if t.ServerID != serverID {
 			// The other server stops copying there (it restarts Roostack).
-			act.Printf("%s's backups were also copied to %s's disk: that copy stops.", m.nameOf(t.ServerID), name)
+			act.Printf("%s's backups were also copied to %s's disk: that copy will stop.", m.nameOf(t.ServerID), name)
 			err := m.RemoveBackupCopy(ctx, t.ServerID, t.Provider)
 			if err == nil {
 				continue
 			}
-			act.Printf("%s couldn't be told (%v), so its nightly copy there fails until its backups change on its Backups page.",
-				m.nameOf(t.ServerID), firstLine(err.Error()))
+			act.Printf("Roostack couldn't tell %s (%v), so its nightly copy there will fail until its backups change on its Backups page.",
+				m.nameOf(t.ServerID), words.FirstLine(strings.TrimSpace(err.Error())))
 		}
 		m.BackupStore.RemoveBackupCopy(ctx, t.ServerID, t.Provider)
 	}
@@ -600,7 +598,7 @@ func (m *Manager) storeAdmin(ctx context.Context, host string) (string, error) {
 	if err != nil || ok {
 		return pw, err
 	}
-	pw, hash, err := newPassword()
+	pw, hash, err := labnet.NewPassword()
 	if err != nil {
 		return "", err
 	}
@@ -621,80 +619,6 @@ func (m *Manager) provider(ctx context.Context, id string) (store.BackupProvider
 		}
 	}
 	return store.BackupProvider{}, errors.New("no such provider")
-}
-
-// addressOf is a server's address on Roostack's network, or "".
-func (m *Manager) addressOf(id string) string {
-	if id == m.Lab.NodeID {
-		if m.Lab.OverlayAddr != "" {
-			return m.Lab.OverlayAddr
-		}
-		return labnet.ControllerAddr.String()
-	}
-	for _, r := range m.others() {
-		if r.Identity().ID == id {
-			return r.Address()
-		}
-	}
-	return ""
-}
-
-func (m *Manager) nameOf(id string) string {
-	if n := m.node(id); n != nil {
-		return n.Identity().Name
-	}
-	return id
-}
-
-// alone says whether the lab has one server. Its pages and logs don't name
-// it: the name is the host's, which the Owner may never have chosen
-// (found 2026-10-18).
-func (m *Manager) alone() bool { return len(m.others()) == 0 }
-
-// serverName is a server's name in a sentence, or "this server" in a lab
-// of one.
-func (m *Manager) serverName(id string) string {
-	if id == m.Lab.NodeID && m.alone() {
-		return "this server"
-	}
-	return m.nameOf(id)
-}
-
-// onServer is " on <server>" after a step that happens on one, or nothing
-// in a lab of one.
-func (m *Manager) onServer(id string) string {
-	if id == m.Lab.NodeID && m.alone() {
-		return ""
-	}
-	return " on " + m.nameOf(id)
-}
-
-// aboutServer starts a line about one server with its name ("nas:
-// keeping …"), or, in a lab of one, is the line alone ("Keeping …").
-func (m *Manager) aboutServer(id, line string) string {
-	if id == m.Lab.NodeID && m.alone() {
-		if line == "" {
-			return line
-		}
-		return strings.ToUpper(line[:1]) + line[1:]
-	}
-	return m.nameOf(id) + ": " + line
-}
-
-// newPassword returns a random password and its bcrypt hash.
-func newPassword() (string, string, error) {
-	b := make([]byte, 24)
-	if _, err := rand.Read(b); err != nil {
-		return "", "", err
-	}
-	pw := hex.EncodeToString(b)
-	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
-	return pw, string(hash), err
-}
-
-func firstLine(s string) string {
-	s, _, _ = strings.Cut(strings.TrimSpace(s), "\n")
-	return s
 }
 
 // BackupTargetOf is where a server backs up, if the controller set it up
@@ -722,9 +646,9 @@ func (m *Manager) BackupTargetOf(ctx context.Context, serverID string) (t store.
 func (m *Manager) destinationTitle(ctx context.Context, serverID, provider, repository string, choices []BackupChoice) string {
 	title := repository
 	switch {
-	case strings.HasPrefix(provider, "local:"), provider == "setup" && strings.HasPrefix(repository, "/"):
+	case destination.Parse(provider).Kind == destination.Local, provider == destination.Setup && strings.HasPrefix(repository, "/"):
 		title = "A folder on " + m.serverName(serverID)
-	case provider == "setup":
+	case provider == destination.Setup:
 		title = "Chosen during setup"
 	}
 	for _, c := range choices {
@@ -747,7 +671,7 @@ func (m *Manager) PruneJob() maintenance.Job { return m.pruneJob(nil, 1) }
 
 // pruneTries is how often a locked repository is tried in a week, and
 // pruneRetry how long apart.
-var (
+const (
 	pruneTries = 3
 	pruneRetry = time.Hour
 )
@@ -761,6 +685,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 	if try > 1 {
 		title = "Removing old backups that were busy last time"
 	}
+	retry := cmp.Or(m.waits.pruneRetry, pruneRetry)
 	return maintenance.Job{
 		Name: "removing old backups of every server",
 		Run: func(ctx context.Context, h *maintenance.Handle) (err error) {
@@ -778,7 +703,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 			locked := map[string]bool{}
 			m.recheckS3(ctx, act, append(targets, copies...))
 			for _, t := range append(targets, copies...) {
-				if strings.HasPrefix(t.Provider, "setup") || (only != nil && !only[pruneKey(t)]) {
+				if destination.Parse(t.Provider).Kind == destination.Setup || (only != nil && !only[pruneKey(t)]) {
 					continue // set up before this, that server prunes it itself; or not a retry's
 				}
 				repo, err := m.adminRepo(ctx, t)
@@ -786,12 +711,12 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 					errs = append(errs, err)
 					continue
 				}
-				act.Step("%s", m.aboutServer(t.ServerID, "keeping 7 daily, 4 weekly and 6 monthly"))
+				act.Step("%s", m.aboutServer(t.ServerID, "keeping 7 daily, 4 weekly, and 6 monthly"))
 				// Stale locks first, or one crashed backup blocks every
 				// prune there (docs/ASSUMPTIONS.md N1); a running
 				// backup's lock stays.
 				if n, err := repo.Unlock(ctx); err != nil {
-					act.Printf("Couldn't clear old locks: %s", firstLine(err.Error()))
+					act.Printf("Couldn't clear old locks: %s", words.FirstLine(strings.TrimSpace(err.Error())))
 				} else if n == 1 {
 					act.Printf("Cleared an old lock left by a backup that didn't finish")
 				} else if n > 1 {
@@ -800,7 +725,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 				err = repo.Forget(ctx, backup.DefaultRetention)
 				switch {
 				case errors.Is(err, backup.ErrLocked) && try < pruneTries && m.Submit != nil:
-					act.Printf("Busy (a backup is running there): tried again in %s", pruneRetry)
+					act.Printf("Busy (a backup is running there): Roostack will try again in %s", retry)
 					locked[pruneKey(t)] = true
 				case err != nil:
 					act.Printf("%v", err)
@@ -808,7 +733,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 				}
 			}
 			if len(locked) > 0 {
-				time.AfterFunc(pruneRetry, func() { m.Submit(m.pruneJob(locked, try+1)) })
+				time.AfterFunc(retry, func() { m.Submit(m.pruneJob(locked, try+1)) })
 			}
 			return errors.Join(errs...)
 		},
@@ -877,33 +802,33 @@ func (m *Manager) recoveryKey() error {
 	if m.EnsureRecoveryKey != nil {
 		return m.EnsureRecoveryKey()
 	}
-	return formErrorf("Set up this server's backups first: that creates the recovery key every backup can be read with.")
+	return usererr.New("Set up this server's backups first: that will create the recovery key every backup can be read with.")
 }
 
 // choiceFor finds a place a server can back up: one of BackupChoices, or a
 // drive ("drive:<id>") or folder ("folder:<path>") on this server.
 func (m *Manager) choiceFor(ctx context.Context, serverID, ref string) (*BackupChoice, error) {
-	kind, id, _ := strings.Cut(ref, ":")
-	switch kind {
-	case "drive":
+	r := destination.Parse(ref)
+	switch r.Kind {
+	case destination.Drive:
 		if serverID != m.Lab.NodeID || m.Drives == nil {
-			return nil, formErrorf("A drive can only hold backups of the server it's in.")
+			return nil, usererr.New("A drive can only hold backups of the server it's in.")
 		}
 		drives, err := m.Drives.Drives(ctx)
 		if err != nil {
 			return nil, err
 		}
 		for _, d := range drives {
-			if d.ID == id && d.Usable {
+			if d.ID == r.ID && d.Usable {
 				return &BackupChoice{Ref: ref, Title: DriveTitle(d)}, nil
 			}
 		}
-		return nil, formErrorf("That drive isn't connected any more.")
-	case "folder":
-		if serverID != m.Lab.NodeID || m.Drives == nil || !filepath.IsAbs(id) {
-			return nil, formErrorf("Enter a full folder path, starting with /.")
+		return nil, usererr.New("That drive isn't connected any more.")
+	case destination.Folder:
+		if serverID != m.Lab.NodeID || m.Drives == nil || !filepath.IsAbs(r.ID) {
+			return nil, usererr.New("Enter a full folder path, starting with /.")
 		}
-		return &BackupChoice{Ref: "folder:" + filepath.Clean(id), Title: "The folder " + filepath.Clean(id)}, nil
+		return &BackupChoice{Ref: destination.New(destination.Folder, filepath.Clean(r.ID)), Title: "The folder " + filepath.Clean(r.ID)}, nil
 	}
 	choices, err := m.BackupChoices(ctx)
 	if err != nil {
@@ -919,15 +844,14 @@ func (m *Manager) choiceFor(ctx context.Context, serverID, ref string) (*BackupC
 
 // driveTitle names a drive or folder destination ("" for other kinds).
 func (m *Manager) driveTitle(ctx context.Context, serverID, ref string) string {
-	kind, id, _ := strings.Cut(ref, ":")
-	switch kind {
-	case "drive":
+	switch r := destination.Parse(ref); r.Kind {
+	case destination.Drive:
 		if c, err := m.choiceFor(ctx, serverID, ref); err == nil && c != nil {
 			return c.Title
 		}
 		return "A drive that isn't connected now"
-	case "folder":
-		return "The folder " + id
+	case destination.Folder:
+		return "The folder " + r.ID
 	}
 	return ""
 }
@@ -959,4 +883,65 @@ func (m *Manager) recheckS3(ctx context.Context, act *activity.Log, targets []st
 		act.Step("Checking whether %s keeps what's deleted", d.provider.Name)
 		sayS3Check(act, m.checkS3(ctx, d.s3))
 	}
+}
+
+// keyRepo is a repository the recovery key opens, and how to open it
+// with a given key file.
+type keyRepo struct {
+	Ref, ServerID, Repository string
+	open                      func(keyFile string) (*backup.Repo, error)
+}
+
+func findRepo(repos []keyRepo, ref string) (keyRepo, bool) {
+	i := slices.IndexFunc(repos, func(r keyRepo) bool { return r.Ref == ref })
+	if i < 0 {
+		return keyRepo{}, false
+	}
+	return repos[i], true
+}
+
+// keyRepos lists every repository the recovery key opens: each server's
+// backup and extra copies, through the controller's admin access (as for
+// pruning), and this server's own main backup.
+func (m *Manager) keyRepos(ctx context.Context) ([]keyRepo, error) {
+	if m.BackupStore == nil {
+		return nil, nil
+	}
+	targets, err := m.BackupStore.BackupTargets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	copies, err := m.BackupStore.BackupCopies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []keyRepo
+	add := func(ref string, t store.BackupTarget) {
+		out = append(out, keyRepo{Ref: ref, ServerID: t.ServerID, Repository: t.Repository,
+			open: func(keyFile string) (*backup.Repo, error) {
+				var r *backup.Repo
+				if destination.Parse(t.Provider).Kind == destination.Setup {
+					// Set up by this server's wizard: its own main backup.
+					if t.ServerID != m.Lab.NodeID {
+						return nil, fmt.Errorf("%s's backup was set up on that server", m.nameOf(t.ServerID))
+					}
+					r = m.OpenRepo(t.Repository, m.Lab.Backup.Env)
+				} else {
+					var err error
+					if r, err = m.adminRepo(ctx, t); err != nil {
+						return nil, err
+					}
+				}
+				withKey := *r
+				withKey.PasswordFile = keyFile
+				return &withKey, nil
+			}})
+	}
+	for _, t := range targets {
+		add("backup:"+t.ServerID, t)
+	}
+	for _, t := range copies {
+		add("copy:"+t.ServerID+":"+t.Provider, t)
+	}
+	return out, nil
 }

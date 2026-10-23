@@ -11,7 +11,7 @@
     from your phone as well as your password. It protects the lab if your password is ever stolen.</p>
   {{else if .Required}}<p>{{if .Owner}}As the Owner, you{{else}}Roostack's pages can be reached from the internet, so as an Admin you{{end}} need to turn on two-factor authentication before continuing. It protects the lab if your password is ever stolen.</p>{{end}}
   <ol class="steps">
-    <li>Install an authenticator app on your phone, such as Aegis, 2FAS, Google Authenticator or your password manager.</li>
+    <li>Install an authenticator app on your phone, such as Aegis, 2FAS, Google Authenticator, or your password manager.</li>
     <li>In the app, add an account and scan this code:
       {{with .QR}}<div class="qr-box">{{.}}</div>{{end}}
       <small>Can't scan it? Enter this key instead: <code class="secret">{{.SecretFmt}}</code>

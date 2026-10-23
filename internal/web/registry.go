@@ -62,27 +62,11 @@ func (s *Server) registryView() *registryView {
 	if st.Commit != "" && v.URL == registry.DefaultURL {
 		v.CommitURL = registry.SourceRepo + "/tree/" + st.Commit
 	}
-	v.StopsOn = s.Manager == nil || s.Manager.StopsOn()
+	v.StopsOn = s.Manager.StopsOn()
 	for _, name := range slices.Sorted(maps.Keys(st.Skipped)) {
 		v.Skipped = append(v.Skipped, skippedPackage{name, st.Skipped[name]})
 	}
 	return v
-}
-
-// registryAttention warns the Owner when the lab hasn't had a list from
-// the registry for a while (the Owner, 2026-10-14: a warning, not a
-// refusal): withdrawals since then are unknown to it.
-func (s *Server) registryAttention(add func(level, text, link, linkText string)) {
-	v := s.registryView()
-	if v == nil || !v.On || !v.Stale {
-		return
-	}
-	text := "Roostack can't get the list of services from the service registry, so you can't install services."
-	if v.Status.Serial != 0 {
-		text = "Roostack's list of services is from " + whenText(v.Status.Date) +
-			": it hasn't been able to get a newer one, so it doesn't know of fixes or withdrawn versions since."
-	}
-	add(levelWarning, text, "/settings/updates#registry", "See why")
 }
 
 // registryOn says whether services can be installed from the registry:

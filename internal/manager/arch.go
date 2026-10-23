@@ -5,10 +5,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 
-	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // serverArchKey + server ID is the processor a server last said it has
@@ -23,7 +23,7 @@ func (m *Manager) archOf(ctx context.Context, id string) string {
 	if n == nil {
 		return ""
 	}
-	if p, ok := n.(node.Processor); ok {
+	if p := n.Processor(); p != nil {
 		if a := p.Arch(); a != "" {
 			if id != m.Lab.NodeID && m.Settings != nil && m.setting(ctx, serverArchKey+id) != a {
 				if err := m.Settings.SetSetting(ctx, serverArchKey+id, a); err != nil {
@@ -62,7 +62,7 @@ func (m *Manager) LabArches() []string {
 // build of every image for, from the index (SPEC.md §8.3.3). Nil when
 // that isn't known: one of the Owner's own packages, or an index that
 // doesn't say. Then nothing is checked here, and a server whose processor
-// an image lacks says so when it pulls it (reconcile.NoImageForArch).
+// an image lacks says so when it pulls it (podman.NoImageForArch).
 func (m *Manager) packageArches(name, version string) []string {
 	if m.RegistryIndex == nil || m.IsLocal(name) {
 		return nil
@@ -105,6 +105,31 @@ func (m *Manager) NoBuildOn(p *pkgspec.Package) []NoBuild {
 	return out
 }
 
+// InstallServer is where a new service runs unless someone chooses
+// another: on chosen (a server's ID, "" for this one) if the package has
+// a version for its processor, otherwise on the first of the lab's
+// servers it has one for (SPEC.md §8.3.3). noBuild is NoBuildOn's list.
+func InstallServer(servers []Server, noBuild []NoBuild, chosen string) string {
+	can := func(id string) bool {
+		return !slices.ContainsFunc(noBuild, func(nb NoBuild) bool { return nb.ID == id })
+	}
+	id := chosen
+	for _, m := range servers {
+		if id == "" && m.This {
+			id = m.ID
+		}
+	}
+	if can(id) {
+		return chosen
+	}
+	for _, m := range servers {
+		if can(m.ID) {
+			return m.ID
+		}
+	}
+	return chosen
+}
+
 // noBuildFor is the processor of server host when version of a package
 // has no build for it ("" when it has, or either isn't known: then it's
 // allowed, and the server says so if an image is missing when it pulls
@@ -123,7 +148,7 @@ func (m *Manager) noBuildFor(ctx context.Context, name, version, host string) (s
 // (SPEC.md §8.3.3).
 func (m *Manager) checkArch(ctx context.Context, p *pkgspec.Package, title, host string) error {
 	if a, arches := m.noBuildFor(ctx, p.Name, p.Version, host); a != "" {
-		return formErrorf("%s", m.noBuildText(ctx, title, host, a, arches))
+		return usererr.New("%s", m.noBuildText(ctx, title, host, a, arches))
 	}
 	return nil
 }
@@ -143,15 +168,7 @@ func (m *Manager) noBuildText(ctx context.Context, title, host, arch string, arc
 		}
 	}
 	if len(can) > 0 {
-		msg += " It can run on " + orList(can) + "."
+		msg += " It can run on " + words.Or(can) + "."
 	}
 	return msg
-}
-
-// orList joins names as "a, b or c".
-func orList(names []string) string {
-	if len(names) < 2 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
 }

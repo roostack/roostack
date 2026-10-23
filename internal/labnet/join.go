@@ -2,15 +2,14 @@ package labnet
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/netip"
 	"strings"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/nodeid"
 )
@@ -92,13 +91,7 @@ func NewToken() (token, hash string) {
 	b := make([]byte, 16)
 	rand.Read(b)
 	token = base64.RawURLEncoding.EncodeToString(b)
-	return token, HashToken(token)
-}
-
-// HashToken is how the controller stores and looks up a join token.
-func HashToken(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
+	return token, authkit.HashToken(token)
 }
 
 // JoinRequest is what a joining server sends the controller, over

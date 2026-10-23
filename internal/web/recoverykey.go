@@ -2,9 +2,11 @@ package web
 
 import (
 	"net/http"
+	"sync"
 	"time"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/attention"
 )
 
 // Showing the recovery key again (SPEC.md §6.9): it opens every backup,
@@ -17,8 +19,15 @@ import (
 // a stolen session can't be used to guess the password.
 const maxStepUpFailures = 5
 
+// stepUpFailures counts wrong passwords or codes per user when showing
+// the recovery key.
+type stepUpFailures struct {
+	mu     sync.Mutex
+	byUser map[int64]int
+}
+
 func (s *Server) recoveryKeyShowPage(w http.ResponseWriter, r *http.Request) {
-	if s.Setup == nil || !s.hasRecoveryKey() {
+	if !s.hasRecoveryKey() {
 		http.NotFound(w, r)
 		return
 	}
@@ -27,7 +36,7 @@ func (s *Server) recoveryKeyShowPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) recoveryKeyShowSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Setup == nil || !s.hasRecoveryKey() {
+	if !s.hasRecoveryKey() {
 		http.NotFound(w, r)
 		return
 	}
@@ -69,7 +78,7 @@ func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, a
 			return false
 		}
 		if res == codeLocked {
-			s.Store.Audit(r.Context(), u, auditLocked, "checking it's you for "+action)
+			s.Store.Audit(r.Context(), u, attention.AuditLocked, "checking it's you for "+action)
 			again(http.StatusTooManyRequests, lockedMessage(until))
 			return false
 		}
@@ -78,13 +87,13 @@ func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, a
 	if !ok {
 		s.Log.Warn("wrong password or code", "for", action, "user", u.Username, "remote", r.RemoteAddr)
 		time.Sleep(failedLoginDelay)
-		s.mu.Lock()
-		s.stepUpFailures[u.ID]++
-		tooMany := s.stepUpFailures[u.ID] >= maxStepUpFailures
+		s.stepUps.mu.Lock()
+		s.stepUps.byUser[u.ID]++
+		tooMany := s.stepUps.byUser[u.ID] >= maxStepUpFailures
 		if tooMany {
-			delete(s.stepUpFailures, u.ID)
+			delete(s.stepUps.byUser, u.ID)
 		}
-		s.mu.Unlock()
+		s.stepUps.mu.Unlock()
 		if tooMany {
 			s.Store.Audit(r.Context(), u, action, "too many wrong passwords or codes: logged out")
 			s.endSession(w, r)
@@ -92,11 +101,11 @@ func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, a
 			return false
 		}
 		s.Store.Audit(r.Context(), u, action, "wrong password or code")
-		again(http.StatusBadRequest, "That password or code didn't work. Check your authenticator app, and try again.")
+		again(http.StatusBadRequest, "That password or code didn't work. Check your authenticator app and try again.")
 		return false
 	}
-	s.mu.Lock()
-	delete(s.stepUpFailures, u.ID)
-	s.mu.Unlock()
+	s.stepUps.mu.Lock()
+	delete(s.stepUps.byUser, u.ID)
+	s.stepUps.mu.Unlock()
 	return true
 }

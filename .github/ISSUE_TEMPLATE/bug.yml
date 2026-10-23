@@ -1,0 +1,52 @@
+name: Something isn't working
+description: A bug in Roostack, the software on your server.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. If it's a security problem, please don't use an issue: [SECURITY.md](https://github.com/roostack/roostack/blob/main/SECURITY.md) says how to report it privately. If it's about Roostack Cloud (roostack.cloud, roost.ac names, the relay, Roostack Cloud backup), please use the Roostack Cloud form instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. A screenshot helps for anything on a page.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      description: The steps, if you know them.
+      placeholder: |
+        1. Go to Services, then Add a service…
+        2. Install Immich with…
+  - type: input
+    id: version
+    attributes:
+      label: Roostack's version
+      description: At the bottom of every page, or `dpkg-query -W roostack` on the server.
+    validations:
+      required: true
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: The server
+      options:
+        - A PC or mini PC (x86_64)
+        - An ARM mini PC or server (arm64)
+        - A cloud server
+        - A VM
+        - Something else (say below)
+  - type: textarea
+    id: log
+    attributes:
+      label: The log
+      description: |
+        The activity log from the page (its Details), or Roostack's own log: `journalctl -u roostack -u roostack-agent --since "1 hour ago"`. Please check it for anything private first: Roostack keeps passwords and keys out of its logs, but addresses and names will be there.
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: How many servers in the lab, whether it's at home or on the internet, its address (a roost.ac name or your own domain), and anything else that might matter.

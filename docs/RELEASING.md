@@ -1,12 +1,12 @@
 # Releasing Roostack
 
-How a Roostack release is built, signed and checked, and the ceremony for
+How a Roostack release is built, signed, and checked, and the ceremony for
 the key that signs it (TASKS 1.12, "Encryption anyone can check"). Written
 2026-10-18, before the first release and before the ceremony. The service
 registry's keys are separate: [REGISTRY-KEYS.md](REGISTRY-KEYS.md).
 
 The names and addresses below (file names, `dl.roostack.cloud`,
-`apt.roostack.cloud`, the key's user ID) are placeholders until the Owner
+`apt.roostack.cloud`, the key's user ID) are placeholders until the maintainer
 confirms them.
 
 ## What a release is
@@ -34,7 +34,7 @@ For the registry's Publish workflow (REGISTRY-KEYS.md, step 9):
 
 ## Making a release
 
-1. Check `main`'s last CI run passed, and that TASKS, SPEC and the help are
+1. Check `main`'s last CI run passed and that TASKS, SPEC, and the help are
    up to date. For a new series (a `.0` release), write its section in
    [help/docs/whats-new.md](../help/docs/whats-new.md), with the id
    `roostack-<series>`, and publish the help: servers on an older series
@@ -89,11 +89,11 @@ byte, so the published binaries can be checked against the published
 source rather than taken on trust. `scripts/build-release.sh` (`make
 release`) fixes everything that could otherwise differ:
 
-- **Go:** the release's Go (`GO_RELEASE`, fetched by the go tool if it's
-  another), `-trimpath` (no folder names) and an empty build ID (`make
-  build` does both for every build), no cgo, no `go.work`, no settings from
-  the builder's go env file, the baseline processor level (`GOAMD64=v1`,
-  `GOARM64=v8.0`).
+- **Go:** the release's Go (`GO_VERSION` in `.github/versions.env`,
+  fetched by the go tool if it's another), `-trimpath` (no folder names)
+  and an empty build ID (`make build` does both for every build), no cgo,
+  no `go.work`, no settings from the builder's go env file, the baseline
+  processor level (`GOAMD64=v1`, `GOARM64=v8.0`).
 - **The help site:** Zensical exactly as `help/uv.lock` pins it, refusing a
   lock that's out of date. Its output has no dates or paths in it (checked
   2026-10-18: two builds in different folders and on Python 3.12 and 3.15
@@ -120,7 +120,7 @@ hasn't run on GitHub yet (its runners are amd64).
 
 **End to end (2026-10-18):** a release made the same way, published with
 `build-apt-repo.sh`, installed on a fresh arm64 VM through
-`scripts/install.sh` and ran a lab (docs/ASSUMPTIONS.md R7). Signing
+`scripts/install.sh`, and ran a lab (docs/ASSUMPTIONS.md R7). Signing
 needs `gpgv` as well as `gpg`; on Debian 13 they're separate packages.
 
 ### Checking a release yourself
@@ -141,19 +141,20 @@ order:
    `dl.roostack.cloud` (`FROM=dir` takes them from a folder instead);
 2. checks the signature against the release key the tag has
    (`packaging/keys/roostack-release.asc`; `KEY=file` for another, such
-   as one from roostack.cloud), and shows the key's fingerprint, to
-   compare with the one published (below, and on roostack.cloud);
-3. builds the tag afresh, in the image the release was built in (the
+   as one from roostack.cloud), and shows the key's fingerprint to
+   compare with the one published (below and on roostack.cloud);
+3. builds the tag afresh in the image the release was built in (the
    tag's `release.yml` pins it by digest), with the same uv (checked
-   against the SHA-256 in `release.yml`) and the release's own Go (the
-   go tool fetches it, checked against Go's checksum database);
+   against the SHA-256 in the tag's `.github/versions.env`) and the
+   release's own Go (the go tool fetches it, checked against Go's
+   checksum database);
 4. compares each rebuilt file's SHA-256 with the signed `SHA256SUMS`, file
    by file, and ends with a plain verdict: "Roostack 0.1.0 matches its
    source", or "DOES NOT MATCH" with the files that differ.
 
-It needs only git, curl and Podman or Docker; everything else runs in the
+It needs only git, curl, and Podman or Docker; everything else runs in the
 container, and the rebuilt files are left in `dist/verify-<version>`. It
-takes about ten minutes, most of it downloading Go, Python and the
+takes about ten minutes, most of it downloading Go, Python, and the
 modules, as the release workflow does. If a file differs,
 [diffoscope](https://diffoscope.org) shows how
 (`diffoscope roostack_0.1.0_amd64.deb dist/verify-0.1.0/files/roostack_0.1.0_amd64.deb`).
@@ -171,8 +172,8 @@ built; and a `SHA256SUMS` signed with one file's sum changed said
 "DOES NOT MATCH" for that file alone.
 
 What it doesn't check: that the tag is the one on GitHub (it uses the
-tag in your checkout; fetch it from the repository yourself), and that the
-key is the Owner's (that's the fingerprint, compared by you). The source
+tag in your checkout; fetch it from the repository yourself) and that the
+key is the maintainer's (that's the fingerprint, compared by you). The source
 must be public for "anyone" to do this: until then, people with access to
 the repository can (TASKS, "Encryption anyone can check").
 
@@ -197,7 +198,7 @@ repository:
 
 | Part | Used for | Where it lives | Expires |
 |---|---|---|---|
-| **Primary key** | Only certifying: adding, extending and revoking subkeys | Offline, in two copies, with a passphrase | Never |
+| **Primary key** | Only certifying: adding, extending, and revoking subkeys | Offline, in two copies, with a passphrase | Never |
 | **Signing subkey** | Signing | The `release` environment's secret `ROOSTACK_RELEASE_SIGNING_KEY` on GitHub, without a passphrase | After 3 years; renewed a year before |
 | **Public key** | Checking | `packaging/keys/roostack-release.asc`; the package's keyring; roostack.cloud | |
 
@@ -233,14 +234,14 @@ You need:
 - a password manager for the primary key's passphrase;
 - about half an hour.
 
-1. **Go offline**, and keep the keys in memory only:
+1. **Go offline** and keep the keys in memory only:
 
    ```sh
    export GNUPGHOME=$(mktemp -d -p /dev/shm)
    ```
 
 2. **Make the primary key**, for certifying only, without a passphrase for
-   now (it's added in step 5, once the subkey for CI is exported without
+   now (it'll be added in step 5, once the subkey for CI is exported without
    one):
 
    ```sh
@@ -269,7 +270,7 @@ You need:
    gpg --armor --export-secret-subkeys '<subkey fingerprint>!' > signing-subkey.asc
    ```
 
-5. **Give the primary key a passphrase** (from the password manager), and
+5. **Give the primary key a passphrase** (from the password manager) and
    make the offline copies:
 
    ```sh
@@ -277,15 +278,15 @@ You need:
    gpg --armor --export-secret-keys <fingerprint> > roostack-release-secret.asc
    ```
 
-   Copy `roostack-release-secret.asc`, the revocation certificate and
+   Copy `roostack-release-secret.asc`, the revocation certificate, and
    `roostack-release.asc` to both offline places. The revocation
    certificate revokes the whole key without the passphrase: keep it as
    carefully as the key.
 
 6. **Go online, and give CI the subkey.** On GitHub, the repository →
    Settings → Environments → New environment `release`:
-   - Required reviewers: the Owner (and anyone else who may release).
-     Leave "Prevent self-review" off while the Owner releases alone.
+   - Required reviewers: the maintainer (and anyone else who may release).
+     Leave "Prevent self-review" off while the maintainer releases alone.
    - Deployment branches and tags: Selected; add the tag rule `v*`.
    - Environment secret `ROOSTACK_RELEASE_SIGNING_KEY`: the whole of
      `signing-subkey.asc`.
@@ -301,9 +302,9 @@ You need:
    help site's install page, roostack.cloud, and the record below. (Uploading
    the key to keys.openpgp.org is optional; it checks the email address.)
 
-9. **Check it** with the first release: the sign job's log ends with gpgv's
-   "Good signature", and the check under "Checking a download" passes on
-   the published files.
+9. **Check it** with the first release: the sign job's log will end with
+   gpgv's "Good signature", and the check under "Checking a download" will
+   pass on the published files.
 
 ### Renewing the signing subkey
 
@@ -356,7 +357,7 @@ Extending a subkey instead (`gpg --quick-set-expire <fingerprint> 2y
   ceremony), and ship its public key alongside the old in a release signed
   by the old subkey; then sign with the new one.
 - **Leaked:** the same, and publish the old key's revocation certificate in
-  the release that ships the new key, so labs stop trusting it.
+  the release that ships the new key so that labs stop trusting it.
 
 ## Record
 

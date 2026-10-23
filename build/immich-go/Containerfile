@@ -10,7 +10,7 @@
 # rather than downloading another. The result holds only the static
 # binary. To update: change VERSION here and photoimport.ToolVersion,
 # build, and migrate the synthetic Takeout on a VM
-# (docs/immich-import-test).
+# (tools/maketakeout).
 #
 # Build: podman build -t roostack-immich-go build/immich-go
 FROM docker.io/library/caddy:2.11.4-builder@sha256:369218c81ca6d6af249981221b3a5c764d886dd5b058f51d144066de13f2418d AS builder

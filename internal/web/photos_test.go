@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // fakePhotos is the manager's and Immich's server's side of migrating
@@ -40,7 +41,8 @@ func newFakePhotos() *fakePhotos {
 func (f *fakePhotos) PhotoServices(context.Context) []manager.PhotoService {
 	return []manager.PhotoService{{Name: "immich", Title: "Immich", Host: "nuc"}}
 }
-func (f *fakePhotos) PhotosOf(string) (node.Photos, error) { return f, nil }
+func (f *fakePhotos) PhotosOf(string) (node.Photos, error)                  { return f, nil }
+func (f *fakePhotos) MigrationStarted(context.Context, string, *store.User) {}
 func (f *fakePhotos) PhotoSettings(context.Context, string) manager.PhotoSettings {
 	return f.settings
 }
@@ -78,7 +80,7 @@ func (f *fakePhotos) PhotoDrives(_ context.Context, _ string, admin bool) ([]man
 func (f *fakePhotos) CheckPhotoSource(_ context.Context, _ string, src node.PhotoSource, admin bool) error {
 	f.checked = append(f.checked, admin)
 	if src.Kind == "folder" && !admin {
-		return &node.FormError{Msg: "Only Owners and Admins can choose a folder on the server."}
+		return &usererr.Error{Msg: "Only Owners and Admins can choose a folder on the server."}
 	}
 	return nil
 }
@@ -251,7 +253,7 @@ func TestPhotoSteps(t *testing.T) {
 	}
 	post("stop", url.Values{})
 	_, body = h.get(base)
-	if !strings.Contains(body, ">Carry on</button>") || !strings.Contains(body, "nothing comes twice") {
+	if !strings.Contains(body, ">Carry on</button>") || !strings.Contains(body, "nothing will come twice") {
 		t.Errorf("stopped:\n%s", body)
 	}
 

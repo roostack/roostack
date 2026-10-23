@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A security problem
+    url: https://github.com/roostack/roostack/blob/main/SECURITY.md
+    about: Please report security problems privately, as SECURITY.md describes, not in an issue.
+  - name: Help with running Roostack
+    url: https://github.com/roostack/roostack/tree/main/help/docs
+    about: The help site, which every lab also has at /help/.

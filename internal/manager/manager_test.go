@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ import (
 	"roostack.cloud/roostack/internal/s3api/s3fake"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/trust"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 type fakeSystemd struct {
@@ -181,7 +183,7 @@ func TestInstallAndRemove(t *testing.T) {
 	}
 
 	// Same name twice, and a clashing web address, are user errors.
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.Install(ctx, "vaultwarden", InstallRequest{}); !errors.As(err, &fe) {
 		t.Errorf("second install: %v, want a form error", err)
 	}
@@ -236,7 +238,7 @@ func TestSecondCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	var fe *FormError
+	var fe *usererr.Error
 	for _, bad := range []string{"Work Vault", "work", "passwords-work"} {
 		if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: bad}); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "vaultwarden-") {
 			t.Errorf("name %q: %v", bad, err)
@@ -354,7 +356,7 @@ func TestPorts(t *testing.T) {
 		t.Fatalf("ports = %+v, %v; want ssh off on 2222", ports, err)
 	}
 
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.SetPort(ctx, "forgejo", "ssh", true, m.Lab.UIPort); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "admin UI") {
 		t.Errorf("UI port: %v", err)
 	}
@@ -385,7 +387,7 @@ func TestPorts(t *testing.T) {
 // A clash state.Desired finds says what clashed: a port clash isn't
 // reported as a web address's (it once was, by matching "already used").
 func TestClashError(t *testing.T) {
-	var fe *FormError
+	var fe *usererr.Error
 	port := errors.Join(errors.New("other"), &state.PortInUseError{Service: "forgejo-work", Port: 2222, UsedBy: "forgejo"})
 	if err := clashError(port); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "port 2222") || strings.Contains(fe.Msg, "web address") {
 		t.Errorf("port clash: %v", err)
@@ -617,7 +619,9 @@ func TestInstallSummary(t *testing.T) {
 	}
 	// The server it would run on: its memory (this test's machine's), and
 	// what Vaultwarden, already there, expects.
-	if sv := s.Server; !sv.This || sv.Servers != 1 || sv.Expected != 50_000_000 || sv.Total <= 0 || sv.Available <= 0 {
+	// The memory is read from /proc/meminfo, which only Linux has.
+	if sv := s.Server; !sv.This || sv.Servers != 1 || sv.Expected != 50_000_000 ||
+		runtime.GOOS == "linux" && (sv.Total <= 0 || sv.Available <= 0) {
 		t.Errorf("server memory = %+v", sv)
 	}
 	caddy := s.Files[len(s.Files)-1]
@@ -629,7 +633,7 @@ func TestInstallSummary(t *testing.T) {
 	}
 
 	// The form's mistakes are the same as Install's.
-	var fe *FormError
+	var fe *usererr.Error
 	if _, err := m.InstallSummary("immich", InstallRequest{Name: "other"}); !errors.As(err, &fe) {
 		t.Errorf("a bad name: %v, want a form error", err)
 	}

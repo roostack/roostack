@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/trust"
 )
 
@@ -469,11 +470,7 @@ func (h LinuxHost) SetSSHKeysOnly(on bool) error {
 		}
 		// Written beside it under a name sshd doesn't include (not *.conf),
 		// then renamed: sshd never reads half a file.
-		tmp := filepath.Join(filepath.Dir(SSHDropIn), "."+filepath.Base(SSHDropIn)+".tmp")
-		if err := os.WriteFile(tmp, content, 0o644); err != nil {
-			return err
-		}
-		return os.Rename(tmp, SSHDropIn)
+		return fsutil.WriteFile(SSHDropIn, content, 0o644)
 	}
 	if err := put(on, []byte(sshDropIn)); err != nil {
 		return err
@@ -490,7 +487,7 @@ func (h LinuxHost) SetSSHKeysOnly(on bool) error {
 			return fmt.Errorf("sshd %s refused the change (%s), and putting the old file back failed: %w", check,
 				sshdOutput(out), rerr)
 		}
-		return fmt.Errorf("sshd %s refused the change, so SSH keeps its old settings: %s", check, sshdOutput(out))
+		return fmt.Errorf("sshd %s refused the change, so SSH is keeping its old settings: %s", check, sshdOutput(out))
 	}
 	// Reloads a running sshd (its ExecReload runs sshd -t again). One
 	// started by ssh.socket can't reload: on SIGHUP sshd starts itself

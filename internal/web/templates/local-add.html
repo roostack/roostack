@@ -6,7 +6,7 @@
   </div>
 </div>
 <section class="card narrow">
-  <p>Don't have a package file yet? <a href="/catalog/editor">Write one in the package editor</a>: it can start from the app's Docker Compose file, and checks it as you go.</p>
+  <p>Don't have a package file yet? <a href="/catalog/editor">Write one in the package editor</a>: it can start from the app's Docker Compose file and checks it as you go.</p>
   {{/* Wording chosen by the Owner (2026-10-14), SPEC.md §8.3.4. */}}
   {{notice "warn" "Nobody has reviewed this package. Services from the service registry are checked before they're offered; a package you add isn't. It decides which app runs and what it's given, so only add one you wrote or got from someone you trust."}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -14,7 +14,7 @@
     <label>Package file
       <input type="file" name="package" accept=".yaml,.yml" required>
       <small>The service's package file, as the <a href="/help/reference/packages/" target="_blank" rel="noopener">package format{{template "new-window"}}</a>
-        describes. Adding a new version of one you added before replaces it; services installed from it keep running as they are.</small>
+        describes. Adding a new version of one you added before will replace it, and services installed from it will keep running as they are.</small>
     </label>
     <label>Logo (optional)
       <input type="file" name="icon" accept="image/png">
@@ -29,7 +29,7 @@
       <dd><code>{{.Dir}}/&lt;name&gt;/</code>, backed up with your lab</dd>
       <dt>Checked</dt>
       <dd>That it's a valid package Roostack can set up, as <code>roostack validate -local</code> does. Anything it asks for that packages
-        from the service registry can't have is shown before you install it.</dd>
+        from the service registry can't have will be shown before you install it.</dd>
     </dl>
   </details>
 </section>

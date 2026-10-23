@@ -4,18 +4,23 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // Each disk Roostack uses is reported once, with the parts on it: here
 // the test's folders (services, media, the backup store and a backup
 // drive's repository) share one disk, which may also be the system's.
 func TestDiskSpaces(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("space is counted with GNU du and ionice, as on the servers")
+	}
 	root := t.TempDir()
 	var lab config.Lab
 	lab.Paths.ServicesDir, lab.Paths.MediaDir = filepath.Join(root, "services"), filepath.Join(root, "media")
@@ -52,11 +57,10 @@ func TestDiskSpaces(t *testing.T) {
 		t.Errorf("no services: %d", d.Services)
 	}
 	// Counted in the background (du, at idle priority).
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if disks, _ = n.DiskSpaces(context.Background()); !disks[0].Counting && !disks[0].Counted.IsZero() {
-			break
-		}
-	}
+	testwait.For(t, 10*time.Second, func() bool {
+		disks, _ = n.DiskSpaces(context.Background())
+		return !disks[0].Counting && !disks[0].Counted.IsZero()
+	})
 	d, _ = StoreDisk(disks)
 	// Space on the disk: whole blocks, at least the files' sizes; the
 	// drive's backups count with the store's.

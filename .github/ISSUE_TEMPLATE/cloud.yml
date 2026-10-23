@@ -1,0 +1,42 @@
+name: Roostack Cloud
+description: A problem or idea about Roostack Cloud (roostack.cloud, roost.ac names, the relay, Roostack Cloud backup).
+labels: ["roostack-cloud"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Roostack Cloud's code is private, so its issues are raised here. Please don't include anything private: no passwords, keys, link codes or recovery keys, and no account details beyond your lab's name. For a security problem, use [SECURITY.md](https://github.com/roostack/roostack/blob/main/SECURITY.md) instead of an issue.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - The website or your account
+        - Linking a lab
+        - A roost.ac name or DNS
+        - The relay (public services through Roostack Cloud)
+        - Roostack Cloud backup
+        - Something else
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Is it a problem or an idea?
+      options:
+        - Something isn't working
+        - An idea or request
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, or what you'd like
+      description: What you did, what you expected, and what happened instead, with the time it happened (and your time zone) so we can find it in our logs.
+    validations:
+      required: true
+  - type: input
+    id: lab
+    attributes:
+      label: Your lab's name, and Roostack's version
+      description: The lab's roost.ac name or Roostack Cloud's name for it, and the version at the bottom of the lab's pages, if a lab is involved.

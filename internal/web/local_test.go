@@ -14,33 +14,10 @@ import (
 
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/editor"
-	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/registry"
+	"roostack.cloud/roostack/internal/usererr"
 )
-
-// postFiles posts a multipart form with these files (field: contents),
-// as a browser's file upload does.
-func (h *harness) postFiles(path string, files map[string][]byte) (int, string) {
-	h.t.Helper()
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	for field, data := range files {
-		w, _ := mw.CreateFormFile(field, field+".file")
-		w.Write(data)
-	}
-	mw.Close()
-	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+path, &buf)
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.Header.Set("Origin", h.srv.URL)
-	resp, err := h.client.Do(req)
-	if err != nil {
-		h.t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	return resp.StatusCode, string(body)
-}
 
 // The Owner adds and removes packages of their own from the catalog
 // (SPEC.md §8.3.4); nobody else can.
@@ -74,7 +51,7 @@ func TestAddYourOwn(t *testing.T) {
 		t.Error("the catalog should say it was added, with a link to install it")
 	}
 
-	fm.failWith = &manager.FormError{Msg: "The service registry has a package called forgejo already: give yours another name."}
+	fm.failWith = &usererr.Error{Msg: "The service registry has a package called forgejo already: give yours another name."}
 	code, body = h.postFiles("/catalog/add", map[string][]byte{"package": data})
 	if code != http.StatusBadRequest || !strings.Contains(body, "give yours another name") {
 		t.Errorf("a refused package: %d", code)

@@ -15,7 +15,7 @@
     has a public address of its own, like a cloud server: if it is one, say so below.{{end}}{{end}}</p>
   <form method="post" action="/settings/network">
     {{template "network-choice" .}}
-    <p class="hint">Saving restarts Roostack to apply it: its web proxy, firewall rules for private addresses and DNS records change.</p>
+    <p class="hint">Saving will restart Roostack to apply it: its web proxy, firewall rules for private addresses, and DNS records will change.</p>
     <button type="submit">Save</button>
   </form>
   {{end}}
@@ -46,13 +46,13 @@
   <p class="hint">None. {{if $.DNS.Managing}}Roostack hasn't created any records yet.{{else}}Record management is off: you add records at {{$.DNS.Provider}} yourself.{{end}}</p>
   {{end}}
   <p class="hint">While getting or renewing HTTPS certificates, Caddy also adds a temporary <code>_acme-challenge</code> TXT record
-    for a minute or two, and removes it afterwards.</p>
+    for a minute or two and removes it afterwards.</p>
 </section>
 </div>
 {{else}}
 <section class="card section">
   <h2>DNS records</h2>
-  <p>Give your lab an address first; Roostack then makes sure your services' addresses lead here.</p>
+  <p>Give your lab an address first; Roostack will then make sure your services' addresses lead here.</p>
   <p><a class="button" href="/settings/domain">Your lab's address</a></p>
 </section>
 {{end}}

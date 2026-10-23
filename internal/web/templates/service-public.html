@@ -53,13 +53,13 @@
   <ol class="steps public-steps">
     <li><span class="dot dot-{{if .Protected}}ok{{else}}warn{{end}}" aria-hidden="true"></span><strong>Protection.</strong>
       {{if .Protected}}CrowdSec is running: it blocks addresses that attack your services{{if .Route.WAF}} and requests that try known exploits{{end}}, and password tries are limited.
-      {{else}}CrowdSec is starting (its first start downloads it, which takes a few minutes).{{if not .Internet}} The address's DNS record waits for it.{{end}}{{end}}</li>
+      {{else}}CrowdSec is starting (its first start downloads it, which takes a few minutes).{{if not .Internet}} The address's DNS record is waiting for it.{{end}}{{end}}</li>
     <li>{{with .Record}}<span class="dot dot-{{if eq .State "ok"}}ok{{else if or (eq .State "pending") (eq .State "waiting") (eq .State "manual")}}warn{{else}}problem{{end}}" aria-hidden="true"></span>{{end}}<strong>DNS record.</strong>
       {{with .Record}}{{.Message}}{{else}}Roostack is checking it.{{end}}</li>
     {{if .Internet}}
     <li><span class="dot dot-none" aria-hidden="true"></span><strong>Your provider's firewall.</strong>
       Many cloud providers put a firewall in front of your server, such as Linode's Cloud Firewall, Hetzner's Firewall,
-      AWS security groups, DigitalOcean's Cloud Firewalls or Oracle Cloud's security lists. In your provider's control panel,
+      AWS security groups, DigitalOcean's Cloud Firewalls, or Oracle Cloud's security lists. In your provider's control panel,
       allow TCP ports 80 and 443, and UDP port 443, from anywhere. No provider firewall? There's nothing to do here.</li>
     {{else if .Edge}}
     <li><span class="dot dot-none" aria-hidden="true"></span><strong>Through {{or .Edge.Name .Edge.ID}}.</strong>
@@ -69,7 +69,7 @@
     {{else}}
     <li><span class="dot dot-none" aria-hidden="true"></span><strong>Your router.</strong>
       Forward TCP ports 80 and 443, and UDP port 443, to <code>{{or .LANIP "this server"}}</code>{{with .LANIP}} (this server){{end}}.
-      Look for "port forwarding", "virtual server" or "NAT" in your router's settings.
+      Look for "port forwarding", "virtual server", or "NAT" in your router's settings.
       <small>Port 443 already goes to another device at home, or no ports can be forwarded? A cloud server in the lab can be the way in instead
         (<a href="/settings/public#way-in">Settings → Public access</a>).
         If this server is a cloud server, say so in <a href="/settings/home-network">Settings → Where it is and DNS</a>.</small></li>
@@ -78,8 +78,8 @@
       <span class="dot dot-{{if .Check}}ok{{else}}none{{end}}" aria-hidden="true"></span><strong>{{if .Internet}}Check from a browser.{{else}}Check from your phone.{{end}}</strong>
       {{with .Check}}It worked from outside on {{date .At}} at {{.At.Local.Format "15:04"}} (from {{.From}}).{{end}}
       {{if .CheckLink}}
-      {{if .Internet}}<p>Open this link in any browser, on any device (not on this server itself). This step ticks itself when it works.</p>
-      {{else}}<p>Turn Wi-Fi off, so your phone uses mobile data, then scan this code or open the link. This step ticks itself when it works.</p>{{end}}
+      {{if .Internet}}<p>Open this link in any browser, on any device (not on this server itself). This step will tick itself when it works.</p>
+      {{else}}<p>Turn Wi-Fi off so your phone uses mobile data, then scan this code or open the link. This step will tick itself when it works.</p>{{end}}
       {{with .CheckQR}}<div class="qr-box">{{.}}</div>{{end}}
       <p><code class="secret">{{.CheckLink}}</code></p>
       {{else}}
@@ -104,13 +104,13 @@
         some (called CGNAT, common on mobile and some fibre plans) can't. <a href="/help/services/public/#if-it-doesnt-work" target="_blank" rel="noopener">Tell me more{{template "new-window"}}</a></li>{{end}}
     </ol>
   </details>
-  {{confirm (printf "/services/%s/public/%s" $.Name .Route.Route) (printf "Make %s private? %s" .Route.Host (or (and .Internet "Only an SSH tunnel will reach it.") "Only your home network (or VPN) will reach it, and its DNS record points back home.")) "Make private" "quiet danger" "public=off"}}
+  {{confirm (printf "/services/%s/public/%s" $.Name .Route.Route) (printf "Make %s private? %s" .Route.Host (or (and .Internet "Only an SSH tunnel will reach it.") "Only your home network (or VPN) will reach it, and its DNS record will point back home.")) "Make private" "quiet danger" "public=off"}}
 
   {{else}}
   <p>{{if .Internet}}Right now it's only reachable through an SSH tunnel, which is for technical users
     (<a href="/help/services/public/#private-on-a-cloud-server" target="_blank" rel="noopener">how{{template "new-window"}}</a>).
     {{- else}}Right now only devices on your home network (or VPN) can open it.{{end}}</p>
-  <p>Making it public lets <strong>anyone on the internet</strong> reach it: its login page, and anything it shares without a login.
+  <p>Making it public will let <strong>anyone on the internet</strong> reach it: its login page and anything it shares without a login.
     {{template "public-ui" .}} Use strong passwords (and two-factor authentication, if {{.Package.Title}} has it).</p>
   <form method="post" action="/services/{{$.Name}}/public/{{.Route.Route}}">
     <input type="hidden" name="public" value="on">
@@ -121,7 +121,7 @@
     {{end}}
     {{with .Route.PrivatePaths}}
     <h2>Parts kept private</h2>
-    <p class="hint">These stay {{$privateMeans}}, unless you tick them. You can change this later.</p>
+    <p class="hint">These will stay {{$privateMeans}} unless you tick them. You can change this later.</p>
     {{range .}}
     <label class="check"><input type="checkbox" name="open" value="{{.Path}}">
       <span>Make <code>{{.Path}}</code> public too<small>{{.Reason}}</small></span></label>

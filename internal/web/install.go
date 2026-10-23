@@ -3,16 +3,15 @@ package web
 import (
 	"cmp"
 	"errors"
-	"fmt"
 	"net/http"
-	"path"
 	"slices"
 	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Installing a service, step by step (SPEC.md §6.3.3): the service's page,
@@ -22,24 +21,8 @@ import (
 // than usual (and whether it's still moving).
 const longStep = 5 * time.Minute
 
-func init() {
-	templateFuncs["took"] = tookText
-	templateFuncs["add1"] = func(i int) int { return i + 1 }
-	templateFuncs["lowerFirst"] = func(s string) string {
-		if s == "" {
-			return s
-		}
-		return strings.ToLower(s[:1]) + s[1:]
-	}
-	// slowStep: the install's current step has run for longer than usual.
-	templateFuncs["slowStep"] = func(p *node.InstallProgress) bool {
-		s := p.Step()
-		return !s.Started.IsZero() && time.Since(s.Started) > longStep
-	}
-}
-
 // tookText is how long something took, or has taken so far (to is zero):
-// "14 s", "3 min", "1 h 5 min".
+// "14 s", "3 min", "1 h 5 min" (words.ExactDuration).
 func tookText(from, to time.Time) string {
 	if from.IsZero() {
 		return ""
@@ -47,14 +30,7 @@ func tookText(from, to time.Time) string {
 	if to.IsZero() {
 		to = time.Now()
 	}
-	d := to.Sub(from).Round(time.Second)
-	switch {
-	case d < time.Minute:
-		return fmt.Sprintf("%d s", int(d.Seconds()))
-	case d < time.Hour:
-		return fmt.Sprintf("%d min", int(d.Minutes()))
-	}
-	return fmt.Sprintf("%d h %d min", int(d.Hours()), int(d.Minutes())%60)
+	return words.ExactDuration(to.Sub(from))
 }
 
 // installSummaryView is what installing a service would set up, shown
@@ -95,7 +71,7 @@ func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) 
 		v.Params = "not " + strings.Join(secrets, ",")
 	}
 	sum, err := s.Manager.InstallSummary(p.Name, req)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		v.Err = msg
 		return v
 	}
@@ -144,7 +120,7 @@ func listText(items []string, lower bool) string {
 	out := slices.Clone(items)
 	for i := range out {
 		if lower || i > 0 {
-			out[i] = lowerFirstWord(out[i])
+			out[i] = words.LowerFirstWord(out[i])
 		}
 	}
 	if len(out) == 1 {
@@ -155,16 +131,6 @@ func listText(items []string, lower bool) string {
 		last = ", and "
 	}
 	return strings.Join(out[:len(out)-1], ", ") + last + out[len(out)-1]
-}
-
-// lowerFirstWord lowers a phrase's first letter, unless its first word
-// looks like a name (another capital in it, such as "PostgreSQL").
-func lowerFirstWord(s string) string {
-	word, _, _ := strings.Cut(s, " ")
-	if len(word) < 2 || strings.ToLower(word[1:]) != word[1:] {
-		return s
-	}
-	return strings.ToLower(s[:1]) + s[1:]
 }
 
 // installSummaryPart is the summary again, for the install form as it
@@ -185,10 +151,6 @@ func (s *Server) installSummaryPart(w http.ResponseWriter, r *http.Request) {
 // wants to read exactly what it asks for before installing (SPEC.md
 // §8.3.4).
 func (s *Server) packageFile(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	data, err := s.Manager.PackageFile(r.PathValue("name"))
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
@@ -204,10 +166,6 @@ func (s *Server) packageFile(w http.ResponseWriter, r *http.Request) {
 
 // packageIcon serves a catalog package's logo.
 func (s *Server) packageIcon(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	data, err := s.Manager.PackageIcon(r.PathValue("name"))
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
@@ -263,14 +221,6 @@ func licenceURL(spdx string) string {
 		return ""
 	}
 	return "https://spdx.org/licenses/" + strings.TrimSuffix(spdx, "+") + ".html"
-}
-
-func init() {
-	templateFuncs["licenceName"] = licenceName
-	templateFuncs["licenceURL"] = licenceURL
-	templateFuncs["databaseName"] = databaseName
-	templateFuncs["pathBase"] = path.Base
-	templateFuncs["pathDir"] = path.Dir
 }
 
 // databaseName is a database type's name, as its makers write it.

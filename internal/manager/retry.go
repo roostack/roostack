@@ -3,11 +3,11 @@ package manager
 import (
 	"context"
 	"slices"
-	"strings"
 
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // InstallSettings are a package's settings asked for at install and used
@@ -53,18 +53,16 @@ func (m *Manager) RetryInstallWith(ctx context.Context, name string, settings, s
 			continue
 		}
 		v := secrets[s.Key]
-		switch {
-		case v == "":
+		if v == "" {
 			continue // keep what was typed before
-		case s.MinLength > 0 && len([]rune(v)) < s.MinLength:
-			return formErrorf("%s must be at least %d characters.", s.Title, s.MinLength)
-		case strings.ContainsAny(v, "\n\r\x00"):
-			return formErrorf("%s can't contain line breaks.", s.Title)
+		}
+		if err := checkSecret(s, v); err != nil {
+			return err
 		}
 		typed[node.SecretName(name, s.Key)] = []byte(v)
 	}
 	if err := in.Validate(p); err != nil {
-		return formErrorf("%s", err)
+		return usererr.New("%s", err)
 	}
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
@@ -76,7 +74,6 @@ func (m *Manager) RetryInstallWith(ctx context.Context, name string, settings, s
 		m.secrets = map[string]map[string][]byte{}
 	}
 	m.secrets[name] = typed
-	m.applyReason = "Trying " + name + "'s setup again"
-	m.startApplyLocked()
+	m.startApplyLocked("Trying " + name + "'s setup again")
 	return nil
 }

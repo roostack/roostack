@@ -70,7 +70,7 @@ func do(t *testing.T, c *http.Client, method, base, path, host, origin string, f
 func TestSetupListenerServesOnlySetup(t *testing.T) {
 	h := newHarness(t, "the-setup-code")
 	fm := &fakeManager{}
-	h.server.Manager, h.server.Node = fm, fm
+	h.server.Manager, h.server.Guests, h.server.Keys, h.server.Node = fm, fm, fm, fm
 	fs := &fakeSetup{zone: "Etc/UTC"}
 	h.setSetup(fs)
 	done := make(chan struct{}, 1)
@@ -221,9 +221,9 @@ func TestSetupListenerStops(t *testing.T) {
 		t.Fatalf("over TLS with the setup certificate: %d", code)
 	}
 	// The setup code is used elsewhere and the wizard was already done.
-	h.server.mu.Lock()
+	h.server.setupMu.Lock()
 	h.server.setupToken = ""
-	h.server.mu.Unlock()
+	h.server.setupMu.Unlock()
 	select {
 	case err := <-stopped:
 		if err != nil {
@@ -244,9 +244,9 @@ func TestSetupListenerStops(t *testing.T) {
 
 	// From outside the home network: closed before TLS.
 	ln, _ = net.Listen("tcp", "127.0.0.1:0")
-	h.server.mu.Lock()
+	h.server.setupMu.Lock()
 	h.server.setupToken = "the-setup-code"
-	h.server.mu.Unlock()
+	h.server.setupMu.Unlock()
 	outside := &SetupListener{Server: h.server, Cert: cert, Log: l.Log}
 	go outside.Serve(ctx, ln)
 	if _, err := setupClient(t, fp).Get("https://" + ln.Addr().String() + "/setup"); err == nil {

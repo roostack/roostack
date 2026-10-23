@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/hosttime"
@@ -24,6 +25,8 @@ import (
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/trust"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // wizardSteps numbers the setup wizard's pages, by template, for the
@@ -37,55 +40,17 @@ var wizardSteps = map[string]int{"twofactor": 1, "setup-timezone": 2, "setup-ssh
 // wizardStepCount is how many steps wizardSteps has.
 const wizardStepCount = 5
 
-// requireWizard allows the setup wizard to the Owner.
-func (s *Server) requireWizard(h http.HandlerFunc) http.Handler {
-	return s.requireOwner(func(w http.ResponseWriter, r *http.Request) {
-		if s.Setup == nil {
-			http.NotFound(w, r)
-			return
-		}
-		h(w, r)
-	})
-}
-
-// requireOwner allows host settings (SPEC.md §5) to the Owner, once they
-// have 2FA.
-func (s *Server) requireOwner(h http.HandlerFunc) http.Handler {
-	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
-		u := currentUser(r)
-		if !auth.Can(u.Role, auth.ManageHost) {
-			http.Error(w, "Only the Owner can change these settings.", http.StatusForbidden)
-			return
-		}
-		if u.TOTPSecret == "" {
-			redirect(w, r, firstThen(s.twoFactorPath(r, u), r))
-			return
-		}
-		if u.MustChangePassword {
-			redirect(w, r, firstThen("/account", r))
-			return
-		}
-		if ownerNeedsEmail(u) {
-			redirect(w, r, firstThen("/account/notifications", r))
-			return
-		}
-		h(w, r)
-	})
-}
-
 // wizardNext is the setup wizard's next step, or Home once it's finished.
 func (s *Server) wizardNext(r *http.Request) string {
-	if s.Setup != nil {
-		if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
-			return p.Next()
-		}
+	if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
+		return p.Next()
 	}
 	return "/"
 }
 
 // wizardOpen reports whether this server's setup wizard has steps left.
 func (s *Server) wizardOpen(r *http.Request) bool {
-	return s.Setup != nil && s.inWizard(r)
+	return s.inWizard(r)
 }
 
 // twoFactorInWizard reports whether u turns on two-factor as a step of
@@ -269,10 +234,8 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 		clients = append(clients, sshClient{Addr: c.String(), Where: sshClientWhere(c, a.Controller, internet)})
 	}
 	multi := false
-	if s.Manager != nil {
-		ms, err := s.Manager.Servers()
-		multi = err == nil && len(ms) > 1
-	}
+	ms, err := s.Manager.Servers()
+	multi = err == nil && len(ms) > 1
 	if choice == "" {
 		choice = cmp.Or(a.Choice, map[bool]string{true: config.SSHFromAny, false: config.SSHFromLAN}[internet])
 	}
@@ -285,7 +248,7 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 	var keyText string
 	var noSudo []string
 	if keyWorks {
-		keyText = fmt.Sprintf("Your SSH key works: %s logged in with one from %s %s.", keyLogin.User, keyLogin.From, whenText(keyLogin.At))
+		keyText = fmt.Sprintf("Your SSH key works: %s logged in with one from %s %s.", keyLogin.User, keyLogin.From, words.When(keyLogin.At))
 	}
 	for _, l := range a.SSHD.KeyLogins {
 		if !l.Sudo {
@@ -341,7 +304,7 @@ func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 	if err == nil && m.This {
 		err = s.Setup.Done(r.Context(), setup.StepSSH)
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		data, derr := s.sshData(r, choice, login, msg)
 		if derr != nil {
 			s.serverError(w, derr)
@@ -498,12 +461,12 @@ func (s *Server) backupDrives(r *http.Request, chosen string) (planOptions, erro
 	// This server's own disk counts once, however its backup got there.
 	for ref := range used {
 		if s.Manager.BackupKind(r.Context(), m.ID, ref) == manager.KindSystem {
-			used["drive:system"] = true
+			used[destination.New(destination.Drive, "system")] = true
 		}
 	}
 	o := planOptions{CanDrives: true}
 	for _, d := range drives {
-		if !used["drive:"+d.ID] {
+		if !used[destination.New(destination.Drive, d.ID)] {
 			o.Drives = append(o.Drives, d)
 		}
 	}
@@ -537,7 +500,7 @@ func (s *Server) eraseDriveSubmit(w http.ResponseWriter, r *http.Request) {
 	disk := r.FormValue("disk")
 	wizard := s.inWizard(r)
 	err := s.Setup.EraseDrive(r.Context(), disk)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPlanPage(w, r, wizard, msg)
 		return
 	}
@@ -568,7 +531,7 @@ func (s *Server) eraseDriveSubmit(w http.ResponseWriter, r *http.Request) {
 // backupSubmit leaves the wizard's backup step, once there's a backup 1.
 func (s *Server) backupSubmit(w http.ResponseWriter, r *http.Request) {
 	if _, _, ok := s.Manager.BackupTargetOf(r.Context(), s.serverRefOf(r).ID); !ok {
-		s.renderBackupStep(w, r, map[string]any{"Error": "Add your main backup first, or set up backups later."})
+		s.renderBackupStep(w, r, map[string]any{"Error": "Add your main backup first or set up backups later."})
 		return
 	}
 	redirect(w, r, "/setup/recovery-key")
@@ -679,25 +642,11 @@ func (s *Server) hasRecoveryKey() bool {
 // errNoServer means this Roostack can't change its server's settings.
 var errNoServer = errors.New("server settings aren't available")
 
-// userMessage returns an error's message if it is one the user can act on
-// (a problem with what they entered), rather than a server error.
-func userMessage(err error) (string, bool) {
-	var ce *setup.CheckError
-	var fe *node.FormError
-	switch {
-	case errors.As(err, &ce):
-		return ce.Msg, true
-	case errors.As(err, &fe):
-		return fe.Msg, true
-	}
-	return "", false
-}
-
 func (s *Server) wizardError(w http.ResponseWriter, r *http.Request, err error, page string, data map[string]any) bool {
 	if err == nil {
 		return false
 	}
-	msg, ok := userMessage(err)
+	msg, ok := usererr.Message(err)
 	if !ok {
 		s.serverError(w, err)
 		return true

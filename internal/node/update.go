@@ -39,6 +39,9 @@ type Updater interface {
 	CheckHealth(ctx context.Context, service string) (Health, error)
 }
 
+// Updater is this server, which updates its own services.
+func (n *Local) Updater() Updater { return n }
+
 // UpdateRequest is an update about to happen on this server.
 type UpdateRequest struct {
 	// Title names it in the maintenance queue ("Updating Immich").
@@ -339,11 +342,11 @@ func httpCheck(ctx context.Context, url string) string {
 	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := c.Do(req)
 	if err != nil {
-		return "it doesn't answer on its web address"
+		return "it isn't answering on its web address"
 	}
 	resp.Body.Close()
 	if resp.StatusCode >= 500 {
-		return fmt.Sprintf("its web address answers with an error (%d)", resp.StatusCode)
+		return fmt.Sprintf("its web address is answering with an error (%d)", resp.StatusCode)
 	}
 	return ""
 }

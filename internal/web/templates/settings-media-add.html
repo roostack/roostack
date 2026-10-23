@@ -19,7 +19,7 @@
   x-data="{ where: $el.dataset.where, title: $el.dataset.title, edited: $el.dataset.edited === 'yes', names: {} }"
   x-on:change="if ($event.target.name === 'where') { where = $event.target.value; if (!edited) title = names[where] || '' }">
   {{if .PhotosFor}}<p class="lede">A folder people can migrate photos into {{.PhotosTitle}} from, on {{.ServerName}}. Everyone who can
-    migrate photos sees what's in it, so a folder per person keeps them apart. Roostack only reads it, and no service does.</p>
+    migrate photos will see what's in it, so a folder per person will keep them apart. Roostack will only read it, and no service will.</p>
   {{else}}<p class="lede">On {{.ServerName}}. Services you choose can read it but never change it, and it isn't backed up.</p>{{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <h2>Where is it?</h2>
@@ -29,7 +29,7 @@
     {{segmented "where" "Where it is" .Where (choice "drive" "Drive" "disk") (choice "folder" (printf "Folder on %s" .ServerName) "server") (choice "share" "Network share" "network")}}
 
     <div class="seg-panel" data-seg="1">
-      <p class="hint seg-hint">A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.</p>
+      <p class="hint seg-hint">A USB drive or second disk. Roostack will mount it read-only: nothing on it will change.</p>
       {{with .DrivesError}}<p class="error" role="alert">{{.}}</p>{{end}}
       {{if .Drives}}
       <div class="drives">
@@ -59,27 +59,10 @@
     </div>
 
     <div class="seg-panel" data-seg="3">
-      <p class="hint seg-hint">A folder shared by a NAS or another computer. The whole share becomes the library: share just the
+      <p class="hint seg-hint">A folder shared by a NAS or another computer. The whole share will become the library: share just the
         folder you want, if it's not all of it.</p>
       <div class="seg-group">
-        {{segmented "share_type" "Kind of share" .ShareType (choice "smb" "SMB") (choice "nfs" "NFS") "size=small"}}
-        <p class="seg-panel hint seg-hint" data-seg="1">Windows sharing: most NASes. The share is its name, as the NAS calls it.</p>
-        <p class="seg-panel hint seg-hint" data-seg="2">Unix sharing. The share is the export's path, and the NAS must let
-          {{.ServerName}}'s address mount it.</p>
-        <div class="field-row">
-          <label>Server <input name="share_server" value="{{.ShareServer}}" placeholder="nas.local or 192.168.1.20" autocapitalize="off"
-              spellcheck="false" x-bind:required="where === 'share'">
-            <small>The NAS or computer sharing it.</small></label>
-          <label>Share <input name="share_path" value="{{.SharePath}}" placeholder="media or /volume1/media" autocapitalize="off"
-              spellcheck="false" x-bind:required="where === 'share'"></label>
-        </div>
-        <div class="seg-panel" data-seg="1"><div class="field-row">
-          <label>Username <input name="share_user" value="{{.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
-            <small>Empty for a share anyone on your network can open.</small></label>
-          <label>Password <input name="share_password" type="password" autocomplete="new-password">
-            <small>Kept on {{.ServerName}}, readable only by its system; Roostack's pages can't show it again. A NAS account
-              that can only read is best.</small></label>
-        </div></div>
+        {{template "share-fields" .ShareFields}}
       </div>
     </div>
   </div>
@@ -98,9 +81,9 @@
       {{range .Readers}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}"{{if .Checked}} checked{{end}}><span>{{.Title}}</span></label>{{end}}
     </div>
   </fieldset>
-  {{else}}<p class="hint">No service on {{.ServerName}} reads media libraries yet: the ones you install choose theirs.</p>{{end}}
+  {{else}}<p class="hint">No service on {{.ServerName}} reads media libraries yet: the ones you install will choose theirs.</p>{{end}}
   {{/* The button says what happens: a share is checked first. */}}
-  <p class="hint" x-show="where === 'share'" x-cloak>Roostack mounts a share read-only for a moment to check it first; nothing is saved if that fails.</p>
+  <p class="hint" x-show="where === 'share'" x-cloak>Roostack will mount a share read-only for a moment to check it first, and nothing will be saved if that fails.</p>
   <div class="dialog-actions">
     <a class="button secondary" href="{{if .PhotosFor}}/services/{{.PhotosFor}}#photos{{else}}/settings/media{{end}}" data-close>Cancel</a>
     <button type="submit"><span x-show="where !== 'share'">{{if .PhotosFor}}Add location{{else}}Add library{{end}}</span><span x-show="where === 'share'" x-cloak>Check and add the share</span></button>
@@ -138,9 +121,9 @@
     {{if and .Owner $.Drive}}
     <label class="check"><input type="checkbox" name="as_owner" checked>
       <span>Let services read them as {{or .Owner.Name .Owner.UID}}
-        <small>Roostack mounts the folder so {{or .Owner.Name .Owner.UID}}'s files show as Roostack's own, for this library only:
-          services can read everything {{or .Owner.Name .Owner.UID}} can, and still change nothing. Nothing on the drive changes;
-          removing the library undoes it.{{if gt .Unreadable .OwnerFiles}} Files of other people stay unreadable.{{end}}</small></span></label>
+        <small>Roostack will mount the folder so {{or .Owner.Name .Owner.UID}}'s files show as Roostack's own for this library only:
+          services will be able to read everything {{or .Owner.Name .Owner.UID}} can and still change nothing. Nothing on the drive will change,
+          and removing the library will undo it.{{if gt .Unreadable .OwnerFiles}} Files of other people will stay unreadable.{{end}}</small></span></label>
     {{else if .Owner}}<p class="hint">Make them readable to everyone on the server, or put them on a drive: a library on a drive
       can be read as their owner.</p>{{end}}
   </div>

@@ -44,7 +44,7 @@ func TestTokens(t *testing.T) {
 	if a == b || len(a) < 40 {
 		t.Errorf("weak tokens: %q %q", a, b)
 	}
-	if HashToken(a) == a || HashToken(a) != HashToken(a) {
+	if h := HashToken(a); h == a || HashToken(a) != h {
 		t.Error("HashToken must be a deterministic transform")
 	}
 }
@@ -116,5 +116,65 @@ func TestSealer(t *testing.T) {
 	}
 	if _, err := NewSealer([]byte("short")); err == nil {
 		t.Error("a short key")
+	}
+}
+
+func TestSealFor(t *testing.T) {
+	s, _ := NewSealer([]byte(strings.Repeat("k", 32)))
+	other, _ := NewSealer([]byte(strings.Repeat("o", 32)))
+	a, err := s.SealFor("usr_a", "JBSWY3DPEHPK3PXP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := s.SealFor("usr_a", "JBSWY3DPEHPK3PXP"); a == b || !strings.HasPrefix(a, "sealedfor1:") ||
+		strings.Contains(a, "JBSWY3") || strings.Contains(a, "usr_a") {
+		t.Errorf("sealed: %q %q", a, b)
+	}
+	if _, err := s.SealFor("", "x"); err == nil {
+		t.Error("sealed for no one")
+	}
+	// Sealed the old way: the plaintext alone, and Cloud's owner line
+	// before it (bound by hand, before SealFor).
+	plain, _ := s.Seal("JBSWY3DPEHPK3PXP")
+	line, _ := s.Seal("usr_a\nJBSWY3DPEHPK3PXP")
+	for _, c := range []struct {
+		name, owner, sealed string
+		s                   *Sealer
+		want                string // "" for an error
+	}{
+		{"its owner", "usr_a", a, s, "JBSWY3DPEHPK3PXP"},
+		{"another owner", "usr_b", a, s, ""},
+		{"an owner that starts the same", "usr_ab", a, s, ""},
+		{"an owner that's shorter", "usr_", a, s, ""},
+		{"no owner", "", a, s, ""},
+		{"another key", "usr_a", a, other, ""},
+		{"changed", "usr_a", a[:len(a)-2] + "AA", s, ""},
+		{"Seal's form", "usr_a", plain, s, ""},
+		{"Seal's, with an owner line", "usr_a", line, s, ""},
+		{"Seal's, with SealFor's prefix", "usr_a", "sealedfor1:" + strings.TrimPrefix(line, "sealed1:"), s, ""},
+		{"SealFor's, with Seal's prefix", "usr_a", "sealed1:" + strings.TrimPrefix(a, "sealedfor1:"), s, ""},
+		{"empty", "usr_a", "", s, ""},
+		{"the prefix alone", "usr_a", "sealedfor1:", s, ""},
+	} {
+		got, err := c.s.OpenFor(c.owner, c.sealed)
+		if got != c.want || (err == nil) != (c.want != "") {
+			t.Errorf("%s: %q %v, want %q", c.name, got, err, c.want)
+		}
+	}
+	// Open opens only Seal's form: what was sealed the old way still
+	// opens, and SealFor's doesn't.
+	if out, err := s.Open(line); err != nil || out != "usr_a\nJBSWY3DPEHPK3PXP" {
+		t.Errorf("the old way: %q %v", out, err)
+	}
+	if out, err := s.Open(a); err == nil {
+		t.Errorf("SealFor's opened without its owner: %q", out)
+	}
+	if out, err := s.Open("sealed1:" + strings.TrimPrefix(a, "sealedfor1:")); err == nil {
+		t.Errorf("SealFor's opened with Seal's prefix: %q", out)
+	}
+	for in, want := range map[string]bool{plain: true, line: true, a: false, "": false, "sealed1": false, "bound1:" + line: false} {
+		if IsSealed(in) != want {
+			t.Errorf("IsSealed(%q) = %v", in, !want)
+		}
 	}
 }

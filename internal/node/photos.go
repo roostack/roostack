@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -23,8 +22,11 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/photoimport"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // Migrating photos into Immich from other platforms (SPEC.md §8.5): the
@@ -282,8 +284,8 @@ type photoSet struct {
 	Memory string                 `json:"memory,omitempty"`
 }
 
-// photos is this server's migrations.
-type photos struct {
+// photoRuns is what this server's migrations share while it runs.
+type photoRuns struct {
 	mu sync.Mutex
 	// watching: a run's log is being followed (service → who).
 	watching map[string]string
@@ -306,22 +308,38 @@ func (n *Local) Photos() Photos {
 	if n.PhotoAgent == nil || n.PhotoUnits == nil || n.State == nil || n.Exec == nil || n.Secrets == nil || n.Launch == nil {
 		return nil
 	}
-	return n
+	return n.photos()
 }
+
+// localPhotos is this server's photo migrations (Local.Photos): the
+// server's own parts are n's, and what the migrations share while it
+// runs is n.pho.
+type localPhotos struct{ n *Local }
+
+func (n *Local) photos() localPhotos { return localPhotos{n} }
+
+// Photos isn't on the lab API yet: photos are migrated only into an
+// Immich on the controller (TASKS.md).
+func (r *Remote) Photos() Photos { return nil }
 
 // photoService is a service of this server's that photos can be migrated
 // into: Immich (photoimport.Supports).
-func (n *Local) photoService(service string) (state.Service, error) {
-	s, ok := n.service(service)
+func (x localPhotos) photoService(service string) (state.Service, error) {
+	s, ok := x.n.service(service)
 	if !ok || !photoimport.Supports(s.Package) {
 		return s, ErrNotFound
 	}
 	return s, nil
 }
 
-func (n *Local) loadPhotos(ctx context.Context, service string) photoSet {
+func (x localPhotos) loadPhotos(ctx context.Context, service string) photoSet {
 	var set photoSet
-	n.loadSetting(ctx, photoKey(service), &set)
+	if x.n.State != nil {
+		var err error
+		if set, err = store.GetJSON[photoSet](ctx, x.n.State, photoKey(service)); err != nil {
+			x.n.Log.Error("reading a service's photo migrations", "service", service, "err", err)
+		}
+	}
 	if set.People == nil {
 		set.People = map[string]*PhotoState{}
 	}
@@ -329,10 +347,10 @@ func (n *Local) loadPhotos(ctx context.Context, service string) photoSet {
 }
 
 // updatePhotos changes a person's migration and saves it.
-func (n *Local) updatePhotos(ctx context.Context, service, who string, change func(*PhotoState) error) error {
-	n.pho.mu.Lock()
-	defer n.pho.mu.Unlock()
-	set := n.loadPhotos(ctx, service)
+func (x localPhotos) updatePhotos(ctx context.Context, service, who string, change func(*PhotoState) error) error {
+	x.n.pho.mu.Lock()
+	defer x.n.pho.mu.Unlock()
+	set := x.loadPhotos(ctx, service)
 	st := set.People[who]
 	if st == nil {
 		st = &PhotoState{Who: who, Choices: photoimport.DefaultChoices()}
@@ -342,49 +360,45 @@ func (n *Local) updatePhotos(ctx context.Context, service, who string, change fu
 		return err
 	}
 	st.Updated = time.Now()
-	b, err := json.Marshal(set)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, photoKey(service), string(b))
+	return store.PutJSON(ctx, x.n.State, photoKey(service), set)
 }
 
 // checkWho refuses a name that isn't a Roostack account's.
 func checkWho(who string) error {
 	if !auth.ValidUsername(who) {
-		return formErrorf("Sign in to migrate photos.")
+		return usererr.New("Sign in to migrate photos.")
 	}
 	return nil
 }
 
-func (n *Local) PhotoMigration(ctx context.Context, service, who string) (PhotoView, error) {
-	if _, err := n.photoService(service); err != nil {
+func (x localPhotos) PhotoMigration(ctx context.Context, service, who string) (PhotoView, error) {
+	if _, err := x.photoService(service); err != nil {
 		return PhotoView{}, err
 	}
-	n.resumePhotos(ctx)
-	set := n.loadPhotos(ctx, service)
+	x.resumePhotos(ctx)
+	set := x.loadPhotos(ctx, service)
 	v := PhotoView{}
 	if st := set.People[who]; st != nil {
 		v.PhotoState = *st
 	} else {
 		v.PhotoState = PhotoState{Who: who, Choices: photoimport.DefaultChoices()}
 	}
-	if b := n.photoBusy(ctx); b != nil && (b.Service != service || b.Who != who) {
+	if b := x.photoBusy(ctx); b != nil && (b.Service != service || b.Who != who) {
 		v.Busy = b
 	}
-	v.Ready = n.toolReady(ctx)
+	v.Ready = x.toolReady(ctx)
 	if v.Run != nil {
-		v.Log = photoLogTail(n.photoLog(service, who))
+		v.Log = photoLogTail(x.photoLog(service, who))
 	}
 	return v, nil
 }
 
-func (n *Local) PhotoList(ctx context.Context, service string) ([]PhotoSummary, error) {
-	if _, err := n.photoService(service); err != nil {
+func (x localPhotos) PhotoList(ctx context.Context, service string) ([]PhotoSummary, error) {
+	if _, err := x.photoService(service); err != nil {
 		return nil, err
 	}
-	n.resumePhotos(ctx)
-	set := n.loadPhotos(ctx, service)
+	x.resumePhotos(ctx)
+	set := x.loadPhotos(ctx, service)
 	var out []PhotoSummary
 	for _, who := range slices.Sorted(maps.Keys(set.People)) {
 		out = append(out, summaryOf(service, set.People[who]))
@@ -404,20 +418,13 @@ func summaryOf(service string, st *PhotoState) PhotoSummary {
 	return s
 }
 
-// services is a copy of the services this server runs.
-func (n *Local) services() []state.Service {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	return slices.Clone(n.assignment.Services)
-}
-
 // photoBusy is the migration running on this server, if any.
-func (n *Local) photoBusy(ctx context.Context) *PhotoSummary {
-	for _, sv := range n.services() {
+func (x localPhotos) photoBusy(ctx context.Context) *PhotoSummary {
+	for _, sv := range x.n.services() {
 		if !photoimport.Supports(sv.Package) {
 			continue
 		}
-		set := n.loadPhotos(ctx, sv.Name())
+		set := x.loadPhotos(ctx, sv.Name())
 		for _, st := range set.People {
 			if st.Run != nil && st.Run.Running {
 				s := summaryOf(sv.Name(), st)
@@ -428,14 +435,14 @@ func (n *Local) photoBusy(ctx context.Context) *PhotoSummary {
 	return nil
 }
 
-func (n *Local) SetPhotoKind(ctx context.Context, service, who, kind string) error {
-	if err := n.photoReady(service, who); err != nil {
+func (x localPhotos) SetPhotoKind(ctx context.Context, service, who, kind string) error {
+	if err := x.photoReady(service, who); err != nil {
 		return err
 	}
 	if !slices.Contains(photoimport.Kinds, kind) {
-		return formErrorf("Choose where your photos are now.")
+		return usererr.New("Choose where your photos are now.")
 	}
-	return n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	return x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		if err := notRunning(st); err != nil {
 			return err
 		}
@@ -446,19 +453,19 @@ func (n *Local) SetPhotoKind(ctx context.Context, service, who, kind string) err
 	})
 }
 
-func (n *Local) SetPhotoGuided(ctx context.Context, service, who string) error {
-	if err := n.photoReady(service, who); err != nil {
+func (x localPhotos) SetPhotoGuided(ctx context.Context, service, who string) error {
+	if err := x.photoReady(service, who); err != nil {
 		return err
 	}
-	return n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	return x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		st.Guided = true
 		return nil
 	})
 }
 
 // photoReady checks the service and the person.
-func (n *Local) photoReady(service, who string) error {
-	if _, err := n.photoService(service); err != nil {
+func (x localPhotos) photoReady(service, who string) error {
+	if _, err := x.photoService(service); err != nil {
 		return err
 	}
 	return checkWho(who)
@@ -466,7 +473,7 @@ func (n *Local) photoReady(service, who string) error {
 
 func notRunning(st *PhotoState) error {
 	if st.Run != nil && st.Run.Running {
-		return formErrorf("Your migration is running: stop it first.")
+		return usererr.New("Your migration is running: stop it first.")
 	}
 	return nil
 }
@@ -482,11 +489,11 @@ func photoDir(service, who string, src *PhotoSource) string {
 	return filepath.Join(photoImportRoot, agent.PhotoSpotName(service, who))
 }
 
-func (n *Local) SetPhotoSource(ctx context.Context, service, who string, src PhotoSource) error {
-	if err := n.photoReady(service, who); err != nil {
+func (x localPhotos) SetPhotoSource(ctx context.Context, service, who string, src PhotoSource) error {
+	if err := x.photoReady(service, who); err != nil {
 		return err
 	}
-	st := n.loadPhotos(ctx, service).People[who]
+	st := x.loadPhotos(ctx, service).People[who]
 	if st != nil {
 		if err := notRunning(st); err != nil {
 			return err
@@ -494,8 +501,8 @@ func (n *Local) SetPhotoSource(ctx context.Context, service, who string, src Pho
 	}
 	switch src.Kind {
 	case "drive", "folder", "share":
-		if _, err := n.PhotoAgent.MountPhotos(ctx, service, who, src.Library); err != nil {
-			return formErrorf("Roostack couldn't open that folder: %v.", strings.TrimSuffix(err.Error(), "."))
+		if _, err := x.n.PhotoAgent.MountPhotos(ctx, service, who, src.Library); err != nil {
+			return usererr.New("Roostack couldn't open that folder: %v.", strings.TrimSuffix(err.Error(), "."))
 		}
 		if src.Library.Share != nil {
 			share := *src.Library.Share
@@ -504,34 +511,34 @@ func (n *Local) SetPhotoSource(ctx context.Context, service, who string, src Pho
 		}
 	case "location":
 		if !agent.ValidLibraryName(src.Location) || (src.Sub != "" && !fs.ValidPath(src.Sub)) {
-			return formErrorf("Choose one of the locations, and a folder in it.")
+			return usererr.New("Choose one of the locations, and a folder in it.")
 		}
 		if st != nil && st.Source != nil && st.Source.Kind != "location" {
-			n.PhotoAgent.UnmountPhotos(ctx, service, who)
+			x.n.PhotoAgent.UnmountPhotos(ctx, service, who)
 		}
 	default:
-		return formErrorf("Choose a drive, a folder or a share.")
+		return usererr.New("Choose a drive, a folder, or a share.")
 	}
-	if err := n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	if err := x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		st.Source, st.Scan, st.ScanErr, st.Check, st.Scanning = &src, nil, "", nil, true
 		return nil
 	}); err != nil {
 		return err
 	}
-	go n.scanPhotos(context.WithoutCancel(ctx), service, who)
+	go x.scanPhotos(context.WithoutCancel(ctx), service, who)
 	return nil
 }
 
 // scanPhotos has the quick look, in the background: a share or a slow
 // drive takes a while for many sidecars.
-func (n *Local) scanPhotos(ctx context.Context, service, who string) {
-	st := n.loadPhotos(ctx, service).People[who]
+func (x localPhotos) scanPhotos(ctx context.Context, service, who string) {
+	st := x.loadPhotos(ctx, service).People[who]
 	if st == nil || st.Source == nil {
 		return
 	}
 	dir := photoDir(service, who, st.Source)
 	scan, err := photoimport.ScanFS(os.DirFS(dir), st.Kind)
-	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		st.Scanning = false
 		if err != nil {
 			st.ScanErr = "Roostack couldn't read that folder: " + userError(err)
@@ -555,37 +562,37 @@ func userError(err error) string {
 // migration lasts.
 func photoKeySecret(service, who string) string { return "roostack-photos-" + service + "-" + who }
 
-func (n *Local) SetPhotoKey(ctx context.Context, service, who, key string) error {
-	if err := n.photoReady(service, who); err != nil {
+func (x localPhotos) SetPhotoKey(ctx context.Context, service, who, key string) error {
+	if err := x.photoReady(service, who); err != nil {
 		return err
 	}
 	key = strings.TrimSpace(key)
 	if key == "" || len(key) > 200 || strings.ContainsAny(key, " \t\r\n\x00") {
-		return formErrorf("Paste the key Immich showed you: one long line of letters and digits.")
+		return usererr.New("Paste the key Immich showed you: one long line of letters and digits.")
 	}
-	if st := n.loadPhotos(ctx, service).People[who]; st != nil {
+	if st := x.loadPhotos(ctx, service).People[who]; st != nil {
 		if err := notRunning(st); err != nil {
 			return err
 		}
 	}
-	acct, err := n.immichAccount(ctx, service, key)
+	acct, err := x.immichAccount(ctx, service, key)
 	if err != nil {
 		return err
 	}
-	if err := n.Secrets.Replace(ctx, photoKeySecret(service, who), []byte(key)); err != nil {
+	if err := x.n.Secrets.Replace(ctx, photoKeySecret(service, who), []byte(key)); err != nil {
 		return err
 	}
-	return n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	return x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		st.Account, st.HasKey, st.Check = &acct, true, nil
 		return nil
 	})
 }
 
-func (n *Local) SetPhotoChoices(ctx context.Context, service, who string, c photoimport.Choices) error {
-	if err := n.photoReady(service, who); err != nil {
+func (x localPhotos) SetPhotoChoices(ctx context.Context, service, who string, c photoimport.Choices) error {
+	if err := x.photoReady(service, who); err != nil {
 		return err
 	}
-	return n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	return x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		if err := notRunning(st); err != nil {
 			return err
 		}
@@ -594,36 +601,36 @@ func (n *Local) SetPhotoChoices(ctx context.Context, service, who string, c phot
 	})
 }
 
-func (n *Local) CheckPhotos(ctx context.Context, service, who string) error {
-	if err := n.photoReady(service, who); err != nil {
+func (x localPhotos) CheckPhotos(ctx context.Context, service, who string) error {
+	if err := x.photoReady(service, who); err != nil {
 		return err
 	}
-	if err := n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	if err := x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		if err := notRunning(st); err != nil {
 			return err
 		}
 		if st.Source == nil || !st.HasKey {
-			return formErrorf("Choose where your export is, and give your key, first.")
+			return usererr.New("Choose where your export is, and give your key, first.")
 		}
 		st.Checking, st.CheckErr = true, ""
 		return nil
 	}); err != nil {
 		return err
 	}
-	go n.checkPhotos(context.WithoutCancel(ctx), service, who)
+	go x.checkPhotos(context.WithoutCancel(ctx), service, who)
 	return nil
 }
 
 // checkPhotos looks in the export again (parts added since), at the
 // account, and at the room on the library's disk.
-func (n *Local) checkPhotos(ctx context.Context, service, who string) {
+func (x localPhotos) checkPhotos(ctx context.Context, service, who string) {
 	fail := func(err error) {
-		n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+		x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 			st.Checking, st.CheckErr = false, err.Error()
 			return nil
 		})
 	}
-	st := n.loadPhotos(ctx, service).People[who]
+	st := x.loadPhotos(ctx, service).People[who]
 	if st == nil || st.Source == nil {
 		return
 	}
@@ -632,70 +639,70 @@ func (n *Local) checkPhotos(ctx context.Context, service, who string) {
 		fail(fmt.Errorf("Roostack couldn't read your export: %s", userError(err)))
 		return
 	}
-	key, err := n.Secrets.Read(ctx, photoKeySecret(service, who))
+	key, err := x.n.Secrets.Read(ctx, photoKeySecret(service, who))
 	if err != nil {
 		fail(errors.New("Roostack no longer has your key: give it again"))
 		return
 	}
-	acct, err := n.immichAccount(ctx, service, string(key))
+	acct, err := x.immichAccount(ctx, service, string(key))
 	if err != nil {
 		fail(err)
 		return
 	}
-	lib := n.photoLibrary(service)
+	lib := x.photoLibrary(service)
 	c := &PhotoCheck{At: time.Now(), Needs: scan.Bytes + scan.Bytes/10, Free: freeSpace(lib), Disk: diskWords(mountPoint(lib)), Account: acct}
-	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		st.Scan, st.ScanErr, st.Account, st.Check, st.Checking, st.CheckErr = scan, "", &acct, c, false, ""
 		return nil
 	})
 }
 
 // photoLibrary is Immich's library folder on this server.
-func (n *Local) photoLibrary(service string) string {
-	s, ok := n.service(service)
+func (x localPhotos) photoLibrary(service string) string {
+	s, ok := x.n.service(service)
 	if !ok {
 		return ""
 	}
-	return generate.StoragePath(n.currentLab(), s.Package, s.Instance, photoimport.LibraryStorage)
+	return generate.StoragePath(x.n.currentLab(), s.Package, s.Instance, photoimport.LibraryStorage)
 }
 
 // photoUnit is the unit a service's migration runs in.
 func photoUnit(service string) string { return "roostack-photos-" + service }
 
 // photoWork is a person's folder for immich-go's logs.
-func (n *Local) photoWork(service, who string) string {
-	return filepath.Join(n.currentLab().Paths.PhotosDir(), service, who)
+func (x localPhotos) photoWork(service, who string) string {
+	return filepath.Join(x.n.currentLab().Paths.PhotosDir(), service, who)
 }
 
 // photoLog is a person's running or last run's log.
-func (n *Local) photoLog(service, who string) string {
-	return filepath.Join(n.photoWork(service, who), "immich-go.log")
+func (x localPhotos) photoLog(service, who string) string {
+	return filepath.Join(x.photoWork(service, who), "immich-go.log")
 }
 
-func (n *Local) StartPhotos(ctx context.Context, service, who string) error {
-	if err := n.photoReady(service, who); err != nil {
+func (x localPhotos) StartPhotos(ctx context.Context, service, who string) error {
+	if err := x.photoReady(service, who); err != nil {
 		return err
 	}
-	if b := n.photoBusy(ctx); b != nil {
+	if b := x.photoBusy(ctx); b != nil {
 		if b.Service == service && b.Who == who {
 			return nil
 		}
-		return formErrorf("%s is migrating photos now: one migration runs at a time. Come back once it's done.", b.Who)
+		return usererr.New("%s is migrating photos now: one migration runs at a time. Come back once it's done.", b.Who)
 	}
-	st := n.loadPhotos(ctx, service).People[who]
+	st := x.loadPhotos(ctx, service).People[who]
 	if st == nil || st.Check == nil || st.Scan == nil {
-		return formErrorf("Check first: it says whether everything's there and there's room.")
+		return usererr.New("Check first: it will say whether everything's there and there's room.")
 	}
 	if p := st.Problems(); len(p) > 0 {
-		return formErrorf("%s", p[0])
+		return usererr.New("%s", p[0])
 	}
 	before := st.Check.Account
 	if r := st.Run; r != nil && !r.Started.IsZero() && (r.Stopped || r.Interrupted || r.Err != "") {
 		before = r.Before // carrying on: counts from the first start
 	}
-	if err := n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
-		run := &PhotoRun{Started: time.Now(), Running: true, Building: !n.toolReady(ctx), Before: before, Passes: 1,
-			LibraryBefore: n.librarySize(ctx, service)}
+	if err := x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+		run := &PhotoRun{Started: time.Now(), Running: true, Building: !x.toolReady(ctx), Before: before, Passes: 1,
+			LibraryBefore: x.librarySize(ctx, service)}
 		if old := st.Run; old != nil && !old.Finished.IsZero() && (old.Stopped || old.Interrupted || old.Err != "") {
 			// Carrying on: the same migration, another pass.
 			run.Passes, run.Earlier, run.FirstStarted, run.LibraryBefore = old.Passes+1, old.Migrated(), old.Began(), old.LibraryBefore
@@ -705,13 +712,13 @@ func (n *Local) StartPhotos(ctx context.Context, service, who string) error {
 	}); err != nil {
 		return err
 	}
-	go n.runPhotos(context.WithoutCancel(ctx), service, who)
+	go x.runPhotos(context.WithoutCancel(ctx), service, who)
 	return nil
 }
 
 // librarySize is the library folder's size (-1 if it can't be counted).
-func (n *Local) librarySize(ctx context.Context, service string) int64 {
-	b, err := n.du(ctx, true, n.photoLibrary(service))
+func (x localPhotos) librarySize(ctx context.Context, service string) int64 {
+	b, err := x.n.du(ctx, true, x.photoLibrary(service))
 	if err != nil {
 		return -1
 	}
@@ -719,14 +726,14 @@ func (n *Local) librarySize(ctx context.Context, service string) int64 {
 }
 
 // toolReady says whether the migration tool's image is there.
-func (n *Local) toolReady(ctx context.Context) bool {
-	return n.Launch(ctx, nil, "podman", "image", "exists", photoimport.ToolImage).Run() == nil
+func (x localPhotos) toolReady(ctx context.Context) bool {
+	return x.n.Launch(ctx, nil, "podman", "image", "exists", photoimport.ToolImage).Run() == nil
 }
 
 // buildTool builds the migration tool's image (build/immich-go): about a
 // minute and a half the first time, with Caddy's builder there already.
-func (n *Local) buildTool(ctx context.Context, w io.Writer) error {
-	cmd := n.Launch(ctx, nil, "podman", "build", "--tag", photoimport.ToolImage,
+func (x localPhotos) buildTool(ctx context.Context, w io.Writer) error {
+	cmd := x.n.Launch(ctx, nil, "podman", "build", "--tag", photoimport.ToolImage,
 		"--file", photoimport.ToolBuildDir+"/Containerfile", photoimport.ToolBuildDir)
 	cmd.Stdout, cmd.Stderr = w, w
 	return cmd.Run()
@@ -734,42 +741,42 @@ func (n *Local) buildTool(ctx context.Context, w io.Writer) error {
 
 // runPhotos builds the tool if need be, starts immich-go in its unit and
 // follows it to the end.
-func (n *Local) runPhotos(ctx context.Context, service, who string) {
-	log := n.photoActivity(service, who)
+func (x localPhotos) runPhotos(ctx context.Context, service, who string) {
+	log := x.photoActivity(service, who)
 	fail := func(err error) {
 		log.Finish(err)
-		n.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Err = err.Error() })
+		x.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Err = err.Error() })
 	}
-	st := n.loadPhotos(ctx, service).People[who]
+	st := x.loadPhotos(ctx, service).People[who]
 	if st == nil || st.Run == nil {
 		return
 	}
 	if st.Run.Building {
 		log.Step("Getting the migration tool ready (the first time takes a minute or two)")
-		if err := n.buildTool(ctx, log); err != nil {
+		if err := x.buildTool(ctx, log); err != nil {
 			fail(fmt.Errorf("Roostack couldn't build the migration tool: %w", err))
 			return
 		}
-		n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+		x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 			if st.Run != nil {
 				st.Run.Building = false
 			}
 			return nil
 		})
 	}
-	limit, _ := n.PhotoMemory(ctx, service)
-	args, err := n.photoCommand(service, who, st, limit)
+	limit, _ := x.PhotoMemory(ctx, service)
+	args, err := x.photoCommand(service, who, st, limit)
 	if err != nil {
 		fail(err)
 		return
 	}
-	work := n.photoWork(service, who)
+	work := x.photoWork(service, who)
 	if err := os.MkdirAll(work, 0o700); err != nil {
 		fail(err)
 		return
 	}
-	os.Remove(n.photoLog(service, who)) // each pass logs afresh; the tally adds up
-	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	os.Remove(x.photoLog(service, who)) // each pass logs afresh; the tally adds up
+	x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		if st.Run != nil {
 			st.Run.Memory = limit
 		}
@@ -777,12 +784,12 @@ func (n *Local) runPhotos(ctx context.Context, service, who string) {
 	})
 	log.Step("Migrating photos into %s's account", st.Account.Name)
 	unit := photoUnit(service)
-	n.PhotoUnits.Forget(ctx, unit) // a run before, done or failed
-	if err := n.PhotoUnits.RunDetached(ctx, unit, "podman", args...); err != nil {
+	x.n.PhotoUnits.Forget(ctx, unit) // a run before, done or failed
+	if err := x.n.PhotoUnits.RunDetached(ctx, unit, "podman", args...); err != nil {
 		fail(fmt.Errorf("starting the migration: %w", err))
 		return
 	}
-	n.watchPhotos(ctx, service, who, log)
+	x.watchPhotos(ctx, service, who, log)
 }
 
 // photoCommand is podman's command line for a person's run: immich-go in
@@ -790,8 +797,8 @@ func (n *Local) runPhotos(ctx context.Context, service, who string) {
 // work folder for its log, and the key from its Podman secret. It may use
 // memory bytes, and should the server run short, the kernel stops it
 // before anything else (--oom-score-adj).
-func (n *Local) photoCommand(service, who string, st *PhotoState, memory int64) ([]string, error) {
-	s, err := n.photoService(service)
+func (x localPhotos) photoCommand(service, who string, st *PhotoState, memory int64) ([]string, error) {
+	s, err := x.photoService(service)
 	if err != nil {
 		return nil, err
 	}
@@ -815,112 +822,106 @@ func (n *Local) photoCommand(service, who string, st *PhotoState, memory int64) 
 		"--memory", strconv.FormatInt(memory, 10), "--oom-score-adj", "1000",
 		"--env", "GOMEMLIMIT=" + photoimport.GoMemLimit(memory), "--pull", "never",
 		"--volume", photoDir(service, who, st.Source) + ":/export:ro,rslave",
-		"--volume", n.photoWork(service, who) + ":/work",
+		"--volume", x.photoWork(service, who) + ":/work",
 		"--secret", photoKeySecret(service, who) + ",type=env,target=" + photoimport.KeyEnv,
 		"--label", "io.roostack.service=" + service, "--label", "io.roostack.component=photo-migration",
 		photoimport.ToolImage}
 	return append(args, tool...), nil
 }
 
-func (n *Local) SetPhotoMemory(ctx context.Context, service, share string) error {
-	if _, err := n.photoService(service); err != nil {
+func (x localPhotos) SetPhotoMemory(ctx context.Context, service, share string) error {
+	if _, err := x.photoService(service); err != nil {
 		return err
 	}
 	if _, ok := photoimport.MemoryShares[share]; !ok {
-		return formErrorf("Choose how much memory migrations may use.")
+		return usererr.New("Choose how much memory migrations may use.")
 	}
-	n.pho.mu.Lock()
-	defer n.pho.mu.Unlock()
-	set := n.loadPhotos(ctx, service)
+	x.n.pho.mu.Lock()
+	defer x.n.pho.mu.Unlock()
+	set := x.loadPhotos(ctx, service)
 	set.Memory = share
-	b, err := json.Marshal(set)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, photoKey(service), string(b))
+	return store.PutJSON(ctx, x.n.State, photoKey(service), set)
 }
 
-func (n *Local) PhotoMemory(ctx context.Context, service string) (limit, total int64) {
-	if m, err := n.Memory(ctx); err == nil {
+func (x localPhotos) PhotoMemory(ctx context.Context, service string) (limit, total int64) {
+	if m, err := x.n.MemoryInfo(ctx); err == nil {
 		total = m.Total
 	}
-	return photoimport.Memory(total, n.loadPhotos(ctx, service).Memory), total
+	return photoimport.Memory(total, x.loadPhotos(ctx, service).Memory), total
 }
 
 // photoActivity is a person's migration's live log (activity.PhotosFor).
-func (n *Local) photoActivity(service, who string) *activity.Log {
-	if n.Activity == nil {
+func (x localPhotos) photoActivity(service, who string) *activity.Log {
+	if x.n.Activity == nil {
 		return activity.New().Start(activity.PhotosFor(service, who), "Migrating photos")
 	}
-	return n.Activity.Start(activity.PhotosFor(service, who), "Migrating photos")
+	return x.n.Activity.Start(activity.PhotosFor(service, who), "Migrating photos")
 }
 
 // watchPhotos follows a run until its unit ends: the log read as it
 // grows, the unit asked whether it's still going.
-func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activity.Log) {
-	n.pho.mu.Lock()
-	if n.pho.watching == nil {
-		n.pho.watching = map[string]string{}
+func (x localPhotos) watchPhotos(ctx context.Context, service, who string, log *activity.Log) {
+	x.n.pho.mu.Lock()
+	if x.n.pho.watching == nil {
+		x.n.pho.watching = map[string]string{}
 	}
-	if n.pho.watching[service] == who {
-		n.pho.mu.Unlock()
+	if x.n.pho.watching[service] == who {
+		x.n.pho.mu.Unlock()
 		return
 	}
-	n.pho.watching[service] = who
-	n.pho.mu.Unlock()
+	x.n.pho.watching[service] = who
+	x.n.pho.mu.Unlock()
 	defer func() {
-		n.pho.mu.Lock()
-		delete(n.pho.watching, service)
-		n.pho.mu.Unlock()
+		x.n.pho.mu.Lock()
+		delete(x.n.pho.watching, service)
+		x.n.pho.mu.Unlock()
 	}()
 	unit := photoUnit(service)
 	for {
-		n.readPhotoLog(ctx, service, who)
-		running, code, found, err := n.PhotoUnits.Exited(ctx, unit)
+		x.readPhotoLog(ctx, service, who)
+		running, code, found, err := x.n.PhotoUnits.Exited(ctx, unit)
 		switch {
 		case err != nil:
-			n.Log.Warn("reading the photo migration's unit", "unit", unit, "err", err)
+			x.n.Log.Warn("reading the photo migration's unit", "unit", unit, "err", err)
 		case !found:
-			n.readPhotoLog(ctx, service, who)
-			if st := n.loadPhotos(ctx, service).People[who]; st != nil && st.Run != nil && st.Run.Stopped {
+			x.readPhotoLog(ctx, service, who)
+			if st := x.loadPhotos(ctx, service).People[who]; st != nil && st.Run != nil && st.Run.Stopped {
 				log.Finish(nil) // stopped, and systemd has cleared it already
-				n.endPhotos(ctx, service, who, func(r *PhotoRun) {})
+				x.endPhotos(ctx, service, who, func(r *PhotoRun) {})
 				return
 			}
 			// Gone without Roostack seeing it end: the server restarted.
 			log.Finish(errors.New("it stopped when the server restarted"))
-			if n.carryOnAfterRestart(ctx, service, who) {
+			if x.carryOnAfterRestart(ctx, service, who) {
 				return
 			}
-			n.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Interrupted = true })
+			x.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Interrupted = true })
 			return
 		case !running:
-			n.readPhotoLog(ctx, service, who)
-			n.PhotoUnits.Forget(ctx, unit)
-			st := n.loadPhotos(ctx, service).People[who]
+			x.readPhotoLog(ctx, service, who)
+			x.n.PhotoUnits.Forget(ctx, unit)
+			st := x.loadPhotos(ctx, service).People[who]
 			stopped := st != nil && st.Run != nil && st.Run.Stopped
 			switch {
 			case stopped:
 				log.Finish(nil)
-				n.endPhotos(ctx, service, who, func(r *PhotoRun) {})
+				x.endPhotos(ctx, service, who, func(r *PhotoRun) {})
 			case code == 137: // killed: Podman's 128+9, out of memory
 				err := errors.New("the migration tool ran out of memory")
 				log.Finish(err)
-				n.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Err, r.OutOfMemory = err.Error(), true })
+				x.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Err, r.OutOfMemory = err.Error(), true })
 			case code != 0:
 				err := fmt.Errorf("the migration tool stopped with an error (%d): its log under Details says why", code)
 				log.Finish(err)
-				n.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Err = err.Error() })
+				x.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Err = err.Error() })
 			default:
 				log.Finish(nil)
-				n.finishPhotos(ctx, service, who)
+				x.finishPhotos(ctx, service, who)
 			}
 			return
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, photoPoll) {
 			return
-		case <-time.After(photoPoll):
 		}
 	}
 }
@@ -932,8 +933,8 @@ func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activ
 // doesn't go round. It reports whether it did; if not, the page offers
 // Carry on. A run that failed (out of memory, say) never carries on by
 // itself: it would fail again.
-func (n *Local) carryOnAfterRestart(ctx context.Context, service, who string) bool {
-	st := n.loadPhotos(ctx, service).People[who]
+func (x localPhotos) carryOnAfterRestart(ctx context.Context, service, who string) bool {
+	st := x.loadPhotos(ctx, service).People[who]
 	if st == nil || st.Run == nil || st.Source == nil || (st.Run.Auto && st.Run.Migrated() == st.Run.Earlier) {
 		return false
 	}
@@ -942,35 +943,33 @@ func (n *Local) carryOnAfterRestart(ctx context.Context, service, who string) bo
 	}
 	// After a reboot Immich may not be back yet: immich-go would give up
 	// at once (seen on the VM). Immich answering about the key says it is.
-	key, err := n.Secrets.Read(ctx, photoKeySecret(service, who))
+	key, err := x.n.Secrets.Read(ctx, photoKeySecret(service, who))
 	if err != nil {
 		return false
 	}
 	for deadline := time.Now().Add(photoBootWait); ; {
-		if _, err := n.immichAccount(ctx, service, string(key)); err == nil {
+		if _, err := x.immichAccount(ctx, service, string(key)); err == nil {
 			break
 		} else if time.Now().After(deadline) {
-			n.Log.Warn("Immich isn't answering: not carrying on a photo migration", "service", service, "who", who, "err", err)
+			x.n.Log.Warn("Immich isn't answering: not carrying on a photo migration", "service", service, "who", who, "err", err)
 			return false
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, photoPoll) {
 			return false
-		case <-time.After(photoPoll):
 		}
 	}
 	// Ended quietly (no email: it goes on), then started again.
-	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		if st.Run != nil {
 			st.Run.Running, st.Run.Building, st.Run.Finished, st.Run.Interrupted = false, false, time.Now(), true
 		}
 		return nil
 	})
-	if err := n.StartPhotos(ctx, service, who); err != nil {
-		n.Log.Warn("carrying on a photo migration after a restart", "service", service, "who", who, "err", err)
+	if err := x.StartPhotos(ctx, service, who); err != nil {
+		x.n.Log.Warn("carrying on a photo migration after a restart", "service", service, "who", who, "err", err)
 		return false
 	}
-	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		if st.Run != nil {
 			st.Run.Auto = true
 		}
@@ -981,18 +980,18 @@ func (n *Local) carryOnAfterRestart(ctx context.Context, service, who string) bo
 
 // readPhotoLog adds the log's new lines to the run's tally, from where
 // it got to (PhotoRun.LogRead).
-func (n *Local) readPhotoLog(ctx context.Context, service, who string) {
-	f, err := os.Open(n.photoLog(service, who))
+func (x localPhotos) readPhotoLog(ctx context.Context, service, who string) {
+	f, err := os.Open(x.photoLog(service, who))
 	if err != nil {
 		return
 	}
 	defer f.Close()
 	if fi, err := f.Stat(); err != nil {
 		return
-	} else if st := n.loadPhotos(ctx, service).People[who]; st == nil || st.Run == nil || fi.Size() <= st.Run.LogRead {
+	} else if st := x.loadPhotos(ctx, service).People[who]; st == nil || st.Run == nil || fi.Size() <= st.Run.LogRead {
 		return // nothing new
 	}
-	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		if st.Run == nil {
 			return nil
 		}
@@ -1015,27 +1014,27 @@ func (n *Local) readPhotoLog(ctx context.Context, service, who string) {
 
 // endPhotos records a run's end that isn't a finish (stopped, interrupted,
 // failed): the person carries on, or forgets it, from the page.
-func (n *Local) endPhotos(ctx context.Context, service, who string, change func(*PhotoRun)) {
-	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+func (x localPhotos) endPhotos(ctx context.Context, service, who string, change func(*PhotoRun)) {
+	x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		if st.Run != nil {
 			st.Run.Running, st.Run.Building, st.Run.Finished = false, false, time.Now()
 			change(st.Run)
 		}
 		return nil
 	})
-	n.notePhotos(ctx, service, who)
+	x.notePhotos(ctx, service, who)
 }
 
 // finishPhotos records a finished migration: Immich's counts and the
 // library's size after it, then forgets the key and unmounts the export.
-func (n *Local) finishPhotos(ctx context.Context, service, who string) {
+func (x localPhotos) finishPhotos(ctx context.Context, service, who string) {
 	var after PhotoAccount
-	if key, err := n.Secrets.Read(ctx, photoKeySecret(service, who)); err == nil {
-		after, _ = n.immichAccount(ctx, service, string(key))
+	if key, err := x.n.Secrets.Read(ctx, photoKeySecret(service, who)); err == nil {
+		after, _ = x.immichAccount(ctx, service, string(key))
 	}
-	size := n.librarySize(ctx, service)
-	free := freeSpace(n.photoLibrary(service))
-	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	size := x.librarySize(ctx, service)
+	free := freeSpace(x.photoLibrary(service))
+	x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		if st.Run != nil {
 			st.Run.Running, st.Run.Finished, st.Run.After, st.Run.LibraryAfter, st.Run.FreeAfter =
 				false, time.Now(), after, size, free
@@ -1043,86 +1042,82 @@ func (n *Local) finishPhotos(ctx context.Context, service, who string) {
 		st.HasKey = false
 		return nil
 	})
-	n.Secrets.Remove(ctx, photoKeySecret(service, who))
-	st := n.loadPhotos(ctx, service).People[who]
+	x.n.Secrets.Remove(ctx, photoKeySecret(service, who))
+	st := x.loadPhotos(ctx, service).People[who]
 	if st != nil && st.Source != nil && st.Source.Kind != "location" {
-		n.PhotoAgent.UnmountPhotos(ctx, service, who)
+		x.n.PhotoAgent.UnmountPhotos(ctx, service, who)
 	}
-	n.notePhotos(ctx, service, who)
+	x.notePhotos(ctx, service, who)
 }
 
 // notePhotos tells the controller a migration ended (OnPhotos), for its
 // email.
-func (n *Local) notePhotos(ctx context.Context, service, who string) {
-	if n.OnPhotos == nil {
+func (x localPhotos) notePhotos(ctx context.Context, service, who string) {
+	if x.n.OnPhotos == nil {
 		return
 	}
-	if st := n.loadPhotos(ctx, service).People[who]; st != nil {
-		n.OnPhotos(ctx, summaryOf(service, st))
+	if st := x.loadPhotos(ctx, service).People[who]; st != nil {
+		x.n.OnPhotos(ctx, summaryOf(service, st))
 	}
 }
 
-func (n *Local) StopPhotos(ctx context.Context, service, who string) error {
-	if err := n.photoReady(service, who); err != nil {
+func (x localPhotos) StopPhotos(ctx context.Context, service, who string) error {
+	if err := x.photoReady(service, who); err != nil {
 		return err
 	}
-	st := n.loadPhotos(ctx, service).People[who]
+	st := x.loadPhotos(ctx, service).People[who]
 	if st == nil || st.Run == nil || !st.Run.Running {
 		return nil
 	}
-	if err := n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+	if err := x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		st.Run.Stopped = true
 		return nil
 	}); err != nil {
 		return err
 	}
-	return n.PhotoUnits.Stop(ctx, photoUnit(service))
+	return x.n.PhotoUnits.Stop(ctx, photoUnit(service))
 }
 
-func (n *Local) ForgetPhotos(ctx context.Context, service, who string) error {
-	if err := n.photoReady(service, who); err != nil {
+func (x localPhotos) ForgetPhotos(ctx context.Context, service, who string) error {
+	if err := x.photoReady(service, who); err != nil {
 		return err
 	}
-	st := n.loadPhotos(ctx, service).People[who]
+	st := x.loadPhotos(ctx, service).People[who]
 	if st != nil {
 		if err := notRunning(st); err != nil {
 			return err
 		}
 		if st.Source != nil && st.Source.Kind != "location" {
-			n.PhotoAgent.UnmountPhotos(ctx, service, who)
+			x.n.PhotoAgent.UnmountPhotos(ctx, service, who)
 		}
 	}
-	n.Secrets.Remove(ctx, photoKeySecret(service, who))
-	n.pho.mu.Lock()
-	defer n.pho.mu.Unlock()
-	set := n.loadPhotos(ctx, service)
+	x.n.Secrets.Remove(ctx, photoKeySecret(service, who))
+	x.n.pho.mu.Lock()
+	defer x.n.pho.mu.Unlock()
+	set := x.loadPhotos(ctx, service)
 	delete(set.People, who)
-	b, err := json.Marshal(set)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, photoKey(service), string(b))
+	return store.PutJSON(ctx, x.n.State, photoKey(service), set)
 }
 
 // resumePhotos, once after Roostack starts, follows any run that was
 // going: its unit may still be running (it outlives Roostack), or have
 // ended meanwhile.
-func (n *Local) resumePhotos(ctx context.Context) {
-	n.pho.mu.Lock()
-	if n.pho.resumed {
-		n.pho.mu.Unlock()
+func (x localPhotos) resumePhotos(ctx context.Context) {
+	x.n.pho.mu.Lock()
+	if x.n.pho.resumed {
+		x.n.pho.mu.Unlock()
 		return
 	}
-	n.pho.resumed = true
-	n.pho.mu.Unlock()
-	for _, sv := range n.services() {
+	x.n.pho.resumed = true
+	x.n.pho.mu.Unlock()
+	for _, sv := range x.n.services() {
 		if !photoimport.Supports(sv.Package) {
 			continue
 		}
 		service := sv.Name()
-		for who, st := range n.loadPhotos(ctx, service).People {
+		for who, st := range x.loadPhotos(ctx, service).People {
 			if st.Run != nil && st.Run.Running {
-				go n.watchPhotos(context.WithoutCancel(ctx), service, who, n.photoActivity(service, who))
+				go x.watchPhotos(context.WithoutCancel(ctx), service, who, x.photoActivity(service, who))
 			}
 		}
 	}
@@ -1161,38 +1156,34 @@ func photoLogTail(file string) string {
 
 // immichAccount asks Immich about a key, from inside its own container
 // (photoimport.AccountScript), the key passed as environment.
-func (n *Local) immichAccount(ctx context.Context, service, key string) (PhotoAccount, error) {
-	s, err := n.photoService(service)
+func (x localPhotos) immichAccount(ctx context.Context, service, key string) (PhotoAccount, error) {
+	s, err := x.photoService(service)
 	if err != nil {
 		return PhotoAccount{}, err
 	}
 	container, port := photoimport.Server(s.Package)
 	ctx, cancel := context.WithTimeout(ctx, actionTimeout)
 	defer cancel()
-	out, stderr, err := n.Exec(ctx, generate.ContainerName(service, container),
+	out, stderr, err := x.n.Exec(ctx, generate.ContainerName(service, container),
 		map[string]string{"API_KEY": key, "PORT": fmt.Sprint(port)}, []string{"node", "-e", photoimport.AccountScript})
 	if err != nil {
 		return PhotoAccount{}, fmt.Errorf("asking Immich about the key: %w: %s", err, strings.TrimSpace(string(stderr)))
 	}
 	a, err := photoimport.ParseAccount(out)
 	if err != nil {
-		var ke *photoimport.KeyError
-		if errors.As(err, &ke) {
-			return PhotoAccount{}, formErrorf("%s", ke.Msg)
-		}
 		return PhotoAccount{}, err
 	}
 	return PhotoAccount{ID: a.ID, Name: a.Name, Email: a.Email, Missing: a.Missing, All: a.All, Photos: a.Photos, Videos: a.Videos}, nil
 }
 
-func (n *Local) PhotoFolders(ctx context.Context, location, sub string) ([]PhotoFolder, error) {
+func (x localPhotos) PhotoFolders(ctx context.Context, location, sub string) ([]PhotoFolder, error) {
 	if !agent.ValidLibraryName(location) || (sub != "" && !fs.ValidPath(sub)) {
 		return nil, ErrNotFound
 	}
 	dir := filepath.Join(photoLibRoot, location, filepath.FromSlash(sub))
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, formErrorf("Roostack couldn't open that location: %s", userError(err))
+		return nil, usererr.New("Roostack couldn't open that location: %s", userError(err))
 	}
 	var out []PhotoFolder
 	for _, e := range entries {

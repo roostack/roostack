@@ -11,7 +11,7 @@ it, and chose how (§6.1).
 For many people Immich is the reason to have a home lab at all, and the
 hard part is leaving Google Photos or iCloud with a lifetime of photos.
 The exports are huge, split into many archives, and keep dates, places,
-albums and descriptions in separate files that most tools ignore. Roostack
+albums, and descriptions in separate files that most tools ignore. Roostack
 can make this the easy part: say where the export is, check it, bring it
 in, and say plainly what came and what didn't.
 
@@ -47,7 +47,7 @@ marks what the VM test must confirm before it's relied on.
 | The Immich package | registry `packages/immich/3.3.3-roostack.2`; test copy `internal/testdata/packages/immich` | Immich 3.3.3; its API on container `server`, port 2283, on the service's own network `roostack-immich` (isolated, §6.4). The library is storage `library` (`location: media`, the large disk). |
 | Action hooks | SPEC §8.1 `hooks:`; `node/hooks.go` | A button with inputs, run in a container. **Not enough on its own:** an action stops after 2 minutes and shows only its last lines (`actionTimeout`), and an import takes hours. |
 | The kept key | SPEC §5.2 "Connecting the remaining apps"; Immich's `settings_key` | A key Roostack keeps, made by the install hook as Immich's administrator, limited to `adminConfig.read` and `adminConfig.update`. **It can't import:** a key uploads into its own account only, and there's no way for an administrator to make a key for someone else (`POST /api/api-keys` has no owner; checked in Immich 3.3.4's API description). Its *pattern* is reused: a hook signs in, makes a limited key, and Roostack keeps it as a secret. |
-| A place to read files from | SPEC §8.4 "The place to bring data in from"; `agent/import.go` `MountImport` | The agent mounts a folder on a drive or on the server, or a network share, **read-only** at `/mnt/roostack-import/<service>`, in fstab and automounted, so a long copy carries on after a restart. The page picks it with the media libraries' drive cards, folder picker and share form. |
+| A place to read files from | SPEC §8.4 "The place to bring data in from"; `agent/import.go` `MountImport` | The agent mounts a folder on a drive or on the server, or a network share, **read-only** at `/mnt/roostack-import/<service>`, in fstab and automounted, so a long copy carries on after a restart. The page picks it with the media libraries' drive cards, folder picker, and share form. |
 | Media libraries | SPEC §8.1 "Media libraries" | Drives and shares people already have, read-only. A library could be the source too (a NAS folder of exported photos). |
 | Long work with a live log | `activity` (`Step`, `Printf`); the `activity` component | A one-line status and the full log under Details, as backups and §8.4's copy do. |
 | The data's size | `node.DataSize`, the storage page | The library's disk, its free space, and what a service uses. |
@@ -69,7 +69,7 @@ marks what the VM test must confirm before it's relied on.
   - zip or tgz, split into archives of a chosen size (Google suggests the
     largest, 50 GB, so it's split less);
   - delivered as download links by email, or put into Google Drive,
-    Dropbox, OneDrive or Box;
+    Dropbox, OneDrive, or Box;
   - once, or every 2 months for a year;
   - ready in "a few minutes to a few days", usually the same day;
   - each archive expires after about 7 days and can be downloaded 5 times;
@@ -79,7 +79,7 @@ marks what the VM test must confirm before it's relied on.
     smaller copies if the account used "Storage saver").
   - A JSON sidecar per photo: when it was taken (UTC, no time zone), where
     (`geoData`, `geoDataExif`; 0,0 means none), its description, and
-    whether it's a favourite, archived or in the trash, plus the people
+    whether it's a favourite, archived, or in the trash, plus the people
     named in it and whether it came from a partner's sharing.
   - A folder per year (`Photos from 2019`) and a folder per album, each
     holding *copies* of its photos, with the album's own JSON. Folder
@@ -113,7 +113,7 @@ marks what the VM test must confirm before it's relied on.
   does it all at once with albums as folders, and can read a copied
   library on Linux.
 - **Apple's transfer to Google Photos** loses shared and smart albums,
-  Live Photos and "some metadata": not a route worth suggesting.
+  Live Photos, and "some metadata": not a route worth suggesting.
 - **icloudpd** downloads straight from iCloud, but needs Advanced Data
   Protection off and web access on, has 2FA trouble reported this month,
   and is looking for a maintainer: not something to rely on.
@@ -124,7 +124,7 @@ marks what the VM test must confirm before it's relied on.
 |---|---|---|
 | Microsoft OneDrive, Dropbox | The desktop app's synced folder, copied to a drive (web zip downloads are capped: Dropbox at 250 GB and 10,000 files) | Files as uploaded, so their own dates and places. Albums aren't files. |
 | Amazon Photos | No bulk export; the desktop app downloads in batches | Files as uploaded. |
-| Flickr | Settings → "Request my Flickr data": zips of originals plus a JSON per photo and `albums.json` | Titles, descriptions and albums only in the JSON. No tool reads it well. |
+| Flickr | Settings → "Request my Flickr data": zips of originals plus a JSON per photo and `albums.json` | Titles, descriptions, and albums only in the JSON. No tool reads it well. |
 | Facebook, Instagram | Accounts Center → "Download your information", in JSON | Photos re-compressed with their dates and places removed; dates only in the JSON. |
 
 ### Other self-hosted apps
@@ -159,13 +159,13 @@ reads the export as completely without unpacking it. What it does with a
 Takeout:
 
 - matches every sidecar, including the traps above;
-- sets the date, description and place from the sidecar after uploading
+- sets the date, description, and place from the sidecar after uploading
   (Immich itself prefers the file's own date, so this is what makes
   Google's date win);
-- makes albums from album folders, and marks favourites and archived
+- makes albums from album folders and marks favourites and archived
   photos;
 - leaves the trash out (`--include-trashed=false`);
-- tags people's names as `People/<name>`, and tags everything
+- tags people's names as `People/<name>` and tags everything
   `takeout-<when Google made it>` (immich-go's tag, e.g. `takeout-20261019T091234Z`) so an import can be found afterwards;
 - stacks bursts, RAW with JPEG, and HEIC with JPEG;
 - skips what Immich already has, by checksum. Running it again is how it
@@ -252,21 +252,21 @@ read it.
   package) and a writable share that's only on while an import waits for
   files. Windows' own WebDAV client limits file sizes, so WebDAV isn't the
   easy alternative it looks.
-- **A cloud drive** (Takeout delivered to Dropbox, OneDrive or Box, which
+- **A cloud drive** (Takeout delivered to Dropbox, OneDrive, or Box, which
   Roostack then downloads). It needs an app registered with each provider
   and their sign-in (OAuth) on every lab: a bigger piece, possibly through
   Roostack Cloud.
 - **Not proposed: Google's download links fetched by the server.** A link
   needs the signed-in browser session and asks for the password again;
   the workarounds (copying a browser's cookies, a headless browser signed
-  in to Google) would give Roostack the keys to the whole Google account,
+  in to Google) would give Roostack the keys to the whole Google account
   and break whenever Google changes its sign-in.
 
 ## 5. The person's journey
 
 On Immich's page in Roostack, a card **Migrate photos**: "Migrate photos
 and videos from Google Photos or a folder (Apple iCloud next) into Immich,
-with their dates, places and albums." **Migrate photos from…** opens the
+with their dates, places, and albums." **Migrate photos from…** opens the
 steps. **The wording is "migrate"** (the Owner, 2026-10-21), not "bring
 in", which keeps it apart from §8.4's "Bring in data from elsewhere…".
 People who aren't Owners or Admins reach the same steps from a page of
@@ -284,7 +284,7 @@ forms' design (docs/DESIGN.md "Forms"), with Continue. Mock-ups:
    - Takeout: open takeout.google.com, **Deselect all**, tick only Google
      Photos (All photo albums included), **Next step**, *Send download link
      via email*, *Export once*, file type **.zip**, size **50 GB**,
-     **Create export**. Google emails when it's ready. Download every part
+     **Create export**. Google will email when it's ready. Download every part
      within 7 days (each can be downloaded 5 times) and copy them all into
      one folder on a USB drive or your NAS. Don't unpack them. About 1.1×
      the space your Google Photos uses.
@@ -296,11 +296,10 @@ forms' design (docs/DESIGN.md "Forms"), with Continue. Mock-ups:
 5. **What to migrate** (the Owner, 2026-10-21: a step of its own, before
    the check, which it changes): the choices of §8 as switches, Roostack's
    suggestions set, with counts from a quick look in the zips.
-6. **Check** (the dry run, §7): Roostack reads the zips and asks immich-go
-   what it would do, without uploading anything. The result:
+6. **Check** (§7): Roostack takes a quick look in the zips and at Immich,
+   without uploading anything. The result:
    - "Parts 1 to 9 of 9, 412 GB. 61,204 photos and 3,977 videos from
      March 2009 to October 2026, 214 albums."
-   - "Already in Immich: 8,912 (skipped)."
    - What won't come, with counts and why: as chosen in step 5, files
      Immich can't read, sidecars without a photo.
    - Space: "Needs about 395 GB on <disk>; 1.2 TB free."
@@ -329,7 +328,7 @@ it ends. One that stopped (Stop, a restart, a power cut) shows there with
 
 ## 6. Whose photos: a key the person makes
 
-An import goes into exactly one Immich account, because an Immich key can
+An import goes into exactly one Immich account because an Immich key can
 only upload into its own account, and an administrator can't make a key
 for someone else. **Decided (2026-10-21), the Owner:** the person always
 makes the key themselves in Immich and pastes it. Roostack never asks for
@@ -341,7 +340,7 @@ through single sign-on, which have none).
 - **The link:** **Make a key in Immich** opens Immich's own page for it,
   `<Immich's address>/user-settings?isOpen=api-keys` (the accordion's key
   in Immich 3.3.4's settings page; the VM test checks it opens there), in
-  a new tab. Beside it: name it "Roostack migration", and tick these
+  a new tab. Beside it: name it "Roostack migration" and tick these
   permissions, listed as Immich lists them:
   `asset.read`, `asset.statistics`, `asset.update`, `asset.upload`,
   `asset.copy`, `asset.delete`, `asset.download`, `album.create`,
@@ -369,7 +368,7 @@ through single sign-on, which have none).
   A later import asks for a key again.
 
 **Pausing Immich's jobs:** immich-go pauses Immich's thumbnails, video
-conversion and face recognition while it uploads, which needs an
+conversion, and face recognition while it uploads, which needs an
 administrator's key. Roostack doesn't (`--pause-immich-jobs=false`): the
 import is slower on a small server but needs no administrator's key, and
 Immich keeps working through its queue as photos arrive.
@@ -385,7 +384,7 @@ places they may read from chosen by the Owner when opening it.
 
 What's there today: Roostack's people all have Roostack accounts, with a
 role (SPEC §5). **Members** only see the dashboard: the services they can
-use, and their status. With single sign-on, the same people sign in to
+use and their status. With single sign-on, the same people sign in to
 apps at `login.<domain>`, which serves only the sign-in pages; Roostack's
 own pages are at `roost.<domain>`, usually on the home network only.
 **Someone signed in on the sign-in page isn't signed in to Roostack's
@@ -472,12 +471,12 @@ directory (its last few KB, not the whole file) gives, in seconds:
   against what's free. Not enough refuses, with the numbers.
 
 **Not immich-go's dry run (changed while building, 2026-10-21).** The
-proposal ran `immich-go --dry-run` here. But its dry run reads every photo in full, to compare
+proposal ran `immich-go --dry-run` here. But its dry run reads every photo in full to compare
 its checksum with Immich's (`app/upload/advice.go` at v0.32.0), so on a
 400 GB export it takes as long as reading all of it: an hour or more from
 a USB drive, longer from a NAS. The check is Roostack's quick look, the
 key's account and its counts, and the space instead: seconds. What Immich
-already has is counted as the migration goes, and said in the summary.
+already has is counted as the migration goes and said in the summary.
 Considered: the dry run as a second, optional "thorough check".
 
 **During:** immich-go's JSON log (`--log-type JSON`) is read for the
@@ -500,7 +499,7 @@ library's size before and after. The summary:
 - What happens next: "Immich is now making thumbnails and recognising
   faces. With machine learning on, that takes a day or two for a library
   this size; photos appear in search as it goes."
-- If Roostack's count and immich-go's disagree, it says so, rather than
+- If Roostack's count and immich-go's disagree, it says so rather than
   trusting either.
 
 The summary and the log are kept (the last import per service, in the
@@ -510,7 +509,7 @@ store, like a backup's result), shown on Immich's page and in History.
 
 | What | How | Checked |
 |---|---|---|
-| Date taken | From the sidecar, set after upload (UTC); a file's own date otherwise | Dry run reports photos without a date; VM: a photo whose EXIF date differs from the sidecar's shows the sidecar's |
+| Date taken | From the sidecar, set after upload (UTC); a file's own date otherwise | The summary counts photos without Google's date; VM: a photo whose EXIF date differs from the sidecar's shows the sidecar's |
 | Time zone | Takeout has none; the file's own offset if it has one, else the place's time zone if Immich derives it, else UTC | **Unverified:** what Immich shows for a sidecar-only date; the VM test says, and the help says it plainly |
 | Place | Sidecar (`geoDataExif`, else `geoData`), 0,0 ignored; a photo without one takes its album's place | VM: a photo with a sidecar-only place shows on the map |
 | Albums | One Immich album per album folder, with the album's title; untitled albums left out by default | Counts before and after |
@@ -558,10 +557,10 @@ store, like a backup's result), shown on Immich's page and in History.
 - Google Takeout (zip) and a plain folder (with XMP sidecars, a folder per
   album as a choice), the plain folder costing little once the rest
   exists.
-- From a drive, a share or a folder on the server.
+- From a drive, a share, or a folder on the server.
 - Into one Immich account per import, with a key the person makes.
 - For Owners and Admins, and for everyone else the Owner allows (§6.1).
-- The pre-check, dry run, import, progress, summary and help page above.
+- The check, import, progress, summary, and help page above.
 - The Immich package unchanged (no format change, so nothing for the
   package editor): Roostack recognises the `immich` package and reaches
   its `server` container by the route's port.
@@ -573,9 +572,9 @@ store, like a backup's result), shown on Immich's page and in History.
   few days) → download every part within 14 days, onto a drive or NAS, as
   with Takeout. The guide says plainly that it **doesn't work with
   Advanced Data Protection on** (Apple leaves end-to-end-encrypted photos
-  out): turn it off for the export, or use a Mac (below).
-- **What's in it:** the originals, `Albums/<name>.csv` and
-  `Photo Details.csv` (each photo's original date, favourite, hidden and
+  out): turn it off for the export or use a Mac (below).
+- **What's in it:** the originals, `Albums/<name>.csv`, and
+  `Photo Details.csv` (each photo's original date, favourite, hidden, and
   deleted flags). immich-go `from-icloud` reads it, using the albums and
   dates; whether it reads the zip parts in place, as it does Takeout's, is
   **unverified** (else they're unpacked onto the same drive first, and the
@@ -588,7 +587,7 @@ store, like a backup's result), shown on Immich's page and in History.
   Locked Folder is).
 - **From a Mac:** Photos' *Export Unmodified Original* with *Export IPTC
   as XMP*, or osxphotos, into a folder with XMP sidecars: the plain-folder
-  import, with a guide of its own. Keeps dates, places, descriptions and
+  import, with a guide of its own. Keeps dates, places, descriptions, and
   keywords; albums only as folders.
 
 **Then, each its own piece:**
@@ -596,12 +595,12 @@ store, like a backup's result), shown on Immich's page and in History.
 1. An upload share on the home network (Samba).
 2. Google's Locked Folder into Immich's Locked Folder, and the trash into
    Immich's trash.
-3. Flickr, Facebook and Instagram, whose dates live only in JSON (a
+3. Flickr, Facebook, and Instagram, whose dates live only in JSON (a
    converter to XMP, then the plain folder).
-4. A cloud drive as the source (Takeout delivered to Dropbox, OneDrive or
+4. A cloud drive as the source (Takeout delivered to Dropbox, OneDrive, or
    Box).
 5. PhotoPrism's YAML sidecars and albums.
-6. The import pages on the sign-in site too (§6.1), and a queue for
+6. The import pages on the sign-in site too (§6.1) and a queue for
    imports.
 
 ## 11. New dependencies (agreed 2026-10-21, the Owner)
@@ -611,7 +610,7 @@ store, like a backup's result), shown on Immich's page and in History.
   checksum database; listed in THIRD_PARTY.md. It runs as its own program
   in its own container and isn't linked into Roostack, so Roostack's
   Apache-2.0 licence isn't affected; its source is public, unchanged.
-  Moved to its next release before this ships.
+  It will be moved to its next release before this ships.
 - **The builder's base image,** pinned by digest: Caddy's builder if its Go
   is 1.26 or newer, else the official `golang` image. The final image holds
   only the binary.
@@ -634,7 +633,7 @@ except whose photos:
    a link straight to Immich's page (§6). Roostack never signs in to
    Immich with a password. *Changed from the proposal,* which offered
    signing in as the person too.
-5. **The scope:** Takeout and a plain folder, from a drive, share or server
+5. **The scope:** Takeout and a plain folder, from a drive, share, or server
    folder; **Apple's export a fast-follow** (§10).
 6. **The defaults:** trash left out, partner's photos left out, untitled
    albums left out, people as tags, archived as archived, everything tagged
@@ -688,26 +687,26 @@ without a second sign-in. It's its own piece of work, not part of this.
 ## 13. The test
 
 On VM 1 (`ROOSTACK_VM=1 scripts/dev-vm.sh`), destroyed afterwards. A
-**synthetic Takeout**, made by a script in `docs/immich-import-test/`
-(never real photos): generated JPEGs, HEICs and short videos with and
+**synthetic Takeout**, made by `tools/maketakeout`
+(never real photos): generated JPEGs, HEICs, and short videos with and
 without EXIF dates and GPS; sidecars in both naming styles, with
 truncated names, "(1)" duplicates, edited copies, a Live Photo pair split
 across two zips, album folders with `metadata.json` in English and German,
 trash, archive, a partner's photo, an untitled album, a Locked Folder;
 split into several zips, one left out to test the missing-part check, and
-a large run for memory. Then: a key with permissions missing, and one with
-all of them; the check, the dry run, the import, a stop and carry-on, a
+a large run for memory. Then: a key with permissions missing and one with
+all of them; the check, the import, a stop and carry-on, a
 second run (nothing new), and Immich's own pages and API to confirm every
 row of §8. As an Owner and as a Member (the Owner's switch both ways, a
 backup drive refused to the Member), desktop and phone width. Apple's
-export, when it's built, the same way with a synthetic privacy export.
+export will be tested the same way when it's built, with a synthetic privacy export.
 
 ## Sources (read 2026-10-21)
 
 - Immich 3.3.4: its API description (`open-api/immich-openapi-specs.json`),
   `server/src/services/metadata.service.ts` (how dates are chosen),
   `packages/cli/src/commands/asset.ts`, and the docs on the CLI, XMP
-  sidecars and libraries, at the `v3.3.4` tag of
+  sidecars, and libraries, at the `v3.3.4` tag of
   https://github.com/immich-app/immich; the roadmap, https://immich.app/roadmap.
 - immich-go: https://github.com/simulot/immich-go (README, `docs/`,
   `adapters/googlePhotos`, `.goreleaser.yaml`, issues #1384 to #1473).

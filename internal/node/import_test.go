@@ -18,10 +18,12 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // syncKV is settings in memory, safe for the copy's goroutine.
@@ -95,10 +97,8 @@ func immichPackage(t *testing.T) *pkgspec.Package {
 // waitImport waits until a service's check or copy has finished.
 func waitImport(t *testing.T, n *Local, service string) ImportState {
 	t.Helper()
-	for i := 0; i < 500 && n.importBusy(service); i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
-	return n.loadImport(t.Context(), service)
+	testwait.For(t, 30*time.Second, func() bool { return !n.imports().importBusy(service) })
+	return n.imports().loadImport(t.Context(), service)
 }
 
 // Bringing Immich's data in: the files mounted, the old setup read and
@@ -138,7 +138,7 @@ func TestImportImmich(t *testing.T) {
 	os.WriteFile(filepath.Join(lab.Paths.ServicesDir, "immich", "db", "main", "PG_VERSION"), []byte("14\n"), 0o600)
 	os.MkdirAll(filepath.Join(lab.Paths.MediaDir, "immich", "library"), 0o750)
 
-	if err := n.SetImportSource(ctx, "immich", ImportSource{Kind: "drive", Title: "T7 Shield › immich",
+	if err := n.imports().SetImportSource(ctx, "immich", ImportSource{Kind: "drive", Title: "T7 Shield › immich",
 		Library: agent.Library{Drive: "1111-2222", Sub: "immich"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -147,19 +147,19 @@ func TestImportImmich(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := n.SetImportSetup(ctx, "immich", &setup); err != nil {
+	if err := n.imports().SetImportSetup(ctx, "immich", &setup); err != nil {
 		t.Fatal(err)
 	}
-	v, err := n.Import(ctx, "immich")
+	v, err := n.imports().Import(ctx, "immich")
 	if err != nil || !v.Mounted || !v.Guessed || len(v.Prefixes) != 1 || v.Prefixes[0] != (importer.Prefix{Old: "/opt", Now: "."}) &&
 		v.Prefixes[0] != (importer.Prefix{Old: "/opt/immich", Now: "immich"}) {
 		t.Fatalf("import %+v %v", v.ImportState, err)
 	}
-	if err := n.CopyImport(ctx, "immich"); err == nil {
+	if err := n.imports().CopyImport(ctx, "immich"); err == nil {
 		t.Error("copied before checking")
 	}
 
-	if err := n.CheckImport(ctx, "immich"); err != nil {
+	if err := n.imports().CheckImport(ctx, "immich"); err != nil {
 		t.Fatal(err)
 	}
 	st := waitImport(t, n, "immich")
@@ -178,7 +178,7 @@ func TestImportImmich(t *testing.T) {
 		}
 	}
 
-	if err := n.CopyImport(ctx, "immich"); err != nil {
+	if err := n.imports().CopyImport(ctx, "immich"); err != nil {
 		t.Fatal(err)
 	}
 	st = waitImport(t, n, "immich")
@@ -197,7 +197,7 @@ func TestImportImmich(t *testing.T) {
 
 	step := func(name string) ImportState {
 		t.Helper()
-		if err := n.SwitchImport(ctx, "immich", name); err != nil {
+		if err := n.imports().SwitchImport(ctx, "immich", name); err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
 		st := waitImport(t, n, "immich")
@@ -218,9 +218,9 @@ func TestImportImmich(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(lab.Paths.ServicesDir, "immich/db/main")); err != nil {
 		t.Error("the database's folder wasn't made again")
 	}
-	folders, _ := n.KeptData(ctx)
-	if len(folders) != 1 || !folders[0].Imported {
-		t.Errorf("kept folders %+v", folders)
+	copies, _ := n.keptCopies()
+	if len(copies) != 1 || copies[0].Why != kept.BeforeImport {
+		t.Errorf("kept copies %+v", copies)
 	}
 	step(SwitchUndo)
 	if _, err := os.Stat(filepath.Join(lab.Paths.ServicesDir, "immich/db/main")); err != nil {
@@ -229,14 +229,14 @@ func TestImportImmich(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(lab.Paths.MediaDir, "immich")); err == nil {
 		t.Error("what was brought is still in place")
 	}
-	if folders, _ := n.KeptData(ctx); !slices.ContainsFunc(folders, func(k KeptFolder) bool { return k.FailedImport }) {
-		t.Errorf("what was brought isn't kept: %+v", folders)
+	if copies, _ := n.keptCopies(); !slices.ContainsFunc(copies, func(c kept.Copy) bool { return c.Why == kept.FailedImport }) {
+		t.Errorf("what was brought isn't kept: %+v", copies)
 	}
 
-	if err := n.CancelImport(ctx, "immich"); err != nil || len(ag.unmounted) != 1 {
+	if err := n.imports().CancelImport(ctx, "immich"); err != nil || len(ag.unmounted) != 1 {
 		t.Errorf("cancel %v %v", err, ag.unmounted)
 	}
-	if st := n.loadImport(ctx, "immich"); st.Source != nil {
+	if st := n.imports().loadImport(ctx, "immich"); st.Source != nil {
 		t.Errorf("forgotten? %+v", st)
 	}
 }

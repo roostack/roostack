@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
-	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -16,14 +16,11 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 func TestGuestHub(t *testing.T) {
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	ag := &fakeAgent{}
 	h := &GuestHub{LabName: func() string { return "Mum's lab" }, Store: st, Agent: ag, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now,
 		Usage: func(context.Context, store.Guest) (int64, error) { return 3 << 30, nil }}
@@ -112,7 +109,7 @@ func TestGuestHub(t *testing.T) {
 		resp.Body.Close()
 		return resp.StatusCode
 	}
-	_, hash, _ := NewStorePassword()
+	_, hash, _ := NewPassword()
 	body := `{"hash":"` + hash + `"}`
 	if code := call(http.MethodPut, "n-0000000002", body, inv.User, inv.AdminPassword); code != http.StatusOK || changed != 1 {
 		t.Fatalf("set a server's user: %d, changed %d", code, changed)
@@ -205,6 +202,9 @@ func (a *statusAgent) WireGuardStatus(context.Context, string) (agent.WireGuardS
 // (no handshake), and says which it is when the link is up but nothing
 // answers.
 func TestJoinStorageUnreachable(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("127.0.0.2 is on Linux's loopback only: elsewhere connecting to it waits rather than being refused")
+	}
 	handshakeTimeout, joinTimeout = 100*time.Millisecond, 3*time.Second
 	t.Cleanup(func() { handshakeTimeout, joinTimeout = 20*time.Second, 45*time.Second })
 	key, _ := agent.NewWireGuardKey()

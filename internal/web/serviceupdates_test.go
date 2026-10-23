@@ -15,41 +15,6 @@ import (
 	"roostack.cloud/roostack/internal/registry"
 )
 
-func (f *fakeManager) AvailableUpdates(context.Context) map[string]*manager.Update {
-	return f.svcUpdates
-}
-func (f *fakeManager) UpdateService(_ context.Context, name, to, by string, acceptRisks bool) error {
-	u := f.svcUpdates[name]
-	if u == nil {
-		return manager.ErrNotFound
-	}
-	if u.To != to {
-		return &manager.FormError{Msg: "The update on offer has changed."}
-	}
-	if len(u.NewRisks) > 0 && !acceptRisks {
-		return &manager.FormError{Msg: "Tick the box."}
-	}
-	f.svcUpdated = append(f.svcUpdated, name+" "+to+" by "+by)
-	return nil
-}
-func (f *fakeManager) Updating(name string) *manager.ServiceUpdate { return f.updating[name] }
-func (f *fakeManager) LastUpdate(_ context.Context, name string) *manager.UpdateRecord {
-	return f.lastUpdate[name]
-}
-func (f *fakeManager) UpdatePolicy(name string) string {
-	if p := f.policies[name]; p != "" {
-		return p
-	}
-	return "notify"
-}
-func (f *fakeManager) SetUpdatePolicy(_ context.Context, name, policy string) error {
-	if f.policies == nil {
-		f.policies = map[string]string{}
-	}
-	f.policies[name] = policy
-	return nil
-}
-
 func updateServices(context.Context) ([]ServiceView, error) {
 	return []ServiceView{{Name: "immich", Title: "Immich", Status: "running", Update: "2.1.0"},
 		{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", Update: "1.36.1"}}, nil
@@ -85,7 +50,7 @@ func TestServiceUpdateOffered(t *testing.T) {
 	_, body = h.get("/services/immich")
 	for _, want := range []string{"a new major version. <a href=\"https://github.com/immich-app/immich/releases/tag/v2.1.0\" target=\"_blank\" rel=\"noopener\">What's new in 2.1.0",
 		"</a> Read these first:", "<strong>2.0.0:</strong> Faces are rebuilt.",
-		"Update Immich to 2.1.0? Roostack backs it up first", "It has notes to read, so Roostack waits for you."} {
+		"Update Immich to 2.1.0? Roostack will back it up first", "It has notes to read, so Roostack is waiting for you."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("immich page missing %q", want)
 		}
@@ -178,26 +143,10 @@ func TestServiceUpdateRevision(t *testing.T) {
 		From: "1.34.3-roostack.1", To: "1.34.3-roostack.2", Kind: pkgspec.UpdateRevision, Policy: "patch", Auto: true}}
 	_, body := h.get("/services/vaultwarden")
 	for _, want := range []string{"an improved Roostack package for Vaultwarden 1.34.3", "(package revision 1 → 2)",
-		"Roostack updates it by itself tonight, after the nightly backup."} {
+		"Roostack will update it by itself tonight after the nightly backup."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("revision page missing %q", want)
 		}
-	}
-}
-
-// A failed update stays news while its version is on offer; a newer
-// offer replaces it, and with nothing on offer it goes after a week.
-func TestLastUpdateShown(t *testing.T) {
-	failed := &manager.UpdateRecord{To: "2.1.0-roostack.1", Result: manager.UpdateRolledBack, Finished: time.Now().Add(-30 * 24 * time.Hour)}
-	if !lastUpdateShown(failed, &manager.Update{To: "2.1.0-roostack.1"}) {
-		t.Error("still on offer: shown")
-	}
-	if lastUpdateShown(failed, &manager.Update{To: "2.1.1-roostack.1"}) || lastUpdateShown(failed, nil) {
-		t.Error("replaced, or old with nothing on offer: not shown")
-	}
-	failed.Finished = time.Now()
-	if !lastUpdateShown(failed, nil) {
-		t.Error("recent with nothing on offer: shown")
 	}
 }
 

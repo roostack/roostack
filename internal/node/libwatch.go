@@ -11,8 +11,11 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/sleep"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Libraries bound one by one at paths of their own (SPEC.md §8.4, "Media
@@ -42,16 +45,8 @@ type libraryWatch struct {
 // WatchLibraries looks at libraries bound at their own paths every minute
 // until ctx ends.
 func (n *Local) WatchLibraries(ctx context.Context) {
-	t := time.NewTicker(libraryWatchEvery)
-	defer t.Stop()
-	for {
-		n.checkLibraryMounts(ctx, readMountinfo)
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-		}
-	}
+	n.checkLibraryMounts(ctx, readMountinfo)
+	sleep.Every(ctx, libraryWatchEvery, func() { n.checkLibraryMounts(ctx, readMountinfo) })
 }
 
 // readMountinfo reads this process's mount table.
@@ -107,23 +102,15 @@ func (n *Local) checkLibraryMounts(ctx context.Context, mountinfo func() string)
 			act = n.Activity.Start(activity.LibraryRestart, "Restarting "+titles[svc])
 		}
 		libs := restart[svc]
-		act.Printf("The media %s %s %s back. %s shows %s at a place of its own, and sees %s again only once it restarts.",
-			oneOrMany(len(libs), "library", "libraries"), strings.Join(libs, ", "), oneOrMany(len(libs), "is", "are"),
-			titles[svc], oneOrMany(len(libs), "it", "them"), oneOrMany(len(libs), "it", "them"))
+		act.Printf("The media %s %s %s back. %s shows %s at a place of its own and will see %s again only once it restarts.",
+			words.Plural(len(libs), "library", "libraries"), strings.Join(libs, ", "), words.Plural(len(libs), "is", "are"),
+			titles[svc], words.Plural(len(libs), "it", "them"), words.Plural(len(libs), "it", "them"))
 		err := n.Reconciler.Systemd.Restart(ctx, units[svc]...)
 		if err != nil {
 			n.Log.Error("restarting a service for its library", "service", svc, "err", err)
 		}
 		act.Finish(err)
 	}
-}
-
-// oneOrMany picks one's word or many's.
-func oneOrMany(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
 }
 
 // running says whether the units are all active (a service stopped on
@@ -170,14 +157,9 @@ func mountID(table, path string) string {
 	id := ""
 	for _, l := range strings.Split(table, "\n") {
 		f := strings.Fields(l)
-		if len(f) > 4 && fstabUnescape(f[4]) == path && !slices.Contains(f, "autofs") {
+		if len(f) > 4 && agent.FstabUnescape(f[4]) == path && !slices.Contains(f, "autofs") {
 			id = f[0]
 		}
 	}
 	return id
-}
-
-// fstabUnescape reads an escaped mount table field (spaces as \040).
-func fstabUnescape(s string) string {
-	return strings.NewReplacer(`\040`, " ", `\011`, "\t", `\134`, `\`).Replace(s)
 }

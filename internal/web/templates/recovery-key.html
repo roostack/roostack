@@ -6,11 +6,11 @@
   </div>
 </div>
 <section class="card narrow">
-  <p>Your backups are encrypted with this key. <strong>If this server is lost or breaks, you need it to get your data back.</strong>
+  <p>Your backups are encrypted with this key. <strong>If this server is lost or breaks, you'll need it to get your data back.</strong>
     Nobody else can recover it for you, and Roostack can't reset it.</p>
   <code class="secret recovery">{{.Key}}</code>
   <p class="hint">If you've set up backups before, this is the same key: changing where backups go doesn't change it.</p>
-  <p>Print it, or write it down, and keep it somewhere safe away from this server. A password manager works too.
+  <p>Print it or write it down, and keep it somewhere safe away from this server. A password manager works too.
     If someone else set up this lab for you, give them a copy as well.</p>
   <p x-data><button type="button" class="secondary" x-on:click="window.print()">Print</button></p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

@@ -1,34 +1,29 @@
 # CLAUDE.md
 
-Guidance for Claude (and other agents) working on Roostack. Read this first, then the documents it points to.
+Guidance for Claude (and other agents) working on Roostack. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: it has how to build, test and run Roostack, the dev VM, the generated files, the conventions and which documents to update, and all of it applies to you. This file adds what's specific to agents.
 
 ## What Roostack is
 
 Roostack (pronounced "Roost Stack") self-hosts useful services (photos, passwords, git, media) on your own hardware: one-click installs, automatic HTTPS, backups and updates, from a simple web UI. The end user is often **not technical** (a NUC at someone's parents' house), but **a technical user must never find anything magical**: every page says what Roostack is doing, where files live, and shows the log.
 
-Stack: Go (module `roostack.cloud/roostack`, Go 1.26), Debian 13, rootless Podman driven by systemd Quadlets, Caddy, restic, WireGuard, SQLite, server-rendered HTML with htmx and Alpine.js. Early development: nothing is released, and only fresh installs are supported (no migration of pre-release data beyond `store` schema additions).
+Stack: Go (module `roostack.cloud/roostack`, Go 1.26), Debian 13, rootless Podman driven by systemd Quadlets, Caddy, restic, WireGuard, SQLite, server-rendered HTML with htmx and Alpine.js. Early development: nothing is released, and only fresh installs are supported (no migration of pre-release data beyond `store` schema additions). The store's schema is one squashed step at version 37 (`store.schema`, 2026-10-22); a schema change is a new step at the end of `store.migrations`, never an edit to `schema` or to a step that has shipped, and a database from before the squash is refused with a sentence asking for a fresh install.
 
 ## Documents: read before, update with every change
 
-| File | Holds | Update when |
-|---|---|---|
-| [PLAN.md](PLAN.md) | The brief and working rules | Rarely (the user owns it) |
-| [SPEC.md](SPEC.md) | Every decision, with its rationale and what was rejected. Sections say **Locked**, **Open** or **as built (date)** | You make or change a decision, or build something a section describes |
-| [TASKS.md](TASKS.md) | What's done and what's next, by phase | You finish something, or find follow-up work (file it, don't lose it) |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Processes, data flow, packages, generated names | Packages or processes change |
-| [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) | What the code assumes about real hosts, ✅ once verified on a VM | You rely on or verify host behaviour |
-| [docs/DESIGN.md](docs/DESIGN.md) | The design system: tokens, components, rules | The UI gains a component or token |
-| `NOTES.local.md` | The user's own notes | Never: don't edit or commit it |
+CONTRIBUTING.md's table says which document holds what and when to update it; its reading order is the way in. Two more rules for agents:
 
-**Roostack Cloud** (the hosted service at roostack.cloud, which gives labs names on roost.ac) lives in its own repository. Here, design only what works standalone, without Cloud (e.g. remote access, a lab's own edge), like any feature; mention Cloud's capabilities at a high level at most. Cloud's implementation detail (plans, pricing, edges, accounts, anything sensitive) stays in the Cloud repository.
+- [PLAN.md](PLAN.md) is the user's: change it only when they ask.
+- `NOTES.local.md` is the user's own notes: never edit or commit it.
 
-Docs are part of the change, in the same commit. Write them for a reader new to the project: plain sentences, dates on decisions (`Locked (2026-09-28)`), the reason, and what was considered instead.
+**Roostack Cloud** (the hosted service at roostack.cloud, which gives labs names on roost.ac) lives in its own repository, which is private. Here, design only what works standalone, without Cloud (e.g. remote access, a lab's own edge), like any feature; mention Cloud's capabilities at a high level at most. Cloud's implementation detail (plans, pricing, edges, accounts, anything sensitive) stays in the Cloud repository.
 
 ## Working with the user
 
+The user is the project's maintainer, called "the maintainer" in the project's documents ("the Owner" is the top role in a lab).
+
 - **Ask when unsure; never assume.** For anything that's the user's call (product behaviour, wording that changes meaning, security trade-offs), propose options with a recommendation and let them decide. Don't ask about things with an obvious conventional answer: pick it, say so.
 - **Pause for validation** between tasks and before large or hard-to-reverse steps. Show mock-ups before building a big UI change.
-- **Dependencies are chosen together.** Don't add a Go module, vendored JS, or a system package without asking. The UI uses what's vendored in `internal/web/static` (htmx, Alpine); icons are drawn in `internal/web/icons.go`.
+- **Dependencies are chosen together.** Don't add a Go module, vendored JS, or a system package without asking.
 - **Be concise.** Report what changed, what was verified and how, and anything left open, with file links.
 - **Bank questions** that aren't blocking and carry on; ask critical ones straight away.
 - The user is learning Go (more at home in Python) and is new to Podman and Caddy: explain Go or Podman specifics briefly when they matter.
@@ -42,92 +37,49 @@ Two processes per server (see ARCHITECTURE.md and SPEC §6.1):
 
 A **lab** is one or more servers joined over WireGuard; one is the **controller** (it keeps the desired state, runs the manager, and serves the UI for all). Other servers are **nodes**, reached over an mTLS lab API (port 8471).
 
-Key packages:
+The packages, grouped by layer, are in [ARCHITECTURE.md's package table](ARCHITECTURE.md#packages), with "Life of an install" and "Life of a backup run" above it. Where things live on a host: the table in [README.md](README.md).
 
-| Package | Role |
-|---|---|
-| `config`, `pkgspec`, `instance`, `state` | Lab settings, package definitions, installed services (YAML desired state) |
-| `generate`, `quadlet`, `caddy`, `reconcile`, `systemd` | Desired state → Quadlet and Caddy files → running units |
-| `node` | One server: applies its assignment, runs its jobs and settings; `Local` and `Remote` implement the same interfaces |
-| `manager` | The controller's view of the whole lab (placement, backups, storage for other labs) |
-| `web` | Handlers (thin) and templates; business logic stays in the packages above |
-| `backup`, `maintenance`, `osupdate` | restic jobs, the maintenance coordinator (one job at a time, reboot window), OS updates |
-| `labnet`, `labrestore`, `setup`, `store`, `agent` | Lab network and joins, full-lab restore, the first-run wizard, SQLite runtime data, the agent client/server |
-| `authkit` (top level, public) | Passwords (argon2id), tokens, two-factor codes; shared with Cloud, which adds a pepper and sealed secrets |
-| `cloudapi` (top level, public) | The lab ↔ Cloud API contract, imported by Cloud's repository too |
-| `awssig` (top level, public) | AWS Signature Version 4 with the standard library only (Route 53, S3-compatible storage); Cloud signs Wasabi's STS and S3 calls with it |
-| `cloud` | The controller's link to Roostack Cloud (linking, its certificate, unlinking); `cloudtest` fakes Cloud's side for tests |
-| `trust` | Who a connection comes from and what each class may reach: the firewall and Caddy's private list both read it |
-| `units` | The one size formatter (decimal: 1 GB = 1000³ bytes) |
-| `fsutil` | Writing a file atomically with the mode asked for (`WriteFile`, `WritePrivate` for 0600) |
-| `editor` | The package editor (HTML and JavaScript, in the browser): its checks must say what `pkgspec`'s say; a format or policy change updates `check.js` too |
+## Building and testing as an agent
 
-Where things live on a host: see the table in [README.md](README.md). Paths come from `config.Paths`; never hard-code `/srv/roostack` or `/var/lib/roostack` outside `config`.
+CONTRIBUTING.md has the commands. On top of them:
 
-## Commands
+- **On a Mac** Roostack builds, vets and tests natively (`make vet`, `go test ./...`), and the Linux-only tests skip and say why. Homebrew's restic runs the backup tests natively. The VM is still needed for anything about Podman, systemd, networking, drives or the sandbox, and for the full suite with restic on Linux: `scripts/dev-vm.sh test` builds the test binaries on the Mac, runs them in the VM with its restic, and takes `-test.run …`.
+- **The restic-backed tests skip without restic,** and silently unless you run `go test -v`. Have restic on your `PATH` (`brew install restic` on a Mac) or set `ROOSTACK_RESTIC_BIN`, and before reporting done, check that the backup tests ran rather than skipped: a skipped test has hidden a breakage before.
+- **Generated files:** after a change to what Go generates (golden files, the package editor's schema, examples or corpus, the gallery, THIRD_PARTY.md), run `make generated` and read the diff; CONTRIBUTING.md's "Regenerating files" has the rest, which Python generates.
+- **Sharing a VM:** each worktree tests in its own folder in the VM (`~/test-<worktree>`, removed afterwards), so sessions can share one; `sync` and `install` still share `~/roostack`, so don't deploy to a VM another session is using without saying so.
+- **The user's own lab may be on a VM:** don't change its settings or data beyond what the task needs, and say what you touched.
+- Never `pkill -f` or `pgrep -f` with a pattern that also appears in the same shell command (it kills that shell); use a bracket pattern like `'dev-vm[.]sh ui'`.
+- **Before reporting done:** `make vet`, the full suite with restic, a deploy to a VM, and a look at the page in the browser (desktop and a phone's width) for UI work. Say plainly what was and wasn't verified.
 
-```sh
-make build        # bin/roostack, bin/roostack-agent: Linux, CGO off, reproducible (-trimpath); GOARCH=arm64 for ARM
-make release      # a release from a checkout of its tag, on Linux: .debs, binaries, SHA256SUMS (docs/RELEASING.md)
-make verify-release VERSION=x.y.z  # check a published release: its signature, then a rebuild of its tag in the release's image
-make vet          # go vet + gofmt check
-go test ./...     # all tests
-make golden       # rewrite generator golden files after an intended change; review the diff
-make editor-test  # the package editor's JavaScript tests (Node 20+), including its checks against pkgspec's
-go test ./internal/editor -update-editor   # after a package format or policy change: schema.js, examples.js, the corpus; then make editor-test
-go test ./internal/web -run TestGalleryFile -update-gallery   # regenerate docs/design/gallery.html
-make check-images # after changing an image pin: every pin has amd64 and arm64 builds (asks the registries)
-```
+## Writing
 
-**restic-backed tests skip silently** when restic isn't installed on the dev machine (it isn't). Copy the VM's binary once and always run the full suite with it; a skipped test has hidden a breakage before:
+CONTRIBUTING.md's "Writing" applies to everything you write: British English, short plain sentences, no jargon for end users but the exact detail one click away, and the same name for the same thing everywhere. The user's wording rules (2026-10-22) apply to every sentence people read, in the UI, the help, error messages, activity logs and the docs:
 
-```sh
-scripts/dev-vm.sh ssh 'cat /usr/bin/restic' > <scratch>/restic
-ROOSTACK_RESTIC_BIN=<scratch>/restic go test ./...
-```
+- **No present simple for actions.** It sounds generated: "Roostack keeps it stopped." or "Immich starts again."
+- **The future for what will happen,** especially after something a person might do: "Roostack will keep the service stopped until you choose."
+- **The present continuous for what's happening now:** "Immich is starting again on server-1."
+- **What's fine as it is:** states with "is" ("Immich is stopped"), past results ("its restore didn't finish"), and instructions ("Choose what to do").
+- **Not clipped, and not too long.** Stay concise, but don't string short statements together: join them where a person would. Not "Its databases didn't load. Roostack keeps it stopped. Choose what to do." but "Its databases didn't load, so Roostack will keep the service stopped until you choose what to do."
+- **Habits and standing facts stay in the present simple** (2026-10-23): a routine that always runs ("Every minute, Roostack checks that each service answers at its address"), what Roostack is ("Roostack runs useful services on a computer you own"), and a fact that always holds ("Codes change every 30 seconds"). Field help takes the future, since it says what will happen once a package uses the field: "Roostack will create a random value".
+- **Commas where grammar needs them, not for a pause** (2026-10-23). There's no comma before a clause of purpose ("once the current job has finished so that it isn't interrupted") or before "because" after the main clause. Keep one after an opening clause, before "so" when it means "and so", around a "which" that adds detail, and wherever leaving it out would let the sentence be misread.
+- **The Oxford comma** (2026-10-23): a list of three or more takes a comma before its last "and" or "or": "Roostack will stop the service, turn its addresses off, and say so on its page, under Needs attention, and by email."
 
-**On a Mac** parts of Roostack don't build (they're Linux-only), so `make vet` and `go test` fail there: use `GOOS=linux go vet ./...`, and run the suite in the VM with `scripts/dev-vm.sh test` (it builds the test binaries on the Mac, runs them in the VM with its restic, and takes `-test.run …`). Each worktree tests in its own folder in the VM (`~/test-<worktree>`, removed afterwards), so sessions can share a VM; `sync` and `install` still share `~/roostack`.
+Examples the user approved (2026-10-23; all 37 are in [docs/wording-examples.md](docs/wording-examples.md), which the wave 4 batches follow):
 
-## Dev VMs
+| Rule | Before | After |
+|---|---|---|
+| Future | Roostack tries again tomorrow, or as soon as you change the address. | Roostack will try again tomorrow or as soon as you change the address. |
+| Future | The lab has no recovery key yet: it's made with the first backup. | The lab has no recovery key yet: Roostack will make one with the first backup. |
+| Future | They choose their own password when they next log in. | They'll choose their own password when they next log in. |
+| Continuous | Roostack Cloud has suspended this lab's relay: (reason). Public services don't come through it. | Roostack Cloud has suspended this lab's relay: (reason). Public services aren't coming through it. |
+| Continuous | Roostack can't reach server-2, where Immich ran: it's restored without stopping it there | Roostack can't reach server-2, where Immich ran, so it's restoring Immich without stopping it there |
+| Joined | DNS changes can take a few minutes. Roostack checks again by itself. | DNS changes can take a few minutes, and Roostack will check again by itself. |
+| Joined | Copy your files first; switching copies only what changed since. | Copy your files first: when you switch, Roostack will copy only what's changed since. |
+| Tightened | So it is while the sign-in page can't be reached yet, such as while the first service to use it is still downloading: Roostack checks every few seconds. | It's also the way in while the sign-in page can't be reached yet, such as while the first service to use it is still downloading, and Roostack will check for the sign-in page every few seconds. |
+| Fine | That backup isn't there any more. Choose another. | (unchanged: a state, then an instruction) |
+| Fine | Every minute, Roostack checks that each service answers at its address, and tells you when one stops. | (unchanged: a routine) |
 
-`scripts/dev-vm.sh` runs Debian 13 VMs under plain QEMU (header comment has the details): KVM on Linux, Hypervisor.framework on macOS. A VM has the machine's own architecture (arm64 on an Apple Silicon Mac, for ARM work: [ARM64-PLAN.md](ARM64-PLAN.md)); `ROOSTACK_VM_ARCH` picks the other, emulated and slow. `ROOSTACK_VM=n` selects VM n, 1 to 9 (disk space allows about four at once); VMs 1–5's ports are offset by `(n-1)*10000` (UI tunnels on 18481, 28481, … 58481), VMs 6–9's are 6x481 and so on with x = n−6 (UI tunnels 60481 to 63481).
-
-```sh
-ROOSTACK_VM=1 scripts/dev-vm.sh up | ssh [cmd] | ui | down | status
-ROOSTACK_VM=1 scripts/dev-vm.sh usb add|remove NAME [SIZE]     # hot-plug a virtual USB drive
-# Deploy a build:
-make build && ROOSTACK_VM=1 scripts/dev-vm.sh sync
-ROOSTACK_VM=1 scripts/dev-vm.sh ssh 'sudo install -m755 ~/roostack/bin/roostack ~/roostack/bin/roostack-agent /usr/bin/ && sudo systemctl restart roostack-agent roostack'
-```
-
-- The real service registry can't be fetched until the Owner's key ceremony (docs/REGISTRY-KEYS.md). To test fetching, make test keys with `roostack registry keygen`, build an index from a registry checkout with `roostack registry index`, serve it in the VM (`python3 -m http.server`), build with `REGISTRY_DEV_KEY=<test root public key>` (passed through by `dev-vm.sh sync`/`install`), and set `registry.url` in the VM's `lab.yaml`.
-- Commands as the roostack user need `XDG_RUNTIME_DIR=/run/user/999` and `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/999/bus`, run from its home.
-- QEMU NATs everything: inside a VM all clients come from 10.0.2.2, and another VM reaches VM n's WireGuard at `10.0.2.2:<its port>`.
-- **Verify on a VM, not by reasoning,** anything about Podman, systemd, networking, drives or the sandbox. Test with the unit's full sandbox options: a partial test once missed that `ProtectHome=yes` hides `/run/user`.
-- The user's own lab may be on a VM: don't change its settings or data beyond what the task needs, and say what you touched. Never restore a backup of a lab that had a real domain onto another VM: it would change real DNS records and certificates.
-- Never `pkill -f`/`pgrep -f` with a pattern that also appears in the same shell command (it kills that shell); use a bracket pattern like `'dev-vm[.]sh ui'`.
-
-## Code conventions
-
-- **Go:** gofmt; imports in three groups (standard library, third party, `roostack.cloud/roostack/...`). Small packages, plain functions, interfaces where a fake is needed in tests (`node.Node`, `web.ServiceManager`, `web.LabSetup`, `manager.BackupStore`).
-- **Comments** match the surrounding density: a doc comment on every exported and most unexported names, saying *why*, and citing the SPEC section (`// ... (SPEC.md §6.9)`). No commented-out code.
-- **Errors people can fix** are `FormError` (`manager.formErrorf`, `setup.CheckError`) with a sentence that says what to do; the web layer shows them via `userMessage`. Anything else is a server error, logged.
-- **Long work** runs in the background with an `activity` log (`Step` for the status line, `Printf` for details), shown with the `activity` component, so people can watch what's happening.
-- **Web UI:**
-  - Pages use only the design system (docs/DESIGN.md): purpose tokens, never raw colours; components from `components.go` (`notice`, `status`, `badge`, `back`, `confirm`, `activity`, `icon`). A new component goes into the gallery (`gallery.go`) in the same change.
-  - Handlers are thin; each POST redirects (PRG) or re-renders with a `FormError`. State-changing routes use `requireOwner` or the right `require(auth.…)`.
-  - htmx attributes are inherited: a container with `hx-select`/`hx-swap` needs `hx-disinherit="*"`, or children's requests break.
-  - Sizes go through `size`/`bytes` in templates and `units.Bytes` in Go; never format bytes by hand.
-- **Writing (UI, docs, comments):** British English (colour, licence), short plain sentences, no jargon for end users but exact detail one click away ("Details", "Manage", "Tell me more"). Say what happened and what to do next. Name things consistently (the backup plan: "main backup", "backup 3", "extra backup").
-- **Security:** never print or log secrets (setup codes, join codes, recovery keys, passwords, TOTP secrets, API tokens); point to where they are instead. The one exception is the first-run setup code, which the installer and log show on purpose (docs/ASSUMPTIONS.md K5). Secrets on disk are written 0600 with `fsutil.WritePrivate` (atomic, and the mode applies even over an old file). The agent validates every path and argument it's given.
-
-## Testing
-
-- Web tests drive the real handlers through `httptest` with fakes (`fakeManager`, `fakeSetup`, `fakeBackups` in `internal/web/*_test.go`); log in with `loggedIn(t, role)`. Add to the fakes rather than bypassing them.
-- Manager and backup tests use a real SQLite store and real restic (see above).
-- Generator output is golden-file tested; after an intended change run `make golden` and read the diff.
-- Scripted edits (sed, Python replacements) must check that each replacement matched exactly once: a silent miss once left a feature unwired and crashed the UI.
-- Before reporting done: `make vet`, the full suite with restic, a deploy to a VM, and a look at the page in the browser (desktop and a phone width) for UI work. Say plainly what was and wasn't verified.
+Existing text doesn't follow these rules everywhere yet; a later pass will rework it area by area (docs/QUALITY-REVIEW-2026-10-21.md, wave 4). Until then, write new and changed text this way, and leave other sentences alone unless the task is about them.
 
 ## Commits
 

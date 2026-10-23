@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Making services public (SPEC.md §6.11). The Owner makes one of a
@@ -94,7 +95,7 @@ func (m *Manager) SetPublic(ctx context.Context, name string, req PublicRequest)
 		return ErrNotFound
 	}
 	if req.Public && r.Public.Unsafe != "" && !req.AcceptUnsafe {
-		return formErrorf("Tick the box to confirm you understand why this address isn't safe to make public.")
+		return usererr.New("Tick the box to confirm you understand why this address isn't safe to make public.")
 	}
 	if in.Routes == nil {
 		in.Routes = map[string]instance.RouteOverride{}
@@ -111,13 +112,12 @@ func (m *Manager) SetPublic(ctx context.Context, name string, req PublicRequest)
 	}
 	in.Routes[req.Route] = o
 	if err := in.Validate(p); err != nil {
-		return formErrorf("%s", err)
+		return usererr.New("%s", err)
 	}
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
-	m.applyReason = "Changing who can reach " + name
-	m.startApplyLocked()
+	m.startApplyLocked("Changing who can reach " + name)
 	return nil
 }
 
@@ -143,8 +143,7 @@ func (m *Manager) SetWAF(ctx context.Context, name string, on bool) error {
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
-	m.applyReason = "Changing whether known exploits are blocked for " + name
-	m.startApplyLocked()
+	m.startApplyLocked("Changing whether known exploits are blocked for " + name)
 	return nil
 }
 
@@ -163,17 +162,8 @@ func (m *Manager) PublicHosts() []string {
 func (m *Manager) SignalSharing() (asked, share bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	p := m.publicLocked()
+	p := m.labNow().Public
 	return p.SharingAsked, !p.NoSharing
-}
-
-// publicLocked returns the public access settings; m.mu is held.
-func (m *Manager) publicLocked() *config.Public {
-	if m.public == nil {
-		p := m.Lab.Public
-		m.public = &p
-	}
-	return m.public
 }
 
 // SetSignalSharing saves the Owner's answer and applies it (CrowdSec
@@ -184,12 +174,9 @@ func (m *Manager) SetSignalSharing(share bool) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.UpdateLab(func(l *config.Lab) { l.Public.SharingAsked, l.Public.NoSharing = true, !share }); err != nil {
+	if err := m.saveLab(func(l *config.Lab) { l.Public.SharingAsked, l.Public.NoSharing = true, !share }); err != nil {
 		return err
 	}
-	p := m.publicLocked()
-	p.SharingAsked, p.NoSharing = true, !share
-	m.applyReason = "Changing whether CrowdSec shares attack reports"
-	m.startApplyLocked()
+	m.startApplyLocked("Changing whether CrowdSec shares attack reports")
 	return nil
 }

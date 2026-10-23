@@ -15,22 +15,11 @@ import (
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/nodeid"
 )
-
-func resticBin(t *testing.T) string {
-	t.Helper()
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
-	return bin
-}
 
 func write(t *testing.T, path, content string) {
 	t.Helper()
@@ -54,7 +43,8 @@ func read(t *testing.T, path string) string {
 // A lab backed up to a disk is found there with the recovery key and
 // rebuilt on a fresh install, database included.
 func TestFindAndRestoreALab(t *testing.T) {
-	bin := resticBin(t)
+	t.Parallel()
+	bin := restictest.Bin(t)
 	ctx := context.Background()
 	root := t.TempDir()
 	paths := config.Paths{StateDir: filepath.Join(root, "state"), ServicesDir: filepath.Join(root, "services")}
@@ -291,7 +281,8 @@ func TestFindAndRestoreALab(t *testing.T) {
 // anything else (made to look like the controller's, say) is refused
 // before anything is put back (review M26).
 func TestRestoreOnlyRoostacksPlaces(t *testing.T) {
-	bin := resticBin(t)
+	t.Parallel()
+	bin := restictest.Bin(t)
 	ctx := context.Background()
 	root := t.TempDir()
 	paths := config.Paths{StateDir: filepath.Join(root, "state"), ServicesDir: filepath.Join(root, "services"),

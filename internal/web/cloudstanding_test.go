@@ -10,9 +10,11 @@ import (
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // relayWG is the agent's WireGuard for the relay's interface.
@@ -39,9 +41,7 @@ func TestCloudStanding(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.Confirm(link.Status().Waiting.Code)
-	for i := 0; i < 200 && !link.Status().Linked; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool { return link.Status().Linked })
 	if err := link.ClaimName(ctx, "smiths"); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestProblemRecipients(t *testing.T) {
 			h.store.SetNotify(ctx, id, p.notify)
 		}
 	}
-	got, err := h.server.ProblemRecipients(ctx)
+	got, err := attention.ProblemRecipients(ctx, h.store)
 	slices.Sort(got)
 	if want := []string{"admin@example.com", "owner@example.com"}; err != nil || !slices.Equal(got, want) {
 		t.Errorf("recipients: %v %v, want %v", got, err, want)
@@ -171,14 +171,12 @@ func TestCloudRecipients(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.Confirm(link.Status().Waiting.Code)
-	for i := 0; i < 200 && !link.Status().Linked; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if _, body := h.get("/settings/email"); !strings.Contains(body, "Roostack Cloud hears of them at the lab's next daily check-in") {
+	testwait.For(t, 10*time.Second, func() bool { return link.Status().Linked })
+	if _, body := h.get("/settings/email"); !strings.Contains(body, "Roostack Cloud will hear of them at the lab's next daily check-in") {
 		t.Error("not told before the first report")
 	}
 	link.Report = func(ctx context.Context) (cloudapi.LabReport, error) {
-		emails, err := h.server.ProblemRecipients(ctx)
+		emails, err := attention.ProblemRecipients(ctx, h.store)
 		return cloudapi.LabReport{Emails: emails}, err
 	}
 	f.AskedAt = time.Now()
@@ -215,9 +213,7 @@ func TestCloudBackupSpace(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.Confirm(link.Status().Waiting.Code)
-	for i := 0; i < 200 && !link.Status().Linked; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool { return link.Status().Linked })
 	fm.destination = "cloud"
 	f.StorageQuota, f.StorageUsed = 10_000_000_000, 5_000_000_000
 	if err := link.Check(ctx); err != nil {

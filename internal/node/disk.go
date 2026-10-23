@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,6 +44,9 @@ type DiskSpace struct {
 type Disks interface {
 	DiskSpaces(ctx context.Context) ([]DiskSpace, error)
 }
+
+// Disks is this server, which reads its own disks.
+func (n *Local) Disks() Disks { return n }
 
 // StoreDisk is the disk holding the backup store, if it's in disks.
 func StoreDisk(disks []DiskSpace) (DiskSpace, bool) {
@@ -182,11 +184,4 @@ func mountPoint(path string) string {
 		}
 		path = up
 	}
-}
-
-// DiskSpaces asks the server.
-func (r *Remote) DiskSpaces(ctx context.Context) ([]DiskSpace, error) {
-	var out []DiskSpace
-	err := r.call(ctx, http.MethodGet, "/v1/disks", nil, &out)
-	return out, err
 }

@@ -13,7 +13,7 @@
   {{if .Moving}}
     {{notice "info" (printf "%s is moving. This page shows how it's going." .Package.Title)}}
   {{else}}
-  {{if .JustMoved}}{{notice "ok" (printf "%s now runs on %s. Check it works; its old copy stays on the other server until you delete it (Settings → Servers)." .Package.Title .Info.From.Name) (printf "link=/services/%s" $.Name) (printf "linkText=Open %s's page" .Package.Title)}}{{end}}
+  {{if .JustMoved}}{{notice "ok" (printf "%s now runs on %s. Check it works; its old copy will stay on the other server until you delete it (Settings → Servers)." .Package.Title .Info.From.Name) (printf "link=/services/%s" $.Name) (printf "linkText=Open %s's page" .Package.Title)}}{{end}}
   <dl class="facts">
     <dt>Runs on</dt><dd>{{.Info.From.Name}}</dd>
     <dt>Data</dt><dd>{{.Size}}</dd>
@@ -33,13 +33,13 @@
       <legend>How</legend>
       <label class="check"><input type="radio" name="way" value="copy" {{if eq $.Info.Suggested "copy"}}checked{{end}}>
         <span>Copy directly{{if eq $.Info.Suggested "copy"}} (suggested){{end}}
-          <small>Copies its data while it keeps running, then stops it for a final copy of what changed. Quickest when both servers are on the same network or the data is small.</small></span></label>
+          <small>Roostack will copy its data while it keeps running, then stop it for a final copy of what changed. Quickest when both servers are on the same network or the data is small.</small></span></label>
       <label class="check"><input type="radio" name="way" value="backup" {{if eq $.Info.Suggested "backup"}}checked{{end}} {{if not $.Info.ViaBackup}}disabled{{end}}>
         <span>Through a backup{{if eq $.Info.Suggested "backup"}} (suggested){{end}}
-          <small>{{if $.Info.ViaBackup}}Backs it up (only what changed since the last backup), stops it, and restores it on the new server. Better for lots of data or a slow link.
+          <small>{{if $.Info.ViaBackup}}Roostack will back it up (only what changed since the last backup), stop it, and restore it on the new server. Better for lots of data or a slow link.
             {{- else}}Available once {{$.Info.From.Name}}'s backups are set up through Roostack (its Backups page).{{end}}</small></span></label>
     </fieldset>
-    <p class="hint">Its web address stays the same. The old copy stays on {{$.Info.From.Name}} until you delete it.</p>
+    <p class="hint">Its web address will stay the same. The old copy will stay on {{$.Info.From.Name}} until you delete it.</p>
     <button type="submit">Move {{$.Package.Title}}</button>
   </form>
   {{else}}

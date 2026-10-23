@@ -6,7 +6,7 @@ come back on another server, from their backups.
 
 !!! tip "Switched off isn't gone"
 
-    A server that's only switched off, or whose network is down, comes
+    A server that's only switched off, or whose network is down, will come
     back by itself when it's running again, with its services. Wait for it
     if you can.
 
@@ -22,25 +22,25 @@ come back on another server, from their backups.
 4. Choose which server they go onto, tick ***server* isn't coming back**,
    and choose **Continue**.
 
-The services are restored one after another, and the page shows how it's
-going. A service with no backup that can be read can't be restored: remove
-it from its page, and install it again if you need it.
+The services will be restored one after another, and the page will show how
+it's going. A service with no backup that can be read can't be restored:
+remove it from its page, and install it again if you need it.
 
 ## Services waiting to be restored
 
-The services you didn't tick **wait to be restored**. They run nowhere,
-but nothing is deleted:
+The services you didn't tick **will wait to be restored**. They won't run
+anywhere, but nothing will be deleted:
 
 - The **Services** page and the home page say they're waiting.
 - Restore one whenever you like, onto any server (one you add later
   included): **Backups → Restoring**, or **Restore…** on its page.
-- Their backups are kept: the nightly clean-up never removes the last
+- Their backups will be kept: the nightly clean-up never removes the last
   backups of a service that's no longer backed up.
 - Don't need one any more? **Remove *service* and delete its backups…** on
-  its page deletes it, and every backup of it, for good.
+  its page will delete it, and every backup of it, for good.
 
-Once none of its services are waiting, the gone server leaves the lab. Its
-own backups stay where they are.
+Once none of its services are waiting, the gone server will leave the lab.
+Its own backups will stay where they are.
 
 ??? note "For technical users"
 

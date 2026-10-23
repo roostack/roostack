@@ -13,7 +13,7 @@ ifneq ($(REGISTRY_DEV_KEY),)
 LDFLAGS += -X roostack.cloud/roostack/internal/registry.devRootKey=$(REGISTRY_DEV_KEY)
 endif
 
-.PHONY: build help release verify-release test editor-test golden vet caddy-check check-images
+.PHONY: build help release verify-release test editor-test gate-test golden generated vet caddy-check check-images
 
 # Linux binaries for the machine's own architecture, or another with
 # GOARCH=arm64 (or amd64).
@@ -50,7 +50,7 @@ release:
 verify-release:
 	scripts/verify-release.sh "$(VERSION)"
 
-test: editor-test
+test: editor-test gate-test
 	go test ./...
 
 # The package editor's JavaScript tests, with Node 20 or later: its checks
@@ -59,13 +59,28 @@ test: editor-test
 editor-test:
 	node --test internal/editor/test/*.test.js
 
+# The public help's password gate (help/worker/gate.js, the same as
+# roostack.cloud's), with Node 20 or later: help/worker/package.json
+# says its files are modules, which Node 20 doesn't work out itself.
+gate-test:
+	node --test help/worker/*.test.js
+
 # Rewrite generator golden files after an intended output change; review the diff.
 golden:
 	go test ./internal/generate/ -update
 
+# Rewrite every file Go generates (CONTRIBUTING.md, "Regenerating files"):
+# the golden files, the package editor's schema, examples and corpus, the
+# design system's gallery and THIRD_PARTY.md. Review the diff.
+generated: golden
+	go test ./internal/editor -update-editor
+	go test ./internal/web -run 'TestGalleryFile|TestThirdPartyFile' -update-gallery -update-credits
+
+# gofmt over the committed Go files only, so another worktree's work in
+# progress under .claude/worktrees doesn't fail this checkout's.
 vet:
 	go vet ./...
-	test -z "$$(gofmt -l .)"
+	test -z "$$(git ls-files -z '*.go' | xargs -0 gofmt -l)"
 
 # Check generated Caddy config against a real Caddy build (see internal/caddy).
 caddy-check:

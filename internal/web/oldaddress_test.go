@@ -23,7 +23,7 @@ func TestOldAddress(t *testing.T) {
 	h.server.OldAddress = &config.OldAddress{Domain: "old.example.net", Until: until, DNS: config.DNS{Provider: "cloudflare"}}
 	day := until.Local().Format("2 January")
 
-	if _, body := h.get("/"); !strings.Contains(body, "Your lab&#39;s address changed to lab.example.com.</strong><span>The old addresses (old.example.net) keep working until "+day) ||
+	if _, body := h.get("/"); !strings.Contains(body, "Your lab&#39;s address changed to lab.example.com.</strong><span>The old addresses (old.example.net) will keep working until "+day) ||
 		!strings.Contains(body, `href="/settings/domain#old-address"`) {
 		t.Error("home: the old address's notice")
 	}
@@ -38,7 +38,7 @@ func TestOldAddress(t *testing.T) {
 		t.Error("service page: old address")
 	}
 	if _, body := h.get("/setup/domain"); !strings.Contains(body, "keep working for 30 days") ||
-		!strings.Contains(body, "old.example.net, the address before, stops at once") {
+		!strings.Contains(body, "old.example.net, the address before, will stop at once") {
 		t.Error("change form: what happens to the old address")
 	}
 	if code, _ := h.post("/settings/domain/old/end", nil, h.srv.URL); code != http.StatusOK || !fs.oldEnded {
@@ -78,7 +78,7 @@ func TestOldAddressRecords(t *testing.T) {
 	fd.st.Old.Message = "Roostack couldn't delete its records under old.example.net with that address's login at Cloudflare: 403 Forbidden"
 	fd.st.Left = []dnsrecords.Record{{Name: "vault.older.example.org", Type: "A", Value: "81.2.69.160", Via: "porkbun"}}
 	_, body := h.get("/settings/domain")
-	for _, want := range []string{`id="old-records"`, "403 Forbidden", "<code>*.old.example.net</code>", "tries again every hour",
+	for _, want := range []string{`id="old-records"`, "403 Forbidden", "<code>*.old.example.net</code>", "will try again every hour",
 		"<code>vault.older.example.org</code>", "Delete them at Porkbun", "I&#39;ve deleted them"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("ended: missing %q", want)
@@ -103,7 +103,7 @@ func TestOldAddressRecords(t *testing.T) {
 		t.Error("home: two providers, or one not known")
 	}
 	if code, body := h.post("/settings/domain/old/forget", nil, h.srv.URL); code != http.StatusOK || !fd.forgot || !fs.oldFinished ||
-		!strings.Contains(body, "no longer looks after those records") || strings.Contains(body, `id="old-records"`) {
+		!strings.Contains(body, "no longer looking after those records") || strings.Contains(body, `id="old-records"`) {
 		t.Errorf("forget: %d, forgot %v, finished %v", code, fd.forgot, fs.oldFinished)
 	}
 }
@@ -114,7 +114,7 @@ func TestNotDeletedRecords(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	h.server.DNS = &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateOK, NotDeleted: []dnsrecords.PublicRecord{{
 		Host: "photos.lab.example.com", IP: "81.2.69.160", State: dnsrecords.PublicError,
-		Message: "Roostack couldn't delete its record, which still points at 81.2.69.160: 500. It tries again in a few minutes."}}}}
+		Message: "Roostack couldn't delete its record, which still points at 81.2.69.160: 500. It will try again in a few minutes."}}}}
 	if _, body := h.get("/settings/public"); !strings.Contains(body, `id="not-deleted"`) || !strings.Contains(body, "<code>photos.lab.example.com</code>") {
 		t.Error("public access: the record left")
 	}

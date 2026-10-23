@@ -6,6 +6,8 @@ import (
 	"math/rand/v2"
 	"sync"
 	"time"
+
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // Every is how often the controller checks the registry (SPEC.md §8.3.3):
@@ -43,10 +45,8 @@ func (u *Updater) Run(ctx context.Context) {
 				u.Log.Warn("checking the service registry", "url", u.Fetcher.URL, "err", err)
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, Every+rand.N(Jitter)) {
 			return
-		case <-time.After(Every + rand.N(Jitter)):
 		}
 	}
 }

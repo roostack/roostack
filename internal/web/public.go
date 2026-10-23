@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/public"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Public access (SPEC.md §6.11): the Owner makes a service's address
@@ -26,6 +27,23 @@ import (
 // protection (CrowdSec), the DNS record, the router's port forwarding (or
 // on a lab on the internet the provider's firewall, SPEC.md §6.12), and a
 // check from outside, with what to look at if it fails.
+
+// PublicAddresses is what Roostack checks and sees on the public
+// addresses, each nil when it isn't known.
+type PublicAddresses struct {
+	// Checks are the outside check links for public addresses, and
+	// Protected says whether CrowdSec is running, AppSec with it (SPEC.md
+	// §6.10, §6.11).
+	Checks    *public.Checks
+	Protected func(ctx context.Context) bool
+	// Attacks says what CrowdSec saw on the public addresses over a while,
+	// for the weekly summary (optional).
+	Attacks func(ctx context.Context, since time.Duration) (public.Attacks, error)
+	// Blocks are the requests CrowdSec's AppSec refused over a while, for
+	// the service pages and the weekly summary (optional; waf.go).
+	Blocks func(ctx context.Context, since time.Duration) ([]public.Block, error)
+	waf    wafCache
+}
 
 // PublicAccess is making services public, in internal/manager.
 type PublicAccess interface {
@@ -196,7 +214,7 @@ func (s *Server) publicSubmit(w http.ResponseWriter, r *http.Request) {
 	req := manager.PublicRequest{Route: ra.Route, Public: makePublic,
 		AcceptUnsafe: r.FormValue("accept_unsafe") == "on", OpenPaths: r.Form["open"]}
 	if err := s.Manager.SetPublic(r.Context(), name, req); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderPublic(w, r, msg)
 			return
 		}
@@ -253,7 +271,7 @@ func (s *Server) publicCheckVisit(w http.ResponseWriter, r *http.Request) {
 	msg := map[int]string{
 		public.VisitUnknown: "This check link has expired or was already used. Make a new one on the service's page in Roostack.",
 		public.VisitFromHome: "This came from your home network, so it doesn't show whether the internet can reach " + host +
-			". Turn Wi-Fi off, so your phone uses mobile data, and open the link again.",
+			". Turn Wi-Fi off so that your phone uses mobile data, and open the link again.",
 		public.VisitOutside: "It works: " + host + " is reachable from the internet. You can close this page; Roostack has ticked the check.",
 	}[result]
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -289,11 +307,7 @@ func fromLoopback(r *http.Request) bool {
 // publicSettingsPage is Settings → Public access: what's public, whether
 // CrowdSec is running, and the sharing choice.
 func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	asked, share := s.Manager.SignalSharing()
 	data["SharingAsked"], data["Share"] = asked, share
 	hosts := s.Manager.PublicHosts()
@@ -387,7 +401,7 @@ func (s *Server) publicEdgeSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := s.Manager.SetEdge(r.Context(), id); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
@@ -456,7 +470,7 @@ func (s *Server) publicCountriesSubmit(w http.ResponseWriter, r *http.Request) {
 	switch mode := r.FormValue("mode"); {
 	case mode == "anyone":
 	case (mode == "allow" || mode == "block") && len(codes) == 0:
-		s.countriesFailed(w, r, "Choose at least one country, or let in anyone.")
+		s.countriesFailed(w, r, "Choose at least one country or let in anyone.")
 		return
 	case mode == "allow":
 		c.Allow = codes
@@ -527,10 +541,6 @@ func (s *Server) publicSharingSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "public access", "CrowdSec sharing: "+share)
 	redirect(w, r, "/settings/public")
-}
-
-func init() {
-	templateFuncs["publicState"] = func(state string) string { return publicState[state] }
 }
 
 // publicState is a record's state for people.

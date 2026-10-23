@@ -36,7 +36,7 @@ func TestInstallProgress(t *testing.T) {
 			{Name: "roostack-forgejo-app.container", Content: "Image=codeberg.org/forgejo/forgejo:15.0.9-rootless@sha256:cd\n"},
 		}}}}
 	plan := &reconcile.Plan{StartUnits: []string{db, app},
-		StartNotes: map[string]string{db: "downloads postgres", app: "downloads forgejo"},
+		StartNotes: map[string]string{db: "downloading postgres", app: "downloading forgejo"},
 		Pulls:      map[string]string{db: "postgres", app: "forgejo"}}
 	n.planInstalls([]state.Service{svc}, desired, plan, true)
 

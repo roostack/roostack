@@ -3,12 +3,12 @@
 <section class="card">
   <div class="card-head"><h2>Email and notifications</h2></div>
   {{if .Saved}}{{notice "ok" "Saved."}}{{end}}
-  {{if .NeedEmail}}{{notice "warn" "As the Owner, you need an email address, so Roostack can tell you when the lab needs you. Add yours below to continue."}}{{end}}
+  {{if .NeedEmail}}{{notice "warn" "As the Owner, you need an email address so Roostack can tell you when the lab needs you. Add yours below to continue."}}{{end}}
   {{with .EmailError}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{if not .MailReady}}{{notice "info" (printf "Roostack can't send email yet: %s" (or (and .Owner "set up the mail server in Settings → Email.") "ask your lab's Owner to set it up."))}}{{end}}
   <form method="post" action="{{.Action}}">
     <label>Your email address <input name="email" type="email" value="{{or .EmailValue .User.Email}}" placeholder="you@example.com" autocomplete="email"{{if eq .User.Role "owner"}} required{{end}}>
-      <small>Where Roostack emails you. {{if eq .User.Role "owner"}}As the Owner, you need one.{{else}}Leave it empty for no email.{{end}}</small></label>
+      <small>Where Roostack will email you. {{if eq .User.Role "owner"}}As the Owner, you need one.{{else}}Leave it empty for no email.{{end}}</small></label>
     {{with .Groups}}
     <fieldset>
       <legend>Email me about</legend>

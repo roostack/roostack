@@ -10,38 +10,7 @@ import (
 	"testing"
 
 	"roostack.cloud/roostack/internal/auth"
-	"roostack.cloud/roostack/internal/config"
-	"roostack.cloud/roostack/internal/mail"
 )
-
-// fakeMail keeps settings and records messages.
-type fakeMail struct {
-	m        config.Mail
-	password string
-	sent     []mail.Message
-	fail     error
-}
-
-func (f *fakeMail) Settings() (config.Mail, bool) { return f.m, f.password != "" }
-func (f *fakeMail) Save(m config.Mail, password string, clear bool) error {
-	if m.From == "" {
-		return &mail.FormError{Msg: "Enter the address emails come from."}
-	}
-	f.m = m
-	if clear {
-		f.password = ""
-	} else if password != "" {
-		f.password = password
-	}
-	return nil
-}
-func (f *fakeMail) Send(_ context.Context, msg mail.Message) error {
-	if f.fail != nil {
-		return f.fail
-	}
-	f.sent = append(f.sent, msg)
-	return nil
-}
 
 // Owners set the SMTP server (the password is never shown again) and send
 // a test email; everyone sets their own address.

@@ -3,22 +3,19 @@ package node
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // Finished logs become history, with their output; routine ones (nothing
 // changed) don't, unless they failed; old ones can be deleted.
 func TestKeepHistory(t *testing.T) {
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	n := &Local{Activity: activity.New(), Events: st}
 	n.KeepHistory()
 	ctx := context.Background()
@@ -36,11 +33,10 @@ func TestKeepHistory(t *testing.T) {
 	f.Finish(errors.New("boom"))
 
 	var events []store.Event
-	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if events, _ = n.History(ctx, time.Time{}, "", 10); len(events) == 2 {
-			break
-		}
-	}
+	testwait.For(t, 10*time.Second, func() bool {
+		events, _ = n.HistoryPage(ctx, time.Time{}, "", 10)
+		return len(events) == 2
+	})
 	if len(events) != 2 {
 		t.Fatalf("events: %+v", events)
 	}

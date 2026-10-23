@@ -3,15 +3,19 @@ package web
 import (
 	"context"
 	"crypto/tls"
+	"html/template"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -46,6 +50,32 @@ const (
 	signInServedPath = "/roostack/served"
 )
 
+// SingleSignOn is the sign-in page (SPEC.md §5.2), and Roostack's own
+// pages signing in through it.
+type SingleSignOn struct {
+	// SignIn is the identity provider (internal/sso), served on its own
+	// listener (SignInHandler); nil: none. SSO turns single sign-on on and
+	// off for services. SignInHost is login.<domain>, and SSODir holds the
+	// sign-in page's logo.
+	SignIn     *sso.Provider
+	SSO        SSOServices
+	SignInHost string
+	// SignInServed asks whether Caddy serves the sign-in page yet
+	// (CaddyServesSignIn); nil: never, so Roostack's own pages keep their
+	// own login.
+	SignInServed func(context.Context) bool
+	SSODir       string
+	signInPages  *template.Template
+
+	// served is the last answer to whether Caddy serves the sign-in page
+	// (signInServed), under servedMu, and servedToken what the sign-in
+	// listener answers the question with, so the answer can only come
+	// from it.
+	servedMu    sync.Mutex
+	served      servedCheck
+	servedToken string
+}
+
 // pagesHandoff is a sign-in on its way to Roostack's pages.
 type pagesHandoff struct {
 	userID int64
@@ -57,8 +87,7 @@ type pagesHandoff struct {
 	// state is the hash of the trip's cookie, and next the page to go to.
 	state, next string
 	// how is said in the audit log.
-	how     string
-	expires time.Time
+	how string
 }
 
 // pagesSignIn reports whether Roostack's own pages, as r reached them,
@@ -68,7 +97,7 @@ type pagesHandoff struct {
 // own login page is the way in.
 func (s *Server) pagesSignIn(r *http.Request) bool {
 	if s.SignIn == nil || s.SSO == nil || s.SignInHost == "" || s.UIHost == "" || fromSetupListener(r) ||
-		!isHTTPS(r) || !strings.EqualFold(hostOnly(r.Host), s.UIHost) {
+		!isHTTPS(r) || !strings.EqualFold(public.HostOnly(r.Host), s.UIHost) {
 		return false
 	}
 	return len(s.SSO.SSOClients()) > 0 && s.signInServed(r.Context())
@@ -89,9 +118,9 @@ type servedCheck struct {
 // a minute once yes, 5 seconds while no, so someone waiting gets in soon
 // after it changes.
 func (s *Server) signInServed(ctx context.Context) bool {
-	s.mu.Lock()
+	s.servedMu.Lock()
 	c := s.served
-	s.mu.Unlock()
+	s.servedMu.Unlock()
 	keep := 5 * time.Second
 	if c.ok {
 		keep = time.Minute
@@ -103,9 +132,9 @@ func (s *Server) signInServed(ctx context.Context) bool {
 	if ok != c.ok && !c.at.IsZero() {
 		s.Log.Info("Roostack's pages sign in through the sign-in page", "now", ok)
 	}
-	s.mu.Lock()
+	s.servedMu.Lock()
 	s.served = servedCheck{ok: ok, at: time.Now()}
-	s.mu.Unlock()
+	s.servedMu.Unlock()
 	return ok
 }
 
@@ -199,13 +228,10 @@ func (s *Server) pagesStart(w http.ResponseWriter, r *http.Request) {
 func (s *Server) pagesCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	key := authkit.HashToken(r.FormValue("code"))
-	s.mu.Lock()
-	h := s.handoffs[key]
-	delete(s.handoffs, key)
-	s.mu.Unlock()
+	h, ok := s.handoffs.take(key)
 	c, err := r.Cookie(pagesStateCookie)
 	http.SetCookie(w, &http.Cookie{Name: pagesStateCookie, Value: "", Path: pathPagesStart, MaxAge: -1, HttpOnly: true, Secure: true})
-	if h == nil || time.Now().After(h.expires) || err != nil || !authkit.TokensEqual(authkit.HashToken(c.Value), h.state) {
+	if !ok || err != nil || !authkit.TokensEqual(authkit.HashToken(c.Value), h.state) {
 		if currentUser(r) != nil {
 			// Another tab's trip got here first.
 			redirect(w, r, "/")
@@ -214,8 +240,8 @@ func (s *Server) pagesCallback(w http.ResponseWriter, r *http.Request) {
 		s.Log.Warn("refused a sign-in from the sign-in page", "remote", r.RemoteAddr)
 		s.Store.Audit(ctx, nil, "failed login", "a link from the sign-in page that didn't work, from "+r.RemoteAddr)
 		w.WriteHeader(http.StatusBadRequest)
-		s.renderLogin(w, r, map[string]any{"Error": "Signing in through the sign-in page didn't work: the link was too old, " +
-			"or opened in another browser. Try again, or log in here."})
+		s.renderLogin(w, r, map[string]any{"Error": "Signing in through the sign-in page didn't work: the link was too old " +
+			"or opened in another browser. Try again or log in here."})
 		return
 	}
 	u, err := s.Store.UserByID(ctx, h.userID)
@@ -353,7 +379,7 @@ func (s *Server) signInConfirm(w http.ResponseWriter, r *http.Request) {
 			s.Log.Warn("failed 2FA code", "user", u.Username, "remote", r.RemoteAddr)
 			time.Sleep(failedLoginDelay)
 			if res == codeLocked {
-				s.Store.Audit(ctx, u, auditLocked, "opening Roostack's pages from the sign-in page")
+				s.Store.Audit(ctx, u, attention.AuditLocked, "opening Roostack's pages from the sign-in page")
 				s.renderSignIn(w, r, http.StatusTooManyRequests, s.confirmView(r, sess, trip, lockedMessage(until)))
 				return
 			}
@@ -388,18 +414,10 @@ func (s *Server) handOffPages(w http.ResponseWriter, r *http.Request, u *store.U
 		s.serverError(w, err)
 		return
 	}
-	now := time.Now()
-	h := &pagesHandoff{userID: u.ID, state: trip.state, next: trip.next, how: how, expires: now.Add(sso.CodeLifetime)}
+	h := &pagesHandoff{userID: u.ID, state: trip.state, next: trip.next, how: how}
 	if sess != nil {
 		h.signIn, h.ends, h.remember = sess.Hash, sess.Expires, sess.Remember
 	}
-	s.mu.Lock()
-	for k, o := range s.handoffs {
-		if now.After(o.expires) {
-			delete(s.handoffs, k)
-		}
-	}
-	s.handoffs[authkit.HashToken(code)] = h
-	s.mu.Unlock()
+	s.handoffs.put(authkit.HashToken(code), h, time.Now().Add(sso.CodeLifetime))
 	http.Redirect(w, r, "https://"+s.UIHost+pathPagesCallback+"?"+url.Values{"code": {code}}.Encode(), http.StatusSeeOther)
 }

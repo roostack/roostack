@@ -15,7 +15,7 @@
   {{with .ErrorMsg}}<p class="error" role="alert">{{.}}</p>{{end}}
   <dl class="facts">
     <dt>Last update</dt>
-    <dd>{{with .Last}}{{when .At}}: {{.Summary}}{{else}}Not run yet; the first runs tonight.{{end}}</dd>
+    <dd>{{with .Last}}{{when .At}}: {{.Summary}}{{else}}Not run yet; the first will run tonight.{{end}}</dd>
     <dt>Restart</dt>
     <dd>{{if .Restart.Needed}}<span class="dot dot-warn" aria-hidden="true"></span>Needed{{if not .Restart.Since.IsZero}} since {{when .Restart.Since}}{{end}}
       {{- if eq .Mode "notify"}}: waiting for you{{else}}: automatic at {{printf "%02d:00" .Hour}}{{end}}
@@ -31,14 +31,14 @@
   </dl>
   {{with .Series}}{{if .Accepted}}
   <div class="notice" role="status">
-    <p><strong>Roostack {{.Accepted}} installs with this server's next updates:</strong> tonight after the backup, or now with
+    <p><strong>Roostack {{.Accepted}} will install with this server's next updates:</strong> tonight after the backup or now with
       <em>Check for updates now</em>.{{with .Waiting}} It's waiting: {{.}}.{{end}}
       <a href="{{.WhatsNew}}" target="_blank" rel="noopener">What's new in {{.Accepted}}{{template "new-window"}}</a></p>
   </div>
   {{else if .Newest}}
   <div class="notice" role="status">
     <p><strong>Roostack {{.NewestVersion}} is available.</strong> It starts a new series of releases, which can change how things
-      work, so it waits for you. Once you say yes, this server moves to it with its next updates, after a backup.
+      work, so it's waiting for you. Once you say yes, this server will move to it with its next updates, after a backup.
       <a href="{{.WhatsNew}}" target="_blank" rel="noopener">What's new in {{.Newest}}{{template "new-window"}}</a></p>
     {{if .NoBackups}}<p>This server isn't backed up through Roostack, so there won't be a backup to go back to.</p>{{end}}
     <form method="post" action="{{$.Server.SeriesAccept}}">
@@ -66,9 +66,9 @@
       <label class="check"><input type="radio" name="restart" value="auto" {{if eq .Mode "auto"}}checked{{end}}>
         <span>Restart automatically at
           <select name="hour" class="inline" aria-label="Hour">{{range .Hours}}<option value="{{.}}" {{if eq . $.Updates.Hour}}selected{{end}}>{{printf "%02d:00" .}}</option>{{end}}</select>
-          <small>Recommended. Waits for backups to finish. Services are unavailable for a minute or two.</small></span></label>
+          <small>Recommended. It will wait for backups to finish, and services will be unavailable for a minute or two.</small></span></label>
       <label class="check"><input type="radio" name="restart" value="notify" {{if eq .Mode "notify"}}checked{{end}}>
-        <span>Only tell me<small>Security fixes for the system's core (the kernel) don't take effect until you restart.</small></span></label>
+        <span>Only tell me<small>Security fixes for the system's core (the kernel) won't take effect until you restart.</small></span></label>
     </fieldset>
     <button type="submit">Save</button>
   </form>
@@ -81,18 +81,18 @@
     firewall from working as Roostack expects.</p>
   <dl class="facts">
     {{with .AptSources}}<dt>Software from outside Debian</dt>
-    <dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">Updates from these aren't checked by Debian, and can
+    <dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">Updates from these aren't checked by Debian and can
       conflict with Debian's own packages.</small></dd>{{end}}
     {{with .Held}}<dt>Held back from updates</dt>
-    <dd>{{range $i, $p := .}}{{if $i}}, {{end}}<code>{{$p}}</code>{{end}}<br><small class="hint">These don't get security fixes
+    <dd>{{range $i, $p := .}}{{if $i}}, {{end}}<code>{{$p}}</code>{{end}}<br><small class="hint">These aren't getting security fixes
       (<code>sudo apt-mark unhold …</code> releases them).</small></dd>{{end}}
     {{with .Firewalls}}<dt>Another firewall</dt>
-    <dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">Its rules apply as well as Roostack's, and can block services.</small></dd>{{end}}
+    <dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">Its rules apply as well as Roostack's and can block services.</small></dd>{{end}}
     {{if .FirewallMissing}}<dt>Roostack's firewall</dt><dd><span class="error">Not loaded: something removed it.</span> Saving this
-      server's remote access choice loads it again.</dd>{{end}}
+      server's remote access choice will load it again.</dd>{{end}}
   </dl>
-  {{if .Known}}<p class="hint">✓ You said these were made on purpose. Roostack tells you again if anything else changes.</p>
-  {{else}}{{confirm $.Server.HostChangesKnown "Mark these changes as made on purpose? Roostack stops warning about them, until something else changes." "I made these changes" "secondary"}}{{end}}
+  {{if .Known}}<p class="hint">✓ You said these were made on purpose. Roostack will tell you again if anything else changes.</p>
+  {{else}}{{confirm $.Server.HostChangesKnown "Mark these changes as made on purpose? Roostack will stop warning about them until something else changes." "I made these changes" "secondary"}}{{end}}
 </section>
 {{end}}
 {{else}}
@@ -101,7 +101,7 @@
 {{with $.Registry}}
 <section class="card section" id="registry">
   <h2>Services you can install</h2>
-  <p class="hint">Roostack gets the services you can install, and fixes to them, from the service registry. It checks every few hours,
+  <p class="hint">Roostack gets the services you can install, and fixes to them, from the service registry. It checks every few hours
     and only uses files signed by the registry's keys.</p>
   <dl class="facts">
     <dt>Last checked</dt>
@@ -125,15 +125,15 @@
   <form method="post" action="/settings/updates/registry/on">
     <label class="check"><input type="checkbox" name="on" value="1" {{if .On}}checked{{end}}>
       <span>Check the service registry for services and fixes<small>Recommended. Turned off, services can't be installed or
-        updated from the registry, and Roostack doesn't hear when a version is withdrawn because it's unsafe. Installed services keep
+        updated from the registry, and Roostack won't hear when a version is withdrawn because it's unsafe. Installed services will keep
         running.</small></span></label>
     <button type="submit">Save</button>
   </form>
   <form method="post" action="/settings/updates/registry/stops">
     <label class="check"><input type="checkbox" name="on" value="1" {{if .StopsOn}}checked{{end}}>
-      <span>Let Roostack stop a service the registry says is dangerous<small>Recommended. If a version turns out to be malicious,
-        or is being attacked with no fix yet, Roostack stops it (keeping all its data) until you update it or start it again.
-        Turned off, Roostack only warns you.</small></span></label>
+      <span>Let Roostack stop a service the registry says is dangerous<small>Recommended. If a version turns out to be malicious
+        or is being attacked with no fix yet, Roostack will stop it (keeping all its data) until you update it or start it again.
+        Turned off, Roostack will only warn you.</small></span></label>
     <button type="submit">Save</button>
   </form>
 </section>

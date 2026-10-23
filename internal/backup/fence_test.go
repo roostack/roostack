@@ -13,7 +13,8 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/maintenance"
-	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // The lab was restored on another machine (a newer generation backs up
@@ -21,6 +22,7 @@ import (
 // stays down until the Owner keeps it; then the other copy would stand
 // down instead.
 func TestFenceRestored(t *testing.T) {
+	t.Parallel()
 	repo := testRepo(t)
 	ctx := context.Background()
 	root := t.TempDir()
@@ -42,11 +44,7 @@ func TestFenceRestored(t *testing.T) {
 	}
 	before, _ := repo.Snapshots(ctx, TagRoostack)
 
-	st, err := store.Open(filepath.Join(root, "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now, Journal: nopJournal{},
 		Ticks: make(chan time.Time), Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	cctx, cancel := context.WithCancel(ctx)
@@ -56,13 +54,8 @@ func TestFenceRestored(t *testing.T) {
 	if err := svc.Submit(); err != nil {
 		t.Fatal(err)
 	}
-	for deadline := time.Now().Add(60 * time.Second); svc.Fenced(ctx) == nil && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
-	}
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if st, _ := svc.Status(ctx); !st.Running && !st.Queued {
-			break
-		}
-	}
+	testwait.For(t, 60*time.Second, func() bool { return svc.Fenced(ctx) != nil })
+	testwait.For(t, 10*time.Second, func() bool { st, _ := svc.Status(ctx); return !st.Running && !st.Queued })
 	if after, _ := repo.Snapshots(ctx, TagRoostack); len(after) != len(before) {
 		t.Errorf("the old copy uploaded %d snapshots", len(after)-len(before))
 	}
@@ -96,6 +89,7 @@ func TestFenceRestored(t *testing.T) {
 
 // A server the lab removed while it was off finds the mark and stands down.
 func TestFenceRemoved(t *testing.T) {
+	t.Parallel()
 	repo := testRepo(t)
 	ctx := context.Background()
 	root := t.TempDir()

@@ -15,7 +15,7 @@ Nothing to set up: Roostack checks by itself
 - **each of the lab's other servers**, over the lab's own network.
 - **the lab's address**: that devices at home find your server at it.
 
-A service you stopped, or one that's being installed, updated or restored,
+A service you stopped, or one that's being installed, updated, or restored,
 is **paused**: it isn't counted as down.
 
 Roostack checks from inside your lab. So it can't tell whether your router
@@ -25,11 +25,11 @@ checked.
 ## When something stops answering
 
 After three failed checks in a row (so one slow answer doesn't count), the
-service shows as **Down**, under "needs attention" on Home, and on
+service will show as **Down**, under "needs attention" on Home, and on
 Monitoring with what went wrong. If it lasts a few minutes, Owners and
-Admins are emailed, as for other problems (your account's
+Admins will be emailed, as for other problems (your account's
 **Notifications** say which emails you get). When it answers again, the
-email says so.
+email will say so.
 
 Roostack also warns when a service's certificate is close to expiring:
 Caddy renews certificates well before then, so it means renewing is
@@ -38,14 +38,14 @@ failing.
 ## A check's details
 
 **Details** beside a check shows its last 90 days, its uptime over a day, a
-week, a month and three months, how long its answers take, the times it was
-down and what came back, and exactly what's asked.
+week, a month, and three months, how long its answers take, the times it
+was down and what came back, and exactly what's asked.
 
 Each service's page also has an **Uptime** card.
 
 ## Your own checks
 
-To know about something else on your network, such as your router, a NAS
+To know about something else on your network, such as your router, a NAS,
 or a printer, choose **Add a check…** under **Your own checks** and give
 
 - a **name**, and
@@ -74,9 +74,9 @@ code.
 
 ## Turning it off
 
-**Turn monitoring off**, at the bottom of the page, stops the checks and
-their emails. Services' own health checks, and the rest of "needs
-attention", carry on.
+**Turn monitoring off**, at the bottom of the page, will stop the checks
+and their emails. Services' own health checks and the rest of "needs
+attention" will carry on.
 
 ## Where things are
 

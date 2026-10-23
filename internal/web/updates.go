@@ -10,6 +10,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // updatesView is the Settings page's "Updates and restarts" card.
@@ -110,7 +111,7 @@ func (s *Server) seriesAcceptSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderUpdates(w, r, node.SeriesGoneMsg)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderUpdates(w, r, msg)
 		return
 	}
@@ -158,7 +159,7 @@ func (s *Server) restartPolicySubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = s.server(r).SetRestartPolicy(r.Context(), r.FormValue("restart"), hour)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderUpdates(w, r, msg)
 		return
 	}

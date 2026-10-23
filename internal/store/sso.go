@@ -32,9 +32,7 @@ func (s *Store) SetName(ctx context.Context, userID int64, name string) error {
 // renamed person keeps their accounts in apps.
 func (s *Store) EnsureSSOID(ctx context.Context, userID int64) (string, error) {
 	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
+	rand.Read(buf) // never fails (Go 1.24)
 	if _, err := s.db.ExecContext(ctx, `UPDATE users SET sso_id = ? WHERE id = ? AND sso_id = ''`,
 		hex.EncodeToString(buf), userID); err != nil {
 		return "", err
@@ -290,7 +288,7 @@ func (s *Store) LookupSSOToken(ctx context.Context, hash, kind string) (*SSOToke
 		FROM sso_tokens t JOIN users ON users.id = t.user_id JOIN sessions s ON s.token_hash = t.session_hash
 		WHERE t.token_hash = ? AND t.kind = ? AND t.expires_at > ? AND s.expires_at > ? AND s.origin = ?`,
 		hash, kind, now, now, OriginSignIn)
-	u, err := scanUserRow(scanTail{row, []any{&t.Hash, &t.Kind, &t.Service, &t.UserID, &t.Session, &t.Scope, &expires}})
+	u, err := scanUser(scanTail{row, []any{&t.Hash, &t.Kind, &t.Service, &t.UserID, &t.Session, &t.Scope, &expires}})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -328,7 +326,7 @@ func (s *Store) SignInSession(ctx context.Context, tokenHash string) (*SignIn, e
 	row := s.db.QueryRowContext(ctx, `SELECT `+userColumns+`, s.expires_at, s.remember, s.signed_in_at
 		FROM sessions s JOIN users ON users.id = s.user_id
 		WHERE s.token_hash = ? AND s.expires_at > ? AND s.origin = ?`, tokenHash, time.Now().Unix(), OriginSignIn)
-	u, err := scanUserRow(scanTail{row, []any{&ends, &remember, &at}})
+	u, err := scanUser(scanTail{row, []any{&ends, &remember, &at}})
 	if err != nil {
 		return nil, err
 	}
@@ -354,5 +352,5 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 	if n != 1 {
 		return nil, ErrNotFound
 	}
-	return s.scanUser(s.db.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE email = ? COLLATE NOCASE`, email))
+	return scanUser(s.db.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE email = ? COLLATE NOCASE`, email))
 }

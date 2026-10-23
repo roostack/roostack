@@ -10,6 +10,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // CaddyLocal is where the controller reaches its own Caddy, which serves
@@ -104,30 +105,21 @@ func (m *Manager) remote(id string) (RemoteServer, bool) {
 }
 
 // StatusPageOn says whether the public status page is on (SPEC.md §6.15).
-func (m *Manager) StatusPageOn() bool {
-	if p := m.statusPage.Load(); p != nil {
-		return *p
-	}
-	return m.Lab.Monitoring.StatusPage
-}
+func (m *Manager) StatusPageOn() bool { return m.labNow().Monitoring.StatusPage }
 
 // SetStatusPage turns the public status page on or off: lab.yaml keeps
 // it, and the apply serves it (Caddy) and makes its name public (DNS
 // records, edges, Roostack Cloud's relay) or stops.
 func (m *Manager) SetStatusPage(on bool) error {
 	if on && !m.Lab.HasAddress() {
-		return formErrorf("The status page needs your lab to have an address first.")
+		return usererr.New("The status page needs your lab to have an address first.")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.UpdateLab != nil {
-		if err := m.UpdateLab(func(l *config.Lab) { l.Monitoring.StatusPage = on }); err != nil {
-			return err
-		}
+	if err := m.saveLab(func(l *config.Lab) { l.Monitoring.StatusPage = on }); err != nil {
+		return err
 	}
-	m.statusPage.Store(&on)
-	m.applyReason = "Turning the public status page " + map[bool]string{true: "on", false: "off"}[on]
-	m.startApplyLocked()
+	m.startApplyLocked("Turning the public status page " + map[bool]string{true: "on", false: "off"}[on])
 	return nil
 }
 

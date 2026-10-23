@@ -6,21 +6,18 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 func openStore(t *testing.T) *store.Store {
 	t.Helper()
-	s, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { s.Close() })
+	s := storetest.Open(t)
 	return s
 }
 
@@ -238,6 +235,9 @@ func TestProbeTCP(t *testing.T) {
 
 // A ping to this machine (where ping sockets are allowed).
 func TestProbePing(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("ping reads replies as Linux's ping sockets give them: macOS's put the IP header first")
+	}
 	r := Probe(context.Background(), Check{Ping: "127.0.0.1"})
 	if strings.Contains(r.Err, "isn't allowed") {
 		t.Skip("ping sockets aren't allowed here:", r.Err)

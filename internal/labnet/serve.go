@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // Serve runs the lab API on this server's address on Roostack's network
@@ -33,10 +34,8 @@ func Serve(ctx context.Context, stateDir string, handler http.Handler, log *slog
 				break
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 10*time.Second) {
 			return
-		case <-time.After(10 * time.Second):
 		}
 	}
 	tlsConf, err := Identity{Dir: IdentityDir(stateDir)}.ServerTLS()

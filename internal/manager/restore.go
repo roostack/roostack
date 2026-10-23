@@ -3,11 +3,8 @@ package manager
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -17,6 +14,8 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Restoring a service from any of the lab's backups, onto any server
@@ -94,7 +93,7 @@ func (m *Manager) ServiceBackups(ctx context.Context, name string) ([]BackupMome
 				}
 			}
 			if err != nil {
-				problems[i] = fmt.Sprintf("Couldn't read %s backups at %s: %s", m.backupsOf(kr.ServerID), where, firstLine(err.Error()))
+				problems[i] = fmt.Sprintf("Couldn't read %s backups at %s: %s", m.backupsOf(kr.ServerID), where, words.FirstLine(strings.TrimSpace(err.Error())))
 			}
 		})
 	}
@@ -186,21 +185,21 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	if err != nil {
 		return err
 	}
-	host := cmp.Or(in.Host, m.Lab.NodeID)
+	host := in.HostOr(m.Lab.NodeID)
 	to = cmp.Or(to, host)
 	if in.Waiting && to == host {
 		to = m.Lab.NodeID // its server is gone: here, unless chosen
 	}
 	ref, snapID, ok := strings.Cut(id, "@")
 	if !ok || snapID == "" {
-		return formErrorf("Choose a backup to restore.")
+		return usererr.New("Choose a backup to restore.")
 	}
-	dst, ok := m.node(to).(node.Mover)
-	if !ok {
-		return formErrorf("Choose a server in this lab.")
+	dst := node.Capability(m.node(to), node.Node.Mover)
+	if dst == nil {
+		return usererr.New("Choose a server in this lab.")
 	}
 	if r, ok := m.node(to).(RemoteServer); ok && r.Settings() == nil {
-		return formErrorf("Roostack can't reach %s right now.", r.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", r.Identity().Name)
 	}
 	if ref == "backup:"+to && to == host && !in.Waiting {
 		if x := m.node(to).Restores(); x != nil {
@@ -218,7 +217,7 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	}
 	kr, ok := findRepo(repos, ref)
 	if !ok {
-		return formErrorf("That backup isn't there any more. Choose another.")
+		return usererr.New("That backup isn't there any more. Choose another.")
 	}
 	repo, err := kr.open(backup.KeyFile(m.Lab.Paths))
 	if err != nil {
@@ -226,7 +225,7 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	}
 	snap, err := repo.ServiceSnapshot(ctx, name, snapID)
 	if err != nil {
-		return formErrorf("That backup isn't there any more. Choose another.")
+		return usererr.New("That backup isn't there any more. Choose another.")
 	}
 	m.mu.Lock()
 	if m.restoring == nil {
@@ -242,8 +241,9 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	act := m.Activity.Start(activity.Restore, "Restoring "+p.Title)
 	go func() {
 		ctx := context.Background()
-		err := m.restoreFrom(ctx, act, restoreJob{name: name, title: cmp.Or(in.Title, p.Title), host: host, to: to, backup: id,
-			repo: repo, snap: *snap, from: fmt.Sprintf("%s backup at %s", m.backupsOf(kr.ServerID), where)}, dst)
+		j := &transferJob{m: m, act: act, name: name, title: cmp.Or(in.Title, p.Title), from: host, to: to, dst: dst,
+			restore: true, repo: repo, snap: *snap, where: fmt.Sprintf("%s backup at %s", m.backupsOf(kr.ServerID), where), backupID: id}
+		err := j.restoreBackup(ctx)
 		if err != nil {
 			m.Log.Error("restoring a service", "service", name, "err", err)
 		}
@@ -265,148 +265,75 @@ func (m *Manager) Restoring(name string) bool {
 	return m.restoring[name]
 }
 
-// restoreJob is a restore the controller does.
-type restoreJob struct {
-	name, title string
-	// host is where the service runs now; to is where it goes.
-	host, to string
-	repo     *backup.Repo
-	snap     backup.Snapshot
-	from     string // where the backup is, for the log
-	backup   string // the backup's ID, for restoring it again
-}
-
-// restoreFrom streams a service's backup to the server it goes onto
-// (RestoreService).
-func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJob, dst node.Mover) (err error) {
-	act.Printf("The backup from %s, in %s (%s)", j.snap.Time.Local().Format("Mon 2 Jan 15:04"), j.from, j.snap.Short)
-	src, _ := m.node(j.host).(node.Mover)
-	reachable := src != nil
-	if r, ok := m.node(j.host).(RemoteServer); ok && r.Settings() == nil {
-		reachable = false
-		act.Printf("Roostack can't reach %s, where %s ran: it's restored without stopping it there", m.nameOf(j.host), j.title)
+// restoreBackup streams a service's backup to the server it goes onto
+// (RestoreService, RestoreLostServer). If its databases don't load, it's
+// held stopped (hold.go).
+func (j *transferJob) restoreBackup(ctx context.Context) (err error) {
+	m := j.m
+	j.act.Printf("The backup from %s, in %s (%s)", j.snap.Time.Local().Format("Mon 2 Jan 15:04"), j.where, j.snap.Short)
+	j.src = node.Capability(m.node(j.from), node.Node.Mover)
+	if r, ok := m.node(j.from).(RemoteServer); ok && r.Settings() == nil {
+		j.src = nil
+		j.act.Printf("Roostack can't reach %s, where %s ran, so it's restoring %s without stopping it there", m.nameOf(j.from), j.title, j.title)
 	}
-	stopped := false
-	defer func() {
-		if err != nil && stopped {
-			act.Step("Starting %s again%s", j.title, m.onServer(j.host))
-			if serr := src.StartService(context.WithoutCancel(ctx), j.name); serr != nil {
-				act.Printf("%v", serr)
-			}
-		}
-	}()
-	if reachable {
-		act.Step("Stopping %s%s", j.title, m.onServer(j.host))
-		if err := src.StopService(ctx, j.name); err != nil {
+	defer func() { j.startAgainIfFailed(ctx, err) }()
+	if j.src != nil {
+		if err := j.stop(ctx); err != nil {
 			return err
 		}
-		stopped = true
 	}
 
 	if to := m.onServer(j.to); to == "" {
-		act.Step("Copying %s's data from the backup", j.title)
+		j.act.Step("Copying %s's data from the backup", j.title)
 	} else {
-		act.Step("Copying %s's data from the backup to %s", j.title, m.nameOf(j.to))
+		j.act.Step("Copying %s's data from the backup to %s", j.title, m.nameOf(j.to))
 	}
-	for dir, path := range []string{filepath.Join(m.Lab.Paths.ServicesDir, j.name), filepath.Join(m.Lab.Paths.MediaDir, j.name)} {
-		if !slices.ContainsFunc(j.snap.Paths, func(p string) bool { return p == path || strings.HasPrefix(p, path+"/") }) {
-			continue // e.g. no media folder
-		}
-		// Anything left from an earlier attempt goes first.
-		if err := dst.PruneData(ctx, j.name, dir, nil); err != nil {
-			return err
-		}
-		strip := len(strings.Split(strings.Trim(path, "/"), "/"))
-		err := pipe(ctx, func(w io.Writer) error { return j.repo.Dump(ctx, j.snap.ID, path, w) },
-			func(r io.Reader) error { return dst.ImportData(ctx, j.name, dir, r, strip) })
-		if err != nil && !errors.Is(err, backup.ErrNotInSnapshot) {
-			return err
-		}
-	}
-
-	act.Step("Putting its secrets in place (e.g. database passwords)")
-	secrets, err := m.backedUpSecrets(ctx, j)
-	if err != nil {
-		if !reachable {
-			return err
-		}
-		act.Printf("%v; using the ones %s has", err, m.serverName(j.host))
-		if secrets, err = src.ExportSecrets(ctx, j.name); err != nil {
-			return err
-		}
-	}
-	if secrets, err = m.ownSecrets(act, j.name, secrets); err != nil {
+	if err := j.copyFromBackup(ctx); err != nil {
 		return err
 	}
-	if err := dst.ImportSecrets(ctx, secrets); err != nil {
+	if err := j.bringSecrets(ctx); err != nil {
 		return err
 	}
-
-	act.Step("Putting the data in place%s", m.onServer(j.to))
-	kept, err := dst.CommitData(ctx, j.name)
-	for _, k := range kept {
-		act.Printf("The data that was there is kept at %s until you delete it", k)
-	}
-	if err != nil {
+	if err := j.commit(ctx); err != nil {
 		return err
 	}
-	if j.to != j.host {
-		act.Step("Setting %s up on %s", j.title, m.nameOf(j.to))
-		switched := time.Now()
-		if err := m.switchHost(j.name, j.to); err != nil {
+	if j.to != j.from {
+		j.act.Step("Setting %s up on %s", j.title, m.nameOf(j.to))
+		switched, err := j.switchTo()
+		if err != nil {
 			return err
 		}
-		stopped = false // it runs on the new server now
-		if err := waitApplied(ctx, m.node(j.to), switched); err != nil {
+		if err := m.waitApplied(ctx, m.node(j.to), switched); err != nil {
 			return err
 		}
 	}
-	act.Step("Loading its databases from the backup, and starting it")
-	if err := dst.LoadDumps(ctx, j.name); err != nil {
+	j.act.Step("Loading its databases from the backup and starting it")
+	// Whatever happens now, it isn't started again as it was.
+	j.stopped = false
+	if err := j.dst.LoadDumps(ctx, j.name); err != nil {
 		// Its files are the backup's now: started again on them, without
 		// its databases, it would run half-restored (security review of
 		// 2026-10-16). It's held stopped until the Owner chooses (SPEC.md
 		// §6.9, "A restore that didn't finish").
-		stopped = false
-		act.Printf("%v", err)
-		h := instance.Hold{Backup: j.backup, Taken: j.snap.Time, Error: err.Error()}
-		if len(kept) > 0 {
-			h.Kept = kept[0]
+		j.act.Printf("%v", err)
+		h := instance.Hold{Backup: j.backupID, Taken: j.snap.Time, Error: err.Error()}
+		if len(j.kept) > 0 {
+			h.Kept = j.kept[0]
 		}
 		if herr := m.holdService(j.name, h); herr != nil {
-			act.Printf("Roostack couldn't record that %s should stay stopped (%v), so it may start again at the next change on %s.",
+			j.act.Printf("Roostack couldn't record that %s should stay stopped (%v), so it may start again at the next change on %s.",
 				j.title, herr, m.nameOf(j.to))
 		}
 		return errors.New(backup.NotLoadedMsg(j.title, j.snap.Time))
 	}
-	stopped = false
 	if released, err := m.releaseHold(j.name, "Starting "+j.title+": it's restored"); err != nil {
-		act.Printf("%v", err)
+		j.act.Printf("%v", err)
 	} else if released {
 		m.audit(ctx, AuditHoldEnded, "Restored "+j.title+", so it's no longer stopped")
 	}
-	if j.to != j.host && reachable {
-		aside, err := src.SetAsideData(ctx, j.name, "to-"+m.nameOf(j.to))
-		if err != nil {
-			act.Printf("Couldn't set the old copy aside on %s: %v", m.nameOf(j.host), err)
-		}
-		for _, a := range aside {
-			act.Printf("The old copy stays on %s at %s until you delete it", m.nameOf(j.host), a)
-		}
+	if j.to != j.from && j.src != nil {
+		j.setAsideOld(ctx)
 	}
-	act.Step("%s is back to the backup from %s%s", j.title, j.snap.Time.Local().Format("Mon 2 Jan 15:04"), strings.Replace(m.onServer(j.to), " on", ", on", 1))
+	j.act.Step("%s is back to the backup from %s%s", j.title, j.snap.Time.Local().Format("Mon 2 Jan 15:04"), strings.Replace(m.onServer(j.to), " on", ", on", 1))
 	return nil
-}
-
-// backedUpSecrets reads the secrets saved with a service's backup.
-func (m *Manager) backedUpSecrets(ctx context.Context, j restoreJob) (map[string][]byte, error) {
-	data, err := j.repo.DumpFile(ctx, j.snap.ID, backup.SecretsFile(m.Lab.Paths, j.name))
-	if err != nil {
-		return nil, fmt.Errorf("the backup has no secrets for %s", j.title)
-	}
-	var secrets map[string][]byte
-	if err := json.Unmarshal(data, &secrets); err != nil {
-		return nil, fmt.Errorf("reading the backup's secrets for %s: %w", j.title, err)
-	}
-	return secrets, nil
 }

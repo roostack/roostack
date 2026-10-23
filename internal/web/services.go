@@ -16,6 +16,8 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/registry"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // formField is one input on the install form.
@@ -66,10 +68,6 @@ func (s *Server) catalogReady(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	// A fresh list from the registry, unless there's one from the last
 	// few minutes (SPEC.md §8.3.3). The page doesn't wait long: the
 	// background check keeps the list current anyway.
@@ -247,7 +245,7 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := s.Manager.Install(r.Context(), p.Name, req)
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	switch {
 	case isForm:
 		w.WriteHeader(http.StatusBadRequest)
@@ -385,10 +383,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		base = p.Routes[route].Subdomain
 	}
 	if submitted == nil {
-		sub, title = base, p.Title
-		if another {
-			sub, title, suffix = base+"-2", p.Title+" (2)", "2"
-		}
+		sub, title, suffix = manager.NewServiceNames(p, another)
 	}
 	// Where to run it, once the lab has more than one server (SPEC.md §10.4).
 	var servers []manager.Server
@@ -402,7 +397,8 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 	noBuild, noBuildText := map[string]string{}, ""
 	if len(servers) > 0 {
 		var names, arches []string
-		for _, nb := range s.Manager.NoBuildOn(p) {
+		nbs := s.Manager.NoBuildOn(p)
+		for _, nb := range nbs {
 			noBuild[nb.ID] = nb.Arch
 			names = append(names, nb.Name)
 			if !slices.Contains(arches, nb.Arch) {
@@ -415,21 +411,10 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 				its = "their"
 			}
 			noBuildText = fmt.Sprintf("%s can't run on %s: it has no version for %s kind of processor (%s).",
-				p.Title, joinOr(names), its, joinAnd(arches))
+				p.Title, words.Or(names), its, words.And(arches))
 		}
-		chosen := host
-		for _, m := range servers {
-			if chosen == "" && m.This {
-				chosen = m.ID // "" is this server
-			}
-		}
-		if _, no := noBuild[chosen]; no && submitted == nil {
-			for _, m := range servers {
-				if _, no := noBuild[m.ID]; !no {
-					host = m.ID
-					break
-				}
-			}
+		if submitted == nil {
+			host = manager.InstallServer(servers, nbs, host)
 		}
 	}
 	// On a lab on the internet: public from the start, unless the package
@@ -534,19 +519,15 @@ func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name, port := r.PathValue("name"), r.PathValue("port")
 	enabled := r.FormValue("enabled") == "on"
 	hostPort, err := strconv.Atoi(strings.TrimSpace(r.FormValue("host_port")))
 	if err != nil {
-		err = &manager.FormError{Msg: "Enter a port number, such as 2222."}
+		err = &usererr.Error{Msg: "Enter a port number, such as 2222."}
 	} else {
 		err = s.Manager.SetPort(r.Context(), name, port, enabled, hostPort)
 	}
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	switch {
 	case errors.Is(err, manager.ErrNotFound):
 		http.NotFound(w, r)
@@ -613,10 +594,6 @@ func (s *Server) installFields(name string, p *pkgspec.Package) []formField {
 
 // retryWithSubmit runs a failed install again with changed settings.
 func (s *Server) retryWithSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad form.", http.StatusBadRequest)
@@ -637,7 +614,7 @@ func (s *Server) retryWithSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	err := s.Manager.RetryInstallWith(r.Context(), name, settings, secrets)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"RetryError": msg}, true)
 		return
 	}
@@ -671,7 +648,7 @@ func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out, err := n.RunAction(r.Context(), name, action, inputs)
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	var ae *manager.ActionError
 	result := map[string]string{"action": action}
 	switch {
@@ -701,10 +678,6 @@ func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 // servicePkg loads the package of the installed service named in the URL
 // (titled as the service), writing a 404 if there is none.
 func (s *Server) servicePkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, bool) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return nil, false
-	}
 	p, err := s.Manager.ServicePackage(r.PathValue("name"))
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
@@ -719,10 +692,6 @@ func (s *Server) servicePkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Pa
 
 // pkg loads the package named in the URL, writing a 404 if there is none.
 func (s *Server) pkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, bool) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return nil, false
-	}
 	name := r.PathValue("name")
 	p, err := s.Manager.Package(name)
 	// With the registry turned off, only the Owner's own packages can be
@@ -753,17 +722,13 @@ func (s *Server) pkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, 
 // titleSubmit changes what people call a service; its name stays
 // (SPEC.md §8.2).
 func (s *Server) titleSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name, title := r.PathValue("name"), r.FormValue("title")
 	err := s.Manager.SetTitle(r.Context(), name, title)
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"TitleError": msg, "EditSettings": true}, true)
 		return
 	}

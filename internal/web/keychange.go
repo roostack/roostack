@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Changing the recovery key (SPEC.md §6.9, internal/manager keychange.go):
@@ -29,11 +30,11 @@ func (s *Server) keyChangePage(w http.ResponseWriter, r *http.Request) {
 // renderKeyChange shows the change page (without the new key: it's only
 // shown right after the check), with an error.
 func (s *Server) renderKeyChange(w http.ResponseWriter, r *http.Request, status int, msg string) {
-	if s.Setup == nil || !s.hasRecoveryKey() {
+	if !s.hasRecoveryKey() {
 		http.NotFound(w, r)
 		return
 	}
-	k, err := s.Manager.KeyChangeStatus()
+	k, err := s.Keys.KeyChangeStatus()
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -46,7 +47,7 @@ func (s *Server) renderKeyChange(w http.ResponseWriter, r *http.Request, status 
 // keyChangeSubmit checks it's the Owner, makes the new key if there isn't
 // one waiting, and shows it.
 func (s *Server) keyChangeSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Setup == nil || !s.hasRecoveryKey() {
+	if !s.hasRecoveryKey() {
 		http.NotFound(w, r)
 		return
 	}
@@ -55,14 +56,14 @@ func (s *Server) keyChangeSubmit(w http.ResponseWriter, r *http.Request) {
 	if !s.stepUp(w, r, "recovery key change", again) {
 		return
 	}
-	k, err := s.Manager.KeyChangeStatus()
+	k, err := s.Keys.KeyChangeStatus()
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
 	if k == nil {
-		if err := s.Manager.StartKeyChange(r.Context()); err != nil {
-			if msg, ok := userMessage(err); ok {
+		if err := s.Keys.StartKeyChange(r.Context()); err != nil {
+			if msg, ok := usererr.Message(err); ok {
 				again(http.StatusBadRequest, msg)
 				return
 			}
@@ -71,7 +72,7 @@ func (s *Server) keyChangeSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 		s.Store.Audit(r.Context(), u, "recovery key change", "new key made")
 	}
-	key, err := s.Manager.NewRecoveryKey()
+	key, err := s.Keys.NewRecoveryKey()
 	if err != nil {
 		// Already confirmed: there's nothing to show here.
 		redirect(w, r, "/backups#recovery-key")
@@ -88,8 +89,8 @@ func (s *Server) keyChangeConfirm(w http.ResponseWriter, r *http.Request) {
 			"Tick the box once you've saved the new key. To see it again, enter your password and a code.")
 		return
 	}
-	if err := s.Manager.ConfirmKeyChange(r.Context()); err != nil {
-		if msg, ok := userMessage(err); ok {
+	if err := s.Keys.ConfirmKeyChange(r.Context()); err != nil {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderKeyChange(w, r, http.StatusBadRequest, msg)
 			return
 		}
@@ -101,8 +102,8 @@ func (s *Server) keyChangeConfirm(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) keyChangeCancel(w http.ResponseWriter, r *http.Request) {
-	if err := s.Manager.CancelKeyChange(); err != nil {
-		if msg, ok := userMessage(err); ok {
+	if err := s.Keys.CancelKeyChange(); err != nil {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderKeyChange(w, r, http.StatusBadRequest, msg)
 			return
 		}

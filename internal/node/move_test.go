@@ -5,16 +5,20 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/reconcile"
@@ -29,7 +33,10 @@ func direct(ctx context.Context, env []string, name string, args ...string) *exe
 	return exec.CommandContext(ctx, name, args...)
 }
 
-func TestKeptData(t *testing.T) {
+func TestKeptCopies(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("kept data is measured with GNU du, as on the servers")
+	}
 	root := t.TempDir()
 	lab := config.Default()
 	lab.Paths.ServicesDir, lab.Paths.MediaDir = filepath.Join(root, "services"), filepath.Join(root, "media")
@@ -46,22 +53,28 @@ func TestKeptData(t *testing.T) {
 		mk(p)
 	}
 	ctx := context.Background()
-	kept, err := n.KeptData(ctx)
-	if err != nil || len(kept) != 2 {
-		t.Fatalf("kept = %+v, %v", kept, err)
+	copies, err := n.KeptCopies(ctx)
+	if err != nil || len(copies) != 2 {
+		t.Fatalf("kept = %+v, %v", copies, err)
 	}
-	if kept[0].Path != moved || !kept[0].MovedAway || kept[0].Service != "forgejo" || kept[0].Size <= 0 {
-		t.Errorf("newest = %+v", kept[0])
+	if c := copies[0]; !slices.Equal(c.Paths, []string{moved}) || c.Why != kept.MovedAway || c.Note != "to-vps" || c.Service != "forgejo" ||
+		!c.Whole || c.Size <= 0 {
+		t.Errorf("newest = %+v", c)
 	}
-	if kept[1].Path != before || kept[1].MovedAway {
-		t.Errorf("older = %+v", kept[1])
+	if c := copies[1]; !slices.Equal(c.Paths, []string{before}) || c.Why != kept.BeforeMove {
+		t.Errorf("older = %+v", c)
 	}
+	// Forgejo doesn't run here: what a restore kept inside its folder
+	// isn't listed.
 	for _, bad := range []string{live, restoreKept, "/etc", filepath.Join(root, "other.moved-x-20260101-000000"), moved + "/.."} {
-		if err := n.RemoveKeptData(ctx, bad); !errors.Is(err, ErrNotFound) {
+		if err := n.RemoveKept(ctx, bad); !errors.Is(err, ErrNotFound) {
 			t.Errorf("%s: want ErrNotFound, got %v", bad, err)
 		}
 	}
-	if err := n.RemoveKeptData(ctx, moved); err != nil {
+	if err := n.PutBackKept(ctx, moved); err == nil {
+		t.Error("an old copy left by a move away can't be put back")
+	}
+	if err := n.RemoveKept(ctx, moved); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(moved); !os.IsNotExist(err) {
@@ -85,14 +98,11 @@ func TestFailedMoveSetAside(t *testing.T) {
 	if err != nil || len(aside) != 1 || !strings.HasPrefix(filepath.Base(aside[0]), "immich.failed-move-") {
 		t.Fatalf("aside %v, %v", aside, err)
 	}
-	if service, _, ok := strings.Cut(filepath.Base(aside[0]), FailedMoveSuffix); !ok || service != "immich" {
-		t.Errorf("FailedMoveSuffix doesn't cut %s", aside[0])
+	copies, err := n.keptCopies()
+	if err != nil || len(copies) != 1 || copies[0].Why != kept.FailedMove || copies[0].Service != "immich" {
+		t.Errorf("kept %+v, %v", copies, err)
 	}
-	kept, err := n.KeptData(ctx)
-	if err != nil || len(kept) != 1 || !kept[0].FailedMove || kept[0].MovedAway || kept[0].Service != "immich" {
-		t.Errorf("kept %+v, %v", kept, err)
-	}
-	if err := n.PutBackKeptData(ctx, aside[0]); err == nil {
+	if err := n.PutBackKept(ctx, aside[0]); err == nil {
 		t.Error("it doesn't run here, so it can't be put back here")
 	}
 }
@@ -131,6 +141,9 @@ func tarStream(t *testing.T, members ...member) *bytes.Reader {
 // in, even through a link left there by an earlier pass of the copy
 // (docs/ASSUMPTIONS.md L19). Runs the real tar.
 func TestImportDataStaysInside(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("links are listed with GNU find, as on the servers")
+	}
 	if _, err := exec.LookPath("tar"); err != nil {
 		t.Skip("no tar")
 	}
@@ -198,6 +211,62 @@ func TestImportDataStaysInside(t *testing.T) {
 	}
 	if fi, err := os.Stat(filepath.Join(outside, "victim")); err != nil || fi.Sys().(*syscall.Stat_t).Nlink != 1 {
 		t.Error("something links to the victim")
+	}
+}
+
+// GNU tar pads a stream to its 10 KiB record after the end-of-archive
+// marker. ImportData reads that padding too, or a copy from a node, whose
+// sender waits for it to be read, never finishes; anything else after the
+// marker is refused, as tar would drop it. Runs the real tar.
+func TestImportDataReadsToTheEnd(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("links are listed with GNU find, as on the servers")
+	}
+	if _, err := exec.LookPath("tar"); err != nil {
+		t.Skip("no tar")
+	}
+	root := t.TempDir()
+	lab := config.Default()
+	lab.Paths.ServicesDir, lab.Paths.MediaDir = filepath.Join(root, "services"), filepath.Join(root, "media")
+	n := &Local{Lab: lab, Launch: direct}
+	stream := func(after byte) []byte {
+		b, _ := io.ReadAll(tarStream(t, member{name: "./a", typ: tar.TypeReg}))
+		pad := make([]byte, 10240-len(b))
+		pad[len(pad)-1] = after
+		return append(b, pad...)
+	}
+	for _, c := range []struct {
+		after byte
+		ok    bool
+	}{{0, true}, {'x', false}} {
+		pr, pw := io.Pipe()
+		sent := make(chan error, 1)
+		go func() {
+			_, err := pw.Write(stream(c.after))
+			pw.Close()
+			sent <- err
+		}()
+		// As the manager's pipe does: the reader is closed only on an error.
+		err := n.ImportData(context.Background(), "forgejo", 0, pr, 0)
+		if err != nil {
+			pr.CloseWithError(err)
+		}
+		if (err == nil) != c.ok {
+			t.Errorf("after the end %q: %v", c.after, err)
+		}
+		select {
+		case err := <-sent:
+			if c.ok && err != nil {
+				t.Errorf("sending: %v", err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("the sender is still waiting for its padding to be read")
+		}
+		if c.ok {
+			if b, _ := os.ReadFile(filepath.Join(lab.Paths.ServicesDir, "forgejo"+staging, "a")); string(b) != "pwned\n" {
+				t.Errorf("a = %q", b)
+			}
+		}
 	}
 }
 

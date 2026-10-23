@@ -11,7 +11,7 @@
 {{if eq .Check.State "down"}}
 {{notice "error" (printf "Not answering since %s: %s." (when .Check.DownSince) .Check.Last.Err)}}
 {{else if eq .Check.State "paused"}}
-{{notice "info" (printf "Paused: %s. It's checked again once that's over." .Check.Last.Err)}}
+{{notice "info" (printf "Paused: %s. It will be checked again once that's over." .Check.Last.Err)}}
 {{end}}
 
 <div class="grid">
@@ -64,7 +64,7 @@
           {{- else if .Check.TCP}}It accepts a connection within 10 seconds{{else if .Check.Ping}}It answers a ping within 10 seconds
           {{- else}}It points at your home{{end}}</dd>
         {{if not .Check.Last.CertExpires.IsZero}}<dt>Certificate</dt><dd>{{if lt .CertDays 0}}Expired on {{date .Check.Last.CertExpires}}{{else}}Until {{date .Check.Last.CertExpires}} ({{daysText .CertDays}}){{end}}{{if .Check.SkipVerify}}, not checked{{end}}</dd>{{end}}
-        {{if not .Check.Alert}}<dt>Alerts</dt><dd>{{if eq .Check.Kind "own"}}Off: Roostack doesn't tell anyone when it stops answering{{else}}Shown with the rest of "needs attention"{{end}}</dd>{{end}}
+        {{if not .Check.Alert}}<dt>Alerts</dt><dd>{{if eq .Check.Kind "own"}}Off: Roostack won't tell anyone when it stops answering{{else}}Shown with the rest of "needs attention"{{end}}</dd>{{end}}
       </dl>
       {{with .ServiceHref}}<p><a href="{{.}}">The service's page</a></p>{{end}}
     </section>
@@ -82,7 +82,7 @@
     </section>
     {{with .OwnID}}
     <section class="card">
-      {{confirm (printf "/monitoring/checks/%s/remove" .) (printf "Remove the check %s? What Roostack kept about it goes too." $.Check.Name) "Remove check" "quiet danger"}}
+      {{confirm (printf "/monitoring/checks/%s/remove" .) (printf "Remove the check %s? What Roostack kept about it will go too." $.Check.Name) "Remove check" "quiet danger"}}
     </section>
     {{end}}
   </div>

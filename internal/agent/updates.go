@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -201,5 +203,104 @@ func followFile(path string, w io.Writer, done <-chan error, every time.Duration
 		if finished {
 			return err
 		}
+	}
+}
+
+// Reboot asks systemd to reboot after a moment, so the API call returns.
+func (h LinuxHost) Reboot() error {
+	return exec.Command("systemd-run", "--on-active=5", "--unit=roostack-reboot", "--collect",
+		"systemctl", "reboot").Run()
+}
+
+// dpkgLogMarker: unattended-upgrade -v prints "Log started: <time>" and
+// "Log ended: <time>" around every dpkg run (dozens in one update), which
+// tell nobody anything.
+func dpkgLogMarker(line string) bool {
+	return strings.HasPrefix(line, "Log started: ") || strings.HasPrefix(line, "Log ended: ")
+}
+
+// lines splits output into lines, keeping an unfinished last line for
+// the next write.
+type lines struct{ partial string }
+
+// add returns the lines p finishes.
+func (l *lines) add(p []byte) []string {
+	all := strings.Split(l.partial+string(p), "\n")
+	l.partial = all[len(all)-1]
+	return all[:len(all)-1]
+}
+
+// rest returns the unfinished last line, and forgets it.
+func (l *lines) rest() string {
+	s := l.partial
+	l.partial = ""
+	return s
+}
+
+// lineFilter passes output on a line at a time, leaving out the lines drop
+// says to.
+type lineFilter struct {
+	mu    sync.Mutex
+	w     io.Writer
+	drop  func(line string) bool
+	lines lines
+}
+
+func (f *lineFilter) Write(p []byte) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, line := range f.lines.add(p) {
+		if f.drop(strings.TrimRight(line, "\r")) {
+			continue
+		}
+		if _, err := io.WriteString(f.w, line+"\n"); err != nil {
+			return len(p), err
+		}
+	}
+	return len(p), nil
+}
+
+// flush passes on an unfinished last line.
+func (f *lineFilter) flush() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if rest := f.lines.rest(); rest != "" && !f.drop(rest) {
+		io.WriteString(f.w, rest)
+	}
+}
+
+// lineStream sends written output as UpdatesMessage lines. If the caller
+// has gone, output is dropped rather than failing the write, which would
+// close the command's output and kill it (SIGPIPE).
+type lineStream struct {
+	mu    sync.Mutex
+	enc   *json.Encoder
+	flush func()
+	lines lines
+	gone  bool
+}
+
+func (s *lineStream) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.gone {
+		return len(p), nil
+	}
+	for _, line := range s.lines.add(p) {
+		if err := s.enc.Encode(UpdatesMessage{Line: &line}); err != nil {
+			s.gone = true
+			return len(p), nil
+		}
+	}
+	s.flush()
+	return len(p), nil
+}
+
+// close sends an unfinished last line.
+func (s *lineStream) close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if rest := s.lines.rest(); rest != "" {
+		s.enc.Encode(UpdatesMessage{Line: &rest})
 	}
 }

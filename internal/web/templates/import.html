@@ -11,8 +11,8 @@
     {{logo .Service.IconURL .Service.DrawnIcon}}
     <div>
       <div class="title-line"><h1>Bring {{.Title}}'s data in</h1>{{status .Service.Status}}</div>
-      <p class="lede">From your own copy of its files and a dump of its database: from Docker Compose, another server or a backup of your
-        own. Roostack only reads your copy, and changes nothing until you switch.</p>
+      <p class="lede">From your own copy of its files and a dump of its database: from Docker Compose, another server, or a backup of your
+        own. Roostack will only read your copy and will change nothing until you switch.</p>
     </div>
   </div>
 </div>
@@ -26,7 +26,7 @@
     <p class="hint">Roostack never runs anything there. What you do:</p>
     <ol class="todo-list">
       <li><strong>Copy its folders</strong> onto a drive, or into a folder here with <code>rsync</code>, or leave them on your NAS and
-        choose the share: Roostack only reads them.</li>
+        choose the share: Roostack will only read them.</li>
       {{range .Commands.Dumps}}<li><strong>Take a dump of its database{{if gt (len $i.Commands.Dumps) 1}} {{.Name}}{{end}}:</strong>
         {{copyBox .Command}}
         {{if $i.Commands.Filled}}<small class="hint">Filled in from your old setup.</small>{{end}}
@@ -41,7 +41,7 @@
       {{if eq .Package.Name "immich"}}<li><a href="/help/services/bring-data-immich" target="_blank" rel="noopener">Moving Immich{{template "new-window"}}</a><br><small class="hint">Versions, VectorChord, the external domain</small></li>{{end}}
       {{if eq .Package.Name "plex"}}<li><a href="/help/services/bring-data-plex" target="_blank" rel="noopener">Moving Plex{{template "new-window"}}</a><br><small class="hint">Its identity, libraries, remote access</small></li>{{end}}
     </ul>
-    {{if lt .Reached 7}}<p>{{confirm (printf "/services/%s/import/cancel" .Name) (printf "Stop bringing data into %s? Roostack unmounts your files and deletes what it copied so far; your files aren't touched." .Title) "Stop bringing data in…" "quiet danger"}}</p>{{end}}
+    {{if lt .Reached 7}}<p>{{confirm (printf "/services/%s/import/cancel" .Name) (printf "Stop bringing data into %s? Roostack will unmount your files and delete what it copied so far; your files won't be touched." .Title) "Stop bringing data in…" "quiet danger"}}</p>{{end}}
   </aside>
 </div>
 {{pickerDialog "import-source-dialog" "#import-place"}}
@@ -71,9 +71,9 @@
   <div class="notice notice-ok" role="status"><p><strong>{{.Title}} is running with your data.</strong> Switched {{when .V.Switched}}.</p></div>
   <p><strong>Check it:</strong> sign in with your old account, open what you keep there, and use it as you did. Then look in {{.Title}}'s own
     settings for anything that names the old machine, such as its own address.</p>
-  {{with .V.Kept}}<p class="hint">Its data from before is kept until you delete it: <a href="/backups/restore/{{$.Name}}">put it back or delete it</a>.</p>{{end}}
+  {{with .V.Kept}}<p class="hint">Its data from before will be kept until you delete it: <a href="/backups/restore/{{$.Name}}">put it back or delete it</a>.</p>{{end}}
   {{with .V.Source}}{{if eq .Kind "drive"}}<p class="hint">Your files are unmounted: unplug the drive whenever you like.</p>
-  {{else if eq .Kind "share"}}<p class="hint">Roostack no longer reads the share: your copy there can go whenever you like.</p>
+  {{else if eq .Kind "share"}}<p class="hint">Roostack is no longer reading the share: your copy there can go whenever you like.</p>
   {{else}}<p class="hint">Your copy in <code>{{.Title}}</code> isn't needed any more: delete it whenever you like.</p>{{end}}{{end}}
   <div class="actions-row"><a class="button" href="/services/{{.Name}}">Go to {{.Title}}</a>
     <form method="post" action="/services/{{.Name}}/import/cancel"><input type="hidden" name="again" value="1">
@@ -85,8 +85,8 @@
 {{if eq $o 1}}
 <section class="card step-card" id="step-1">
   <div class="card-head"><h2><span class="step-num">1</span>Where your files are</h2></div>
-  <p class="hint">{{.Title}}'s folders and the dump of its database, together or apart. Roostack mounts them read-only while you bring data
-    in: nothing there changes, so they can be the originals.</p>
+  <p class="hint">{{.Title}}'s folders and the dump of its database, together or apart. Roostack will mount them read-only while you bring data
+    in: nothing there will change, so they can be the originals.</p>
   {{template "import-source" .}}
 </section>
 {{else}}
@@ -128,7 +128,7 @@
     <div class="actions-row"><button type="submit">Continue</button></div>
   </form>
   {{else}}
-  <p class="hint">What {{.Title}} ran as before tells Roostack which of your folders is which, and what to warn you about. Without it, you choose
+  <p class="hint">What {{.Title}} ran as before tells Roostack which of your folders is which and what to warn you about. Without it, you'll choose
     each folder yourself.</p>
   <form method="post" action="/services/{{.Name}}/import/setup" id="setup-form">
     <input type="hidden" name="step" value="2">
@@ -141,18 +141,18 @@
         {{copyBox .Commands.Inspect}}
         <label>What it printed
           <textarea name="inspect" rows="8" spellcheck="false" autocapitalize="off"></textarea>
-          <small>Passwords and keys in it are shown as •••. Roostack keeps only the images, folders and settings, for this import, and not
+          <small>Passwords and keys in it will be shown as •••. Roostack will keep only the images, folders, and settings for this import, and not
             the text you paste.</small></label>
       </div>
       <div class="seg-panel" data-seg="2">
-        <p class="hint seg-hint">Read in your browser, as the package editor reads one. Overrides and changes made since the containers started
-          aren't seen.</p>
+        <p class="hint seg-hint">It will be read in your browser, as the package editor reads one. Overrides and changes made since the containers started
+          won't be seen.</p>
         <label>docker-compose.yml <textarea name="compose" rows="8" spellcheck="false" autocapitalize="off"></textarea></label>
         <label>.env <textarea name="env" rows="3" spellcheck="false" autocapitalize="off"></textarea>
-          <small>Its values fill in the Compose file's; secrets' values are shown as ••• and never kept.</small></label>
+          <small>Its values will fill in the Compose file's; secrets' values will be shown as ••• and never kept.</small></label>
       </div>
       <div class="seg-panel" data-seg="3">
-        <p class="hint seg-hint">You'll choose a folder in your files for each of {{.Title}}'s, next. The check can't compare versions or settings.</p>
+        <p class="hint seg-hint">Next, you'll choose a folder in your files for each of {{.Title}}'s. The check can't compare versions or settings.</p>
       </div>
     </div>
     <div class="actions-row"><button type="submit">Continue</button></div>
@@ -172,7 +172,7 @@
 {{else if eq $o 3}}
 <section class="card step-card" id="step-3">
   <div class="card-head"><h2><span class="step-num">3</span>What goes where</h2></div>
-  <p class="hint">Each of {{.Title}}'s folders gets the old folder that was at the same place inside the container. Change any that's wrong.</p>
+  <p class="hint">Each of {{.Title}}'s folders will get the old folder that was at the same place inside the container. Change any that's wrong.</p>
   <form method="post" action="/services/{{.Name}}/import/choices" id="choices-form">
     <input type="hidden" name="step" value="3">
     <input type="hidden" name="without_shown" value="1">
@@ -182,9 +182,9 @@
         {{range .Rows}}<tr{{if not .From}} class="row-muted"{{end}}>
           <td><strong>{{.Title}}</strong><small><code>{{.Path}}</code> inside {{$.Title}} · {{.Kept}}</small></td>
           <td class="wrap" id="choose-storage-{{.Name}}">{{if .Picked}}
-            <strong>{{.Picked}}</strong><small>Chosen just now; kept when you continue.</small>
+            <strong>{{.Picked}}</strong><small>Chosen just now; it will be kept when you continue.</small>
             <input type="hidden" name="pick.{{.Name}}" value="{{.PickedPath}}">
-            {{else if .From}}{{.FromLabel}}<small>{{with .Old}}Was <code>{{.}}</code>{{end}}{{with .Exclude}}, without {{range $i, $e := .}}{{if $i}} and {{end}}<code>{{$e}}</code>{{end}}, which go to their own folders{{end}}</small>
+            {{else if .From}}{{.FromLabel}}<small>{{with .Old}}Was <code>{{.}}</code>{{end}}{{with .Exclude}}, without {{range $i, $e := .}}{{if $i}} and {{end}}<code>{{$e}}</code>{{end}}, which will go to their own folders{{end}}</small>
             {{else}}Not brought<small>{{.WhyText}}</small>
               {{if .Critical}}<label class="check"><input type="checkbox" name="without" value="{{.Name}}"{{if .Without}} checked{{end}}><span>Start without it</span></label>{{end}}{{end}}</td>
           <td><a href="{{.PickHref}}" data-picker="import-pick-{{.Name}}">{{if .From}}Change…{{else}}Choose…{{end}}</a>
@@ -205,8 +205,8 @@
     </table></div>
     {{with .Libs}}
     <h3 class="sub-heading">Media it read</h3>
-    <p class="hint">Media stays where it is, as media libraries: {{$.Title}} reads it, and nothing is copied. Each library is shown inside
-      {{$.Title}} where the old folder was, so it finds every file where it expects it, with what everyone has watched.</p>
+    <p class="hint">Media will stay where it is, as media libraries: {{$.Title}} will read it, and nothing will be copied. Each library will be shown inside
+      {{$.Title}} where the old folder was, so it will find every file where it expects it, with what everyone has watched.</p>
     <div class="table-wrap"><table class="list stack-phone">
       <thead><tr><th>Old folder</th><th>Media library</th><th>Inside {{$.Title}} at</th></tr></thead>
       <tbody>{{range .}}{{$l := .}}<tr{{if not .Library.Library}} class="row-muted"{{end}}>
@@ -225,7 +225,7 @@
     {{with .Left}}<details class="form-more"><summary>From your old setup, not brought: {{len .}}</summary>
       <ul class="plain">{{range .}}<li>{{.}}</li>{{end}}</ul></details>{{end}}
     <div class="actions-row"><button type="submit" name="continue" value="1">Continue</button>
-      <span class="hint">Roostack then reads your files and the dumps to check them. Nothing is copied or changed yet.</span></div>
+      <span class="hint">Roostack will then read your files and the dumps to check them. Nothing will be copied or changed yet.</span></div>
   </form>
 </section>
 {{else}}
@@ -241,7 +241,7 @@
 {{else if or (eq $o 4) (and (eq $o 5) (not .V.Copy)) (and (gt $o 4) (not .V.Check))}}
 <section class="card step-card" id="step-4">
   <div class="card-head"><h2><span class="step-num">4</span>Check</h2>{{with .V.Check}}<span class="hint">{{when .At}}</span>{{end}}</div>
-  {{if .V.Checking}}<p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Checking your files… <small>This page shows
+  {{if .V.Checking}}<p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Checking your files… <small>This page will show
     the result when it's done.</small></p>
   {{else if .V.CheckErr}}<p class="error" role="alert">The check didn't finish: {{.V.CheckErr}}</p>
   {{else}}
@@ -271,18 +271,18 @@
       <small>started {{when .Started}}</small></p>
     <div class="progress"><div class="meter"><span data-width="{{$.CopyPercent}}"></span></div>
       <p>{{$.CopyText}}{{with $.CopyLeft}} · <strong>{{.}}</strong>{{end}}</p></div>
-    <p class="hint">You can leave this page: it carries on, even if the server restarts.</p>
+    <p class="hint">You can leave this page: it will carry on even if the server restarts.</p>
     <form method="post" action="/services/{{$.Name}}/import/stop"><button type="submit" class="quiet">Stop copying</button></form>
     {{else}}
     {{if .Err}}<p class="error" role="alert">The copy stopped: {{.Err}}</p>{{else if .Stopped}}<p>Stopped {{when .Finished}}: copy again to carry on from there.</p>
     {{else}}<p><strong>Copied {{when .Finished}}:</strong> {{size .Bytes}} in {{count .Files}} files{{with .Progress.Removed}}; {{.}} gone since were removed{{end}}.</p>{{end}}
-    <p class="hint">Your files can change while the old {{$.Title}} runs. <em>Copy again</em> copies only what changed (files whose size or
-      time differ), usually in minutes. Switching copies once more anyway.</p>
+    <p class="hint">Your files can change while the old {{$.Title}} runs. <em>Copy again</em> will copy only what changed (files whose size or
+      time differ), usually in minutes. Switching will copy once more anyway.</p>
     <form method="post" action="/services/{{$.Name}}/import/copy" class="actions-row"><button type="submit"{{if .Passes}} class="secondary"{{end}}>{{if .Passes}}Copy again{{else}}Copy into {{$.Title}}{{end}}</button></form>
     {{end}}
   {{else}}
-  <p>Copies your files into {{.Title}}'s own folders, beside what's there. {{.Title}} stays as it is meanwhile, and so does your copy. The old
-    {{.Title}} can keep running too: copy again later, and only what changed is copied.</p>
+  <p>Roostack will copy your files into {{.Title}}'s own folders, beside what's there. {{.Title}} will stay as it is meanwhile, and so will your copy. The old
+    {{.Title}} can keep running too: copy again later, and only what changed will be copied.</p>
   <form method="post" action="/services/{{.Name}}/import/copy" class="actions-row"><button type="submit">Copy into {{.Title}}</button></form>
   {{end}}
 </section>
@@ -303,24 +303,24 @@
   {{with .Switch}}{{if .Err}}{{activity .}}{{end}}{{end}}
   <p><strong>First, on the old machine:</strong></p>
   <ol class="todo-list">
-    <li><strong>Stop the old {{.Title}}, and keep it stopped.</strong> In its Compose folder:
+    <li><strong>Stop the old {{.Title}} and keep it stopped.</strong> In its Compose folder:
       {{copyBox .Commands.Stop}}
-      <small class="hint">And give {{if .Commands.Filled}}them{{else}}it{{end}} <code>restart: "no"</code> in its Compose file, so it doesn't start again with the machine.</small></li>
-    {{range .Commands.Dumps}}<li><strong>Take the dump again,</strong> now that nothing writes to the database, onto your copy:
+      <small class="hint">And give {{if .Commands.Filled}}them{{else}}it{{end}} <code>restart: "no"</code> in its Compose file so it doesn't start again with the machine.</small></li>
+    {{range .Commands.Dumps}}<li><strong>Take the dump again,</strong> now that nothing is writing to the database, onto your copy:
       {{copyBox .Command}}</li>{{end}}
     <li><strong>Bring your copy up to date,</strong> if you made it by hand: <code>rsync</code> copies only what changed. A share holding the
       original folders is up to date already.</li>
   </ol>
-  <p><strong>Then Roostack:</strong></p>
+  <p><strong>Then Roostack will:</strong></p>
   <ul class="plain will-list">
-    <li>{{icon "import"}}Copies what changed since the last copy, once more.</li>
-    <li>{{icon "folder"}}Puts the copy in place of {{.Title}}'s folders.{{if eq .Service.Status "awaiting-data"}} {{.Title}} has no data yet, so nothing is set aside.{{else}} Its data now is set aside, kept until you delete it, so you can put it back.{{end}}</li>
-    {{if .DBs}}<li>{{icon "disk"}}Loads the dump{{if gt (len .DBs) 1}}s{{end}} into {{.Title}}'s database{{if gt (len .DBs) 1}}s{{end}}.</li>{{end}}
-    <li>{{icon "check"}}Starts {{.Title}}, and waits for it to answer. If anything fails, {{.Title}} goes back to how it was.</li>
+    <li>{{icon "import"}}Copy what changed since the last copy, once more.</li>
+    <li>{{icon "folder"}}Put the copy in place of {{.Title}}'s folders.{{if eq .Service.Status "awaiting-data"}} {{.Title}} has no data yet, so nothing will be set aside.{{else}} Its data now will be set aside and kept until you delete it, so you can put it back.{{end}}</li>
+    {{if .DBs}}<li>{{icon "disk"}}Load the dump{{if gt (len .DBs) 1}}s{{end}} into {{.Title}}'s database{{if gt (len .DBs) 1}}s{{end}}.</li>{{end}}
+    <li>{{icon "check"}}Start {{.Title}} and wait for it to answer. If anything fails, {{.Title}} will go back to how it was.</li>
   </ul>
-  <p class="hint">Usually a few minutes; one piece of maintenance on its server, so no backup or restart happens in the middle.</p>
+  <p class="hint">It usually takes a few minutes, and it will run as one piece of maintenance on its server so that no backup or restart happens in the middle.</p>
   <form method="post" action="/services/{{.Name}}/import/switch">
-    <label class="check"><input type="checkbox" name="stopped" required><span>The old {{.Title}} is stopped, and won't start again</span></label>
+    <label class="check"><input type="checkbox" name="stopped" required><span>The old {{.Title}} is stopped and won't start again</span></label>
     <button type="submit">Switch to this data</button>
   </form>
   {{end}}
@@ -356,19 +356,9 @@
       <p class="hint seg-hint">A folder already on {{$f.ServerName}}, under {{join $f.Roots ", "}}: copied here with rsync or scp, say.</p>
     </div>
     <div class="seg-panel" data-seg="3">
-      <p class="hint seg-hint">A folder shared by a NAS or the old machine. Roostack mounts it read-only while you bring data in.</p>
+      <p class="hint seg-hint">A folder shared by a NAS or the old machine. Roostack will mount it read-only while you bring data in.</p>
       <div class="seg-group">
-        {{segmented "share_type" "Kind of share" $f.ShareType (choice "smb" "SMB") (choice "nfs" "NFS") "size=small"}}
-        <div class="field-row">
-          <label>Server <input name="share_server" value="{{$f.ShareServer}}" placeholder="nas.local or 192.168.1.20" autocapitalize="off" spellcheck="false"></label>
-          <label>Share <input name="share_path" value="{{$f.SharePath}}" placeholder="immich or /volume1/immich" autocapitalize="off" spellcheck="false"></label>
-        </div>
-        <div class="seg-panel" data-seg="1"><div class="field-row">
-          <label>Username <input name="share_user" value="{{$f.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
-            <small>Empty for a share anyone on your network can open.</small></label>
-          <label>Password <input name="share_password" type="password" autocomplete="new-password">
-            <small>Kept on {{$f.ServerName}}, readable only by its system, until the import is done.</small></label>
-        </div></div>
+        {{template "share-fields" $f.ShareFields}}
       </div>
     </div>
   </div>
@@ -393,11 +383,11 @@
   {{with $f.PlaceError}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with $f.Check}}<div class="notice notice-warn" role="status">
     <p><strong>{{.Unreadable}} of the {{.Sampled}} files and folders Roostack looked at can't be read{{with .Owner}}: only their owner, {{or .Name .UID}}, can{{end}}.</strong>
-      The check counts them all; make them readable on your copy{{if and .Owner (ne $f.Where "folder")}}, or read them as their owner:{{else}}.{{end}}</p>
+      The check will count them all; make them readable on your copy{{if and .Owner (ne $f.Where "folder")}} or read them as their owner:{{else}}.{{end}}</p>
     {{if and .Owner (ne $f.Where "folder")}}
     <input type="hidden" name="owner_uid" value="{{.Owner.UID}}"><input type="hidden" name="owner_gid" value="{{.Owner.GID}}">
     <label class="check"><input type="checkbox" name="as_owner"><span>Read them as {{or .Owner.Name .Owner.UID}}
-      <small>Roostack mounts the folder so {{or .Owner.Name .Owner.UID}}'s files show as Roostack's own, for this import only. Nothing on the drive changes.</small></span></label>
+      <small>Roostack will mount the folder so {{or .Owner.Name .Owner.UID}}'s files show as Roostack's own for this import only. Nothing on the drive will change.</small></span></label>
     {{end}}
   </div>{{end}}
   {{end}}

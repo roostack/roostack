@@ -1,7 +1,7 @@
 # Try it on a lab
 
 Before a package goes into the registry, it's tried on a real lab from
-start to finish: installed, used, backed up, restored onto a fresh server
+start to finish: installed, used, backed up, restored onto a fresh server,
 and removed. That's what shows its data is really in its backups, which
 reading the file can't.
 
@@ -45,15 +45,15 @@ or 50 MB for Redis).
 ## Back it up and restore it
 
 1. On **Backups**, choose **Back up now**, and wait for it to finish.
-   `sudo roostack backup snapshots` lists a backup of the service, tagged
-   with its name.
+   `sudo roostack backup snapshots` will list a backup of the service,
+   tagged with its name.
 2. On the fresh server, [restore the whole lab](../trouble/restore-lab.md)
-   from those backups. Your package comes back with the lab.
+   from those backups. Your package will come back with the lab.
 3. Open the service on the restored lab, and check everything you added
    is there and works: log in, open what you created.
 
 This is the test that matters most: a folder that should have been
-`critical`, or a database that wasn't declared, shows up here as data
+`critical`, or a database that wasn't declared, will show up here as data
 that didn't come back.
 
 ## Update it
@@ -78,7 +78,7 @@ Next: [submit it](submit.md).
     `scripts/dev-vm.sh usb add` for a backup drive.
 
     While you work on a package, change it on your lab by adding the file
-    again (it replaces the one you added before), then remove the service
-    and install it again. Removing keeps the service's data, so delete
-    `/srv/roostack/services/<name>/` (and `/srv/roostack/media/<name>/`)
-    first for a truly fresh install.
+    again (it will replace the one you added before), then remove the
+    service and install it again. Removing keeps the service's data, so
+    delete `/srv/roostack/services/<name>/` (and
+    `/srv/roostack/media/<name>/`) first for a truly fresh install.

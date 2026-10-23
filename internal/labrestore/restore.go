@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -153,7 +152,7 @@ func allowed(snap backup.Snapshot, what string, exact, under []string) error {
 	for _, p := range snap.Paths {
 		ok := filepath.IsAbs(p) && filepath.Clean(p) == p && slices.Contains(exact, p)
 		for _, dir := range under {
-			ok = ok || filepath.IsAbs(p) && filepath.Clean(p) == p && (p == dir || strings.HasPrefix(p, dir+"/"))
+			ok = ok || filepath.IsAbs(p) && filepath.Clean(p) == p && fsutil.Within(p, dir)
 		}
 		if !ok {
 			return fmt.Errorf("%s holds %s, which isn't one of the places Roostack restores (Roostack's state folder, the secrets store and "+
@@ -212,13 +211,13 @@ func StartFromBackup(paths config.Paths) (bool, error) {
 	if !ok || m.Step != "database" {
 		return false, nil
 	}
-	db := filepath.Join(paths.StateDir, "roostack.db")
+	db := paths.DatabaseFile()
 	for _, f := range []string{db + "-wal", db + "-shm"} {
 		if err := os.Remove(f); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return false, err
 		}
 	}
-	if err := copyFile(backup.StateDumpFile(paths), db); err != nil {
+	if err := fsutil.CopyFile(backup.StateDumpFile(paths), db, 0o600); err != nil {
 		return false, fmt.Errorf("putting Roostack's database back: %w", err)
 	}
 	m.Step = "services"
@@ -239,31 +238,4 @@ func Done(paths config.Paths) error {
 		return nil
 	}
 	return err
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	tmp := dst + ".restore"
-	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	// OpenFile sets the mode only on a file it creates: one left over
-	// from before keeps its own (the quality review of 2026-10-21, P7).
-	if err := out.Chmod(0o600); err != nil {
-		out.Close()
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	if err := out.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp, dst)
 }

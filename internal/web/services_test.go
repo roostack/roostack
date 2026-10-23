@@ -1,15 +1,11 @@
 package web
 
 import (
-	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -21,753 +17,18 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
-	"roostack.cloud/roostack/internal/instance"
-	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
-	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
-	"roostack.cloud/roostack/internal/pkgspec"
-	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
-
-type fakeManager struct {
-	// held are the Owner's choices for held services ("start immich",
-	// "put-back immich"); failedMoves the moves that went back.
-	held        []string
-	failedMoves map[string]manager.FailedMove
-	// imports is bringing data in (the server's, node.Imports), and
-	// switched the services switched to it.
-	imports  node.Imports
-	switched []string
-	// summaries are the install summaries asked for.
-	summaries []manager.InstallRequest
-	// serverMemory is the install summary's server (nuc, 3.6 GB free of 8
-	// GB, if empty); leftData, the data from before it finds there.
-	serverMemory manager.ServerMemory
-	leftData     []string
-	// edges can be the lab's edge; edge is the chosen one.
-	edges []manager.EdgeServer
-	edge  string
-	// relay: through Roostack Cloud's relay; relayErr, Cloud's refusal.
-	relay     bool
-	relayErr  error
-	countries config.Countries
-	// relayChecks counts "Check now".
-	relayChecks int
-	// cloudBackup offers Roostack Cloud as a backup destination.
-	cloudBackup bool
-	guestSpace  manager.GuestSpace
-	disks       []node.DiskSpace
-	events      []store.Event
-	installs    []manager.InstallRequest
-	// local are the Owner's own packages (by name), with the risks
-	// they ask for; policy is what registry packages break.
-	local         map[string]bool
-	risks, policy []string
-	// added and removedLocal record "Add your own".
-	added        [][]byte
-	removedLocal []string
-	removed      []string
-	failWith     error
-	status       manager.ApplyStatus
-
-	ports   []manager.PortStatus
-	portErr error
-	setPort []string
-
-	setup     map[string]manager.HookStatus
-	retried   []string
-	actions   []string
-	actionOut string
-	actionErr error
-
-	values  map[string]any
-	updated []manager.SettingsRequest
-
-	acts        *activity.Registry
-	servers     []manager.Server
-	serverOps   []string
-	destination string
-	destRepo    string // the main backup's repository ("": fakeMainRepo)
-	noBuild     []manager.NoBuild
-	copies      []manager.BackupCopy
-	ending      []manager.EndingStorage
-	retriedWith []string
-	guestServer string
-	providers   []string
-	moves       []string
-	guests      []manager.GuestView
-	guestOps    []string
-	backups     BackupService
-	restores    RestoreService
-	// Backups elsewhere in the lab, and restores from them (restore_test.go).
-	otherBackups []manager.BackupMoment
-	backupNotes  []string
-	labRestores  []string
-	// Direct links (links_test.go).
-	linkAddrs  map[string]string
-	linkPath   string
-	linkFailed bool
-	// lostPlan is a gone server's plan (gone_test.go).
-	lostPlan *manager.LostPlan
-	// serviceNode, if set, is the server services run on (else this one).
-	serviceNode node.Node
-	updates     HostUpdates
-	settings    node.Settings
-	disk        *node.DiskSpace
-
-	// Public access (public_test.go).
-	access       []manager.RouteAccess
-	publicReqs   []manager.PublicRequest
-	sharingAsked bool
-	share        bool
-
-	// Recovery key change (keychange_test.go).
-	keyChange *manager.KeyChange
-	keyOps    []string
-
-	// Registry withdrawals (withdrawals_test.go).
-	withdrawn     map[string]*manager.Withdrawal
-	startedAnyway []string
-	stopsOff      bool
-
-	// Service updates (serviceupdates_test.go).
-	svcUpdates map[string]*manager.Update
-	updating   map[string]*manager.ServiceUpdate
-	lastUpdate map[string]*manager.UpdateRecord
-	policies   map[string]string
-	svcUpdated []string
-
-	// What servers' credentials can do at their backups, by reference
-	// (else by kind), and what a removed server keeps (plan_test.go).
-	backupAccess map[string]manager.Access
-	shared       []manager.SharedCredential
-	// New keys given for online storage accounts: "ref access secret"
-	// (plan_test.go); keyErr fails them.
-	s3Keys []string
-	keyErr error
-
-	// Main backups lost with a removed server, by server (plan_test.go).
-	lostMain map[string]store.LostBackup
-
-	// Rolling backups back: "check|run server ref time" (plan_test.go);
-	// rollbackPlan is the latest check, rollbackErr fails them.
-	rollbacks    []string
-	rollbackPlan *manager.RollbackPlan
-	rollbackErr  error
-
-	// Files found in backups and couldn't be read (junk_test.go).
-	junk []manager.JunkReport
-}
-
-func (f *fakeManager) rollback(step, serverID, ref string, before time.Time) error {
-	if f.rollbackErr != nil {
-		return f.rollbackErr
-	}
-	f.rollbacks = append(f.rollbacks, strings.Join([]string{step, serverID, ref, before.Format("2006-01-02T15:04")}, " "))
-	return nil
-}
-func (f *fakeManager) CheckRollback(_ context.Context, serverID, ref string, before time.Time) error {
-	return f.rollback("check", serverID, ref, before)
-}
-func (f *fakeManager) RollBack(_ context.Context, serverID, ref string, before time.Time) error {
-	return f.rollback("run", serverID, ref, before)
-}
-func (f *fakeManager) RollbackChecked(string, string) *manager.RollbackPlan { return f.rollbackPlan }
-
-func (f *fakeManager) LostMainBackup(_ context.Context, serverID string) (store.LostBackup, bool) {
-	l, ok := f.lostMain[serverID]
-	return l, ok
-}
-
-// BackupAccess is f.backupAccess's, else what the kind suggests: another
-// server, a friend's lab and Roostack Cloud only take new backups.
-func (f *fakeManager) BackupAccess(ctx context.Context, serverID, ref string) manager.Access {
-	if a, ok := f.backupAccess[ref]; ok {
-		return a
-	}
-	switch f.BackupKind(ctx, serverID, ref) {
-	case manager.KindServer, manager.KindFriend, manager.KindCloud:
-		return manager.Access{}
-	}
-	return manager.Access{CanDelete: true}
-}
-
-func (f *fakeManager) SharedCredentials(context.Context, string) []manager.SharedCredential {
-	return f.shared
-}
-
-func (f *fakeManager) ChangeS3Key(_ context.Context, ref, accessKey, secretKey string) error {
-	if f.keyErr != nil {
-		return f.keyErr
-	}
-	f.s3Keys = append(f.s3Keys, ref+" "+accessKey+" "+secretKey)
-	return nil
-}
-
-// DiskSpace: the fake's disk, if it has one.
-func (f *fakeManager) History(_ context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
-	var out []store.Event
-	for _, e := range f.events {
-		if (kind == "" || e.Kind == kind) && (before.IsZero() || e.Finished.Before(before)) {
-			out = append(out, e)
-		}
-	}
-	return out, nil
-}
-func (f *fakeManager) HistoryEvent(_ context.Context, id int64) (store.Event, error) {
-	for _, e := range f.events {
-		if e.ID == id {
-			return e, nil
-		}
-	}
-	return store.Event{}, node.ErrNotFound
-}
-func (f *fakeManager) CullHistory(_ context.Context, before time.Time) (int64, error) {
-	var keep []store.Event
-	for _, e := range f.events {
-		if !e.Finished.Before(before) {
-			keep = append(keep, e)
-		}
-	}
-	n := int64(len(f.events) - len(keep))
-	f.events = keep
-	return n, nil
-}
-
-// DiskSpaces is f.disk (the system disk, with the backup store) and any
-// more disks in f.disks.
-func (f *fakeManager) DiskSpaces(context.Context) ([]node.DiskSpace, error) {
-	if f.disk == nil {
-		return nil, errors.New("no disk")
-	}
-	d := *f.disk
-	d.Kind, d.Mount, d.Store = node.DiskSystem, "/", true
-	return append([]node.DiskSpace{d}, f.disks...), nil
-}
-
-func (f *fakeManager) Settings() node.Settings { return f.settings }
-func (f *fakeManager) Media() node.Media       { return nil }
-func (f *fakeManager) Imports() node.Imports   { return f.imports }
-func (f *fakeManager) ImportsOf(string) (node.Imports, error) {
-	if f.imports == nil {
-		return nil, &manager.FormError{Msg: "Data can't be brought into services on that server."}
-	}
-	return f.imports, nil
-}
-func (f *fakeManager) SwitchImport(_ context.Context, service string) error {
-	f.switched = append(f.switched, service)
-	return nil
-}
-func (f *fakeManager) Switching(string) bool { return false }
-
-// The fake is also the lab's one server.
-func (f *fakeManager) Identity() nodeid.Identity {
-	return nodeid.Identity{ID: "n-0123456789", Name: "nuc"}
-}
-func (f *fakeManager) Apply(node.Assignment) {}
-func (f *fakeManager) ServiceStates(context.Context) (map[string]string, error) {
-	return nil, nil
-}
-func (f *fakeManager) NodeFor(string) node.Node {
-	if f.serviceNode != nil {
-		return f.serviceNode
-	}
-	return f
-}
-func (f *fakeManager) OfferStorage(context.Context) bool { return len(f.guests) > 0 }
-func (f *fakeManager) StorageGuests(context.Context) ([]manager.GuestView, error) {
-	return f.guests, nil
-}
-func (f *fakeManager) InviteGuest(_ context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error) {
-	if quota < 1*units.GB {
-		return labnet.StorageInvite{}, &manager.FormError{Msg: "Offer at least 1 GB."}
-	}
-	f.guestOps = append(f.guestOps, fmt.Sprintf("invite %s %d %s", name, quota/units.GB, endpoint))
-	return labnet.StorageInvite{Token: "t", User: "g1"}, nil
-}
-func (f *fakeManager) RetryInstallWith(_ context.Context, name string, settings, secrets map[string]string) error {
-	if settings["admin_username"] == "" {
-		return &manager.FormError{Msg: "Administrator username is required."}
-	}
-	f.retriedWith = append(f.retriedWith, name+" "+settings["admin_username"]+" "+secrets["admin_password"])
-	return nil
-}
-func (f *fakeManager) GuestServer(context.Context) string {
-	if f.guestServer == "" {
-		return "n-0123456789"
-	}
-	return f.guestServer
-}
-func (f *fakeManager) SetGuestServer(_ context.Context, id string) error {
-	if len(f.guests) > 0 {
-		return &manager.FormError{Msg: "Other labs store backups on nuc."}
-	}
-	f.guestServer = id
-	return nil
-}
-func (f *fakeManager) DeleteRemovedGuest(_ context.Context, id int64) error {
-	f.guestOps = append(f.guestOps, fmt.Sprintf("delete now %d", id))
-	return nil
-}
-func (f *fakeManager) EndingStorages(context.Context) []manager.EndingStorage { return f.ending }
-func (f *fakeManager) RemoveGuest(_ context.Context, id int64) error {
-	f.guestOps = append(f.guestOps, fmt.Sprintf("remove %d", id))
-	return nil
-}
-func (f *fakeManager) SetGuestQuota(_ context.Context, id, quota int64) error {
-	f.guestOps = append(f.guestOps, fmt.Sprintf("quota %d %d", id, quota/units.GB))
-	return nil
-}
-func (f *fakeManager) GuestSpaceLeft(context.Context) (manager.GuestSpace, bool) {
-	return f.guestSpace, true
-}
-func (f *fakeManager) LeftoverGuests(context.Context) ([]manager.LeftoverGuest, error) {
-	return []manager.LeftoverGuest{{User: "g9", Size: 2 * units.GB}}, nil
-}
-func (f *fakeManager) DeleteLeftoverGuest(_ context.Context, user string) error {
-	if user != "g9" {
-		return manager.ErrNotFound
-	}
-	f.guestOps = append(f.guestOps, "delete "+user)
-	return nil
-}
-func (f *fakeManager) AddRemoteStorage(_ context.Context, code string) error {
-	if !strings.HasPrefix(code, "roostack-storage-") {
-		return &manager.FormError{Msg: "that isn't a Roostack storage invite"}
-	}
-	f.guestOps = append(f.guestOps, "add remote")
-	return nil
-}
-func (f *fakeManager) RemoteStorages(context.Context) []manager.RemoteStorage {
-	return []manager.RemoteStorage{{HostName: "Mum's lab", Quota: 50 * units.GB, Ref: "provider:7"}}
-}
-func (f *fakeManager) RemoteUsage(context.Context, manager.RemoteStorage) (labnet.GuestUsage, error) {
-	return labnet.GuestUsage{Used: 3 * units.GB, Quota: 50 * units.GB}, nil
-}
-func (f *fakeManager) KeptData(_ context.Context, id string) ([]node.KeptFolder, error) {
-	if id != "n-9876543210" {
-		return nil, nil
-	}
-	return []node.KeptFolder{{Path: "/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806", Service: "forgejo",
-		MovedAway: true, Time: time.Now(), Size: 70 * units.MB}}, nil
-}
-func (f *fakeManager) RemoveKeptData(_ context.Context, id, path string) error {
-	f.serverOps = append(f.serverOps, "delete "+path+" on "+id)
-	return nil
-}
-func (f *fakeManager) PutBackKeptData(_ context.Context, id, path string) error {
-	f.serverOps = append(f.serverOps, "put back "+path+" on "+id)
-	return nil
-}
-func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo, error) {
-	if name != "vaultwarden" {
-		return manager.MoveInfo{}, manager.ErrNotFound
-	}
-	return manager.MoveInfo{From: manager.Server{ID: "n-0123456789", Name: "nuc", This: true}, Size: 5 * units.MB,
-		Suggested: manager.MoveCopy}, nil
-}
-
-// ServiceBackups lists the node's own backups (restores), each a moment
-// of its own, plus any others the test adds.
-func (f *fakeManager) ServiceBackups(ctx context.Context, name string) ([]manager.BackupMoment, []string, error) {
-	var out []manager.BackupMoment
-	if f.restores != nil {
-		snaps, _ := f.restores.Snapshots(ctx, name)
-		for _, s := range snaps {
-			out = append(out, manager.BackupMoment{ServerID: "n-0123456789", ServerName: "nuc", Time: s.Time,
-				Places: []manager.ServiceBackup{{Ref: "backup:n-0123456789", ServerID: "n-0123456789", ServerName: "nuc",
-					Where: "USB drive BACKUP", Main: true, Snapshot: s}}})
-		}
-	}
-	return append(out, f.otherBackups...), f.backupNotes, nil
-}
-func (f *fakeManager) RestoreService(ctx context.Context, name, id, to string) error {
-	ref, snap, _ := strings.Cut(id, "@")
-	if ref == "backup:n-0123456789" && cmp.Or(to, "n-0123456789") == "n-0123456789" {
-		return f.restores.Restore(ctx, name, snap)
-	}
-	f.labRestores = append(f.labRestores, name+" "+id+" → "+to)
-	return nil
-}
-func (f *fakeManager) Restoring(string) bool                           { return false }
-func (f *fakeManager) LinkAddress(_ context.Context, id string) string { return f.linkAddrs[id] }
-func (f *fakeManager) SetLinkAddress(_ context.Context, id, addr string) error {
-	if addr != "" && !strings.Contains(addr, ":") {
-		return &manager.FormError{Msg: "Enter the address as host:port."}
-	}
-	if f.linkAddrs == nil {
-		f.linkAddrs = map[string]string{}
-	}
-	f.linkAddrs[id] = addr
-	return nil
-}
-func (f *fakeManager) LinkPath(_ context.Context, from, to string) string { return f.linkPath }
-func (f *fakeManager) LinkFailed(context.Context, string, string) bool    { return f.linkFailed }
-func (f *fakeManager) ApplyBecause(reason string) {
-	f.serverOps = append(f.serverOps, "apply: "+reason)
-}
-func (f *fakeManager) LostServerPlan(_ context.Context, id string) (manager.LostPlan, error) {
-	if f.lostPlan == nil || f.lostPlan.Server.ID != id {
-		return manager.LostPlan{}, manager.ErrNotFound
-	}
-	return *f.lostPlan, nil
-}
-func (f *fakeManager) RestoreLostServer(_ context.Context, id string, names []string, to string) error {
-	f.labRestores = append(f.labRestores, "gone "+id+": "+strings.Join(names, ",")+" → "+to)
-	return nil
-}
-func (f *fakeManager) RemoveWaiting(_ context.Context, name string) error {
-	f.labRestores = append(f.labRestores, "remove waiting "+name)
-	return nil
-}
-func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error {
-	if to == "" {
-		return &manager.FormError{Msg: "Choose a server in this lab."}
-	}
-	f.moves = append(f.moves, name+" → "+to+" ("+way+")")
-	return nil
-}
-func (f *fakeManager) BackupChoices(context.Context) ([]manager.BackupChoice, error) {
-	out := []manager.BackupChoice{{Ref: "server:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}
-	if f.cloudBackup {
-		out = append(out, manager.BackupChoice{Ref: manager.CloudChoice, Title: "Roostack Cloud", Note: "This lab uses 120.0 GB of 500.0 GB."})
-	}
-	return out, nil
-}
-func (f *fakeManager) BackupKind(_ context.Context, _, ref string) string {
-	switch {
-	case ref == "drive:system":
-		return manager.KindSystem
-	case strings.HasPrefix(ref, "drive:"):
-		return manager.KindUSB
-	case strings.HasPrefix(ref, "provider:"):
-		return manager.KindOnline
-	case strings.HasPrefix(ref, "remote:"):
-		return manager.KindFriend
-	case ref == manager.CloudChoice:
-		return manager.KindCloud
-	}
-	return manager.KindServer
-}
-func (f *fakeManager) PromoteBackupCopy(_ context.Context, _, ref string) error {
-	for i, c := range f.copies {
-		if c.Ref == ref {
-			main, _, _ := f.BackupTargetOf(context.Background(), "")
-			f.copies[i] = manager.BackupCopy{Ref: f.destination, Title: "nuc's disk", Repository: main.Repository}
-			f.destination, f.destRepo = ref, c.Repository
-			return nil
-		}
-	}
-	return &manager.FormError{Msg: "That isn't one of its backups."}
-}
-func (f *fakeManager) BackupCopiesOf(context.Context, string) []manager.BackupCopy { return f.copies }
-func (f *fakeManager) AddBackupCopy(_ context.Context, id, ref string) error {
-	if ref == f.destination {
-		return &manager.FormError{Msg: "That's where its backups already go."}
-	}
-	f.copies = append(f.copies, manager.BackupCopy{Ref: ref, Title: "Backblaze", Repository: "s3:https://s3.example.com/b/roostack/l/" + id})
-	return nil
-}
-func (f *fakeManager) RemoveBackupCopy(_ context.Context, _, ref string) error {
-	f.copies = slices.DeleteFunc(f.copies, func(c manager.BackupCopy) bool { return c.Ref == ref })
-	return nil
-}
-
-// fakeMainRepo is the main backup's repository, unless a test sets one.
-const fakeMainRepo = "rest:http://100.96.0.1:8000/x"
-
-func (f *fakeManager) BackupTargetOf(_ context.Context, id string) (store.BackupTarget, string, bool) {
-	if f.destination == "" {
-		return store.BackupTarget{}, "", false
-	}
-	return store.BackupTarget{ServerID: id, Provider: f.destination, Repository: cmp.Or(f.destRepo, fakeMainRepo)},
-		"nuc's disk", true
-}
-func (f *fakeManager) SetBackupDestination(_ context.Context, id, ref string) error {
-	if ref == "" {
-		return &manager.FormError{Msg: "Choose where backups go."}
-	}
-	f.destination, f.destRepo = ref, ""
-	return nil
-}
-func (f *fakeManager) AddS3Provider(_ context.Context, name string, p manager.S3Provider) error {
-	if p.Bucket == "" {
-		return &manager.FormError{Msg: "Enter the storage endpoint (starting with https://) and a bucket name."}
-	}
-	f.providers = append(f.providers, name)
-	return nil
-}
-func (f *fakeManager) RemoveServer(_ context.Context, id string) error {
-	if id == "n-9876543210" {
-		return &manager.FormError{Msg: "vps still runs Forgejo. Remove it first, or move it to another server."}
-	}
-	f.serverOps = append(f.serverOps, "remove "+id)
-	return nil
-}
-func (f *fakeManager) RenameServer(_ context.Context, id, name string) error {
-	f.serverOps = append(f.serverOps, "rename "+id+" "+name)
-	return nil
-}
-func (f *fakeManager) NodeByID(id string) node.Node {
-	ms, _ := f.Servers()
-	for _, m := range ms {
-		if m.ID == id {
-			return f // one fake plays every server
-		}
-	}
-	return nil
-}
-
-// setSetup sets the wizard; a fakeSetup is also the server's settings.
-func (h *harness) setSetup(ls LabSetup) {
-	h.server.Setup = ls
-	if fs, ok := ls.(*fakeSetup); ok {
-		h.node().settings = fs
-	}
-}
-
-func (f *fakeManager) Backups() node.Backups   { return f.backups }
-func (f *fakeManager) Restores() node.Restores { return f.restores }
-func (f *fakeManager) Updates() node.Updates   { return f.updates }
-
-// node is the fake server.
-func (h *harness) node() *fakeManager { return h.server.Node.(*fakeManager) }
-
-func (f *fakeManager) LatestActivity(kind string) (activity.Snapshot, bool) {
-	return f.acts.Latest(kind)
-}
-func (f *fakeManager) Servers() ([]manager.Server, error) {
-	if f.servers != nil {
-		return f.servers, nil
-	}
-	return []manager.Server{{ID: "n-0123456789", Name: "nuc", Controller: true, This: true,
-		Services: []string{"vaultwarden"}, Status: f.status}}, nil
-}
-
-// acts is the fake node's activity registry.
-func (h *harness) acts() *activity.Registry {
-	fm := h.server.Node.(*fakeManager)
-	if fm.acts == nil {
-		fm.acts = activity.New()
-	}
-	return fm.acts
-}
-
-func (f *fakeManager) Catalog() ([]manager.CatalogItem, error) {
-	items := []manager.CatalogItem{
-		{Name: "immich", Title: "Immich", Description: "Photos", Categories: []string{"photos"}, Icon: true},
-		{Name: "vaultwarden", Title: "Vaultwarden", Installed: true},
-	}
-	// Forgejo is the Owner's own when local says so.
-	if f.local["forgejo"] {
-		items = append(items, manager.CatalogItem{Name: "forgejo", Title: "Forgejo", Description: "Git", Local: true})
-	}
-	return items, nil
-}
-
-func (f *fakeManager) Package(name string) (*pkgspec.Package, error) {
-	if name != "immich" && name != "vaultwarden" && name != "forgejo" {
-		return nil, manager.ErrNotFound
-	}
-	return pkgspec.Load(pkgtest.File(name))
-}
-
-func (f *fakeManager) ServicePackage(name string) (*pkgspec.Package, error) { return f.Package(name) }
-func (f *fakeManager) ServiceFiles(name string) (*manager.ServiceFiles, error) {
-	return &manager.ServiceFiles{QuadletDir: "/var/lib/roostack/home/.config/containers/systemd", CaddySitesDir: "/var/lib/roostack/caddy/sites",
-		Quadlets:  []generate.File{{Name: "roostack-" + name + "-app.container", Content: "[Container]\nContainerName=roostack-" + name + "-app\n"}},
-		CaddySite: &generate.File{Name: name + ".caddy", Content: "# Generated by Roostack\n"}}, nil
-}
-func (f *fakeManager) SetTitle(_ context.Context, name, title string) error {
-	if strings.TrimSpace(title) == "" {
-		return &manager.FormError{Msg: "Enter a title."}
-	}
-	f.serverOps = append(f.serverOps, "title "+name+"="+title)
-	return nil
-}
-func (f *fakeManager) Install(_ context.Context, _ string, req manager.InstallRequest) error {
-	if f.failWith != nil {
-		return f.failWith
-	}
-	f.installs = append(f.installs, req)
-	return nil
-}
-
-// InstallSummary summarizes the request as the manager would, simply:
-// ticked boxes are true, the main route gets the request's subdomain and
-// a port (manager.Manager.InstallSummary has the real rules).
-func (f *fakeManager) InstallSummary(name string, req manager.InstallRequest) (*manager.InstallSummary, error) {
-	f.summaries = append(f.summaries, req)
-	p, err := f.Package(name)
-	if err != nil {
-		return nil, err
-	}
-	if req.Name == p.Name+"-bad" {
-		return nil, &manager.FormError{Msg: "Choose another name."}
-	}
-	in := &instance.Instance{Package: p.Name, Version: p.Version, Updates: instance.UpdatesNotify, Settings: map[string]any{},
-		Routes: map[string]instance.RouteOverride{}}
-	for _, st := range p.Settings {
-		if v, ok := req.Settings[st.Key]; ok {
-			in.Settings[st.Key] = v
-		}
-		if st.Type == pkgspec.SettingBool {
-			in.Settings[st.Key] = req.Settings[st.Key] == "on"
-		}
-	}
-	for route := range p.Routes {
-		o := instance.RouteOverride{Port: 20001}
-		if route == manager.MainRoute(p) {
-			o.Subdomain = req.Subdomain
-		}
-		if req.Public {
-			o.Exposure = pkgspec.ExposurePublic
-		}
-		in.Routes[route] = o
-	}
-	lab := config.Default()
-	lab.Domain = "lab.example.com"
-	sum, err := generate.Summarize(lab, p, in)
-	if err != nil {
-		return nil, err
-	}
-	server := f.serverMemory
-	if server.Name == "" {
-		server = manager.ServerMemory{Name: "nuc", This: true, Servers: 1, Total: 8_000_000_000, Available: 3_600_000_000,
-			Expected: 50_000_000}
-	}
-	return &manager.InstallSummary{Summary: sum, Server: server, LeftData: f.leftData}, nil
-}
-
-func (f *fakeManager) PackageFile(name string) ([]byte, error) {
-	if _, err := f.Package(name); err != nil {
-		return nil, err
-	}
-	return os.ReadFile(pkgtest.File(name))
-}
-
-func (f *fakeManager) PackageIcon(name string) ([]byte, error) {
-	if _, err := f.Package(name); err != nil {
-		return nil, err
-	}
-	return os.ReadFile(filepath.Join(filepath.Dir(pkgtest.File(name)), "icon.png"))
-}
-
-func (f *fakeManager) NoBuildOn(*pkgspec.Package) []manager.NoBuild { return f.noBuild }
-
-func (f *fakeManager) CheckPackage(p *pkgspec.Package) manager.PolicyCheck {
-	if f.local[p.Name] {
-		return manager.PolicyCheck{Local: true, Problems: f.risks}
-	}
-	return manager.PolicyCheck{Problems: f.policy}
-}
-
-func (f *fakeManager) AddLocalPackage(data, icon []byte) (*pkgspec.Package, error) {
-	if f.failWith != nil {
-		return nil, f.failWith
-	}
-	f.added = append(f.added, data)
-	return pkgspec.Parse(data)
-}
-
-func (f *fakeManager) CheckLocalPackage(data []byte) (manager.LocalPackageCheck, error) {
-	p, err := pkgspec.Parse(data)
-	if err != nil {
-		return manager.LocalPackageCheck{Errors: []string{err.Error()}}, nil
-	}
-	return manager.LocalPackageCheck{Policy: p.Policy(), Risks: p.Risks()}, nil
-}
-
-func (f *fakeManager) RemoveLocalPackage(name string) error {
-	if !f.local[name] {
-		return manager.ErrNotFound
-	}
-	f.removedLocal = append(f.removedLocal, name)
-	return nil
-}
-
-func (f *fakeManager) LocalPackagesDir() string { return "/var/lib/roostack/local-packages" }
-
-func (f *fakeManager) Remove(_ context.Context, name string) error {
-	f.removed = append(f.removed, name)
-	return nil
-}
-
-func (f *fakeManager) DataDirs(name string) []string {
-	return []string{"/srv/roostack/services/" + name}
-}
-func (f *fakeManager) Ports(string) ([]manager.PortStatus, error) { return f.ports, nil }
-func (f *fakeManager) InstallStatus(_ context.Context, name string) manager.HookStatus {
-	return f.setup[name]
-}
-func (f *fakeManager) CurrentSettings(name string) (map[string]any, string, error) {
-	if f.values == nil {
-		return map[string]any{"signups_allowed": false}, "git", nil
-	}
-	return f.values, "git", nil
-}
-func (f *fakeManager) UpdateSettings(_ context.Context, name string, req manager.SettingsRequest) error {
-	if req.Subdomain == "taken" {
-		return &manager.FormError{Msg: "That web address is already used by another service."}
-	}
-	f.updated = append(f.updated, req)
-	return nil
-}
-func (f *fakeManager) RevealSecret(_ context.Context, name, key string) (string, error) {
-	if key != "admin_token" {
-		return "", manager.ErrNotFound
-	}
-	return "s3cret-token", nil
-}
-func (f *fakeManager) RetryInstall(_ context.Context, name string) error {
-	f.retried = append(f.retried, name)
-	return nil
-}
-func (f *fakeManager) RunAction(_ context.Context, name, action string, inputs map[string]string) (string, error) {
-	f.actions = append(f.actions, fmt.Sprintf("%s %s %v", name, action, inputs))
-	return f.actionOut, f.actionErr
-}
-func (f *fakeManager) SetPort(_ context.Context, name, port string, enabled bool, hostPort int) error {
-	if f.portErr != nil {
-		return f.portErr
-	}
-	f.setPort = append(f.setPort, fmt.Sprintf("%s %s %v %d", name, port, enabled, hostPort))
-	return nil
-}
-func (f *fakeManager) Status() manager.ApplyStatus { return f.status }
-
-// loggedIn returns a harness with a fake manager and a logged-in user.
-func loggedIn(t *testing.T, role string) (*harness, *fakeManager) {
-	t.Helper()
-	h := newHarness(t, "")
-	fm := &fakeManager{}
-	h.server.Manager, h.server.Node = fm, fm
-	h.server.Domain = "lab.example.com"
-	h.server.HasGPU = true
-	hash, _ := authkit.HashPassword("a long password")
-	u := store.User{Username: "u", PasswordHash: hash, Role: role}
-	if role == auth.RoleOwner {
-		u.Email = "u@example.com" // every Owner has one (ownerNeedsEmail)
-	}
-	id, _ := h.store.CreateUser(context.Background(), u)
-	if role == auth.RoleOwner {
-		secret, _ := authkit.NewTOTPSecret()
-		h.store.SetTOTP(context.Background(), id, secret, 0)
-		h.post("/login", url.Values{"username": {"u"}, "password": {"a long password"}}, h.srv.URL)
-		code, _ := authkit.TOTPCode(secret, nowFunc())
-		h.post("/login/totp", url.Values{"code": {code}}, h.srv.URL)
-	} else {
-		h.post("/login", url.Values{"username": {"u"}, "password": {"a long password"}}, h.srv.URL)
-	}
-	return h, fm
-}
 
 func TestInstallFlow(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
@@ -817,7 +78,7 @@ func TestInstallFlow(t *testing.T) {
 	}
 
 	// A form error re-renders the form with the user's values.
-	fm.failWith = &manager.FormError{Msg: "That web address is already used"}
+	fm.failWith = &usererr.Error{Msg: "That web address is already used"}
 	code, body = h.post("/install/immich", url.Values{"subdomain": {"pics"}}, h.srv.URL)
 	if code != http.StatusBadRequest || !strings.Contains(body, "already used") || !strings.Contains(body, `value="pics"`) {
 		t.Errorf("form error: %d", code)
@@ -838,7 +99,7 @@ func TestInstallFlow(t *testing.T) {
 	}
 
 	_, body = h.get("/services/vaultwarden/remove")
-	if !strings.Contains(body, "Your data is kept") || !strings.Contains(body, "/srv/roostack/services/vaultwarden") {
+	if !strings.Contains(body, "Your data will be kept") || !strings.Contains(body, "/srv/roostack/services/vaultwarden") {
 		t.Error("remove page should explain that data is kept, and where")
 	}
 	h.post("/services/vaultwarden/remove", nil, h.srv.URL)
@@ -849,7 +110,7 @@ func TestInstallFlow(t *testing.T) {
 
 func TestSecretFieldsAreNotEchoed(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
-	fm.failWith = &manager.FormError{Msg: "nope"}
+	fm.failWith = &usererr.Error{Msg: "nope"}
 	// Vaultwarden's only secret is generated, so it must not be on the form.
 	if _, body := h.get("/install/vaultwarden"); strings.Contains(body, `name="setting.admin_token"`) {
 		t.Error("generated secrets must not appear on the form")
@@ -913,7 +174,7 @@ func TestNavigationByRole(t *testing.T) {
 
 func TestHomeAllGood(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner) // owners have 2FA in this harness
-	h.server.Manager, h.server.Node = nil, nil
+	h.server.Node = nil
 	_, body := h.get("/")
 	if !strings.Contains(body, "Everything&#39;s working") && !strings.Contains(body, "Everything's working") {
 		t.Error("with nothing to do, home should say everything's working")
@@ -938,7 +199,7 @@ func TestServicePorts(t *testing.T) {
 		!strings.Contains(body, "Enter a port number") {
 		t.Errorf("bad number: %d", code)
 	}
-	fm.portErr = &manager.FormError{Msg: "Port 8480 is already used by the Roostack admin UI."}
+	fm.portErr = &usererr.Error{Msg: "Port 8480 is already used by the Roostack admin UI."}
 	if code, body := h.post("/services/vaultwarden/ports/ssh", url.Values{"enabled": {"on"}, "host_port": {"8480"}}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "already used by the Roostack admin UI") {
 		t.Errorf("clash: %d", code)
@@ -1259,7 +520,7 @@ func TestServers(t *testing.T) {
 
 	// Renaming and removing.
 	if code, body := h.post("/settings/servers/n-9876543210/remove", nil, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "vps still runs Forgejo") {
+		!strings.Contains(body, "vps is still running Forgejo") {
 		t.Errorf("removing a server with services: %d", code)
 	}
 	h.post("/settings/servers/n-9876543210/rename", url.Values{"name": {"cloud"}}, h.srv.URL)
@@ -1274,13 +535,28 @@ func TestServers(t *testing.T) {
 	fm.serverOps = nil
 	_, body = h.get("/servers")
 	if !strings.Contains(body, "forgejo.moved-to-nuc-20260928-002806") || !strings.Contains(body, "70.0 MB") ||
-		!strings.Contains(body, "forgejo before it moved away") {
+		!strings.Contains(body, "From before a move") || !strings.Contains(body, "Its old copy, from before it moved to nuc") ||
+		!strings.Contains(body, "forgejo is running on nuc now, so this copy can&#39;t be put back on vps") || strings.Contains(body, "Put back…") {
 		t.Errorf("servers page should list kept copies:\n%s", body)
 	}
 	h.post("/settings/servers/n-9876543210/kept/remove", url.Values{"path": {"/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806"}}, h.srv.URL)
 	if len(fm.serverOps) != 1 || fm.serverOps[0] != "delete /srv/roostack/services/forgejo.moved-to-nuc-20260928-002806 on n-9876543210" {
 		t.Errorf("ops = %v", fm.serverOps)
 	}
+	// A copy that can go back has Put back here too; one a restore kept
+	// goes back in the background, so its restore page follows.
+	fm.kept = []manager.KeptCopy{{Copy: kept.Copy{Service: "vaultwarden", Why: kept.BeforeRestore, Time: time.Now(), Size: -1,
+		Paths: []string{"/srv/roostack/services/vaultwarden/data.before-restore-20260926-130602"}},
+		Server: "n-0123456789", Host: "n-0123456789", CanPutBack: true}}
+	if _, body = h.get("/servers"); !strings.Contains(body, "Put back…") || !strings.Contains(body, `name="restore" value="vaultwarden"`) {
+		t.Error("no Put back on the Servers page")
+	}
+	fm.serverOps = nil
+	h.post("/settings/servers/n-0123456789/kept/put-back", url.Values{"path": {fm.kept[0].Paths[0]}, "restore": {"vaultwarden"}}, h.srv.URL)
+	if len(fm.serverOps) != 1 || fm.serverOps[0] != "put back "+fm.kept[0].Paths[0]+" on n-0123456789" {
+		t.Errorf("ops = %v", fm.serverOps)
+	}
+	fm.kept = nil
 
 	// A server's own pages; an unknown server is not found.
 	fm.updates = &fakeUpdates{}
@@ -1332,7 +608,7 @@ func TestBackupPlan(t *testing.T) {
 		t.Error("Roostack Cloud not offered")
 	}
 	h.post("/backups/plan", url.Values{"add": {"2"}, "choice": {"cloud"}}, h.srv.URL)
-	if fm.destination != manager.CloudChoice {
+	if fm.destination != destination.Cloud {
 		t.Fatalf("backup 1 to Roostack Cloud = %q", fm.destination)
 	}
 	fm.cloudBackup, fm.destination = false, ""
@@ -1439,11 +715,13 @@ func TestStorageForOthers(t *testing.T) {
 	fm.guestSpace = manager.GuestSpace{Free: 180 * units.GB, Total: 250 * units.GB, Promised: 40 * units.GB, Left: 16_300 * units.MB}
 	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 50 * units.GB, Joined: true},
 		Used: 3 * units.GB, LastSeen: time.Now()}}
+	// The lab's address isn't set up, so there's no name to offer.
+	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainLater: true, BackupLater: true}}
 	_, body := h.get("/settings/storage")
 	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821",
 		"Space on nuc", "<strong>180.0 GB free</strong> of 250.0 GB", "Backups of other labs",
 		"can be given up to <strong>16.3 GB</strong> more", `value="16"`,
-		"leaves about\n            <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
+		"will leave about\n            <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
 		// Nothing known yet: they type it.
 		`value="other" x-model="choice" checked`, `name="address_other"`,
 		// The invite is a form in a dialog, closed until asked for.
@@ -1543,17 +821,6 @@ func TestServiceCardsAndBuiltIns(t *testing.T) {
 	}
 }
 
-func (f *fakeManager) ServiceDetails(context.Context) (map[string]node.ServiceDetail, error) {
-	return nil, nil
-}
-func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns {
-	items, _ := f.BuiltIns(ctx)
-	return []manager.ServerBuiltIns{{Server: "nuc", Items: items}}
-}
-func (f *fakeManager) BuiltIns(context.Context) ([]node.BuiltIn, error) {
-	return []node.BuiltIn{{Name: "Caddy", Kind: "proxy", Status: "active (running)", Detail: "Web addresses"}}, nil
-}
-
 func TestPerServerSettings(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	h.setSetup(&fakeSetup{ssh: "lan", p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
@@ -1633,7 +900,7 @@ func TestCertificateExpiry(t *testing.T) {
 		t.Error("Servers should show each certificate")
 	}
 	_, body := h.get("/")
-	if !strings.Contains(body, "vps&#39;s certificate on Roostack&#39;s network expires") || strings.Contains(body, "nuc&#39;s certificate") {
+	if !strings.Contains(body, "vps&#39;s certificate on Roostack&#39;s network will expire") || strings.Contains(body, "nuc&#39;s certificate") {
 		t.Errorf("a certificate that isn't renewing should need attention")
 	}
 	fm.servers[1].CertExpires = time.Now().Add(-time.Hour)
@@ -1757,12 +1024,12 @@ func TestStorageOfferedByAnotherServer(t *testing.T) {
 func TestHomeShowsWhatAnApplyDoes(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	log := h.acts().Start(activity.Apply, "Applying changes")
-	log.Step("Starting roostack-caddy: builds its image the first time (compiling: several minutes)")
-	if _, body := h.get("/"); !strings.Contains(body, "builds its image the first time") {
+	log.Step("Starting roostack-caddy: building its image the first time (compiling: several minutes)")
+	if _, body := h.get("/"); !strings.Contains(body, "building its image the first time") {
 		t.Error("the home page shows what the apply is doing")
 	}
 	log.Finish(nil)
-	if _, body := h.get("/"); strings.Contains(body, "builds its image the first time") {
+	if _, body := h.get("/"); strings.Contains(body, "building its image the first time") {
 		t.Error("a finished apply isn't shown")
 	}
 }
@@ -1805,7 +1072,7 @@ func TestBackupOnTheSameDiskWarns(t *testing.T) {
 		t.Error("online storage isn't on the same disk")
 	}
 	fm.destination = "drive:system"
-	if _, body := h.get("/backups"); !strings.Contains(body, "if the disk fails, or ransomware gets onto the server") {
+	if _, body := h.get("/backups"); !strings.Contains(body, "if the disk fails or ransomware gets onto the server") {
 		t.Error("a backup on this server's disk should warn")
 	}
 }
@@ -1825,31 +1092,8 @@ func TestBackupPlanSpace(t *testing.T) {
 	// Nearly full: the card says so, starting with a capital whatever
 	// the place is called.
 	fs.drives = []agent.Drive{{ID: "system", Kind: "system", Name: "This server's own disk", Usable: true, Size: 100 * units.GB, Free: units.GB}}
-	if _, body := h.get("/backups"); !strings.Contains(body, "Nearly full: 1.0 GB free on this server&#39;s disk. When it&#39;s full, backups here fail.") {
+	if _, body := h.get("/backups"); !strings.Contains(body, "Nearly full: 1.0 GB free on this server&#39;s disk. When it&#39;s full, backups here will fail.") {
 		t.Errorf("a nearly full disk on the plan:\n%s", body[strings.Index(body, `id="plan"`):])
-	}
-}
-
-func TestLowSpace(t *testing.T) {
-	for _, c := range []struct {
-		free, total int64
-		want        string
-	}{
-		{100 * units.GB, 200 * units.GB, ""},
-		{15 * units.GB, 200 * units.GB, levelWarning},  // under 10%
-		{4 * units.GB, 20 * units.GB, levelWarning},    // under 5 GB
-		{8 * units.GB, 200 * units.GB, levelProblem},   // under 5%
-		{1500 * units.MB, 25 * units.GB, levelProblem}, // under 2 GB
-		// A disk under 20 GB: the floors are a quarter and a tenth of it.
-		{1900 * units.MB, 2100 * units.MB, ""},
-		{400 * units.MB, 2000 * units.MB, levelWarning},
-		{150 * units.MB, 2000 * units.MB, levelProblem},
-		{3 * units.GB, 10 * units.GB, ""},
-		{-1, 10 * units.GB, ""},
-	} {
-		if got := lowSpace(c.free, c.total); got != c.want {
-			t.Errorf("lowSpace(%d, %d) = %q, want %q", c.free, c.total, got, c.want)
-		}
 	}
 }
 
@@ -2115,7 +1359,7 @@ func TestInstallSummary(t *testing.T) {
 	fm.serverMemory = manager.ServerMemory{Name: "pi", Servers: 2, Total: 4_000_000_000, Available: 1_900_000_000}
 	_, body = h.get("/install/immich")
 	if !strings.Contains(body, "pi has 4.0 GB, and 1.9 GB is free right now.") ||
-		!strings.Contains(body, "Immich needs about 2.8 GB, but only 1.9 GB is free on pi right now. It may be slow, or stop working. Run it on another server, or free some memory first.") ||
+		!strings.Contains(body, "Immich needs about 2.8 GB, but only 1.9 GB is free on pi right now. It may be slow or stop working. Run it on another server or free some memory first.") ||
 		!strings.Contains(body, `<button type="submit">Install</button>`) {
 		t.Error("install page: the warning when it won't fit is missing")
 	}
@@ -2137,7 +1381,7 @@ func TestInstallSummary(t *testing.T) {
 	// Forgejo's administrator may then be left empty (it keeps its own).
 	_, body = h.get("/install/forgejo")
 	field, _, _ := strings.Cut(body[strings.Index(body, `name="setting.admin_username"`):], ">")
-	if !strings.Contains(body, "With its data from before, leave these empty: Forgejo keeps what it has") || strings.Contains(field, "required") {
+	if !strings.Contains(body, "With its data from before, leave these empty: Forgejo will keep what it has") || strings.Contains(field, "required") {
 		t.Errorf("install page over data from before: the administrator is still asked for (%s)", field)
 	}
 	fm.leftData = nil
@@ -2216,5 +1460,26 @@ func TestListText(t *testing.T) {
 		if got := listText(tc.items, tc.lower); got != tc.want {
 			t.Errorf("listText(%q, %t) = %q, want %q", tc.items, tc.lower, got, tc.want)
 		}
+	}
+}
+
+// Listing the lab's services asks every server, so only the pages that
+// show them ask: Settings' pages don't, a page under Services asks once
+// for the sidebar, and a service's page once for itself and the sidebar.
+func TestServicesAskedForOnlyWhereShown(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.setSetup(&fakeSetup{p: allDone})
+	list, asked := h.server.Services, 0
+	h.server.Services = func(ctx context.Context) ([]ServiceView, error) { asked++; return list(ctx) }
+	for path, want := range map[string]int{"/settings/lab": 0, "/settings/updates": 0, "/services/vaultwarden/move": 1, "/services/vaultwarden": 1} {
+		asked = 0
+		if code, _ := h.get(path); code != http.StatusOK || asked != want {
+			t.Errorf("%s: %d, asked for the services %d times, want %d", path, code, asked, want)
+		}
+	}
+	// A page that doesn't show them works when they can't be listed.
+	h.server.Services = func(context.Context) ([]ServiceView, error) { return nil, errors.New("a server didn't answer") }
+	if code, _ := h.get("/settings/lab"); code != http.StatusOK {
+		t.Errorf("Settings → Lab name without the services: %d", code)
 	}
 }

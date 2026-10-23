@@ -8,8 +8,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // The recovery identity is the same for the same recovery key (however it
@@ -42,7 +44,7 @@ func TestRestoreFromCloud(t *testing.T) {
 	labID := s.Status().LabID
 	f.RestoreRepositories = map[string][]string{labID: {"s3:https://storage.test/b/labs/l/n-1"}}
 	id, _ := RecoveryIdentity(key)
-	waitFor(t, func() bool { return bytes.Equal(f.Identities[labID], id.Public().(ed25519.PublicKey)) })
+	testwait.For(t, 10*time.Second, func() bool { return bytes.Equal(f.Identities[labID], id.Public().(ed25519.PublicKey)) })
 	// The registration was signed over the lab's ID (review M10): one
 	// signed for another lab's, or unsigned, is refused.
 	other, _ := RecoveryIdentity("another lab's key")
@@ -106,7 +108,7 @@ func TestRestoreFromCloud(t *testing.T) {
 	}
 	link(t, f, s, "")
 	newID := s.Status().LabID
-	waitFor(t, func() bool { return f.Identities[newID] != nil })
+	testwait.For(t, 10*time.Second, func() bool { return f.Identities[newID] != nil })
 	acc, err = fresh.RestoreAccess(ctx, key)
 	if err != nil || len(acc.Labs) != 2 || acc.Labs[0].LabID != newID || !acc.Labs[0].UnlinkedAt.IsZero() ||
 		acc.Labs[1].LabID != labID || acc.Labs[1].UnlinkedAt.IsZero() || len(acc.Labs[1].Repositories) != 1 {
@@ -124,7 +126,7 @@ func TestRelinkWithRecoveryKey(t *testing.T) {
 	s.RecoveryKey = func() (string, error) { return "a recovery key", nil }
 	link(t, f, s, "")
 	labID := s.Status().LabID
-	waitFor(t, func() bool { return f.Identities[labID] != nil })
+	testwait.For(t, 10*time.Second, func() bool { return f.Identities[labID] != nil })
 	before := s.Status().CertFingerprint
 
 	f.Revoke(labID)

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // Entry is how public visitors reach the lab.
@@ -120,14 +121,12 @@ func checkPublic(s string) error {
 	return nil
 }
 
-var cgnat = netip.MustParsePrefix("100.64.0.0/10")
-
 // IsPublic says whether a is an internet address, not a home, loopback,
 // link-local or carrier-grade NAT one: a visitor from it came from
 // outside.
 func IsPublic(a netip.Addr) bool {
 	a = a.Unmap()
-	return a.IsGlobalUnicast() && !a.IsPrivate() && !cgnat.Contains(a)
+	return a.IsGlobalUnicast() && !a.IsPrivate() && !trust.CGNATRange.Contains(a)
 }
 
 // DetectNetwork guesses where this server is (config.NetworkHome or

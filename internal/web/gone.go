@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A server that's gone (SPEC.md §10.10, "Restoring across the lab"): the
@@ -32,16 +33,8 @@ func (s *Server) serverGonePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderServerGone(w http.ResponseWriter, r *http.Request, errMsg string, status int) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	id := r.PathValue("server")
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	plan, err := s.Manager.LostServerPlan(r.Context(), id)
 	// While (or just after) its services are restored, the page shows how
 	// that's going; the server may have left the lab by then (its name
@@ -51,7 +44,7 @@ func (s *Server) renderServerGone(w http.ResponseWriter, r *http.Request, errMsg
 		redirect(w, r, "/servers")
 		return
 	}
-	if msg, ok := userMessage(err); ok && act == nil {
+	if msg, ok := usererr.Message(err); ok && act == nil {
 		// Connected after all: nothing to do here.
 		errMsg = msg
 	} else if err != nil && !errors.Is(err, manager.ErrNotFound) && act == nil {
@@ -109,10 +102,6 @@ func (s *Server) goneActivity(name string) *activityView {
 func goneTitle(name string) string { return "Restoring " + name + "'s services" }
 
 func (s *Server) serverGoneSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	id := r.PathValue("server")
 	if r.FormValue("confirm") != "on" {
 		s.renderServerGone(w, r, "Tick the box to confirm.", http.StatusBadRequest)
@@ -129,7 +118,7 @@ func (s *Server) serverGoneSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderServerGone(w, r, "One of these services is already being restored. Wait until that's finished.", http.StatusConflict)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServerGone(w, r, msg, http.StatusBadRequest)
 		return
 	}
@@ -152,17 +141,13 @@ func (s *Server) serverGoneSubmit(w http.ResponseWriter, r *http.Request) {
 // removeWaitingSubmit removes a service waiting to be restored, with its
 // backups.
 func (s *Server) removeWaitingSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	err := s.Manager.RemoveWaiting(r.Context(), name)
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"Error": msg}, true)
 		return
 	}

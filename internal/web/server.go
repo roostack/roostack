@@ -6,38 +6,30 @@
 package web
 
 import (
-	"bytes"
 	"context"
 	"embed"
-	"errors"
 	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"runtime/debug"
-	"strings"
 	"sync"
 	"time"
 
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/editor"
-	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/pkgspec"
-	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/setup"
-	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -46,28 +38,6 @@ var templateFS embed.FS
 
 //go:embed static
 var staticFS embed.FS
-
-const (
-	sessionCookie   = "roostack_session"
-	sessionDuration = 7 * 24 * time.Hour
-	// pendingCookie links the password step of a login to the 2FA step.
-	pendingCookie   = "roostack_pending"
-	pendingDuration = 5 * time.Minute
-	// failedLoginDelay slows down password guessing. Caddy rate limiting is
-	// the main defence (SPEC.md §6.10).
-	failedLoginDelay = 500 * time.Millisecond
-)
-
-// StatusWaiting is a service waiting to be restored: its server is gone
-// (SPEC.md §10.10).
-const StatusWaiting = "waiting"
-
-// StatusAwaitingData is a service installed to wait for its data, and
-// StatusSwitching one being switched to it (SPEC.md §8.4).
-const (
-	StatusAwaitingData = "awaiting-data"
-	StatusSwitching    = "switching"
-)
 
 // ServiceView is one row on the dashboard.
 type ServiceView struct {
@@ -110,96 +80,53 @@ type ServiceView struct {
 }
 
 // Server serves the web UI.
+//
+// What every page relies on comes to NewServer, so it's always there (the
+// quality review's S1, decided by the Owner on 2026-10-22): the store, the
+// log, the lab's services and its manager, the setup steps and the lab's
+// settings. What comes with a feature is in that feature's group, or a
+// field of its own, and nil hides the feature.
 type Server struct {
 	Store *store.Store
+	Log   *slog.Logger
 	// Services lists installed services and their status. It is a function
 	// so the UI doesn't depend on systemd directly (and tests can fake it).
 	Services func(ctx context.Context) ([]ServiceView, error)
-	Log      *slog.Logger
-
-	mu sync.Mutex
-	// serverIssues is how many servers needed attention when Home last
-	// asked them all (a restart due, an OS update or change that didn't
-	// finish, a disk running low, not answering), for the sidebar's count
-	// beside Servers without asking each server on every page.
-	serverIssues   int
-	serverIssuesAt time.Time
-	// setupToken must be entered to create the first Owner, so whoever
-	// reaches the UI first on the network can't claim the lab. Empty once
-	// setup is done.
-	setupToken string
-	// OnSetupComplete is called after the first Owner is created (e.g. to
-	// delete the token file).
-	OnSetupComplete func()
-	// FirstRunAddress is the lab's address for Roostack's own pages
-	// ("https://…"), as saved now, or "" without one: where the setup
-	// listener sends the Owner once setup is finished (SPEC.md §6.3.2).
-	FirstRunAddress func() string
-
-	// pending holds logins that passed the password check and are waiting
-	// for a 2FA code, keyed by token hash. In memory: a restart just means
-	// logging in again.
-	pending map[string]*pendingLogin
-	// handoffs are sign-ins at login.<domain> on their way to Roostack's
-	// own pages, keyed by the one-time code's hash (pagessignin.go).
-	handoffs map[string]*pagesHandoff
-	// served is the last answer to whether Caddy serves the sign-in page
-	// (signInServed), and servedToken what the sign-in listener answers
-	// the question with, so the answer can only come from it.
-	served      servedCheck
-	servedToken string
-	// stepUpFailures counts wrong passwords or codes per user when showing
-	// the recovery key (recoverykey.go).
-	stepUpFailures map[int64]int
-	// codeMu makes two-factor checks run one at a time (checkCode).
-	codeMu sync.Mutex
-
-	// Manager installs and removes services. Nil disables those pages.
+	// Manager installs and removes services; Guests is its storage for
+	// other labs (manager.Guests), and Keys changes the recovery key
+	// (manager.KeyChanges).
 	Manager ServiceManager
+	Guests  StorageSharing
+	Keys    RecoveryKeys
+	// Setup is the first-run setup wizard's steps.
+	Setup LabSetup
+	// LabSettings are the lab's settings, as Roostack started with them;
+	// labMu guards LabName, which first-run setup changes while pages are
+	// being served (labName).
+	LabSettings
+	labMu sync.Mutex
+	// Version is Roostack's version, shown in every page's footer and on
+	// the About page.
+	Version string
+	// Node is the server running the services. Set with Manager.
+	Node ServiceNode
+
+	// The features a server may not have, each nil (or empty) when it
+	// doesn't.
+	FirstRun
+	Monitoring
+	SingleSignOn
+	PublicAddresses
 	// Libraries are the media libraries (media.go); nil: none.
 	Libraries LibraryManager
 	// Photos migrates photos into Immich (photos.go, SPEC.md §8.5); nil:
 	// none.
 	Photos PhotoMigrations
-	// Monitor runs monitoring's checks (monitor.go, SPEC.md §6.15); nil:
-	// none (a server that isn't the controller). AutoChecks are the
-	// manager's (services and servers). StatusPage switches the public
-	// status page (the manager), which is written to StatusPageDir.
-	Monitor       *monitor.Monitor
-	AutoChecks    func(ctx context.Context) []monitor.Check
-	StatusPage    StatusPageSwitch
-	StatusPageDir string
-	// Node is the server running the services. Set with Manager.
-	Node ServiceNode
-	// SignIn is the identity provider (internal/sso, SPEC.md §5.2),
-	// served on its own listener (SignInHandler); nil: none. SSO turns
-	// single sign-on on and off for services. SignInHost is
-	// login.<domain>, and SSODir holds the sign-in page's logo.
-	SignIn     *sso.Provider
-	SSO        SSOServices
-	SignInHost string
-	// SignInServed asks whether Caddy serves the sign-in page yet
-	// (CaddyServesSignIn); nil: never, so Roostack's own pages keep their
-	// own login.
-	SignInServed func(context.Context) bool
-	SSODir       string
-	signInPages  *template.Template
 	// Network adds servers to the lab (SPEC.md §10.2). Nil hides it.
 	Network LabNetwork
-	// LabName is what people call the lab (config.Lab.DisplayName).
-	LabName string
-	// Domain is the lab's base domain, shown next to subdomain fields.
-	Domain string
-	// UIHost is where Roostack's own pages are (config.Lab.UIHost).
-	UIHost string
 	// DetectNetwork guesses where the lab is from this server's addresses
 	// (public.DetectNetwork; SPEC.md §6.12). Nil guesses nothing.
 	DetectNetwork func() string
-	// DNSProvider is the lab's current DNS provider ID (wizard default).
-	DNSProvider string
-	// OldAddress is the lab's previous address, still served for a while
-	// after switching (config.Lab.OldAddress; SPEC.md §6.6).
-	OldAddress *config.OldAddress
 	// Cloud is the controller's link to Roostack Cloud (SPEC.md §6.6). Nil
 	// when Cloud is turned off (config.Cloud): nothing about it is offered.
 	Cloud CloudLink
@@ -207,52 +134,26 @@ type Server struct {
 	// (SPEC.md §8.3.3): the controller's only. Nil on other servers and in
 	// tests that don't need it.
 	Registry RegistryUpdater
-	// BackupRepo is the backup destination, shown on the Backups page.
-	BackupRepo string
-	// HasGPU pre-ticks settings whose default is "auto".
-	HasGPU bool
-	// Setup is the first-run setup wizard. Nil disables it.
-	Setup LabSetup
-	// LabRestore rebuilds a lab from its backups on a fresh install. Nil
-	// hides it.
-	LabRestore LabRestorer
-	restore    *restoreSession
-	// setupPasses are browsers that entered the setup code (setup.go):
-	// token hash → until when.
-	setupPasses map[string]time.Time
-	hostChecks  hostCheckCache
-	// RestorePending reports a restored lab whose services' databases are
-	// still being put back (optional).
-	RestorePending func() bool
 	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
 	DNS DNSStatus
-	// Checks are the outside check links for public addresses, and
-	// Protected says whether CrowdSec is running, AppSec with it (SPEC.md
-	// §6.10, §6.11; public.go).
-	Checks    *public.Checks
-	Protected func(ctx context.Context) bool
-	// JoinLab adds this fresh server to an existing lab, named name, and
-	// restarts Roostack as part of it once the page has been sent; it
-	// returns this server's address on the lab's network. Undone if it
-	// fails. Nil hides the choice (SPEC.md §10.2).
-	JoinLab func(ctx context.Context, code labnet.JoinCode, name string) (string, error)
 	// Mail sends email (SPEC.md §6.13). Nil hides Settings → Email.
 	Mail MailSender
-	// Attacks says what CrowdSec saw on the public addresses over a while,
-	// for the weekly summary (optional).
-	Attacks func(ctx context.Context, since time.Duration) (public.Attacks, error)
-	// Blocks are the requests CrowdSec's AppSec refused over a while, for
-	// the service pages and the weekly summary (optional; waf.go).
-	Blocks func(ctx context.Context, since time.Duration) ([]public.Block, error)
-	waf    wafCache
-	// Version is Roostack's version, shown in every page's footer and on
-	// the About page.
-	Version string
-	// Maintenance is the lab's restart policy, shown in Settings.
-	Maintenance config.Maintenance
 	// RunningJob names a maintenance job running on this server, which a
 	// restart waits for ("" if none; optional).
 	RunningJob func() string
+
+	// What the pages keep in memory, each with its own lock. pending holds
+	// logins that passed the password check and are waiting for a 2FA
+	// code, keyed by token hash; handoffs are sign-ins at login.<domain>
+	// on their way to Roostack's own pages, keyed by the one-time code's
+	// hash (pagessignin.go).
+	pending  expiring[string, *pendingLogin]
+	handoffs expiring[string, *pagesHandoff]
+	stepUps  stepUpFailures
+	// codeMu makes two-factor checks run one at a time (checkCode).
+	codeMu     sync.Mutex
+	issues     serverIssues
+	hostChecks attention.HostChecks
 	// bootID changes each time Roostack starts; the "restarting" page waits
 	// for a new one.
 	bootID string
@@ -262,14 +163,34 @@ type Server struct {
 	pages map[string]*template.Template
 }
 
+// LabSettings are the lab's settings the pages show (config.Lab).
+type LabSettings struct {
+	// LabName is what people call the lab (config.Lab.DisplayName).
+	LabName string
+	// Domain is the lab's base domain, shown next to subdomain fields.
+	Domain string
+	// UIHost is where Roostack's own pages are (config.Lab.UIHost).
+	UIHost string
+	// DNSProvider is the lab's current DNS provider ID (wizard default).
+	DNSProvider string
+	// OldAddress is the lab's previous address, still served for a while
+	// after switching (config.Lab.OldAddress; SPEC.md §6.6).
+	OldAddress *config.OldAddress
+	// BackupRepo is the backup destination, shown on the Backups page.
+	BackupRepo string
+	// HasGPU pre-ticks settings whose default is "auto".
+	HasGPU bool
+	// Maintenance is the lab's restart policy, shown in Settings.
+	Maintenance config.Maintenance
+}
+
 // ServiceManager is what the UI needs from internal/manager, by area.
 type ServiceManager interface {
 	ServiceCatalog
 	LabServers
 	BackupPlan
-	StorageSharing
+	StorageAtOtherLabs
 	PublicAccess
-	RecoveryKeys
 	LabRestores
 	Withdrawals
 	Holds
@@ -375,9 +296,12 @@ type LabServers interface {
 	AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns
 	RemoveServer(ctx context.Context, id string) error
 	RenameServer(ctx context.Context, id, name string) error
-	KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error)
-	RemoveKeptData(ctx context.Context, serverID, path string) error
-	PutBackKeptData(ctx context.Context, serverID, path string) error
+	// KeptCopies lists the data set aside on a server (SPEC.md §8.4);
+	// PutBackKept and RemoveKept put back or delete a copy, named by one
+	// of its folders.
+	KeptCopies(ctx context.Context, serverID string) ([]manager.KeptCopy, error)
+	PutBackKept(ctx context.Context, serverID, path string) error
+	RemoveKept(ctx context.Context, serverID, path string) error
 	// Direct links between servers for backups (SPEC.md §10.10): where a
 	// server is reached directly (typed by the Owner), and how one server
 	// reaches another's backup store.
@@ -386,6 +310,11 @@ type LabServers interface {
 	LinkPath(ctx context.Context, from, to string) string
 	LinkFailed(ctx context.Context, a, b string) bool
 	ApplyBecause(reason string)
+	// Where each server is, at home or away, as the Owner says (SPEC.md
+	// §6.9), and what that makes a backup on another server.
+	ServerLocation(ctx context.Context, id string) string
+	SetServerLocation(ctx context.Context, id, loc string) error
+	ServerPlace(ctx context.Context, from, host string) (atHome, away bool, unknown []string)
 }
 
 // BackupPlan is each server's backups (SPEC.md §6.9): the main one, its
@@ -402,8 +331,7 @@ type BackupPlan interface {
 	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
 }
 
-// StorageSharing is storage for other labs, and this lab's storage at
-// other labs (SPEC.md §10.10).
+// StorageSharing is storage for other labs (SPEC.md §10.10).
 type StorageSharing interface {
 	OfferStorage(ctx context.Context) bool
 	StorageGuests(ctx context.Context) ([]manager.GuestView, error)
@@ -412,11 +340,16 @@ type StorageSharing interface {
 	DeleteRemovedGuest(ctx context.Context, id int64) error
 	GuestServer(ctx context.Context) string
 	SetGuestServer(ctx context.Context, id string) error
-	EndingStorages(ctx context.Context) []manager.EndingStorage
 	SetGuestQuota(ctx context.Context, id, quota int64) error
 	GuestSpaceLeft(ctx context.Context) (manager.GuestSpace, bool)
 	LeftoverGuests(ctx context.Context) ([]manager.LeftoverGuest, error)
 	DeleteLeftoverGuest(ctx context.Context, user string) error
+}
+
+// StorageAtOtherLabs is this lab's storage at other labs (SPEC.md
+// §10.10).
+type StorageAtOtherLabs interface {
+	EndingStorages(ctx context.Context) []manager.EndingStorage
 	AddRemoteStorage(ctx context.Context, code string) error
 	RemoteStorages(ctx context.Context) []manager.RemoteStorage
 	RemoteUsage(ctx context.Context, r manager.RemoteStorage) (labnet.GuestUsage, error)
@@ -435,6 +368,8 @@ type ServiceNode interface {
 	Restores() node.Restores
 	Updates() node.Updates
 	Settings() node.Settings
+	Disks() node.Disks
+	History() node.History
 }
 
 // LabNetwork is what the UI needs from labnet.Hub.
@@ -525,22 +460,13 @@ func (s *Server) updates(r *http.Request) HostUpdates {
 	return nil
 }
 
-type pendingLogin struct {
-	userID   int64
-	expires  time.Time
-	remember bool   // "keep me signed in" was ticked
-	next     string // the page to go to afterwards (localNext)
-	// pagesOnly: a sign-in at login.<domain> that the sign-in page itself
-	// turns away (a temporary password, two-factor to turn on), going on to
-	// Roostack's pages for that step alone (pagessignin.go).
-	pagesOnly bool
-}
-
-// NewServer prepares templates. setupToken is empty if users already exist.
-func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, error), setupToken string, log *slog.Logger) (*Server, error) {
-	s := &Server{Store: st, Services: services, Log: log, setupToken: setupToken,
-		pending: map[string]*pendingLogin{}, handoffs: map[string]*pagesHandoff{}, stepUpFailures: map[int64]int{}, pages: map[string]*template.Template{},
-		setupPasses: map[string]time.Time{}}
+// NewServer prepares the pages, with what every page relies on: none of
+// these may be nil. setupToken is empty if users already exist.
+func NewServer(st *store.Store, log *slog.Logger, services func(context.Context) ([]ServiceView, error), mgr ServiceManager,
+	wizard LabSetup, lab LabSettings, setupToken string) (*Server, error) {
+	s := &Server{Store: st, Log: log, Services: services, Manager: mgr, Setup: wizard, LabSettings: lab,
+		stepUps: stepUpFailures{byUser: map[int64]int{}}, pages: map[string]*template.Template{}}
+	s.setupToken = setupToken
 	var err error
 	if s.bootID, err = authkit.NewToken(); err != nil {
 		return nil, err
@@ -558,7 +484,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
 		"import", "import-folders", "photos", "photos-home", "photos-folders"} {
-		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
+		t, err := template.New("layout.html").Funcs(templateFuncs()).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, err
@@ -657,7 +583,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/link-address", s.requireOwner(s.linkAddressSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
-	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
+	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptServerSubmit))
+	mux.Handle("POST /settings/servers/{server}/kept/put-back", s.requireOwner(s.putBackKeptServerSubmit))
 	mux.Handle("GET /settings/servers/{server}/gone", s.requireOwner(s.serverGonePage))
 	mux.Handle("POST /settings/servers/{server}/gone", s.requireOwner(s.serverGoneSubmit))
 	mux.Handle("POST /services/{name}/remove-waiting", s.requireOwner(s.removeWaitingSubmit))
@@ -845,359 +772,16 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(routes)))))
 }
 
-type userKey struct{}
-
-// currentUser returns the logged-in user, or nil.
-func currentUser(r *http.Request) *store.User {
-	u, _ := r.Context().Value(userKey{}).(*store.User)
-	return u
-}
-
-func (s *Server) loadSession(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
-			hash := authkit.HashToken(c.Value)
-			// Only a session signed in here: the setup pages' and
-			// Roostack's own don't work on each other (SPEC.md §6.3.2).
-			u, lastSeen, remember, err := s.Store.SessionInfoAt(r.Context(), sessionOrigin(r), hash)
-			switch {
-			case err == nil:
-				r = s.checkSession(r, hash, u, lastSeen, remember)
-			case !errors.Is(err, store.ErrNotFound):
-				s.serverError(w, err)
-				return
-			}
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// requireLogin checks the user is logged in.
-func (s *Server) requireLogin(h http.HandlerFunc) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.needsSetup() {
-			redirect(w, r, "/setup")
-			return
-		}
-		if currentUser(r) == nil {
-			if s.pagesSignIn(r) {
-				s.toSignInPage(w, r)
-				return
-			}
-			q := url.Values{}
-			if sessionOf(r).Expired {
-				q.Set("expired", "1")
-			}
-			if next := pageOf(r); next != "/" {
-				q.Set("next", next)
-			}
-			redirect(w, r, withQuery("/login", q))
-			return
-		}
-		h(w, r)
-	})
-}
-
-// pageOf is the page r asked for, to come back to after logging in or a
-// step Roostack asks for first (a new password, two-factor): its path and
-// query, or for an htmx request the page it came from. "/" for anything
-// else (a form sent, another site).
-func pageOf(r *http.Request) string {
-	if r.Method != http.MethodGet {
-		return "/"
-	}
-	if r.Header.Get("HX-Request") == "true" {
-		u, err := url.Parse(r.Header.Get("HX-Current-URL"))
-		if err != nil || u.Host != r.Host {
-			return "/"
-		}
-		return localNext(u.RequestURI())
-	}
-	return localNext(r.URL.RequestURI())
-}
-
-// localNext is where to go after logging in: a page of Roostack's own
-// (a path on this address, never another site's, nor logging in again or
-// out), or "/".
-func localNext(next string) string {
-	u, err := url.Parse(next)
-	if err != nil || !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") ||
-		strings.ContainsAny(next, "\\\r\n") || u.Host != "" || u.Path == "/login" || strings.HasPrefix(u.Path, "/login/") ||
-		strings.HasPrefix(u.Path, "/logout") {
-		return "/"
-	}
-	return next
-}
-
-// nextOf is the page to go on to from r's ?next=, or "/".
-func nextOf(r *http.Request) string { return localNext(r.URL.Query().Get("next")) }
-
-// firstThen is path, coming back to r's page afterwards (?next=).
-func firstThen(path string, r *http.Request) string {
-	next := pageOf(r)
-	if u, _ := url.Parse(next); next == "/" || u.Path == path {
-		return path
-	}
-	return withQuery(path, url.Values{"next": {next}})
-}
-
-// withQuery is path with q, if any.
-func withQuery(path string, q url.Values) string {
-	if len(q) == 0 {
-		return path
-	}
-	return path + "?" + q.Encode()
-}
-
-// require checks the user is logged in and has a permission. Those who
-// must use two-factor authentication set it up before doing anything else
-// (SPEC.md §5).
-func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
-	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
-		u := currentUser(r)
-		if u.TOTPSecret == "" && s.twoFactorRequired(u) {
-			redirect(w, r, firstThen(s.twoFactorPath(r, u), r))
-			return
-		}
-		if u.MustChangePassword {
-			redirect(w, r, firstThen("/account", r))
-			return
-		}
-		if ownerNeedsEmail(u) {
-			redirect(w, r, firstThen("/account/notifications", r))
-			return
-		}
-		// Owners finish the setup wizard next.
-		if u.Role == auth.RoleOwner && s.Setup != nil {
-			if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
-				redirect(w, r, p.Next())
-				return
-			}
-		}
-		if !auth.Can(u.Role, p) {
-			http.Error(w, "You don't have permission to do that.", http.StatusForbidden)
-			return
-		}
-		h(w, r)
-	})
-}
-
-// twoFactorRequired says whether someone must use two-factor
-// authentication (SPEC.md §5): Owners always, and Admins while Roostack's
-// own pages are public (a lab on the internet whose UI isn't kept to an
-// SSH tunnel), since they can reveal secrets and change services.
-func (s *Server) twoFactorRequired(u *store.User) bool {
-	switch u.Role {
-	case auth.RoleOwner:
-		return true
-	case auth.RoleAdmin:
-		c := s.network()
-		return c.Saved == config.NetworkInternet && !c.UITunnelOnly
-	}
-	return false
-}
-
-// sameOrigin rejects cross-site form posts (CSRF). Browsers always send an
-// Origin header on POST; requests without one are rejected.
-func sameOrigin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			o, err := url.Parse(r.Header.Get("Origin"))
-			if err != nil || o.Host == "" || o.Host != r.Host {
-				http.Error(w, "Cross-site request rejected.", http.StatusForbidden)
-				return
-			}
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// securityHeaders sets browser protections on every response.
-//
-// Alpine.js's standard build needs 'unsafe-eval'; switching to its CSP
-// build would remove that (docs/ASSUMPTIONS.md K1).
-func securityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h := w.Header()
-		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-eval'; "+
-			"style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
-		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Referrer-Policy", "same-origin")
-		next.ServeHTTP(w, r)
-	})
-}
-
-// recoverPanics turns a crash in one request into a logged error and an
-// error page, instead of the browser getting an empty response.
-func (s *Server) recoverPanics(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if v := recover(); v != nil {
-				if v == http.ErrAbortHandler {
-					panic(v)
-				}
-				s.Log.Error("request crashed", "method", r.Method, "path", r.URL.Path, "panic", v, "stack", string(debug.Stack()))
-				http.Error(w, "Something went wrong. Details are in the Roostack log.", http.StatusInternalServerError)
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
-}
-
-// redirect sends the browser elsewhere. For htmx background requests (like
-// the dashboard's live refresh) a normal redirect would be followed
-// silently and the other page's HTML swapped into the current page, so htmx
-// is told to navigate the whole page instead. On the setup listener, the
-// redirect after setup's last step is the page saying where Roostack is
-// from now on (finishedOnSetupListener).
-func redirect(w http.ResponseWriter, r *http.Request, url string) {
-	if finishedOnSetupListener(w, r) {
-		return
-	}
-	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", url)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	http.Redirect(w, r, url, http.StatusSeeOther)
-}
-
 // labName is LabName, which first-run setup may change while pages are
 // being served.
 func (s *Server) labName() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.labMu.Lock()
+	defer s.labMu.Unlock()
 	return s.LabName
 }
 
 func (s *Server) needsSetup() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.setupMu.Lock()
+	defer s.setupMu.Unlock()
 	return s.setupToken != ""
-}
-
-// startSession signs u in. remember ("keep me signed in", if offered)
-// makes it last rememberDuration on this browser without the idle limit;
-// otherwise the cookie ends with the browser (session.go).
-func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.User, remember bool) error {
-	token, err := authkit.NewToken()
-	if err != nil {
-		return err
-	}
-	// Not on the setup pages: their sessions end when they close.
-	remember = remember && s.offerRemember(r.Context()) && !fromSetupListener(r)
-	expires := time.Now().Add(sessionDuration)
-	if remember {
-		expires = time.Now().Add(rememberDuration)
-	}
-	if err := s.Store.CreateSessionAt(r.Context(), sessionOrigin(r), authkit.HashToken(token), u.ID, expires, remember); err != nil {
-		return err
-	}
-	c := &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r)}
-	if remember {
-		c.Expires = expires
-	}
-	http.SetCookie(w, c)
-	return nil
-}
-
-// isHTTPS reports whether the browser connection is HTTPS. Behind Caddy the
-// request arrives over plain HTTP with X-Forwarded-Proto set.
-func isHTTPS(r *http.Request) bool {
-	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
-}
-
-func (s *Server) render(w http.ResponseWriter, page string, data map[string]any) {
-	if u, ok := data["User"].(*store.User); ok && u != nil {
-		n := navFor(u, page)
-		n.Monitoring = s.Monitor != nil
-		// A page shared by two places says which it's in now (adding a
-		// location for migrating photos is the media library form, under
-		// Services).
-		if tab, ok := data["NavActive"].(string); ok {
-			n.Active = tab
-		}
-		data["Nav"] = n
-		// Every page's footer shows Roostack's version.
-		if _, set := data["Version"]; !set {
-			data["Version"] = s.Version
-		}
-		if _, set := data["LabName"]; !set {
-			data["LabName"] = s.labName()
-		}
-		// For the banner shown when the browser's clock differs from the
-		// host's (every time Roostack shows is host time).
-		// Not while changing it, nor while restarting to use a new one (the
-		// old zone is still in effect), nor on the wizard's step before
-		// the one that asks it.
-		if page != "setup-timezone" && page != "restarting" && !(page == "twofactor" && data["Wizard"] == true) {
-			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
-		}
-	}
-	// The setup wizard's steps show only themselves, and how far along
-	// they are (wizardSteps).
-	if data["Wizard"] == true {
-		data["Step"], data["Steps"] = wizardSteps[page], wizardStepCount
-	}
-	// While you're in Settings, the sidebar lists every settings page
-	// under it (without Roostack Cloud while it isn't in use); an area
-	// page marks its own.
-	if n, ok := data["Nav"].(nav); ok && n.Settings {
-		inSettings := n.Active == "settings"
-		if inSettings {
-			for _, g := range s.settingsGroups() {
-				for _, a := range g.Areas {
-					if a.ID != "servers" && a.ID != "backups" { // main areas
-						n.SettingsAreas = append(n.SettingsAreas, a)
-					}
-				}
-			}
-		}
-		if an, ok := data["AreaNav"].(areaNav); ok && an.Label == "Settings" && inSettings {
-			n.Area = an.Active
-		}
-		if s.Manager != nil {
-			if servers, err := s.Manager.Servers(); err == nil {
-				for _, mc := range servers {
-					if mc.Status.LastErr != nil {
-						n.ServerIssues++
-					}
-				}
-			}
-		}
-		// What Home found lately counts too, while it's fresh.
-		s.mu.Lock()
-		if time.Since(s.serverIssuesAt) < serverIssuesFresh {
-			n.ServerIssues = max(n.ServerIssues, s.serverIssues)
-		}
-		s.mu.Unlock()
-		data["Nav"] = n
-	}
-	// Under Services, the sidebar lists them, for those who can open them.
-	if n, ok := data["Nav"].(nav); ok && n.Active == "services" && n.Backups {
-		current, _ := data["Service"].(ServiceView)
-		n.InService = current.Name != ""
-		if services, ok := data["Services"].([]ServiceView); ok {
-			for _, sv := range services {
-				n.Services = append(n.Services, navLink{Href: "/services/" + sv.Name, Title: sv.Title,
-					Logo: sv.IconURL, Icon: sv.DrawnIcon, Current: sv.Name == current.Name})
-			}
-		}
-		data["Nav"] = n
-	}
-	// Render into a buffer first, so a template error becomes an error
-	// page rather than half a page sent with 200 OK.
-	var buf bytes.Buffer
-	if err := s.pages[page].Execute(&buf, data); err != nil {
-		s.Log.Error("render", "page", page, "err", err)
-		http.Error(w, "Something went wrong showing this page. Details are in the Roostack log.", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(buf.Bytes())
-}
-
-func (s *Server) serverError(w http.ResponseWriter, err error) {
-	s.Log.Error("request failed", "err", err)
-	http.Error(w, "Something went wrong. Details are in the Roostack log.", http.StatusInternalServerError)
 }

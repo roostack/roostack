@@ -5,6 +5,7 @@ import (
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Where the lab is (SPEC.md §6.12): at home behind a router, or on the
@@ -15,29 +16,22 @@ import (
 
 // network is where the lab is: the saved answer and a guess.
 func (s *Server) network() setup.NetworkChoice {
-	if s.Setup == nil {
-		return setup.NetworkChoice{}
-	}
 	return s.Setup.Network(s.DetectNetwork)
 }
 
 // onInternet says the lab is on the internet, as saved (what Caddy and DNS
 // follow; a guess changes nothing until the Owner confirms it).
 func (s *Server) onInternet() bool {
-	return s.Setup != nil && s.Setup.Network(nil).Saved == config.NetworkInternet
+	return s.Setup.Network(nil).Saved == config.NetworkInternet
 }
 
 // networkSubmit saves where the lab is (Settings → Network), then
 // Roostack restarts to apply it.
 func (s *Server) networkSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Setup == nil {
-		http.NotFound(w, r)
-		return
-	}
 	network := r.FormValue("network")
 	tunnelOnly := network == config.NetworkInternet && r.FormValue("ui") == "tunnel"
 	if err := s.Setup.SetNetwork(network, tunnelOnly); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
@@ -73,7 +67,7 @@ func (s *Server) networkForm(r *http.Request, suggest bool) networkForm {
 	} else if f.Selected == "" {
 		f.Selected = config.NetworkHome
 	}
-	if s.Domain != "" && s.Setup != nil && s.domainDone(r) {
+	if s.Domain != "" && s.domainDone(r) {
 		f.Domain, f.UIHost = s.Domain, s.uiHost()
 	}
 	return f

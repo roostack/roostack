@@ -4,7 +4,7 @@
   <div>
     <h1>Storage for others</h1>
     <p class="lede">Give family or friends space on this server for their Roostack's backups, and they can do the same for you:
-      each of you then has a copy somewhere else. Their backups are encrypted before they leave their lab, so you can't read
+      each of you will then have a copy somewhere else. Their backups are encrypted before they leave their lab, so you can't read
       them, and each lab gets its own space with a size limit.</p>
   </div>
 </div>
@@ -39,7 +39,7 @@
               </div>
             </form>
           </dialog>
-          {{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? They can't add backups from now on. Roostack tells their lab, and deletes what's here in 30 days (or sooner, if you choose)." .Name) "Remove" "quiet danger"}}
+          {{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? They won't be able to add backups from now on. Roostack will tell their lab and delete what's here in 30 days (or sooner, if you choose)." .Name) "Remove" "quiet danger"}}
         </span>
       </div>
       <div class="space-bar guest-space" role="img" aria-label="{{if ge .Used 0}}{{size .Used}}{{else}}Unknown{{end}} used of {{size .Quota}}">
@@ -59,7 +59,7 @@
 {{with .Removed}}
 <section class="card section">
   <h2>Labs you removed</h2>
-  <p class="hint">They can't add backups any more. Their lab has been told, and can still see when their backups here are deleted.</p>
+  <p class="hint">They can't add backups any more. Their lab has been told and can still see when their backups here are deleted.</p>
   <ul class="plain">
     {{range .}}<li><strong>{{.Name}}</strong> · removed {{when .Removed}} · {{if ge .Used 0}}{{size .Used}}, {{end}}deleted on {{date .DeleteOn}}
       {{confirm (printf "/settings/storage/guests/%d/delete" .ID) (printf "Delete %s's backups here now? This can't be undone." .Name) "Delete now" "quiet danger"}}</li>{{end}}
@@ -82,9 +82,9 @@
   {{if .Invite}}
   <h2>Invite for {{.InviteName}}</h2>
   <p>Send this to {{.InviteName}} privately. It works once, until {{when .InviteExpires}}. On their Backups page,
-    they add a backup, choose <strong>A friend's lab</strong> and paste it under <strong>Their invite code</strong>.</p>
+    they'll add a backup, choose <strong>A friend's lab</strong>, and paste it under <strong>Their invite code</strong>.</p>
   {{copyBox .Invite}}
-  <p class="hint">Anyone with it can use the space until it's used, so don't post it anywhere public. It isn't shown again:
+  <p class="hint">Anyone with it can use the space until it's used, so don't post it anywhere public. It won't be shown again:
     if it's lost, remove {{.InviteName}} above and make a new one.</p>
   <p><a class="button secondary" href="/settings/storage#invite">Make another invite</a></p>
   {{else}}
@@ -110,7 +110,7 @@
         x-data="{ gb: Number($el.dataset.gb), free: Number($el.dataset.free), promised: Number($el.dataset.promised), left: Number($el.dataset.left) }">
         {{if lt .Left 1000000000}}{{notice "warn" (printf "%s has no space to offer other labs right now: it keeps 10%% of its disk free, and the rest is in use or already given to other labs." $.HostServer.Name)}}{{end}}
         <label>Space for them <span class="with-suffix"><input class="number-input" name="quota" type="number" min="1" value="{{$.Quota}}" x-model.number="gb" required><span>GB</span></span>
-          <small x-show="gb * 1e9 <= left">Giving them <span x-text="gb">{{$.Quota}}</span> GB leaves about
+          <small x-show="gb * 1e9 <= left">Giving them <span x-text="gb">{{$.Quota}}</span> GB will leave about
             <strong x-text="roostackSize(free - promised - gb * 1e9)">{{size $.SpaceAfter}}</strong> free on {{$.HostServer.Name}}
             for your own services and backups.</small>
           <small class="error" x-show="gb * 1e9 > left" x-cloak>That's more than {{$.HostServer.Name}} can offer: up to {{size .Left}}.</small></label>
@@ -132,7 +132,7 @@
     <p>Roostack already allows other labs through {{.HostServer.Name}}'s own firewall. If your cloud provider puts a firewall in
       front of it (such as Linode's Cloud Firewall or AWS security groups), allow <strong>UDP</strong> port <strong>51821</strong>
       from anywhere in its control panel. No provider firewall? There's nothing to do.</p>
-    <p class="hint">How to tell it worked: once they've used the invite, "Connected" above shows when their lab last reached this one.</p>
+    <p class="hint">How to tell it worked: once they've used the invite, "Connected" above will show when their lab last reached this one.</p>
   </details>
   {{else}}
   <details>
@@ -142,13 +142,13 @@
       (A server in the cloud usually has no router to set up: only its provider's firewall, if any.)</p>
     <ol>
       <li>Open your router's settings page (often <code>http://192.168.1.1</code> or <code>http://192.168.0.1</code>; the address and password are usually on a sticker on the router).</li>
-      <li>Find <strong>Port forwarding</strong>. Some routers call it <em>Virtual server</em>, <em>NAT</em>, <em>Port mapping</em> or put it under <em>Advanced</em> or <em>Firewall</em>.</li>
+      <li>Find <strong>Port forwarding</strong>. Some routers call it <em>Virtual server</em>, <em>NAT</em>, or <em>Port mapping</em>, or put it under <em>Advanced</em> or <em>Firewall</em>.</li>
       <li>Add a rule: protocol <strong>UDP</strong> (not TCP), port <strong>51821</strong>, to {{.HostServer.Name}}{{with .LANAddr}} at <strong>{{.}}</strong>{{end}}, port 51821.</li>
       <li>Use your home's public address in the invite, e.g. <code>203.0.113.7:51821</code>. Search "what is my IP" from a device at home to find it.</li>
     </ol>
-    <p class="hint">How to tell it worked: once they've used the invite, "Connected" above shows when their lab last reached this one.
+    <p class="hint">How to tell it worked: once they've used the invite, "Connected" above will show when their lab last reached this one.
       If it stays "Not yet", the port isn't forwarded (or the address is wrong). Some internet connections (called CGNAT) can't forward
-      ports at all; then the other lab can host instead, and you store at theirs.</p>
+      ports at all; then the other lab can host instead, and you can store at theirs.</p>
   </details>
   {{end}}
 </section>

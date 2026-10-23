@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -11,12 +10,6 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
 )
-
-func (f *fakeManager) JunkReports(context.Context) []manager.JunkReport { return f.junk }
-func (f *fakeManager) DismissJunk(context.Context) error {
-	f.junk = nil
-	return nil
-}
 
 // Junk the controller removed from a backup shows under Needs attention
 // and on its page until the Owner clears it; what it couldn't remove is
@@ -35,7 +28,7 @@ func TestJunkReported(t *testing.T) {
 	_, body := h.get("/")
 	for _, want := range []string{"Roostack removed a file it can&#39;t read from vps&#39;s backups on nuc&#39;s disk",
 		"it stopped those backups working.", "Only vps or nuc could have put it there",
-		"The copy of nuc&#39;s backups on Wasabi holds a file Roostack can&#39;t read, which stops those backups working, and Roostack couldn&#39;t remove it.", `href="/backups/junk"`} {
+		"The copy of nuc&#39;s backups on Wasabi holds a file Roostack can&#39;t read, which is stopping those backups working, and Roostack couldn&#39;t remove it.", `href="/backups/junk"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("home page without %q", want)
 		}

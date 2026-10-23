@@ -43,6 +43,7 @@ main() {
     [ "$(id -u)" = 0 ] || fail "run it as root (with sudo)."
 
     # 1. Debian 13 ("trixie") on a 64-bit PC or ARM computer.
+    # shellcheck source=/dev/null # the system's file, read on the server
     . /etc/os-release
     [ "${ID:-}" = debian ] && [ "${VERSION_ID:-}" = 13 ] ||
         fail "it needs Debian 13, and this is ${PRETTY_NAME:-something else}."

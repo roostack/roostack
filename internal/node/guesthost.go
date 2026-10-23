@@ -33,13 +33,19 @@ type GuestHost interface {
 	GuestSpace(ctx context.Context) (free, total int64, err error)
 }
 
+// GuestHost is this server, which can keep other labs' backups.
+func (n *Local) GuestHost() GuestHost { return n }
+
+// GuestHost asks the server to keep other labs' backups.
+func (r *Remote) GuestHost() GuestHost { return r }
+
 func (n *Local) GuestSpace(context.Context) (int64, int64, error) {
 	dir := n.Lab.Paths.BackupStoreDir()
 	for {
 		var st syscall.Statfs_t
 		err := syscall.Statfs(dir, &st)
 		if err == nil {
-			return int64(st.Bavail) * st.Bsize, int64(st.Blocks) * st.Bsize, nil
+			return int64(st.Bavail) * int64(st.Bsize), int64(st.Blocks) * int64(st.Bsize), nil
 		}
 		parent := filepath.Dir(dir)
 		if !errors.Is(err, os.ErrNotExist) || parent == dir {
@@ -62,6 +68,12 @@ type Linked interface {
 	// last connected, by the other server's public key.
 	LinkStatus(ctx context.Context) ([]string, map[string]int64)
 }
+
+// Linked is this server, which reads its own links.
+func (n *Local) Linked() Linked { return n }
+
+// Linked is the server, as its status says (LinkStatus).
+func (r *Remote) Linked() Linked { return r }
 
 // LinkStatus reads this server's addresses and its direct links.
 func (n *Local) LinkStatus(ctx context.Context) ([]string, map[string]int64) {
@@ -140,8 +152,8 @@ func (n *Local) GuestAddr() string {
 
 // The lab API's guest-host routes (on a node, for the controller).
 func (s *Server) guestHostRoutes(handle func(string, func(*http.Request) (any, error)), decode func(*http.Request, any) error) {
-	h, ok := s.Node.(GuestHost)
-	if !ok {
+	h := s.Node.GuestHost()
+	if h == nil {
 		return
 	}
 	handle("PUT /v1/guests/link", func(r *http.Request) (any, error) {

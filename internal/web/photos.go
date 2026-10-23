@@ -15,12 +15,13 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
-	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // Migrating photos into Immich (SPEC.md §8.5, docs/mockups/immich-import):
@@ -43,6 +44,8 @@ type PhotoMigrations interface {
 	RemovePhotoLocation(ctx context.Context, service, name string) error
 	PhotoDrives(ctx context.Context, service string, admin bool) ([]manager.PhotoDrive, error)
 	CheckPhotoSource(ctx context.Context, service string, src node.PhotoSource, admin bool) error
+	// MigrationStarted tells the Owners when someone else starts one.
+	MigrationStarted(ctx context.Context, service string, u *store.User)
 }
 
 // Steps of a migration, in order.
@@ -113,8 +116,8 @@ type photoSourceForm struct {
 	LocationError   string
 	// Which choices this person has: drives, a folder on the server,
 	// shares, locations.
-	CanDrive, CanFolder, CanShare, CanLocation   bool
-	ShareType, ShareServer, SharePath, ShareUser string
+	CanDrive, CanFolder, CanShare, CanLocation bool
+	shareForm
 }
 
 // photoDriveChoice is a drive for step 3.
@@ -189,11 +192,7 @@ func (s *Server) migratable(ctx context.Context, u *store.User) []manager.PhotoS
 // photosHome is /immich-photos: the one Immich someone may migrate into,
 // or a choice of them, or who to ask.
 func (s *Server) photosHome(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	u := currentUser(r)
 	all := []manager.PhotoService(nil)
 	if s.Photos != nil {
@@ -209,17 +208,14 @@ func (s *Server) photosHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["Own"], data["Choices"], data["Owner"] = true, mine, s.ownerName(r.Context())
-	data["PhotoHosts"] = s.photoHosts(all)
+	data["PhotoHosts"] = s.photoHosts(r.Context(), all)
 	s.render(w, "photos-home", data)
 }
 
 // photoHosts are each Immich's address, by name, for the choice.
-func (s *Server) photoHosts(list []manager.PhotoService) map[string]string {
+func (s *Server) photoHosts(ctx context.Context, list []manager.PhotoService) map[string]string {
 	out := map[string]string{}
-	if s.Services == nil {
-		return out
-	}
-	views, err := s.Services(context.Background())
+	views, err := s.Services(ctx)
 	if err != nil {
 		return out
 	}
@@ -251,15 +247,11 @@ func (s *Server) renderPhotos(w http.ResponseWriter, r *http.Request, panel bool
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	pg := &photoPage{Name: name, Title: ps.Title, Panel: panel, Admin: isAdmin(u), Error: errMsg,
 		Owner: s.ownerName(r.Context()), IsOwner: u.Role == auth.RoleOwner, Permissions: photoimport.Permissions,
 		MostMemory: s.Photos.PhotoSettings(r.Context(), name).Memory == photoimport.MemoryMost,
-		Post:       "/immich-photos/" + url.PathEscape(name), Service: s.photoServiceView(r, name, isAdmin(u))}
+		Post:       "/immich-photos/" + url.PathEscape(name), Service: s.serviceRow(r.Context(), name, isAdmin(u))}
 	pg.Base = pg.Post
 	if panel {
 		pg.Base = "/services/" + url.PathEscape(name) + "/photos"
@@ -270,7 +262,7 @@ func (s *Server) renderPhotos(w http.ResponseWriter, r *http.Request, panel bool
 		return
 	}
 	x, err := s.Photos.PhotosOf(name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		pg.Error = msg
 		data["Own"], data["Photos"], data["Unavailable"] = !panel, pg, true
 		s.renderPhotosPage(w, data, panel, http.StatusOK)
@@ -342,17 +334,8 @@ func (s *Server) renderPhotosPage(w http.ResponseWriter, data map[string]any, pa
 
 // serviceURL is a service's own address ("" if it has none).
 func (s *Server) serviceURL(ctx context.Context, name string) string {
-	if s.Services == nil {
-		return ""
-	}
-	views, err := s.Services(ctx)
-	if err != nil {
-		return ""
-	}
-	for _, v := range views {
-		if v.Name == name && len(v.URLs) > 0 {
-			return v.URLs[0]
-		}
+	if v, ok, _ := s.serviceByName(ctx, name); ok && len(v.URLs) > 0 {
+		return v.URLs[0]
 	}
 	return ""
 }
@@ -393,7 +376,7 @@ func photoProgressOf(run *node.PhotoRun) photoProgress {
 	if run.Running && p.Done > 50 && p.Total > p.Done {
 		spent := time.Since(run.Started)
 		left := time.Duration(float64(spent) * float64(p.Total-p.Done) / float64(p.Done))
-		p.TimeLeft = roughDuration(left)
+		p.TimeLeft = words.RoughDuration(left)
 	}
 	return p
 }
@@ -437,19 +420,17 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 			f.Location, f.LocationSub = src.Location, src.Sub
 		}
 		if sh := src.Library.Share; sh != nil {
-			f.ShareType, f.ShareServer, f.SharePath, f.ShareUser = sh.Type, sh.Server, sh.Path, sh.Username
+			f.fillShare(sh)
 		}
 	}
-	if f.ShareType != "nfs" {
-		f.ShareType = "smb"
-	}
+	f.shareKind()
 	if n := s.Manager.NodeFor(ps.Name); n != nil {
 		f.ServerName = n.Identity().Name
 	}
 	// Drives, for those who may use one.
 	if f.CanDrive {
 		drives, err := s.Photos.PhotoDrives(ctx, ps.Name, pg.Admin)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			f.DriveError = msg
 		} else if err != nil {
 			return err
@@ -501,7 +482,7 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 				return err
 			}
 			folders, err := x.PhotoFolders(ctx, f.Location, f.LocationSub)
-			if msg, ok := userMessage(err); ok {
+			if msg, ok := usererr.Message(err); ok {
 				f.LocationError = msg
 			} else if err != nil {
 				return err
@@ -516,17 +497,16 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 			at := func(sub string) string {
 				return pg.Base + "?" + url.Values{"where": {"location"}, "location": {f.Location}, "lsub": {sub}}.Encode() + "#step-3"
 			}
-			f.LocationCrumbs = []mediaCrumb{{title, at("")}}
-			if f.LocationSub != "" {
-				parts := strings.Split(f.LocationSub, "/")
-				for i, part := range parts {
-					f.LocationCrumbs = append(f.LocationCrumbs, mediaCrumb{part, at(strings.Join(parts[:i+1], "/"))})
-				}
-			}
-			f.LocationCrumbs[len(f.LocationCrumbs)-1].Href = ""
+			f.LocationCrumbs = crumbsFor(title, f.LocationSub, at)
 		}
 	}
 	return nil
+}
+
+// ShareFields are the share's fields, for share-fields.
+func (f photoSourceForm) ShareFields() shareFields {
+	return shareFields{shareForm: f.shareForm, ServerName: cmp.Or(f.ServerName, "the server"), Example: "photos or /volume1/photos",
+		Kept: ", until the migration is done."}
 }
 
 // LocationHref opens a folder in the location chosen.
@@ -567,86 +547,31 @@ func (s *Server) photoFoldersPage(w http.ResponseWriter, r *http.Request, panel 
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	base := "/immich-photos/" + url.PathEscape(name)
 	if panel {
 		base = "/services/" + url.PathEscape(name) + "/photos"
 	}
-	q := r.URL.Query()
-	at := func(set url.Values) string { return base + "/folders?" + set.Encode() }
-	back := func(set url.Values) string { return base + "?" + set.Encode() + "#step-3" }
-	var p folderPicker
-	var l agent.Library
-	var folderHref func(string) string
-	if drive := q.Get("drive"); drive != "" {
-		src := node.PhotoSource{Kind: "drive", Library: agent.Library{Drive: drive}}
+	pl := pickerPlaceOf(r.URL.Query())
+	if pl.Drive != "" {
+		src := node.PhotoSource{Kind: "drive", Library: agent.Library{Drive: pl.Drive}}
 		if err := s.Photos.CheckPhotoSource(r.Context(), name, src, isAdmin(u)); err != nil {
 			http.NotFound(w, r)
 			return
 		}
-		dn, sub := q.Get("name"), cleanSub(q.Get("sub"))
-		l = agent.Library{Drive: drive, Sub: sub}
-		p.Title, p.Label, p.UseText = "Choose a folder on "+dn, dn, "Use "+dn
-		p.Crumbs = []mediaCrumb{{dn, at(url.Values{"drive": {drive}, "name": {dn}})}}
-		if sub != "" {
-			parts := strings.Split(sub, "/")
-			for i, part := range parts {
-				p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(url.Values{"drive": {drive}, "name": {dn}, "sub": {strings.Join(parts[:i+1], "/")}})})
-			}
-			p.Label, p.UseText = dn+" › "+strings.Join(parts, " › "), "Use "+parts[len(parts)-1]
-		}
-		p.CancelHref = back(url.Values{"where": {"drive"}})
-		p.UseHref = back(url.Values{"where": {"drive"}, "drive": {drive}, "sub": {sub}})
-		folderHref = func(f string) string {
-			return at(url.Values{"drive": {drive}, "name": {dn}, "sub": {strings.TrimPrefix(sub+"/"+f, "/")}})
-		}
-	} else {
-		if !isAdmin(u) {
-			http.NotFound(w, r)
-			return
-		}
-		folder := q.Get("folder")
-		server := ps.Host
-		p.CancelHref = back(url.Values{"where": {"folder"}})
-		p.Title = "Choose a folder"
-		p.Crumbs = []mediaCrumb{{"Folders", at(url.Values{})}}
-		if folder == "" || folder == "/" {
-			for _, root := range agent.LibraryFolderRoots {
-				p.Folders = append(p.Folders, pickerFolder{Name: root, Href: at(url.Values{"folder": {root}}), NoCounts: true})
-			}
-			p.Crumbs[0].Href = ""
-			data["Picker"], data["Own"], data["PickerBack"] = p, !panel, base
-			s.render(w, "photos-folders", data)
-			return
-		}
-		folder = path.Clean("/" + folder)
-		l = agent.Library{Folder: folder}
-		dir := ""
-		for _, part := range strings.Split(strings.Trim(folder, "/"), "/") {
-			dir += "/" + part
-			p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(url.Values{"folder": {dir}})})
-		}
-		p.Label, p.UseText = folder, "Use "+path.Base(folder)
-		p.UseHref = back(url.Values{"where": {"folder"}, "folder": {folder}})
-		folderHref = func(f string) string { return at(url.Values{"folder": {path.Join(folder, f)}}) }
-		_ = server
+	} else if !isAdmin(u) {
+		http.NotFound(w, r)
+		return
 	}
-	p.Crumbs[len(p.Crumbs)-1].Href = ""
-	list, err := s.Libraries.LibraryFolders(r.Context(), ps.Host, l)
-	if msg, ok := userMessage(err); ok {
-		p.Error, p.UseHref = msg, ""
-	} else if err != nil {
+	if pl.Folder == "/" {
+		pl.Folder = "" // the places folders can be
+	}
+	p, err := s.pickFolders(r.Context(), ps.Host, pl, pickerLinks{at: func(set url.Values) string { return base + "/folders?" + set.Encode() },
+		back: stepBack(base, "#step-3"), serverTitle: "Choose a folder", serverTop: "Folders"})
+	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	for _, f := range list.Folders {
-		p.Folders = append(p.Folders, pickerFolder{Name: f.Name, Href: folderHref(f.Name), Folders: f.Folders, Files: f.Files})
-	}
-	p.Counts = folderCounts(len(list.Folders), list.Files)
 	data["Picker"], data["Own"], data["PickerBack"] = p, !panel, base
 	s.render(w, "photos-folders", data)
 }
@@ -661,7 +586,7 @@ func (s *Server) photoPost(w http.ResponseWriter, r *http.Request) (string, *sto
 		return "", nil, nil, false
 	}
 	x, err := s.Photos.PhotosOf(name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPhotos(w, r, r.FormValue("panel") == "1", msg, http.StatusBadRequest)
 		return "", nil, nil, false
 	} else if err != nil {
@@ -675,7 +600,7 @@ func (s *Server) photoPost(w http.ResponseWriter, r *http.Request) (string, *sto
 // it at the next step.
 func (s *Server) photoDone(w http.ResponseWriter, r *http.Request, err error, what, anchor string) {
 	panel := r.FormValue("panel") == "1"
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPhotos(w, r, panel, msg, http.StatusBadRequest)
 		return
 	}
@@ -739,11 +664,7 @@ func (s *Server) photoSourceSubmit(w http.ResponseWriter, r *http.Request) {
 		src.Library = agent.Library{Folder: path.Clean("/" + folder)}
 		src.Title = src.Library.Folder
 	case "share":
-		sh := &agent.Share{Type: r.FormValue("share_type"), Server: strings.TrimSpace(r.FormValue("share_server")),
-			Path: strings.TrimSpace(r.FormValue("share_path")), Username: r.FormValue("share_user"), Password: r.FormValue("share_password")}
-		if sh.Type == "nfs" {
-			sh.Username, sh.Password = "", ""
-		}
+		sh := sharePosted(r)
 		src.Library = agent.Library{Share: sh}
 		src.Title = sh.Server + ", share " + sh.Path
 	case "location":
@@ -813,7 +734,7 @@ func (s *Server) photoStartSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	err := x.StartPhotos(r.Context(), name, who)
 	if err == nil && who == u.Username {
-		s.photosStarted(r.Context(), name, u)
+		s.Photos.MigrationStarted(r.Context(), name, u)
 	}
 	s.photoDone(w, r, err, "started migrating photos for "+who, "#step-7")
 }
@@ -854,7 +775,7 @@ func (s *Server) photoSettingsSubmit(w http.ResponseWriter, r *http.Request) {
 		set.Memory = photoimport.MemoryHalf
 	}
 	if err := s.Photos.SetPhotoSettings(r.Context(), name, set); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
@@ -938,7 +859,7 @@ func (s *Server) photoCardFor(ctx context.Context, u *store.User, name string) *
 		Locations: s.Photos.PhotoLocations(ctx, name), CanSettings: u.Role == auth.RoleOwner,
 		Address: "https://" + s.UIHost + "/immich-photos", Host: ps.Host, Me: u.Username}
 	x, err := s.Photos.PhotosOf(name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		c.Error = msg
 		return c
 	} else if err != nil {
@@ -990,93 +911,11 @@ func (s *Server) photoHideSubmit(w http.ResponseWriter, r *http.Request) {
 func photoTotals(photos, videos int64) string {
 	switch {
 	case videos == 0:
-		return countWords(photos, "photo", "photos")
+		return words.Count(photos, "photo", "photos")
 	case photos == 0:
-		return countWords(videos, "video", "videos")
+		return words.Count(videos, "video", "videos")
 	}
-	return countWords(photos, "photo", "photos") + " and " + countWords(videos, "video", "videos")
-}
-
-// countWords is a count with its noun: "1 photo", "61,204 photos".
-func countWords(n int64, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return units.Count(n) + " " + many
-}
-
-// photosStarted tells the lab's Owners that someone else started
-// migrating photos (the Owner's card says they're told), by email.
-func (s *Server) photosStarted(ctx context.Context, service string, u *store.User) {
-	if s.Mail == nil || u.Role == auth.RoleOwner {
-		return
-	}
-	title := service
-	if ps, ok := s.photoService(ctx, service); ok {
-		title = ps.Title
-	}
-	body := fmt.Sprintf("%s started migrating photos into their %s account. You'll get another email when it ends.\n\n"+
-		"Follow it on %s's page: https://%s/services/%s#photos\n", cmp.Or(u.Name, u.Username), title, title, s.UIHost, service)
-	s.mailOwners(ctx, fmt.Sprintf("%s is migrating photos into %s", cmp.Or(u.Name, u.Username), title), body)
-}
-
-// PhotosEnded tells the person whose migration ended, and the Owners if
-// it isn't theirs, how it went (node.Local.OnPhotos).
-func (s *Server) PhotosEnded(ctx context.Context, m node.PhotoSummary) {
-	if s.Mail == nil || m.Run == nil {
-		return
-	}
-	title := m.Service
-	if ps, ok := s.photoService(ctx, m.Service); ok {
-		title = ps.Title
-	}
-	t := m.Run.Tally
-	var subject, what string
-	switch {
-	case m.Run.Err != "":
-		subject, what = "Migrating photos into "+title+" stopped", "It stopped with an error: "+m.Run.Err+"."
-	case m.Run.Stopped:
-		subject, what = "Migrating photos into "+title+" was stopped", "It was stopped. What's in Immich stays there; carry on whenever you like."
-	case m.Run.Interrupted:
-		subject, what = "Migrating photos into "+title+" was interrupted", "It stopped when the server restarted. What's in Immich stays there; carry on from the page."
-	default:
-		subject = "Your photos are in " + title
-		what = fmt.Sprintf("%s migrated, %s already there.", countWords(m.Run.Migrated(), "photo or video", "photos and videos"),
-			countWords(m.Run.HadBefore(), "was", "were"))
-		if t.Failed > 0 {
-			what += fmt.Sprintf(" %s couldn't be migrated: the page says which.", countWords(t.Failed, "file", "files"))
-		}
-	}
-	link := fmt.Sprintf("https://%s/immich-photos/%s", s.UIHost, m.Service)
-	body := what + "\n\nThe details: " + link + "\n"
-	if u, err := s.Store.UserByUsername(ctx, m.Who); err == nil && u.Email != "" {
-		if err := s.Mail.Send(ctx, mail.Message{To: []string{u.Email}, Subject: subject, Body: body}); err != nil && err != mail.ErrNotConfigured {
-			s.Log.Warn("emailing the end of a photo migration", "err", err)
-		}
-		if u.Role == auth.RoleOwner {
-			return
-		}
-	}
-	s.mailOwners(ctx, m.Who+": "+subject, body)
-}
-
-// mailOwners emails the lab's Owners who have an address.
-func (s *Server) mailOwners(ctx context.Context, subject, body string) {
-	users, err := s.Store.ListUsers(ctx)
-	if err != nil {
-		return
-	}
-	for _, u := range users {
-		if u.Role != auth.RoleOwner || u.Email == "" {
-			continue
-		}
-		if err := s.Mail.Send(ctx, mail.Message{To: []string{u.Email}, Subject: subject, Body: body}); err != nil {
-			if err != mail.ErrNotConfigured {
-				s.Log.Warn("emailing an Owner about a photo migration", "err", err)
-			}
-			return
-		}
-	}
+	return words.Count(photos, "photo", "photos") + " and " + words.Count(videos, "video", "videos")
 }
 
 // Kinds are the places this person may choose, in order.
@@ -1125,37 +964,16 @@ func (f photoSourceForm) Control(admin bool) (template.HTML, error) {
 	return segmented("where", "Where the export is", f.Where, args...)
 }
 
-// photoServiceView is Immich's row, with its logo for those who may see it
-// (withIcons).
-func (s *Server) photoServiceView(r *http.Request, name string, admin bool) ServiceView {
-	if services, err := s.Services(r.Context()); err == nil {
-		for _, svc := range services {
-			if svc.Name == name {
-				one := []ServiceView{svc}
-				s.withIcons(one, admin)
-				return one[0]
-			}
-		}
+// serviceRow is a service's row as the dashboard has it (its title,
+// status and icon, with its logo for those who may see it: withIcons), or
+// just its name.
+func (s *Server) serviceRow(ctx context.Context, name string, logos bool) ServiceView {
+	if svc, ok, _ := s.serviceByName(ctx, name); ok {
+		one := []ServiceView{svc}
+		s.withIcons(one, logos)
+		return one[0]
 	}
 	return ServiceView{Name: name, Title: name, DrawnIcon: categoryIcon(nil)}
-}
-
-func init() {
-	templateFuncs["kindTitle"] = photoimport.KindTitle
-	templateFuncs["photoTotals"] = photoTotals
-	templateFuncs["choicesText"] = choicesText
-	templateFuncs["leftOutText"] = leftOutText
-	templateFuncs["sentPhotos"] = func(r *node.PhotoRun) int64 { return r.Migrated() }
-	templateFuncs["immichMore"] = func(before, after node.PhotoAccount) int64 {
-		return after.Photos + after.Videos - before.Photos - before.Videos
-	}
-	templateFuncs["durationText"] = func(from, to time.Time) string { return roughDuration(to.Sub(from)) }
-	templateFuncs["add"] = func(a, b int64) int64 { return a + b }
-	templateFuncs["sub"] = func(a, b int64) int64 { return max(0, a-b) }
-	templateFuncs["runPercent"] = func(r *node.PhotoRun) int { return photoProgressOf(r).Percent }
-	templateFuncs["runTimeLeft"] = func(r *node.PhotoRun) string { return photoProgressOf(r).TimeLeft }
-	templateFuncs["migrationResult"] = migrationResult
-	templateFuncs["libraryWhereText"] = libraryWhereText
 }
 
 // migrationResult is a migration's result, for the card's list.
@@ -1200,7 +1018,7 @@ func choicesText(kind string, c photoimport.Choices) string {
 		if len(parts) == 0 {
 			return "The photos alone"
 		}
-		return capitalise(strings.Join(parts, ", "))
+		return words.Capitalise(strings.Join(parts, ", "))
 	}
 	d := photoimport.DefaultChoices()
 	d.FolderAlbums = c.FolderAlbums // a folder's only
@@ -1224,7 +1042,7 @@ func choicesText(kind string, c photoimport.Choices) string {
 	case len(without) == 0:
 		return "Everything"
 	}
-	return capitalise(strings.Join(with, ", ")) + "; not " + strings.Join(without, ", ")
+	return words.Capitalise(strings.Join(with, ", ")) + "; not " + strings.Join(without, ", ")
 }
 
 // leftOutText says what a Takeout's choices leave out, with counts: "1,203
@@ -1238,7 +1056,7 @@ func leftOutText(s *photoimport.Scan, c photoimport.Choices) string {
 		parts = append(parts, units.Count(s.Partner)+" a partner shared with you")
 	}
 	if !c.Untitled && s.Untitled > 0 {
-		parts = append(parts, countWords(int64(s.Untitled), "album without a name", "albums without a name"))
+		parts = append(parts, words.Count(int64(s.Untitled), "album without a name", "albums without a name"))
 	}
 	return strings.Join(parts, ", ")
 }

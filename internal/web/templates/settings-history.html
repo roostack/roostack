@@ -43,9 +43,9 @@
     </select></label>
     <button type="submit" class="secondary">Save</button>
   </form>
-  <p class="hint">Older history is deleted every day, on every server. Each server also keeps at most 5,000 entries, and each log
+  <p class="hint">Older history is deleted every day on every server. Each server also keeps at most 5,000 entries, and each log
     its last 2,000 lines. Routine runs that changed nothing aren't kept.</p>
-  {{confirm "/settings/history/delete" "Delete all history, on every server? This can't be undone. The deletion itself is recorded." "Delete all history" "quiet danger"}}
+  {{confirm "/settings/history/delete" "Delete all history on every server? This can't be undone. The deletion itself will be recorded." "Delete all history" "quiet danger"}}
 </section>
 {{end}}
 

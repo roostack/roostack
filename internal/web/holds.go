@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A restore that didn't finish (SPEC.md §6.9): a service whose files are
@@ -25,9 +25,6 @@ type Holds interface {
 	PutBackHeld(ctx context.Context, name string) error
 	FailedMoves(ctx context.Context) map[string]manager.FailedMove
 }
-
-// StatusHeld is a service held stopped after a restore that didn't finish.
-const StatusHeld = "held"
 
 // heldView is a held service, for its page and Needs attention.
 type heldView struct {
@@ -47,7 +44,7 @@ func (s *Server) heldViewOf(svc ServiceView) *heldView {
 	}
 	v := &heldView{Hold: *svc.Held, On: svc.Server, TakenText: svc.Held.Taken.Local().Format("Mon 2 Jan 15:04"),
 		AtText: svc.Held.At.Local().Format("Mon 2 Jan 15:04")}
-	if svc.Held.MovedFrom != "" && s.Manager != nil {
+	if svc.Held.MovedFrom != "" {
 		v.From = svc.Held.MovedFrom
 		if n := s.Manager.NodeByID(svc.Held.MovedFrom); n != nil {
 			v.From = n.Identity().Name
@@ -65,35 +62,6 @@ func (v *heldView) RestoreAgain(service string) string {
 	return u
 }
 
-// holdAttention is a problem for each held service, and a warning for
-// each move that didn't finish and went back.
-func (s *Server) holdAttention(r *http.Request, services []ServiceView, add func(item attentionItem)) {
-	for _, svc := range services {
-		v := s.heldViewOf(svc)
-		if v == nil {
-			continue
-		}
-		item := attentionItem{Level: levelProblem, Link: "/services/" + svc.Name + "#held", LinkText: "What to do",
-			Key: "held:" + svc.Name + ":" + v.At.Format(time.RFC3339)}
-		if v.MovedFrom != "" {
-			item.Text = svc.Title + " is stopped on " + v.On + ": its database didn't load there, and moving it back to " +
-				v.From + " failed too."
-		} else {
-			item.Text = svc.Title + " is stopped: its files are back from the backup of " + v.TakenText +
-				", but its database couldn't be loaded."
-		}
-		add(item)
-	}
-	moves := s.Manager.FailedMoves(r.Context())
-	for _, svc := range services {
-		if f, ok := moves[svc.Name]; ok && svc.Held == nil {
-			add(attentionItem{Level: levelWarning, Link: "/services/" + svc.Name + "/move", LinkText: "See what went wrong",
-				Key:  "move-failed:" + svc.Name + ":" + f.At.Format(time.RFC3339),
-				Text: svc.Title + " couldn't be moved to " + f.ToName + ". It's running on " + f.FromName + ", as before."})
-		}
-	}
-}
-
 // heldStartSubmit starts a held service anyway, once the Owner has
 // confirmed it.
 func (s *Server) heldStartSubmit(w http.ResponseWriter, r *http.Request) {
@@ -109,10 +77,6 @@ func (s *Server) heldPutBackSubmit(w http.ResponseWriter, r *http.Request) {
 // heldChoice carries out one of the Owner's choices for a held service and
 // records it in the audit log.
 func (s *Server) heldChoice(w http.ResponseWriter, r *http.Request, do func(context.Context, string) error, audit string) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
 	name := r.PathValue("name")
 	title := name
 	if p, err := s.Manager.ServicePackage(name); err == nil {
@@ -123,7 +87,7 @@ func (s *Server) heldChoice(w http.ResponseWriter, r *http.Request, do func(cont
 		http.NotFound(w, r)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"HeldError": msg}, true)
 		return
 	}

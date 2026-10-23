@@ -26,18 +26,6 @@ func sessionHash(t *testing.T, h *harness) string {
 	return ""
 }
 
-// get with htmx's header: a part of a page refreshing itself.
-func (h *harness) poll(path string) *http.Response {
-	req, _ := http.NewRequest(http.MethodGet, h.srv.URL+path, nil)
-	req.Header.Set("HX-Request", "true")
-	resp, err := h.client.Do(req)
-	if err != nil {
-		h.t.Fatal(err)
-	}
-	resp.Body.Close()
-	return resp
-}
-
 // After 30 minutes without activity a session ends: a page refreshing
 // itself is sent to the login page (which says why), and refreshing
 // doesn't count as activity; opening a page does.

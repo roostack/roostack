@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // The plan counts a backup as safe from ransomware only where this
@@ -101,7 +102,7 @@ func TestPlanChangeKey(t *testing.T) {
 	fm.copies = []manager.BackupCopy{{Ref: "provider:1", Title: "Wasabi", Repository: "s3:https://s3.wasabisys.com/b/roostack/l/n"}}
 	_, body := h.get("/backups")
 	for _, want := range []string{"Change the key for Wasabi…", `action="/backups/plan/key"`, `name="key" value="provider:1"`,
-		"Every server backing up to Wasabi uses the new key", ">Access key <input"} {
+		"Every server backing up to Wasabi will use the new key", ">Access key <input"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("key form missing %q", want)
 		}
@@ -112,7 +113,7 @@ func TestPlanChangeKey(t *testing.T) {
 	// Backblaze names its keys differently, and can give each server one.
 	fm.backupAccess = map[string]manager.Access{"provider:1": {B2: true, CanDelete: true}}
 	_, body = h.get("/backups?key=provider:1")
-	for _, want := range []string{">Key ID <input", "If it can make keys, each server gets a key of its own", `id="plan-key-3" open`} {
+	for _, want := range []string{">Key ID <input", "If it can make keys, each server will get a key of its own", `id="plan-key-3" open`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Backblaze key form missing %q", want)
 		}
@@ -127,7 +128,7 @@ func TestPlanChangeKey(t *testing.T) {
 		t.Errorf("another account: %d", code)
 	}
 	// A key that doesn't work: said, with the form still open.
-	fm.keyErr = &manager.FormError{Msg: "Backblaze didn't accept this key: wrong key"}
+	fm.keyErr = &usererr.Error{Msg: "Backblaze didn't accept this key: wrong key"}
 	_, body = h.post("/backups/plan/key", url.Values{"key": {"provider:1"}, "access_key": {"x"}, "secret_key": {"y"}}, h.srv.URL)
 	if !strings.Contains(body, "Backblaze didn&#39;t accept this key") || !strings.Contains(body, `id="plan-key-3" open`) {
 		t.Error("a refused key: the message, and the form open")
@@ -145,7 +146,7 @@ func TestPlanB2KeyHelp(t *testing.T) {
 	fm.backupAccess = map[string]manager.Access{"provider:1": {B2: true, CanDelete: true}}
 	_, body := h.get("/backups")
 	const command = "b2 key create roostack listBuckets,listFiles,readFiles,writeFiles,deleteFiles,writeKeys,deleteKeys,listKeys"
-	for _, want := range []string{"it uses the account&#39;s key, because the key Roostack was given can&#39;t make a key for each server", `href="/backups?key=provider:1#plan-key-3"`,
+	for _, want := range []string{"it uses the account&#39;s key because the key Roostack was given can&#39;t make a key for each server", `href="/backups?key=provider:1#plan-key-3"`,
 		">Change the key<", command, "b2 account authorize", "give them to Roostack\n  with Change the key",
 		"Then delete the old key under App Keys", "Suggested: give Roostack a Backblaze key that can make keys (see Backblaze)"} {
 		if !strings.Contains(body, want) {
@@ -182,7 +183,7 @@ func TestPlanLostMainBackup(t *testing.T) {
 		Lost: time.Date(2026, 10, 17, 9, 0, 0, 0, time.Local)}}
 	_, body := h.get("/backups")
 	for _, want := range []string{"The main backup was on pi&#39;s disk, and pi left the lab on 17 October",
-		"nightly backups fail, though the other backups still run", `href="/backups?add=3#plan"`, "Choose a new place"} {
+		"nightly backups will fail, though the other backups will still run", `href="/backups?add=3#plan"`, "Choose a new place"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("plan missing %q", want)
 		}
@@ -239,7 +240,7 @@ func TestPlanRollback(t *testing.T) {
 	_, body = h.get("/backups?rollback=provider:1")
 	for _, want := range []string{`id="plan-manage-3" open`, `id="plan-rollback-3" open`, `value="2026-10-16"`, `value="09:00"`, `name="before" value="2026-10-16T09:00"`, ">Go back to this time<",
 		"Going back to 16 October 09:00:", "<li>1 backup (a snapshot) hidden since then comes back.</li>", "Go back to 16 October 09:00",
-		"Go back to 16 October 09:00 in these backups? 1 backup (a snapshot) hidden since then comes back. Nothing is erased",
+		"Go back to 16 October 09:00 in these backups? 1 backup (a snapshot) hidden since then comes back. Nothing will be erased",
 		`name="step" value="run"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("checked plan missing %q", want)
@@ -256,7 +257,7 @@ func TestPlanRollback(t *testing.T) {
 	}
 
 	// Refused: said on the page; a time that isn't one; another place.
-	fm.rollbackErr = &manager.FormError{Msg: "Choose a time that has passed."}
+	fm.rollbackErr = &usererr.Error{Msg: "Choose a time that has passed."}
 	if _, body = h.post("/backups/plan/rollback", url.Values{"destination": {"provider:1"}, "before": {"2030-01-01T00:00"}}, h.srv.URL); !strings.Contains(body, "Choose a time that has passed.") {
 		t.Error("a refusal is shown")
 	}

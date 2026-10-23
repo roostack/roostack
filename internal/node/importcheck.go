@@ -17,11 +17,14 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // The check before anything is copied (SPEC.md §8.4, docs/MIGRATION-PLAN.md
@@ -33,28 +36,28 @@ import (
 // spaceToSpare is how much more than the copy there must be room for.
 const spaceToSpare = 1.1
 
-func (n *Local) CheckImport(ctx context.Context, service string) error {
-	s, err := n.importService(service)
+func (x localImports) CheckImport(ctx context.Context, service string) error {
+	s, err := x.importService(service)
 	if err != nil {
 		return err
 	}
-	if st := n.loadImport(ctx, service); st.Source == nil {
-		return formErrorf("Say where your files are first.")
+	if st := x.loadImport(ctx, service); st.Source == nil {
+		return usererr.New("Say where your files are first.")
 	}
-	if err := n.updateImport(ctx, service, func(st *ImportState) error {
+	if err := x.updateImport(ctx, service, func(st *ImportState) error {
 		st.Checking, st.CheckErr = true, ""
 		return nil
 	}); err != nil {
 		return err
 	}
-	return n.startImportRun(service, func(ctx context.Context) {
+	return x.startImportRun(service, func(ctx context.Context) {
 		var act *activity.Log
-		if n.Activity != nil {
-			act = n.Activity.Start(activity.ImportRunFor(service), "Checking what's brought into "+s.Title())
+		if x.n.Activity != nil {
+			act = x.n.Activity.Start(activity.ImportRunFor(service), "Checking what's brought into "+s.Title())
 		}
-		report, err := n.runImportCheck(ctx, s, act)
+		report, err := x.runImportCheck(ctx, s, act)
 		act.Finish(err)
-		n.updateImport(context.WithoutCancel(ctx), service, func(st *ImportState) error {
+		x.updateImport(context.WithoutCancel(ctx), service, func(st *ImportState) error {
 			st.Checking = false
 			if err != nil {
 				st.CheckErr = err.Error()
@@ -67,15 +70,15 @@ func (n *Local) CheckImport(ctx context.Context, service string) error {
 }
 
 // runImportCheck works out the check's report.
-func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activity.Log) (*importer.Report, error) {
+func (x localImports) runImportCheck(ctx context.Context, s state.Service, act *activity.Log) (*importer.Report, error) {
 	service, title, p := s.Name(), s.Title(), s.Package
-	st := n.loadImport(ctx, service)
+	st := x.loadImport(ctx, service)
 	files := importFiles(service, st)
 	if files == nil {
 		return nil, fmt.Errorf("your files aren't mounted at %s", filepath.Join(importRoot, service))
 	}
 	base := filepath.Join(importRoot, service)
-	plan := importer.Match(p, st.Setup, st.Prefixes, st.Choices, files, n.libraryFinder(s, files))
+	plan := importer.Match(p, st.Setup, st.Prefixes, st.Choices, files, x.libraryFinder(s, files))
 	r := &importer.Report{}
 	add := func(level, text, more string) *importer.Item {
 		r.Items = append(r.Items, importer.Item{Level: level, Text: text, More: more})
@@ -87,7 +90,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 	var sqlite []string        // SQLite databases brought (for old paths)
 	for _, sp := range plan.Storage {
 		if sp.From == "" {
-			n.notBrought(sp, st, title, add)
+			x.notBrought(sp, st, title, add)
 			continue
 		}
 		act.Step("Looking through %s", strings.ToLower(sp.Title[:1])+sp.Title[1:])
@@ -100,17 +103,17 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		}
 		r.Files += c.Files
 		r.Bytes += c.Bytes
-		disk := n.Lab.Paths.ServicesDir
+		disk := x.n.Lab.Paths.ServicesDir
 		if sp.Media {
-			disk = n.Lab.Paths.MediaDir
+			disk = x.n.Lab.Paths.MediaDir
 		}
 		need[disk] += c.Bytes
 		for _, db := range c.SQLite {
 			sqlite = append(sqlite, filepath.Join(dir, filepath.FromSlash(db)))
 		}
-		head := fmt.Sprintf("%s: %s, %s.", sp.Title, countText(c.Files, "file"), units.Bytes(c.Bytes))
+		head := fmt.Sprintf("%s: %s, %s.", sp.Title, words.Count(c.Files, "file", "files"), units.Bytes(c.Bytes))
 		if c.Unreadable > 0 {
-			it := add(importer.LevelBad, fmt.Sprintf("%s Roostack can't read, in %s:", countText(c.Unreadable, "file or folder", "files and folders"),
+			it := add(importer.LevelBad, fmt.Sprintf("%s Roostack can't read, in %s:", words.Count(c.Unreadable, "file or folder", "files and folders"),
 				pathFor(sp.From)),
 				fmt.Sprintf("for example %s. Only their owner (%s) can read them. Make them readable on your copy, then check again:",
 					pathFor(path.Join(sp.From, c.Example)), ownerText(c.Owner)))
@@ -119,11 +122,11 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		}
 		more := "All readable."
 		if c.Links > 0 {
-			more += fmt.Sprintf(" %s in it %s copied as %s, never followed.", countText(c.Links, "link"), oneOrMany(int(c.Links), "is", "are"),
-				oneOrMany(int(c.Links), "a link", "links"))
+			more += fmt.Sprintf(" %s in it will be copied as %s, never followed.", words.Count(c.Links, "link", "links"),
+				words.Plural(int(c.Links), "a link", "links"))
 		}
 		if c.Special > 0 {
-			more += fmt.Sprintf(" %s (sockets, devices) aren't copied.", countText(c.Special, "special file"))
+			more += fmt.Sprintf(" %s (sockets, devices) won't be copied.", words.Count(c.Special, "special file", "special files"))
 		}
 		add(importer.LevelOK, head, more)
 	}
@@ -133,7 +136,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		want := int64(float64(need[disk]) * spaceToSpare)
 		free := freeSpace(disk)
 		where := "this server's disk"
-		if disk == n.Lab.Paths.MediaDir && n.Lab.Paths.MediaDir != n.Lab.Paths.ServicesDir {
+		if disk == x.n.Lab.Paths.MediaDir && x.n.Lab.Paths.MediaDir != x.n.Lab.Paths.ServicesDir {
 			where = title + "'s media disk"
 		}
 		if free >= 0 && free < want {
@@ -152,7 +155,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		label := fmt.Sprintf("Database %q", db.Name)
 		if db.From == "" {
 			if db.Why == importer.WhyLeft {
-				add(importer.LevelWarn, label+": not brought.", title+" starts with an empty database.")
+				add(importer.LevelWarn, label+": not brought.", title+" will start with an empty database.")
 			} else {
 				add(importer.LevelBad, label+": no dump found.", "Take a dump on the old machine (the commands are beside these steps) and put it with your files, or choose it in step 3.")
 			}
@@ -161,7 +164,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		file := importer.Rel(base, db.From)
 		act.Step("Reading the dump of database %s", db.Name)
 		if d.Type == pkgspec.DBPostgres {
-			n.checkPgDump(ctx, act, label, title, file, image, add)
+			x.checkPgDump(ctx, act, label, title, file, image, add)
 			dumps = append(dumps, file)
 		} else {
 			head := make([]byte, 4096)
@@ -171,7 +174,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 				f.Close()
 			}
 			if kind := importer.SQLDump(head); kind != "" {
-				add(importer.LevelOK, fmt.Sprintf("%s: a %s dump.", label, kind), "Loaded as Roostack's restores load one.")
+				add(importer.LevelOK, fmt.Sprintf("%s: a %s dump.", label, kind), "It will be loaded as Roostack's restores load one.")
 			} else {
 				add(importer.LevelBad, label+" isn't a dump Roostack can load.",
 					"It should be what mariadb-dump (or mysqldump) prints, as SQL, not compressed.")
@@ -187,13 +190,13 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		if m.Part == "" {
 			continue
 		}
-		oc := oldContainer(st.Setup, m.Old)
+		oc := st.Setup.Container(m.Old)
 		newImage := p.Containers[m.Part].Image
 		switch importer.CompareImages(oc.Image, newImage) {
 		case importer.SameImage:
 			add(importer.LevelOK, "The same version.", fmt.Sprintf("The old %s ran %s, as %s does here.", m.Old, importer.TagVersion(oc.Image), title))
 		case importer.OlderImage:
-			add(importer.LevelWarn, "An older version.", fmt.Sprintf("The old %s ran %s, and %s here is %s. %s upgrades its data as it first starts, if it can make the jump: read its release notes first.",
+			add(importer.LevelWarn, "An older version.", fmt.Sprintf("The old %s ran %s, and %s here is %s. %s will upgrade its data as it first starts, if it can make the jump: read its release notes first.",
 				m.Old, importer.TagVersion(oc.Image), title, importer.TagVersion(newImage), title))
 		case importer.NewerImage:
 			add(importer.LevelWarn, "A newer version.", fmt.Sprintf("The old %s ran %s, newer than %s here (%s): data from a newer version is likely not to work. Wait for the package to catch up, or update the lab's.",
@@ -205,7 +208,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 			add(importer.LevelInfo, "Versions that can't be compared.", fmt.Sprintf("The old %s ran %s; %s here is %s.", m.Old, oc.Image, title, importer.TagVersion(newImage)))
 		}
 		if oc.NVIDIA {
-			add(importer.LevelInfo, "An NVIDIA graphics card isn't used here.", m.Old+" used one; Roostack doesn't support NVIDIA cards, so the processor does the work.")
+			add(importer.LevelInfo, "An NVIDIA graphics card isn't used here.", m.Old+" used one; Roostack doesn't support NVIDIA cards, so the processor will do the work.")
 		}
 		// Settings the package doesn't set, leaving out the image's own.
 		c := p.Containers[m.Part]
@@ -215,10 +218,10 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		// Its image is fetched now if need be (the switch would anyway), so
 		// its own defaults aren't reported as the old container's.
 		act.Step("Fetching %s's image to compare its settings", title)
-		n.pullImage(ctx, act, newImage)
-		if diff := importer.EnvDiff(oc.Env, set, n.imageEnv(ctx, newImage)); len(diff) > 0 {
-			it := add(importer.LevelWarn, fmt.Sprintf("%s the old %s had that Roostack doesn't set:", countText(int64(len(diff)), "setting"), m.Old),
-				"compare them with "+title+"'s settings here, and its own settings page. A config file's settings belong in "+title+"'s own settings before you move, or they're lost.")
+		x.pullImage(ctx, act, newImage)
+		if diff := importer.EnvDiff(oc.Env, set, x.imageEnv(ctx, newImage)); len(diff) > 0 {
+			it := add(importer.LevelWarn, fmt.Sprintf("%s the old %s had that Roostack doesn't set:", words.Count(int64(len(diff)), "setting", "settings"), m.Old),
+				"compare them with "+title+"'s settings here, and its own settings page. A config file's settings belong in "+title+"'s own settings before you move, or they'll be lost.")
 			it.List = diff
 		}
 	}
@@ -230,7 +233,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		act.Step("Looking for old folders named in the data")
 		counts := map[string]int{}
 		for _, f := range dumps {
-			n.countInPgDump(ctx, f, databaseImageOf(p), needles, counts)
+			x.countInPgDump(ctx, f, databaseImageOf(p), needles, counts)
 		}
 		for _, f := range sqlite {
 			if fh, err := os.Open(f); err == nil {
@@ -262,29 +265,29 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 
 	// The service's data now: set aside at the switch, not lost.
 	if s.Instance.AwaitingData {
-		add(importer.LevelOK, title+" has no data yet,", "so nothing is replaced.")
-	} else if size, err := n.DataSize(ctx, service); err == nil && size > 1<<20 {
+		add(importer.LevelOK, title+" has no data yet,", "so nothing will be replaced.")
+	} else if size, err := x.n.DataSize(ctx, service); err == nil && size > 1<<20 {
 		add(importer.LevelWarn, fmt.Sprintf("%s has data already (%s).", title, units.Bytes(size)),
-			"Switching sets it aside, kept until you delete it, so you can put it back.")
+			"Switching will set it aside and keep it until you delete it so that you can put it back.")
 	}
 	r.At = time.Now()
 	return r, nil
 }
 
 // notBrought says what it means that a storage isn't brought.
-func (n *Local) notBrought(sp importer.Storage, st ImportState, title string, add func(level, text, more string) *importer.Item) {
+func (x localImports) notBrought(sp importer.Storage, st ImportState, title string, add func(level, text, more string) *importer.Item) {
 	critical := sp.Class == pkgspec.ClassCritical && !slices.Contains(st.Choices.Without, sp.Name)
 	switch {
 	case sp.Why == importer.WhyNotMount && !critical:
 		add(importer.LevelInfo, sp.Title+": not a folder of its own before,",
-			fmt.Sprintf("so it was inside the old container, in no folder. %s makes it again.", title))
+			fmt.Sprintf("so it was inside the old container, in no folder. %s will make it again.", title))
 	case sp.Why == importer.WhyNotMount:
 		add(importer.LevelBad, sp.Title+": not a folder of its own before,",
 			fmt.Sprintf("so it was inside the old container (at %s), in no folder you could copy. Copy it out of the old container (docker cp), or tick Start without it in step 3.", sp.Path))
 	case !critical:
-		add(importer.LevelInfo, sp.Title+": not brought.", title+" makes it again.")
+		add(importer.LevelInfo, sp.Title+": not brought.", title+" will make it again.")
 	case slices.Contains(st.Choices.Without, sp.Name):
-		add(importer.LevelWarn, sp.Title+": not brought.", title+" starts without it, as you chose.")
+		add(importer.LevelWarn, sp.Title+": not brought.", title+" will start without it, as you chose.")
 	default:
 		add(importer.LevelBad, sp.Title+": not brought.", "Choose a folder for it in step 3, or tick Start without it there.")
 	}
@@ -293,7 +296,7 @@ func (n *Local) notBrought(sp importer.Storage, st ImportState, title string, ad
 // checkPgDump reads a Postgres dump with the package's own image: the
 // Postgres it came from (newer than the image's can't be loaded) and the
 // extensions it creates (the image must have them).
-func (n *Local) checkPgDump(ctx context.Context, act *activity.Log, label, title, file, image string,
+func (x localImports) checkPgDump(ctx context.Context, act *activity.Log, label, title, file, image string,
 	add func(level, text, more string) *importer.Item) {
 	f, err := os.Open(file)
 	if err != nil {
@@ -301,15 +304,15 @@ func (n *Local) checkPgDump(ctx context.Context, act *activity.Log, label, title
 		return
 	}
 	defer f.Close()
-	n.pullImage(ctx, act, image)
-	list, err := n.podman(ctx, f, "run", "--rm", "-i", "--network=none", "--entrypoint", "pg_restore", image, "--list")
+	x.pullImage(ctx, act, image)
+	list, err := x.podman(ctx, f, "run", "--rm", "-i", "--network=none", "--entrypoint", "pg_restore", image, "--list")
 	if err != nil {
 		if strings.Contains(string(list), "unsupported version") {
 			add(importer.LevelBad, label+" comes from a newer Postgres than "+title+"'s here.",
 				"Its file format is too new for this one to read. Data can't go to an older Postgres: wait for a package that has a newer one.")
 		} else {
 			add(importer.LevelBad, label+" isn't a dump Roostack can load.",
-				"It should be what pg_dump --format=custom writes (Immich's own nightly backups, .sql.gz, can't be loaded yet). "+firstLineOf(string(list)))
+				"It should be what pg_dump --format=custom writes (Immich's own nightly backups, .sql.gz, can't be loaded yet). "+words.FirstLine(strings.TrimSpace(string(list))))
 		}
 		return
 	}
@@ -318,14 +321,14 @@ func (n *Local) checkPgDump(ctx context.Context, act *activity.Log, label, title
 		add(importer.LevelBad, label+" isn't a dump Roostack can load:", err.Error()+". Take it again with pg_dump --format=custom.")
 		return
 	}
-	ver, _ := n.podman(ctx, nil, "run", "--rm", "--network=none", "--entrypoint", "postgres", image, "--version")
+	ver, _ := x.podman(ctx, nil, "run", "--rm", "--network=none", "--entrypoint", "postgres", image, "--version")
 	have := importer.PgMajor(string(ver))
 	if have > 0 && d.Major > have {
 		add(importer.LevelBad, fmt.Sprintf("%s comes from Postgres %s, newer than %s's here (%v).", label, d.Version, title, have),
 			"Data can't go to an older Postgres: wait for a package that has a newer one.")
 		return
 	}
-	ls, _ := n.podman(ctx, nil, "run", "--rm", "--network=none", "--entrypoint", "sh", image, "-c", "ls /usr/share/postgresql/*/extension/ /usr/local/share/postgresql/extension/ 2>/dev/null")
+	ls, _ := x.podman(ctx, nil, "run", "--rm", "--network=none", "--entrypoint", "sh", image, "-c", "ls /usr/share/postgresql/*/extension/ /usr/local/share/postgresql/extension/ 2>/dev/null")
 	var missing []string
 	for _, e := range d.Extensions {
 		if !bytes.Contains(ls, []byte(e+".control")) {
@@ -333,19 +336,19 @@ func (n *Local) checkPgDump(ctx context.Context, act *activity.Log, label, title
 		}
 	}
 	if len(missing) > 0 {
-		add(importer.LevelBad, fmt.Sprintf("%s needs %s, which %s's database here doesn't have.", label, codeList(missing), title),
+		add(importer.LevelBad, fmt.Sprintf("%s needs %s, which %s's database here doesn't have.", label, words.And(missing), title),
 			"Move the old app off it first, by its own upgrade steps (Immich's from pgvecto.rs to VectorChord, say), then take the dump again.")
 		return
 	}
 	more := fmt.Sprintf("%s's database here (%v) can load it.", title, have)
 	if len(d.Extensions) > 0 {
-		more += fmt.Sprintf(" It needs %s: all there.", codeList(d.Extensions))
+		more += fmt.Sprintf(" It needs %s: all there.", words.And(d.Extensions))
 	}
 	add(importer.LevelOK, fmt.Sprintf("%s: a dump from Postgres %s,", label, d.Version), more)
 }
 
 // countInPgDump counts old paths in a Postgres dump, read as text.
-func (n *Local) countInPgDump(ctx context.Context, file, image string, needles []string, counts map[string]int) {
+func (x localImports) countInPgDump(ctx context.Context, file, image string, needles []string, counts map[string]int) {
 	if image == "" {
 		return
 	}
@@ -354,7 +357,7 @@ func (n *Local) countInPgDump(ctx context.Context, file, image string, needles [
 		return
 	}
 	defer f.Close()
-	cmd := n.Launch(ctx, nil, "podman", "run", "--rm", "-i", "--network=none", "--entrypoint", "pg_restore", image, "-f", "-")
+	cmd := x.n.Launch(ctx, nil, "podman", "run", "--rm", "-i", "--network=none", "--entrypoint", "pg_restore", image, "-f", "-")
 	cmd.Stdin = f
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -389,7 +392,7 @@ func oldPaths(p *pkgspec.Package, setup *importer.Setup, plan importer.Plan) ([]
 		if m.Part == "" {
 			continue
 		}
-		oc := oldContainer(setup, m.Old)
+		oc := setup.Container(m.Old)
 		for _, mt := range oc.Mounts {
 			t := strings.TrimSuffix(mt.Target, "/")
 			if strings.HasPrefix(t, "/etc/") || t == "" || slices.Contains(out, t+"/") {
@@ -398,7 +401,7 @@ func oldPaths(p *pkgspec.Package, setup *importer.Setup, plan importer.Plan) ([]
 			kept := shown[t] != ""
 			for _, c := range p.Containers {
 				for _, pm := range c.Mounts {
-					kept = kept || t == pm.Path || strings.HasPrefix(t, pm.Path+"/")
+					kept = kept || fsutil.Within(t, pm.Path)
 				}
 			}
 			if !kept || shown[t] != "" {
@@ -410,22 +413,10 @@ func oldPaths(p *pkgspec.Package, setup *importer.Setup, plan importer.Plan) ([]
 	return out, shown
 }
 
-// oldContainer finds an old container by name.
-func oldContainer(s *importer.Setup, name string) importer.Container {
-	if s != nil {
-		for _, c := range s.Containers {
-			if c.Name == name {
-				return c
-			}
-		}
-	}
-	return importer.Container{}
-}
-
 // imageEnv is an image's own environment, KEY → value (empty if it isn't
 // here).
-func (n *Local) imageEnv(ctx context.Context, image string) map[string]string {
-	out, err := n.podman(ctx, nil, "image", "inspect", "--format", "{{json .Config.Env}}", image)
+func (x localImports) imageEnv(ctx context.Context, image string) map[string]string {
+	out, err := x.podman(ctx, nil, "image", "inspect", "--format", "{{json .Config.Env}}", image)
 	if err != nil {
 		return nil
 	}
@@ -441,11 +432,11 @@ func (n *Local) imageEnv(ctx context.Context, image string) map[string]string {
 
 // podman runs podman as the roostack user, stdin optional, returning its
 // output (with what it said on stderr after an error).
-func (n *Local) podman(ctx context.Context, stdin io.Reader, args ...string) ([]byte, error) {
-	if n.Launch == nil {
+func (x localImports) podman(ctx context.Context, stdin io.Reader, args ...string) ([]byte, error) {
+	if x.n.Launch == nil {
 		return nil, fmt.Errorf("podman can't be run here")
 	}
-	cmd := n.Launch(ctx, nil, "podman", args...)
+	cmd := x.n.Launch(ctx, nil, "podman", args...)
 	cmd.Stdin = stdin
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -456,12 +447,12 @@ func (n *Local) podman(ctx context.Context, stdin io.Reader, args ...string) ([]
 }
 
 // pullImage downloads an image if it isn't here yet.
-func (n *Local) pullImage(ctx context.Context, act *activity.Log, image string) {
-	if n.Reconciler == nil || n.Reconciler.Pull == nil {
+func (x localImports) pullImage(ctx context.Context, act *activity.Log, image string) {
+	if x.n.Reconciler == nil || x.n.Reconciler.Pull == nil {
 		return
 	}
 	act.Printf("Making sure %s is here", image)
-	if err := n.Reconciler.Pull(ctx, image, io.Discard); err != nil {
+	if err := x.n.Reconciler.Pull(ctx, image, io.Discard); err != nil {
 		act.Printf("Downloading %s: %v", image, err)
 	}
 }
@@ -510,18 +501,6 @@ func appVersionOf(p *pkgspec.Package) string {
 	return v
 }
 
-// countText says how many of something: "1 file", "355,516 files".
-func countText(n int64, one string, many ...string) string {
-	word := one + "s"
-	if len(many) > 0 {
-		word = many[0]
-	}
-	if n == 1 {
-		return "1 " + one
-	}
-	return units.Count(n) + " " + word
-}
-
 // ownerText names a file's owner on the server, for people.
 func ownerText(uid int) string {
 	if uid == 0 {
@@ -559,21 +538,4 @@ func shellQuote(s string) string {
 		return s
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// codeList lists names: "vchord, vector and cube".
-func codeList(names []string) string {
-	switch len(names) {
-	case 0:
-		return ""
-	case 1:
-		return names[0]
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
-}
-
-// firstLineOf is text's first line.
-func firstLineOf(s string) string {
-	s, _, _ = strings.Cut(strings.TrimSpace(s), "\n")
-	return s
 }

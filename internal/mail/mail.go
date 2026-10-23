@@ -24,6 +24,7 @@ import (
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/fsutil"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // ErrNotConfigured means no SMTP server is set up.
@@ -76,22 +77,17 @@ func (s *Service) Save(m config.Mail, password string, clearPassword bool) error
 	return nil
 }
 
-// FormError is a setting someone can fix; its message says how.
-type FormError struct{ Msg string }
-
-func (e *FormError) Error() string { return e.Msg }
-
 func check(m config.Mail) error {
 	switch {
 	case m.Host == "" || strings.ContainsAny(m.Host, " /:@"):
-		return &FormError{"Enter the SMTP server's name, such as smtp.fastmail.com."}
+		return &usererr.Error{Msg: "Enter the SMTP server's name, such as smtp.fastmail.com."}
 	case m.Port < 1 || m.Port > 65535:
-		return &FormError{"Enter the SMTP server's port: usually 587, or 465."}
+		return &usererr.Error{Msg: "Enter the SMTP server's port: usually 587 or 465."}
 	case m.Security != config.MailSTARTTLS && m.Security != config.MailTLS:
-		return &FormError{"Choose how the connection is encrypted."}
+		return &usererr.Error{Msg: "Choose how the connection is encrypted."}
 	}
 	if _, err := mail.ParseAddress(m.From); err != nil || strings.ContainsAny(m.From, "\r\n") {
-		return &FormError{"Enter the address emails come from, such as roostack@example.com."}
+		return &usererr.Error{Msg: "Enter the address emails come from, such as roostack@example.com."}
 	}
 	return nil
 }
@@ -120,12 +116,12 @@ func (s *Service) send(ctx context.Context, m config.Mail, password string, msg 
 	for _, a := range msg.To {
 		addr, err := mail.ParseAddress(a)
 		if err != nil || strings.ContainsAny(a, "\r\n") {
-			return &FormError{fmt.Sprintf("%q isn't an email address.", a)}
+			return &usererr.Error{Msg: fmt.Sprintf("%q isn't an email address.", a)}
 		}
 		to = append(to, addr.Address)
 	}
 	if len(to) == 0 {
-		return &FormError{"Give an address to send to."}
+		return &usererr.Error{Msg: "Give an address to send to."}
 	}
 	from, _ := mail.ParseAddress(m.From)
 	body, err := compose(from, to, msg)

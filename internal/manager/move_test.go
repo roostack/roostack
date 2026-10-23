@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -17,11 +16,16 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 type file struct {
@@ -43,6 +47,8 @@ type movingServer struct {
 	beforeStop func()
 	backups    node.Backups
 	status     node.ApplyStatus
+	// committed is why the data there was kept, at the last commit.
+	committed kept.Why
 }
 
 func (m *movingServer) Backups() node.Backups { return m.backups }
@@ -74,6 +80,10 @@ func (m *movingServer) did(op string) error {
 	return nil
 }
 func (m *movingServer) DataDirs(string) []string { return nil }
+
+// Mover is the server itself (fakeRemote's is nil).
+func (m *movingServer) Mover() node.Mover { return m }
+
 func (m *movingServer) ExportData(_ context.Context, _ string, dir int, since time.Time, w io.Writer) error {
 	m.mu.Lock()
 	out := map[string]file{}
@@ -135,12 +145,13 @@ func (m *movingServer) PruneData(_ context.Context, _ string, dir int, keep []st
 	}
 	return nil
 }
-func (m *movingServer) CommitData(context.Context, string) ([]string, error) {
+func (m *movingServer) CommitData(_ context.Context, _ string, why kept.Why) ([]string, error) {
 	if err := m.did("commit"); err != nil {
 		return nil, err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.committed = why
 	for i := range dataDirs {
 		m.data[i], m.staged[i] = m.staged[i], map[string]file{}
 	}
@@ -169,13 +180,14 @@ func (m *movingServer) ImportSecrets(_ context.Context, s map[string][]byte) err
 }
 func (m *movingServer) DataSize(context.Context, string) (int64, error) { return 1234, nil }
 func (m *movingServer) LoadDumps(context.Context, string) error         { return m.did("load dumps") }
-func (m *movingServer) KeptData(context.Context) ([]node.KeptFolder, error) {
-	return []node.KeptFolder{{Path: "/srv/roostack/services/forgejo.moved-to-vps-20260928-002806", Service: "forgejo", MovedAway: true}}, nil
+func (m *movingServer) KeptCopies(context.Context) ([]kept.Copy, error) {
+	return []kept.Copy{{Service: "forgejo", Why: kept.MovedAway, Note: "to-vps", Whole: true,
+		Paths: []string{"/srv/roostack/services/forgejo.moved-to-vps-20260928-002806"}}}, nil
 }
-func (m *movingServer) RemoveKeptData(_ context.Context, path string) error {
+func (m *movingServer) RemoveKept(_ context.Context, path string) error {
 	return m.did("remove " + path)
 }
-func (m *movingServer) PutBackKeptData(_ context.Context, path string) error {
+func (m *movingServer) PutBackKept(_ context.Context, path string) error {
 	return m.did("put back " + path)
 }
 
@@ -199,13 +211,13 @@ func setUpMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 
 func waitMove(t *testing.T, m *Manager) activity.Snapshot {
 	t.Helper()
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
-		if l, ok := m.Activity.Latest(activity.Move); ok && !l.Running() {
-			return l
-		}
-	}
-	t.Fatal("move didn't finish")
-	return activity.Snapshot{}
+	var l activity.Snapshot
+	testwait.For(t, 10*time.Second, func() bool {
+		var ok bool
+		l, ok = m.Activity.Latest(activity.Move)
+		return ok && !l.Running()
+	})
+	return l
 }
 
 func TestMoveService(t *testing.T) {
@@ -218,7 +230,7 @@ func TestMoveService(t *testing.T) {
 	a.secrets["roostack-forgejo-db-main-password"] = []byte("generated")
 	// Only the service's own secrets are brought (review M20).
 	a.secrets["roostack-caddy-dns-api_token"] = []byte("planted")
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.MoveService(ctx, "forgejo", "n-0000000002", MoveCopy); !errors.As(err, &fe) {
 		t.Errorf("moving to where it runs: %v", err)
 	}
@@ -245,6 +257,14 @@ func TestMoveService(t *testing.T) {
 	}
 	if m.NodeFor("forgejo").Identity().Name != "vps" {
 		t.Error("forgejo should run on the vps now")
+	}
+	if b.committed != kept.BeforeMove {
+		t.Errorf("what vps had is kept as %q", b.committed)
+	}
+	// Its old copy on home can't go back there: it runs on vps now.
+	copies, err := m.KeptCopies(ctx, "n-0000000002")
+	if err != nil || len(copies) != 1 || copies[0].Server != "n-0000000002" || copies[0].Host != "n-0000000003" || copies[0].CanPutBack {
+		t.Errorf("kept %+v, %v", copies, err)
 	}
 }
 
@@ -323,17 +343,10 @@ func (b *realBackups) Status(context.Context) (backup.Status, error) {
 // repository, and vps applying at once.
 func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 	t.Helper()
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	bin := restictest.Bin(t)
 	m, a, b := setUpMove(t)
 	ctx := context.Background()
-	applyWait = 5 * time.Second
-	t.Cleanup(func() { applyWait = 20 * time.Minute })
+	m.waits.applyWait = 5 * time.Second
 	svcDir := filepath.Join(m.Lab.Paths.ServicesDir, "forgejo")
 	os.MkdirAll(filepath.Join(svcDir, "data"), 0o755)
 	os.WriteFile(filepath.Join(svcDir, "data", "app.ini"), []byte("from the backup"), 0o644)
@@ -348,11 +361,7 @@ func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 		t.Fatal(err)
 	}
 	a.backups = &realBackups{repo: repo, dir: svcDir}
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	m.BackupStore, m.Settings = st, st
 	m.OpenRepo = func(string, []string) *backup.Repo { return repo }
 	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "local:" + repo.URL,
@@ -363,12 +372,16 @@ func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 }
 
 func TestMoveThroughBackup(t *testing.T) {
+	t.Parallel()
 	m, a, b := setUpBackupMove(t)
 	ctx := context.Background()
 
 	if info, _ := m.MoveInfo(ctx, "forgejo"); !info.ViaBackup {
 		t.Error("through a backup should be possible")
 	}
+	// Left by an earlier move that didn't finish: cleared first, as a
+	// restore does (transferJob.copyFromBackup).
+	b.staged[0]["data/stale.txt"] = file{Data: "left over"}
 	if err := m.MoveService(ctx, "forgejo", "n-0000000003", MoveBackup); err != nil {
 		t.Fatal(err)
 	}
@@ -378,6 +391,9 @@ func TestMoveThroughBackup(t *testing.T) {
 	}
 	if b.data[0]["data/app.ini"].Data != "from the backup" || b.data[0]["db-dump/main.sql"].Data != "dump" {
 		t.Errorf("vps has %v", b.data[0])
+	}
+	if _, ok := b.data[0]["data/stale.txt"]; ok {
+		t.Error("what an earlier attempt left was moved in too")
 	}
 	if !slices.Contains(b.log, "load dumps") || !slices.Contains(a.log, "stop") {
 		t.Errorf("home did %v, vps %v", a.log, b.log)
@@ -389,6 +405,7 @@ func TestMoveThroughBackup(t *testing.T) {
 // is set aside; if going back fails too, it's held stopped on the new
 // server (SPEC.md §6.9, §10.10).
 func TestMoveThroughBackupGoesBack(t *testing.T) {
+	t.Parallel()
 	m, a, b := setUpBackupMove(t)
 	ctx := context.Background()
 	b.failOn = "load dumps"
@@ -415,7 +432,7 @@ func TestMoveThroughBackupGoesBack(t *testing.T) {
 		t.Errorf("failed moves %+v", m.FailedMoves(ctx))
 	}
 	// Deleting what was copied forgets it.
-	m.RemoveKeptData(ctx, "n-0000000003", "/srv/roostack/services/forgejo.failed-move-20261022-141200")
+	m.RemoveKept(ctx, "n-0000000003", "/srv/roostack/services/forgejo.failed-move-20261022-141200")
 	if _, ok := m.FailedMoves(ctx)["forgejo"]; ok {
 		t.Error("the failed move should be forgotten once its copy is deleted")
 	}
@@ -447,8 +464,33 @@ func TestMoveThroughBackupGoesBack(t *testing.T) {
 	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Held != nil {
 		t.Error("still held")
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.StartHeld(ctx, "forgejo"); !errors.As(err, &fe) {
 		t.Errorf("starting one that isn't held: %v", err)
+	}
+}
+
+// A reader that returns before reading everything (as tar stops at its
+// end-of-archive marker) fails the copy rather than leaving the writer
+// waiting for ever, and a whole copy still succeeds.
+func TestPipeReaderStopsEarly(t *testing.T) {
+	data := make([]byte, 64<<10)
+	done := make(chan error, 1)
+	go func() {
+		done <- pipe(context.Background(), func(w io.Writer) error { _, err := w.Write(data); return err },
+			func(r io.Reader) error { _, err := io.ReadFull(r, make([]byte, 1024)); return err })
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("a copy that wasn't all read succeeded")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the writer is still waiting")
+	}
+	err := pipe(context.Background(), func(w io.Writer) error { _, err := w.Write(data); return err },
+		func(r io.Reader) error { _, err := io.Copy(io.Discard, r); return err })
+	if err != nil {
+		t.Error(err)
 	}
 }

@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
@@ -37,6 +38,11 @@ type activityView struct {
 	activity.Snapshot
 	// Example is set in the design gallery: it never polls.
 	Example bool
+}
+
+// Recent reports whether a is running, or finished less than d ago.
+func (a *activityView) Recent(d time.Duration) bool {
+	return a.Running() || time.Since(a.Finished) < d
 }
 
 // activityFor returns kind's latest activity for the page, or nil if

@@ -13,6 +13,8 @@ import (
 )
 
 var (
+	// A package's name, not a service's ID (instance.ValidName): it's
+	// shorter, so a second copy's ID can add a dash and more.
 	nameRe       = regexp.MustCompile(`^[a-z][a-z0-9-]{0,30}$`)
 	settingKeyRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 	envNameRe    = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -45,7 +47,7 @@ func (p *Package) Validate() error {
 		v.addf("schema: must be %q, got %q", SchemaV1Alpha1, p.Schema)
 	}
 	if !nameRe.MatchString(p.Name) {
-		v.addf("name: %q must be lowercase letters, digits and dashes, starting with a letter", p.Name)
+		v.addf("name: %q must be lowercase letters, digits, and dashes, starting with a letter", p.Name)
 	}
 	if p.Title == "" {
 		v.addf("title: required")
@@ -53,7 +55,7 @@ func (p *Package) Validate() error {
 	if p.Version == "" {
 		v.addf("version: required")
 	} else if !ValidVersion(p.Version) {
-		v.addf("version: %q must be letters, digits, dots, dashes, underscores and plus signs, starting with a letter or digit", p.Version)
+		v.addf("version: %q must be letters, digits, dots, dashes, underscores, and plus signs, starting with a letter or digit", p.Version)
 	}
 	if len(p.Containers) == 0 {
 		v.addf("containers: at least one container is required")
@@ -98,7 +100,7 @@ func (p *Package) validateSettings(v *validator) {
 	for i, s := range p.Settings {
 		at := fmt.Sprintf("settings[%d]", i)
 		if !settingKeyRe.MatchString(s.Key) {
-			v.addf("%s.key: %q must be lowercase letters, digits and underscores", at, s.Key)
+			v.addf("%s.key: %q must be lowercase letters, digits, and underscores", at, s.Key)
 		} else {
 			at = "settings." + s.Key
 		}
@@ -110,7 +112,7 @@ func (p *Package) validateSettings(v *validator) {
 		switch s.Type {
 		case SettingBool:
 			if _, ok := s.Default.(bool); !ok && s.Default != nil && s.Default != DefaultAuto {
-				v.addf("%s.default: must be true, false or %q", at, DefaultAuto)
+				v.addf("%s.default: must be true, false, or %q", at, DefaultAuto)
 			}
 		case SettingString:
 			if _, ok := s.Default.(string); !ok && s.Default != nil {
@@ -151,7 +153,7 @@ func (p *Package) validateSettings(v *validator) {
 			case s.Type != SettingSecret:
 				v.addf("%s.from_hook: only for secrets", at)
 			case s.Generate || s.InstallOnly || s.Reveal || s.MinLength != 0:
-				v.addf("%s.from_hook: a hook makes it, so it takes no generate, install_only, reveal or min_length", at)
+				v.addf("%s.from_hook: a hook will make it, so it takes no generate, install_only, reveal, or min_length", at)
 			case !p.hasSavingAction(s.Key):
 				v.addf("%s.from_hook: needs an action that saves it (saves: %s), for services installed before it, or whose key was lost", at, s.Key)
 			}
@@ -180,7 +182,7 @@ func (p *Package) validateHooks(v *validator) {
 			}
 		case HookAction:
 			if !nameRe.MatchString(h.Name) {
-				v.addf("%s.name: %q must be lowercase letters, digits and dashes", at, h.Name)
+				v.addf("%s.name: %q must be lowercase letters, digits, and dashes", at, h.Name)
 			}
 			if actions[h.Name] {
 				v.addf("%s.name: duplicate action %q", at, h.Name)
@@ -197,7 +199,7 @@ func (p *Package) validateHooks(v *validator) {
 				v.addf("%s: an sso hook takes no name or inputs", at)
 			}
 		default:
-			v.addf("%s.on: must be %q, %q or %q", at, HookInstall, HookAction, HookSSO)
+			v.addf("%s.on: must be %q, %q, or %q", at, HookInstall, HookAction, HookSSO)
 		}
 		if h.Saves != "" {
 			s := p.Setting(h.Saves)
@@ -225,7 +227,7 @@ func (p *Package) validateHooks(v *validator) {
 				v.addf("%s.type: inputs are string or secret", iat)
 			}
 			if in.Default != nil || in.Generate || in.InstallOnly {
-				v.addf("%s: inputs take no default, generate or install_only", iat)
+				v.addf("%s: inputs take no default, generate, or install_only", iat)
 			}
 		}
 		for _, k := range slices.Sorted(maps.Keys(h.Env)) {
@@ -258,7 +260,7 @@ func (p *Package) validateHooks(v *validator) {
 			case s == nil || s.Type != SettingSecret:
 				v.addf("%s.secrets.%s: %q is not a secret setting", at, k, ref)
 			case s.InstallOnly && h.On != HookInstall:
-				v.addf("%s.secrets.%s: %q is install_only and is deleted after install", at, k, ref)
+				v.addf("%s.secrets.%s: %q is install_only and will be deleted after install", at, k, ref)
 			}
 		}
 	}
@@ -306,7 +308,7 @@ func (p *Package) validateDatabase(v *validator, name string, d *Database) {
 			v.addf("%s.path: unknown storage %q", at, storage)
 		}
 		if d.Image != "" || len(d.Quadlet) > 0 || d.Memory != "" {
-			v.addf("%s: sqlite runs inside the app; image, memory and quadlet are not allowed", at)
+			v.addf("%s: sqlite runs inside the app; image, memory, and quadlet are not allowed", at)
 		}
 	case DBPostgres, DBRedis, DBMySQL, DBMariaDB:
 		if d.Path != "" {
@@ -435,7 +437,7 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 	}
 	if m := r.Monitor; m != nil {
 		if m.Path != "" && m.Path != "/" && !ValidPath(m.Path) {
-			v.addf("%s.monitor.path: %q must start with / and have only letters, digits and - _ . : /", at, m.Path)
+			v.addf("%s.monitor.path: %q must start with / and have only letters, digits, and - _ . : /", at, m.Path)
 		}
 		for i, st := range m.Statuses {
 			if st < 100 || st > 599 {
@@ -446,7 +448,7 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 	seen := map[string]bool{}
 	for i, pp := range r.Public.PrivatePaths {
 		if !ValidPath(pp.Path) {
-			v.addf("%s.public.private_paths[%d].path: %q must start with / and have only letters, digits and - _ . : / (no * or trailing /)", at, i, pp.Path)
+			v.addf("%s.public.private_paths[%d].path: %q must start with / and have only letters, digits, and - _ . : / (no * or trailing /)", at, i, pp.Path)
 		}
 		if strings.TrimSpace(pp.Reason) == "" {
 			v.addf("%s.public.private_paths[%d].reason: say why it shouldn't be public", at, i)
@@ -458,7 +460,7 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 	}
 	for i, lp := range r.Public.LoginPaths {
 		if !ValidPath(lp) {
-			v.addf("%s.public.login_paths[%d]: %q must start with / and have only letters, digits and - _ . : / (no * or trailing /)", at, i, lp)
+			v.addf("%s.public.login_paths[%d]: %q must start with / and have only letters, digits, and - _ . : / (no * or trailing /)", at, i, lp)
 		}
 	}
 }
@@ -486,7 +488,7 @@ func (p *Package) validatePort(v *validator, name string, r *Port) {
 		v.addf("%s: invalid name", at)
 	}
 	if r == nil {
-		v.addf("%s: title, container, port and host_port are required", at)
+		v.addf("%s: title, container, port, and host_port are required", at)
 		return
 	}
 	if r.Title == "" {
@@ -517,7 +519,7 @@ func (p *Package) checkSecretRef(ref string) error {
 		// .url only for Postgres so far: no MySQL app needs one yet
 		// (the Owner, 2026-10-19).
 		if d == nil || !d.HasPassword() || (field != "password" && field != "url") || (field == "url" && d.Type != DBPostgres) {
-			return fmt.Errorf("%q: only databases.<postgres, mysql or mariadb db>.password, or .url for postgres, is supported", ref)
+			return fmt.Errorf("%q: only databases.<postgres, mysql, or mariadb db>.password, or .url for postgres, is supported", ref)
 		}
 		return nil
 	}

@@ -15,18 +15,6 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 )
 
-func (f *fakeManager) StartHeld(_ context.Context, name string) error {
-	f.held = append(f.held, "start "+name)
-	return nil
-}
-func (f *fakeManager) PutBackHeld(_ context.Context, name string) error {
-	f.held = append(f.held, "put-back "+name)
-	return nil
-}
-func (f *fakeManager) FailedMoves(context.Context) map[string]manager.FailedMove {
-	return f.failedMoves
-}
-
 // heldServices has Immich held after a restore that didn't finish, and
 // Forgejo after a move that couldn't go back.
 func heldServices(context.Context) ([]ServiceView, error) {
@@ -131,7 +119,7 @@ func TestRestoreAgainChoosesTheBackup(t *testing.T) {
 	if !strings.Contains(body, `data-moment="n-0123456789@`) && !strings.Contains(body, "Restoring from") {
 		t.Fatal("no restore form")
 	}
-	if !strings.Contains(body, momentLabel(older, time.Now())) || !strings.Contains(body, `value="backup:n-0123456789@8550fc0abbbb"`) {
+	if !strings.Contains(body, html.EscapeString(momentLabel(older, time.Now()))) || !strings.Contains(body, `value="backup:n-0123456789@8550fc0abbbb"`) {
 		t.Error("the older backup should be listed")
 	}
 	if i := strings.Index(body, `<strong x-text="label">`); i < 0 || !strings.HasPrefix(body[i+len(`<strong x-text="label">`):], html.EscapeString(momentLabel(older, time.Now()))) {

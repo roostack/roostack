@@ -7,16 +7,16 @@
 </div>
 <section class="narrow">
   <div class="card">
-    {{with .AddressSet}}{{notice "ok" (printf "Your lab's address is %s. Its web addresses start working when setup finishes." .)}}{{end}}
-    <p>Roostack backs everything up every night, to each backup in your plan. {{if and .Plan .Plan.Internet}}Start with your main backup
+    {{with .AddressSet}}{{notice "ok" (printf "Your lab's address is %s. Its web addresses will start working when setup finishes." .)}}{{end}}
+    <p>Roostack backs everything up every night to each backup in your plan. {{if and .Plan .Plan.Internet}}Start with your main backup
       somewhere other than this server, such as online storage.{{else}}Start with your main backup, somewhere at home
-      that isn't this server's own disk if you can.{{end}} You can add more now, or later on the Backups page.</p>
+      that isn't this server's own disk if you can.{{end}} You can add more now or later on the Backups page.</p>
     {{with .Notice}}{{notice "info" .}}{{end}}
   </div>
   {{template "backup-plan" .}}
   <div class="card">
     <form method="post" action="/setup/backup">
-      <p class="hint">Backups are encrypted. The next page shows the recovery key needed to read them.</p>
+      <p class="hint">Backups are encrypted. The next page will show the recovery key needed to read them.</p>
       <button type="submit"{{if not .Plan.Entries}} disabled{{end}}>Continue</button>
     </form>
     <form method="post" action="/setup/backup/later" class="later">

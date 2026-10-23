@@ -31,26 +31,21 @@ type MediaLibrary struct {
 
 // MediaLibraries lists every server's media libraries, by server and name.
 func (s *Store) MediaLibraries(ctx context.Context) ([]MediaLibrary, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT server_id, name, title, drive, drive_name, sub, folder,
+	return queryAll(ctx, s.db, scanMediaLibrary, `SELECT server_id, name, title, drive, drive_name, sub, folder,
 		owner_uid, owner_gid, owner_name, share_type, share_server, share_path, share_user, photos_for, created_at
 		FROM media_libraries ORDER BY server_id, title, name`)
-	if err != nil {
-		return nil, err
+}
+
+func scanMediaLibrary(row scanner) (MediaLibrary, error) {
+	var l MediaLibrary
+	var created int64
+	if err := row.Scan(&l.ServerID, &l.Name, &l.Title, &l.Drive, &l.DriveName, &l.Sub, &l.Folder,
+		&l.OwnerUID, &l.OwnerGID, &l.OwnerName, &l.ShareType, &l.ShareServer, &l.SharePath, &l.ShareUser, &l.PhotosFor,
+		&created); err != nil {
+		return l, err
 	}
-	defer rows.Close()
-	var out []MediaLibrary
-	for rows.Next() {
-		var l MediaLibrary
-		var created int64
-		if err := rows.Scan(&l.ServerID, &l.Name, &l.Title, &l.Drive, &l.DriveName, &l.Sub, &l.Folder,
-			&l.OwnerUID, &l.OwnerGID, &l.OwnerName, &l.ShareType, &l.ShareServer, &l.SharePath, &l.ShareUser, &l.PhotosFor,
-			&created); err != nil {
-			return nil, err
-		}
-		l.Created = time.Unix(created, 0)
-		out = append(out, l)
-	}
-	return out, rows.Err()
+	l.Created = time.Unix(created, 0)
+	return l, nil
 }
 
 // SetMediaLibrary adds a media library, or changes one of its name on its

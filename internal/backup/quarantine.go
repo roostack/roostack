@@ -2,18 +2,22 @@ package backup
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // Junk in a repository (SPEC.md §10.10, docs/ASSUMPTIONS.md O). An
@@ -44,9 +48,10 @@ type Junk struct {
 // Path is the file's path in the repository.
 func (j Junk) Path() string { return j.Kind + "/" + j.Name }
 
-// JunkRecheck is how long FindJunk waits before reading a suspect file a
-// second time, so a passing network fault isn't mistaken for junk.
-var JunkRecheck = time.Minute
+// junkRecheck is how long FindJunk waits before reading a suspect file a
+// second time, so a passing network fault isn't mistaken for junk, unless
+// the repository's JunkRecheck says otherwise.
+const junkRecheck = time.Minute
 
 // junkError is restic's error for a file not written with the
 // repository's key: its authentication check failed. Other errors (the
@@ -199,19 +204,24 @@ func (f *folderFiles) run(ctx context.Context, name string, args ...string) ([]b
 	return out, nil
 }
 
-func (f *folderFiles) List(ctx context.Context, kind string) ([]FileInfo, error) {
-	out, err := f.run(ctx, "find", path.Join(f.dir, kind), "-maxdepth", "1", "-type", "f", "-printf", "%f %s\n")
+// List reads the folder directly rather than through launch: local
+// repositories are under /mnt, /media or /srv (agent.FolderRoots), which
+// roostack's sandbox can read, and their files are the roostack user's.
+func (f *folderFiles) List(_ context.Context, kind string) ([]FileInfo, error) {
+	entries, err := os.ReadDir(path.Join(f.dir, kind))
 	if err != nil {
 		return nil, err
 	}
 	var files []FileInfo
-	for line := range strings.Lines(string(out)) {
-		name, size, ok := strings.Cut(strings.TrimSpace(line), " ")
-		if !ok {
+	for _, e := range entries {
+		if !e.Type().IsRegular() {
 			continue
 		}
-		n, _ := strconv.ParseInt(size, 10, 64)
-		files = append(files, FileInfo{Name: name, Size: n})
+		fi, err := e.Info()
+		if err != nil {
+			continue // removed since the folder was read
+		}
+		files = append(files, FileInfo{Name: e.Name(), Size: fi.Size()})
 	}
 	return files, nil
 }
@@ -267,7 +277,7 @@ func badKey(data []byte) string {
 // FindJunk lists the files in r that its key can't read: key files that
 // aren't keys (read through files; skipped when files is nil), and lock,
 // snapshot and index files that fail restic's authentication check. Each
-// suspect is read again after JunkRecheck and counts only if it fails the
+// suspect is read again after junkRecheck and counts only if it fails the
 // same way. good holds "kind/name" of files already read fine (they never
 // change), and gains those read now; nil reads every file.
 func FindJunk(ctx context.Context, r *Repo, files Files, good map[string]bool) ([]Junk, error) {
@@ -301,10 +311,8 @@ func FindJunk(ctx context.Context, r *Repo, files Files, good map[string]bool) (
 	if len(suspects) == 0 {
 		return nil, nil
 	}
-	select {
-	case <-ctx.Done():
+	if !sleep.For(ctx, cmp.Or(r.JunkRecheck, junkRecheck)) {
 		return nil, ctx.Err()
-	case <-time.After(JunkRecheck):
 	}
 	var junk []Junk
 	for _, s := range suspects {

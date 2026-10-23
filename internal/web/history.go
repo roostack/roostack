@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
-	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // History (SPEC.md §6.14): what Roostack did on each server (each finished
@@ -55,17 +55,13 @@ func (s *Server) historyKeepDays(ctx context.Context) int {
 }
 
 func (s *Server) historyPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	kind := r.URL.Query().Get("kind")
 	var before time.Time
 	if v, err := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64); err == nil {
 		before = time.Unix(v, 0)
 	}
-	nodes := s.serverNodes(r)
+	nodes := s.serverNodes()
 	entries, unreachable := s.historyEntries(r, nodes, kind, before)
 	if unreachable != nil {
 		data["Unreachable"] = unreachable
@@ -97,11 +93,11 @@ func (s *Server) historyEntries(r *http.Request, nodes []serverNode, kind string
 	}
 	if kind != "people" {
 		for _, mn := range nodes {
-			h, ok := mn.node.(node.History)
-			if !ok {
+			h := mn.node.History()
+			if h == nil {
 				continue
 			}
-			events, err := h.History(r.Context(), before, kind, historyPage)
+			events, err := h.HistoryPage(r.Context(), before, kind, historyPage)
 			if err != nil {
 				unreachable = append(unreachable, mn.view.Label())
 				continue
@@ -123,8 +119,6 @@ func (s *Server) historyEntries(r *http.Request, nodes []serverNode, kind string
 	return entries, unreachable
 }
 
-func asStrings(v any) []string { s, _ := v.([]string); return s }
-
 // historyEventPage shows one event's log.
 func (s *Server) historyEventPage(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -132,23 +126,19 @@ func (s *Server) historyEventPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	for _, mn := range s.serverNodes(r) {
+	for _, mn := range s.serverNodes() {
 		if mn.view.ID != r.PathValue("server") {
 			continue
 		}
-		h, ok := mn.node.(node.History)
-		if !ok {
+		h := mn.node.History()
+		if h == nil {
 			break
 		}
 		e, err := h.HistoryEvent(r.Context(), id)
 		if err != nil {
 			break
 		}
-		data, err := s.pageData(r)
-		if err != nil {
-			s.serverError(w, err)
-			return
-		}
+		data := s.pageData(r)
 		data["Event"], data["Server"], data["Lines"] = e, mn.view.Label(), strings.Split(e.Output, "\n")
 		s.render(w, "settings-history-event", withArea(data, "history"))
 		return
@@ -187,9 +177,8 @@ func (s *Server) cullHistory(ctx context.Context, before time.Time) int64 {
 	} else {
 		s.Log.Error("deleting old history", "err", err)
 	}
-	r, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
-	for _, mn := range s.serverNodes(r) {
-		if h, ok := mn.node.(node.History); ok {
+	for _, mn := range s.serverNodes() {
+		if h := mn.node.History(); h != nil {
 			if n, err := h.CullHistory(ctx, before); err == nil {
 				total += n
 			} else {
@@ -205,10 +194,8 @@ func (s *Server) cullHistory(ctx context.Context, before time.Time) int64 {
 func (s *Server) RunHistoryCull(ctx context.Context) {
 	wait := time.Minute
 	for {
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, wait) {
 			return
-		case <-time.After(wait):
 		}
 		if n := s.cullHistory(ctx, time.Now().AddDate(0, 0, -s.historyKeepDays(ctx))); n > 0 {
 			s.Log.Info("deleted old history", "entries", n)

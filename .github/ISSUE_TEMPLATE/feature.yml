@@ -1,0 +1,25 @@
+name: An idea or request
+description: Something Roostack could do, or do better, including a service you'd like to install.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a new service, check [roostack/services](https://github.com/roostack/services) first: packages are added there, and you can [make your own](https://github.com/roostack/roostack/blob/main/help/docs/packages/write.md) with the package editor.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you'd like to do
+      description: What you're trying to do, and what gets in the way today. Starting from the problem, rather than a solution, helps us find the simplest way to solve it.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How it could work
+      description: If you have an idea of how it should look or behave, describe it here.
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Who it would help, how you manage today, links to the service or to how others do it.

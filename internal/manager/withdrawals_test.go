@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // stopBackups is a server's backups, for the last backup before a stopped
@@ -77,13 +78,12 @@ func quadletExists(m *Manager, name string) bool {
 // private; with stops off, it's only a warning.
 func TestRegistryStop(t *testing.T) {
 	m, _ := newManager(t)
+	m.waits.lastBackupCheck = 10 * time.Millisecond
 	ctx := context.Background()
 	m.Settings = linkKV{}
 	m.UpdateLab = func(func(*config.Lab)) error { return nil }
 	backups := &stopBackups{}
 	m.Node.(*node.Local).Jobs.Backups = backups
-	lastBackupCheck = 10 * time.Millisecond
-	t.Cleanup(func() { lastBackupCheck = time.Minute })
 
 	for _, name := range []string{"immich", "vaultwarden"} {
 		if err := m.Install(ctx, name, InstallRequest{Settings: map[string]string{}}); err != nil {
@@ -130,11 +130,10 @@ func TestRegistryStop(t *testing.T) {
 	backups.mu.Lock()
 	backups.lastOK = &store.BackupRun{Started: time.Now().Add(time.Second), Finished: time.Now().Add(time.Minute), OK: true}
 	backups.mu.Unlock()
-	deadline := time.Now().Add(5 * time.Second)
-	for quadletExists(m, "roostack-immich-db-main.container") && time.Now().Before(deadline) {
-		time.Sleep(20 * time.Millisecond)
+	testwait.For(t, 10*time.Second, func() bool {
 		m.Wait()
-	}
+		return !quadletExists(m, "roostack-immich-db-main.container")
+	})
 	if quadletExists(m, "roostack-immich-db-main.container") || !quadletExists(m, "roostack-immich-db-cache.container") {
 		t.Error("after the backup, only Roostack's database runs")
 	}

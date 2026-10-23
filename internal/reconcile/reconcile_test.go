@@ -19,6 +19,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
+	"roostack.cloud/roostack/internal/podman"
 	"roostack.cloud/roostack/internal/systemd"
 )
 
@@ -150,7 +151,7 @@ func TestPullNoImageForArch(t *testing.T) {
 	e := newEnv(t)
 	e.apply(t, e.desired(t))
 	e.r.Pull = func(_ context.Context, image string, _ io.Writer) error {
-		return &NoImageForArch{Image: image, Arch: "arm64"}
+		return &podman.NoImageForArch{Image: image, Arch: "arm64"}
 	}
 	var failed error
 	e.r.Progress = func(ev Event) {
@@ -213,11 +214,11 @@ func TestInstallUpdateRemove(t *testing.T) {
 	}
 	// New containers say what their first start involves, and start one by
 	// one after the rest.
-	if n := plan.StartNotes["roostack-vaultwarden-app.service"]; !strings.HasPrefix(n, "downloads docker.io/vaultwarden/server:") ||
+	if n := plan.StartNotes["roostack-vaultwarden-app.service"]; !strings.HasPrefix(n, "downloading docker.io/vaultwarden/server:") ||
 		strings.Contains(n, "sha256") {
 		t.Errorf("vaultwarden's note = %q", n)
 	}
-	if n := plan.StartNotes["roostack-caddy.service"]; !strings.Contains(n, "builds its image") {
+	if n := plan.StartNotes["roostack-caddy.service"]; !strings.Contains(n, "building its image") {
 		t.Errorf("caddy's note = %q", n)
 	}
 	// Caddy's image build starts in the background as soon as its file is
@@ -501,7 +502,7 @@ func TestStartSettles(t *testing.T) {
 		wantErr bool
 	}{{"active", false}, {"failed", true}} {
 		f := &flakySystemd{state: c.state}
-		r := &Reconciler{Systemd: f, Settle: 3 * time.Second}
+		r := &Reconciler{Systemd: f, Settle: 100 * time.Millisecond}
 		err := r.start(context.Background(), nil, "roostack-crowdsec.service")
 		if (err != nil) != c.wantErr {
 			t.Errorf("%s: err %v", c.state, err)

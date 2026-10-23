@@ -37,6 +37,14 @@ import (
 	"roostack.cloud/roostack/internal/config"
 )
 
+// What a suspended account's labs may still do with their backups
+// (Fake.SuspendedBackups), as the suspension in Cloud chooses.
+const (
+	BackupsNone    = ""        // kept, no access: no new backups and no restores
+	BackupsRestore = "restore" // kept, restores allowed: no new backups
+	BackupsAll     = "all"     // backups carry on as before
+)
+
 // Fake is a pretend Roostack Cloud.
 type Fake struct {
 	// Account is how the one account is shown to labs.
@@ -64,9 +72,19 @@ type Fake struct {
 	// before 2026-10-16 while the account was suspended.
 	Suspended bool
 	// SuspendedFor is why the account is suspended, as Cloud says now:
-	// the lab may still check in (told why) and report; its other
-	// requests are answered 423 Locked.
-	SuspendedFor string
+	// the lab may still use the routes cloudapi.Routes allows while
+	// suspended (it's told why when it checks in), and its other requests
+	// are answered 423 Locked. SuspendedBackups is what the suspension
+	// leaves of its backups: storage keys and restore access as far as it
+	// allows, 423 for the rest.
+	SuspendedFor     string
+	SuspendedBackups string
+	// Writes counts each lab's requests that change something (cloudapi.
+	// Route.Writes), by lab ID; past WriteLimit (0: none) they're answered
+	// 429, as Cloud's limit on a lab's changes does. Set Writes to nil to
+	// start counting again.
+	Writes     map[string]int
+	WriteLimit int
 	// NameStates are what the lab is told about its names (waiting,
 	// refused, suspended): when it checks in, with the relay's answers,
 	// and with a claim (that name's).
@@ -314,6 +332,13 @@ func (f *Fake) Revoke(labID string) {
 	}
 }
 
+// Identity is the lab's recovery identity as registered (nil: none).
+func (f *Fake) Identity(labID string) []byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.Identities[labID]
+}
+
 // Labs are the linked labs' IDs.
 func (f *Fake) Labs() []string {
 	f.mu.Lock()
@@ -344,6 +369,7 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.Requests[r.Method+" "+r.URL.Path]++
 	f.mu.Unlock()
+	rt, known := cloudapi.RouteOf(r.Method, r.URL.Path)
 	switch {
 	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLinks:
 		f.startLink(w, r)
@@ -362,11 +388,8 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			reply(w, cloudapi.NameAvailability{Available: true})
 		}
-	case r.URL.Path == cloudapi.PathLab || r.URL.Path == cloudapi.PathLabRenew || r.URL.Path == cloudapi.PathLabName ||
-		r.URL.Path == cloudapi.PathLabRelay || r.URL.Path == cloudapi.PathLabRelayBans || r.URL.Path == cloudapi.PathLabRelayStats ||
-		r.URL.Path == cloudapi.PathLabStorageKeys || r.URL.Path == cloudapi.PathLabStorage || r.URL.Path == cloudapi.PathLabRecoveryIdentity ||
-		r.URL.Path == cloudapi.PathLabReport && !f.NoReports || r.URL.Path == cloudapi.PathLabNameRelease && !f.NoKeep:
-		f.labAPI(w, r)
+	case known && rt.Lab && !(rt.Path == cloudapi.PathLabReport && f.NoReports) && !(rt.Path == cloudapi.PathLabNameRelease && f.NoKeep):
+		f.labAPI(w, r, rt)
 	case r.Method == http.MethodPost && (r.URL.Path == cloudapi.PathRestoreChallenge || r.URL.Path == cloudapi.PathRestoreAccess ||
 		r.URL.Path == cloudapi.PathRestoreRelink):
 		f.restore(w, r)
@@ -443,8 +466,8 @@ func (f *Fake) cancelLink(w http.ResponseWriter, r *http.Request) {
 }
 
 // labAPI is the lab's own endpoints: its client certificate says which
-// lab it is.
-func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
+// lab it is, and rt what it may do while suspended or past its limit.
+func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request, rt cloudapi.Route) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
@@ -462,8 +485,19 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusLocked, "This account is suspended.")
 		return
 	}
-	if f.SuspendedFor != "" && r.URL.Path != cloudapi.PathLab && r.URL.Path != cloudapi.PathLabReport && r.URL.Path != cloudapi.PathLabRenew {
-		fail(w, http.StatusLocked, "This lab's Roostack Cloud account is suspended: "+f.SuspendedFor+". Its Owner can see why at roost.ac.")
+	// As Cloud: the limit on changes first, then the suspension.
+	if rt.Writes {
+		if f.Writes == nil {
+			f.Writes = map[string]int{}
+		}
+		if f.WriteLimit > 0 && f.Writes[id] >= f.WriteLimit {
+			fail(w, http.StatusTooManyRequests, "This lab has made too many changes in Roostack Cloud at once. Try again in 10 seconds.")
+			return
+		}
+		f.Writes[id]++
+	}
+	if f.SuspendedFor != "" && !rt.WhileSuspended {
+		fail(w, http.StatusLocked, f.suspendedMessage())
 		return
 	}
 	switch {
@@ -523,6 +557,10 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLabStorageKeys:
 		var req cloudapi.StorageRequest
 		json.NewDecoder(r.Body).Decode(&req)
+		if !f.backupsAllow(req.Purpose) {
+			fail(w, http.StatusLocked, f.suspendedMessage()+" Its backups are kept, but can't be used while it's suspended.")
+			return
+		}
 		if f.StorageQuota <= 0 {
 			fail(w, http.StatusBadRequest, "Roostack Cloud backup isn't open for this account yet.")
 			return
@@ -628,6 +666,24 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 	default:
 		fail(w, http.StatusNotFound, "not found")
 	}
+}
+
+func (f *Fake) suspendedMessage() string {
+	return "This lab's Roostack Cloud account is suspended: " + f.SuspendedFor + ". Its Owner can see why at roost.ac."
+}
+
+// backupsAllow says whether storage keys for purpose (or restore access,
+// cloudapi.StorageRestore) are given, as Cloud gives them: all
+// of them unless the account is suspended, and then as its suspension
+// chooses (f.mu held).
+func (f *Fake) backupsAllow(purpose string) bool {
+	switch {
+	case f.SuspendedFor == "" || f.SuspendedBackups == BackupsAll:
+		return true
+	case f.SuspendedBackups == BackupsRestore:
+		return purpose == cloudapi.StorageRestore
+	}
+	return false
 }
 
 // account finds the claimed or kept name an acme-dns account belongs to
@@ -868,6 +924,16 @@ func (f *Fake) restore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ids := labsOf(pub)
+	// While the account is suspended (the fake's one account), as Cloud:
+	// access as far as the suspension allows restores, and no relinking.
+	switch {
+	case f.SuspendedFor != "" && purpose == cloudapi.ProveRelink:
+		fail(w, http.StatusLocked, f.suspendedMessage())
+		return
+	case !f.backupsAllow(cloudapi.StorageRestore):
+		fail(w, http.StatusLocked, f.suspendedMessage()+" Its backups are kept, but can't be used while it's suspended.")
+		return
+	}
 	f.Proven = append(f.Proven, purpose)
 	if purpose == cloudapi.ProveAccess {
 		var acc cloudapi.RestoreAccess

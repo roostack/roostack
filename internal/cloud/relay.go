@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // WireGuardAgent is roostack-agent's WireGuard, for the relay's interface
@@ -248,10 +249,8 @@ func (s *Service) SendBans(ctx context.Context, every time.Duration, bans func(c
 			}
 			quiet = errors.Is(err, ErrNoCrowdSec)
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, every) {
 			return
-		case <-time.After(every):
 		}
 	}
 }
@@ -308,10 +307,8 @@ func (s *Service) RelayName() (string, *cloudapi.RelayDomain) {
 // edge-update`) are dialled at once, and the lab applies them.
 func (s *Service) RefreshRelay(ctx context.Context, every time.Duration) {
 	for {
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, every) {
 			return
-		case <-time.After(every):
 		}
 		if err := s.refreshRelay(ctx); err != nil {
 			s.log.Warn("Roostack Cloud: asking how the relay stands", "err", err)

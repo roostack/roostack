@@ -1,12 +1,21 @@
-# Checks every pull request and every push to main: gofmt and go vet
-# (make vet), the whole test suite with restic (so the backup tests run
-# rather than skip), and govulncheck. On Linux, so everything builds;
-# nothing here needs a secret (README.md, "Continuous integration").
-# govulncheck also runs weekly on main, as new vulnerabilities are
-# published in code that hasn't changed.
+# Checks every pull request and every push to main, on Linux, so
+# everything builds; nothing here needs a secret (README.md, "Continuous
+# integration"):
 #
-# Actions are pinned by commit, with the release in a comment: update
-# both together.
+#   vet         gofmt and go vet (make vet), and staticcheck
+#   test        the whole test suite with restic (so the backup tests run
+#               rather than skip), the package editor's JavaScript tests,
+#               and the public help's password gate's
+#   help        the help site's strict build (make help), so a broken link
+#               fails a pull request, not only a release
+#   generated   the files Python generates are up to date
+#   lint        shellcheck on every script, and actionlint on the workflows
+#   govulncheck also weekly on main, as new vulnerabilities are published
+#               in code that hasn't changed
+#
+# The tools' versions are in .github/versions.env, which each job reads
+# first. Actions are pinned by commit, with the release in a comment:
+# update both together (Dependabot proposes both, .github/dependabot.yml).
 name: CI
 
 on:
@@ -24,19 +33,6 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # The Go CI builds and tests with. go.mod names only the oldest Go
-  # Roostack supports (1.26); this is the one Cloud pins, the first with
-  # fixes for the standard library's published vulnerabilities (Cloud's
-  # docs/REVIEW-2026-10-16.md), so govulncheck's findings are about it.
-  GO_VERSION: "1.27.2"
-  # Debian 13's restic (docs/ASSUMPTIONS.md L9), from restic's release,
-  # checked against the SHA-256 in its SHA256SUMS.
-  RESTIC_VERSION: "0.18.0"
-  RESTIC_SHA256: 98f6dd8bf5b59058d04bfd8dab58e196cc2a680666ccee90275a3b722374438e
-  GOVULNCHECK_VERSION: v1.9.0
-  ACTIONLINT_VERSION: v1.7.12
-
 jobs:
   vet:
     if: github.event_name != 'schedule'
@@ -45,11 +41,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Versions
+        run: grep -E '^[A-Z0-9_]+=' .github/versions.env >> "$GITHUB_ENV"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: gofmt and go vet
         run: make vet
+      # The default checks less ST1005 (staticcheck.conf).
+      - name: staticcheck
+        run: go run "honnef.co/go/tools/cmd/staticcheck@$STATICCHECK_VERSION" ./...
 
   test:
     if: github.event_name != 'schedule'
@@ -58,6 +59,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Versions
+        run: grep -E '^[A-Z0-9_]+=' .github/versions.env >> "$GITHUB_ENV"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -75,9 +78,108 @@ jobs:
       - name: go test
         run: go test ./...
       # The package editor's checks against Go's, and its import (SPEC.md
-      # §8.3.7), with the runner image's own Node (20 or later).
-      - name: node --test (the package editor)
-        run: node --version && make editor-test
+      # §8.3.7), and the public help's password gate (help/worker), with the
+      # runner image's own Node (20 or later).
+      - name: node --test (the package editor, the help's gate)
+        run: node --version && make editor-test gate-test
+
+  # The help site as a release builds it: Zensical exactly as help/uv.lock
+  # pins it (refusing a lock that's out of date), strict, so a broken link
+  # or a missing page fails.
+  help:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    env:
+      UV_LOCKED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Versions
+        run: grep -E '^[A-Z0-9_]+=' .github/versions.env >> "$GITHUB_ENV"
+      - name: Get uv
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/uv.tar.gz" \
+            "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$UV_SHA256  $RUNNER_TEMP/uv.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/uv.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/uv-x86_64-unknown-linux-gnu" >> "$GITHUB_PATH"
+      # make help only warns without uv; here it must build.
+      - name: make help
+        run: uv --version && make help
+
+  # The files Python generates (CONTRIBUTING.md, "Regenerating files"),
+  # made again and compared with what's committed. The ones Go generates
+  # fail go test when they're out of date. The error scenes' script runs
+  # gofmt; the brand's needs rsvg-convert for the PNG and ICO files
+  # (Ubuntu 24.04's 2.58 writes them byte for byte as Homebrew's does).
+  generated:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Versions
+        run: grep -E '^[A-Z0-9_]+=' .github/versions.env >> "$GITHUB_ENV"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+      - name: Get rsvg-convert
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends librsvg2-bin
+          rsvg-convert --version
+      - name: Generate them again
+        run: |
+          python3 --version
+          python3 assets/errors/generate.py
+          python3 assets/brand/generate.py
+      - name: Nothing changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            git diff --stat
+            echo "::error::A generated file is out of date: run the scripts above and commit what they change (CONTRIBUTING.md, \"Regenerating files\")"
+            exit 1
+          fi
+
+  # Every shell script (by name or by its #! line) with a pinned
+  # shellcheck, then the workflows with actionlint, which checks the shell
+  # in them with the same shellcheck.
+  lint:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Versions
+        run: grep -E '^[A-Z0-9_]+=' .github/versions.env >> "$GITHUB_ENV"
+      - name: Get shellcheck
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/shellcheck.tar.xz" \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          echo "$SHELLCHECK_SHA256  $RUNNER_TEMP/shellcheck.tar.xz" | sha256sum -c -
+          tar -C "$RUNNER_TEMP" -xJf "$RUNNER_TEMP/shellcheck.tar.xz"
+          echo "$RUNNER_TEMP/shellcheck-v${SHELLCHECK_VERSION}" >> "$GITHUB_PATH"
+      - name: shellcheck
+        run: |
+          shellcheck --version
+          scripts=()
+          while IFS= read -r -d '' f; do
+            if [[ $f == *.sh ]] || head -n1 "$f" | grep -qE '^#!.*[/ ](ba|da)?sh( |$)'; then
+              scripts+=("$f")
+            fi
+          done < <(git ls-files -z)
+          echo "${#scripts[@]} scripts"
+          shellcheck "${scripts[@]}"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: actionlint
+        run: go run "github.com/rhysd/actionlint/cmd/actionlint@$ACTIONLINT_VERSION"
 
   govulncheck:
     runs-on: ubuntu-24.04
@@ -85,24 +187,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Versions
+        run: grep -E '^[A-Z0-9_]+=' .github/versions.env >> "$GITHUB_ENV"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       # Fails only on a vulnerability the code can reach.
       - name: govulncheck
         run: go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" ./...
-
-  # The workflows themselves (and the shell in them, with the runner's
-  # shellcheck).
-  actionlint:
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: actionlint
-        run: go run "github.com/rhysd/actionlint/cmd/actionlint@$ACTIONLINT_VERSION"

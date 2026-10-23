@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/mail"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
 
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // People's single sign-on parts (SPEC.md §5.2; docs/mockups/sso): each
@@ -67,10 +68,8 @@ func (s *Server) addPeopleSSO(ctx context.Context, data map[string]any) {
 			continue
 		}
 		t := ssoServiceTick{Name: c.ID, Title: c.Title, Everyone: !a.Chosen}
-		if s.Manager != nil {
-			if p, err := s.Manager.ServicePackage(c.ID); err == nil && p.About.Icon != "" {
-				t.Logo = "/install/" + p.Name + "/icon.png"
-			}
+		if p, err := s.Manager.ServicePackage(c.ID); err == nil && p.About.Icon != "" {
+			t.Logo = "/install/" + p.Name + "/icon.png"
 		}
 		ticks = append(ticks, t)
 		titles[c.ID] = c.Title
@@ -91,9 +90,9 @@ func (s *Server) addPeopleSSO(ctx context.Context, data map[string]any) {
 		}
 		switch {
 		case len(names) > 0 && slices.ContainsFunc(ticks, func(t ssoServiceTick) bool { return t.Everyone }):
-			v.ServiceTitles = joinWords(names) + ", and the services everyone can use"
+			v.ServiceTitles = words.And(names) + ", and the services everyone can use"
 		case len(names) > 0:
-			v.ServiceTitles = joinWords(names)
+			v.ServiceTitles = words.And(names)
 		case len(ticks) > 0:
 			v.ServiceTitles = "the services everyone can use"
 		}
@@ -104,17 +103,6 @@ func (s *Server) addPeopleSSO(ctx context.Context, data map[string]any) {
 	}
 	data["Groups"] = views
 	data["UserGroups"] = byUser
-}
-
-// joinWords is "a", "a and b", "a, b and c".
-func joinWords(w []string) string {
-	switch len(w) {
-	case 0:
-		return ""
-	case 1:
-		return w[0]
-	}
-	return strings.Join(w[:len(w)-1], ", ") + " and " + w[len(w)-1]
 }
 
 // formIDs are a form's ticked IDs.
@@ -133,7 +121,7 @@ func formIDs(r *http.Request, key string) []int64 {
 func groupName(r *http.Request) (string, error) {
 	name := strings.Join(strings.Fields(r.FormValue("name")), " ")
 	if name == "" || len(name) > 60 || strings.ContainsAny(name, "<>\"") {
-		return "", errors.New("Give the group a name of up to 60 characters, such as Family.")
+		return "", usererr.New("Give the group a name of up to 60 characters, such as Family.")
 	}
 	return name, nil
 }
@@ -149,14 +137,14 @@ func (s *Server) groupAddSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if errors.Is(err, store.ErrGroupExists) {
-		err = errors.New("There's already a group called " + name + ".")
+		err = usererr.New("There's already a group called %s.", name)
 	}
 	s.groupError(w, r, err)
 }
 
 func (s *Server) groupError(w http.ResponseWriter, r *http.Request, err error) {
-	if strings.HasSuffix(err.Error(), ".") && !strings.Contains(err.Error(), ": ") {
-		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"GroupError": err.Error()})
+	if msg, ok := usererr.Message(err); ok {
+		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"GroupError": msg})
 		return
 	}
 	s.serverError(w, err)
@@ -196,7 +184,7 @@ func (s *Server) groupSaveSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if name != g.Name {
 		if err := s.Store.RenameGroup(ctx, g.ID, name); errors.Is(err, store.ErrGroupExists) {
-			s.groupError(w, r, errors.New("There's already a group called "+name+"."))
+			s.groupError(w, r, usererr.New("There's already a group called %s.", name))
 			return
 		} else if err != nil {
 			s.serverError(w, err)
@@ -273,8 +261,8 @@ func (s *Server) userDetailsSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if email != "" {
-		if a, err := mail.ParseAddress(email); err != nil || a.Address != email {
-			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": email + " isn't an email address.", "OpenPerson": u.ID})
+		if msg := emailProblem(email); msg != "" {
+			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": msg, "OpenPerson": u.ID})
 			return
 		}
 	}
@@ -308,8 +296,8 @@ func (s *Server) lookSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.saveLook(r); err != nil {
-		if strings.HasSuffix(err.Error(), ".") && !strings.Contains(err.Error(), ": ") {
-			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"LookError": err.Error()})
+		if msg, ok := usererr.Message(err); ok {
+			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"LookError": msg})
 			return
 		}
 		s.serverError(w, err)

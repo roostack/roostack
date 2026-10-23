@@ -29,8 +29,20 @@ import (
 )
 
 // Node is a server in the lab, as the controller sees it (SPEC.md §10.3).
-// Local runs on this server; a remote implementation will speak the same
-// operations to other servers over Roostack's network.
+// Local runs on this server; Remote speaks the same operations to other
+// servers over Roostack's network.
+//
+// Each capability a server may not have (Backups, Mover, Photos...) is a
+// method that returns nil when it doesn't; callers check for nil, and
+// Capability also covers a server that is itself nil (one that left the
+// lab). Remote's Backups, Restores, Updates, Settings and Imports look at
+// the server's cached status (WireStatus), so they're nil while it
+// doesn't answer; its other capabilities are always there, and the server
+// answers "not found" to one it lacks. Photos isn't on the lab API yet,
+// so Remote's is nil. Local's Photos is a type of its own (localPhotos),
+// as Remote's capabilities are, and so is its Imports (localImports); its
+// others return the Local itself, so a type that embeds Local and
+// overrides a capability's methods overrides its capability method too.
 type Node interface {
 	Identity() nodeid.Identity
 	// Apply hands the node its latest assignment; the node works towards
@@ -63,6 +75,34 @@ type Node interface {
 	// Imports is bringing data into its services (import.go); nil when
 	// it can't.
 	Imports() Imports
+	// Mover moves services' data to and from it (move.go); Updater
+	// updates its services (update.go).
+	Mover() Mover
+	Updater() Updater
+	// Disks, Memory, LeftData and History are what the controller reads
+	// about it (disk.go, memory.go, leftdata.go, history.go).
+	Disks() Disks
+	Memory() Memory
+	LeftData() LeftData
+	History() History
+	// Linked reports its direct links to other servers and GuestHost
+	// keeps other labs' backups (guesthost.go); Processor says what kind
+	// of processor it has (arch.go).
+	Linked() Linked
+	GuestHost() GuestHost
+	Processor() Processor
+	// Photos migrates photos into its Immich (photos.go).
+	Photos() Photos
+}
+
+// Capability is one of n's capabilities, named by a method expression
+// such as node.Node.Mover, or nil when n itself is nil.
+func Capability[T any](n Node, capability func(Node) T) T {
+	if n == nil {
+		var none T
+		return none
+	}
+	return capability(n)
 }
 
 // Assignment is what the controller wants a node to run.
@@ -115,13 +155,6 @@ type Storage struct {
 
 // ErrNotFound means no such service or action on this node.
 var ErrNotFound = errors.New("not found")
-
-// FormError is a problem the user can fix in a form.
-type FormError struct{ Msg string }
-
-func (e *FormError) Error() string { return e.Msg }
-
-func formErrorf(format string, args ...any) error { return &FormError{fmt.Sprintf(format, args...)} }
 
 // ApplyStatus is shown on the dashboard.
 type ApplyStatus struct {
@@ -225,8 +258,10 @@ type Local struct {
 	hooksCancel map[string]context.CancelCauseFunc
 	hooksDone   chan struct{}
 
-	// followingBuild: a Caddy image build is being shown (build.go).
+	// followingBuild: a Caddy image build is being shown (build.go), and
+	// buildPoll how often its log is read (zero: build.go's buildPoll).
 	followingBuild bool
+	buildPoll      time.Duration
 	// installs are new services being installed, step by step (install.go);
 	// installsLoaded, once they've been read from State.
 	installs       map[string]*InstallProgress
@@ -238,10 +273,30 @@ type Local struct {
 	// libWatch is what the watch of libraries at their own paths saw last
 	// (libwatch.go).
 	libWatch libraryWatch
-	// imp is bringing data into services (import.go).
-	imp imports
-	// pho is migrating photos into Immich (photos.go).
-	pho photos
+	// imp is what bringing data into services shares (import.go).
+	imp importRuns
+	// pho is what migrating photos into Immich shares (photos.go).
+	pho photoRuns
+}
+
+// services is a copy of the services this server runs.
+func (n *Local) services() []state.Service {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return slices.Clone(n.assignment.Services)
+}
+
+// liveOutput is what runs of a service now: all of it, or only its
+// network and databases while it waits for its data, is stopped by
+// Roostack or is held after a restore that didn't finish (generate.Stop),
+// as the controller's assignment has it. Its app's units don't exist
+// then, so they can't be stopped or started.
+func (n *Local) liveOutput(service string) (*generate.Output, error) {
+	s, ok := n.service(service)
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return state.Output(n.currentLab(), s)
 }
 
 // Identity is this server's identity.
@@ -257,8 +312,8 @@ func (n *Local) Apply(a Assignment) {
 	if !n.imp.resumed && n.State != nil {
 		n.imp.resumed = true
 		defer func() {
-			go n.resumeImports(context.Background())
-			go n.resumePhotos(context.Background())
+			go n.imports().resumeImports(context.Background())
+			go n.photos().resumePhotos(context.Background())
 		}()
 	}
 	n.imp.mu.Unlock()
@@ -467,7 +522,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	if a.Links != nil && n.Links != nil {
 		act.Step("Updating direct links to other servers")
 		for _, p := range a.Links.Peers {
-			to := "waits for it to connect"
+			to := "(that server will connect to this one)"
 			if p.Endpoint != "" {
 				to = "at " + p.Endpoint
 			}

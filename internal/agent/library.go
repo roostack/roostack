@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Media libraries (SPEC.md §8.1, "Media libraries"): folders of media
@@ -30,7 +31,7 @@ import (
 // The roostack user asks for these, so the agent holds the line on what a
 // library can show it: mount points are under LibraryRoot, which is root's
 // (the roostack user could swap a folder in /srv/roostack for a symlink);
-// a folder on the server must be under LibraryFolderRoots and outside
+// a folder on the server must be under FolderRoots and outside
 // Roostack's own folders; a path may hold no symlinks; and "read as its
 // owner" (an idmapped mount, docs/ASSUMPTIONS.md M2) only maps a regular
 // user's files, on a drive that isn't the system's.
@@ -47,11 +48,10 @@ const LibraryRoot = config.LibraryRoot
 const LibraryViews = config.LibraryViews
 
 // serviceName is a service's ID (instance names), for its view folder.
+// It's deliberately looser than instance.ValidName, which the agent
+// doesn't import: it accepts what any version of roostack might send,
+// and only guards against path tricks (no slash, no dot, no "..").
 var serviceName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
-
-// LibraryFolderRoots are where a library can be a folder already on the
-// server (the agent can't see /home: its sandbox hides it).
-var LibraryFolderRoots = []string{"/mnt", "/media", "/srv"}
 
 // libraryName is a library's name on disk and in services.
 var libraryName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
@@ -157,9 +157,6 @@ func (h LinuxHost) MountLibrary(l Library) error {
 	if h.UID == 0 {
 		return errors.New("the roostack user isn't known")
 	}
-	if !ValidLibraryName(l.Name) {
-		return fmt.Errorf("%q can't name a library: lower-case letters, digits and -", printable(l.Name))
-	}
 	return h.mountAt(l, librarySpot(l.Name))
 }
 
@@ -168,7 +165,7 @@ func (h LinuxHost) MountLibrary(l Library) error {
 // (import.go). A spot has one line in fstab, under one of its tags.
 type mountSpot struct {
 	target              string
-	folderTag, shareTag string
+	folderTag, shareTag tag
 	// login is a share's login file.
 	login string
 }
@@ -195,17 +192,17 @@ func (h LinuxHost) mountAt(l Library, spot mountSpot) error {
 	var idmap string
 	if l.AsOwner != nil {
 		if l.Drive == "" {
-			return errors.New("only a library on a drive can be read as its owner")
+			return refuse("only a library on a drive can be read as its owner")
 		}
 		if !regularUser(l.AsOwner.UID, l.AsOwner.GID) {
-			return fmt.Errorf("files of user %d can't be read as Roostack's: only a regular user's", l.AsOwner.UID)
+			return refuse("files of user %d can't be read as Roostack's: only a regular user's", l.AsOwner.UID)
 		}
 		d, err := h.driveByUUID(l.Drive)
 		if err != nil {
 			return err
 		}
 		if slices.Contains(foreignFS, d.FSType) {
-			return errors.New("this drive's files are Roostack's already: it has no owners to map")
+			return refuse("this drive's files are Roostack's already: it has no owners to map")
 		}
 		idmap = fmt.Sprintf("u:%d:%d:1 g:%d:%d:1", l.AsOwner.UID, h.UID, l.AsOwner.GID, h.GID)
 	}
@@ -243,9 +240,6 @@ func (h LinuxHost) mountAt(l Library, spot mountSpot) error {
 // UnmountLibrary unmounts a library and forgets it; a drive Roostack
 // mounted for media goes too once no library uses it.
 func (h LinuxHost) UnmountLibrary(name string) error {
-	if !ValidLibraryName(name) {
-		return fmt.Errorf("%q isn't a library's name", printable(name))
-	}
 	target := filepath.Join(LibraryRoot, name)
 	unit, err := mountUnit(target)
 	if err != nil {
@@ -350,17 +344,17 @@ func (h LinuxHost) libraryBase(l Library, browse bool) (base, sub string, err er
 			return "", "", err
 		}
 		if d.Kind == "system" || d.Kind == "network" {
-			return "", "", errors.New("pick a USB drive or second disk, or a folder on the server")
+			return "", "", refuse("pick a USB drive or second disk, or a folder on the server")
 		}
 		if !d.Usable {
-			return "", "", errors.New("that drive has no filesystem Roostack can read")
+			return "", "", refuse("that drive has no filesystem Roostack can read")
 		}
 		data, err := readFstab()
 		if err != nil {
 			return "", "", err
 		}
 		if backupDrive(data, d.UUID) {
-			return "", "", errors.New("that's a backup drive: keep media on another drive")
+			return "", "", refuse("that's a backup drive: keep media on another drive")
 		}
 		// Where it's mounted: its fstab line if it has one (Roostack's
 		// media mount, or the server's own), else where it is now, but not
@@ -388,14 +382,14 @@ func (h LinuxHost) libraryBase(l Library, browse bool) (base, sub string, err er
 		}
 		return dir, "", nil
 	}
-	return "", "", errors.New("a library is a folder on a drive, or a folder on the server")
+	return "", "", refuse("a library is a folder on a drive, or a folder on the server")
 }
 
 // ownFolder says whether a folder on the server is, or is in, one of
 // Roostack's own (its data, the libraries' mount points, its drives').
 func ownFolder(p string) bool {
 	for _, own := range []string{"/srv/roostack", LibraryRoot, "/mnt/roostack-"} {
-		if p == own || strings.HasPrefix(p, own+"/") || (strings.HasSuffix(own, "-") && strings.HasPrefix(p, own)) {
+		if fsutil.Within(p, own) || (strings.HasSuffix(own, "-") && strings.HasPrefix(p, own)) {
 			return true
 		}
 	}
@@ -405,29 +399,29 @@ func ownFolder(p string) bool {
 // driveByUUID finds a connected drive by its filesystem's UUID.
 func (h LinuxHost) driveByUUID(uuid string) (Drive, error) {
 	if !ValidUUID(uuid) {
-		return Drive{}, fmt.Errorf("%q isn't a filesystem UUID", printable(uuid))
+		return Drive{}, refuse("%q isn't a filesystem UUID", printable(uuid))
 	}
 	return h.drive("uuid:" + uuid)
 }
 
 // libraryFolder checks a folder on the server can be a library: an
-// existing folder under LibraryFolderRoots, outside Roostack's own folders
+// existing folder under FolderRoots, outside Roostack's own folders
 // and other libraries, with no symlinks on the way.
 func libraryFolder(p string) (string, error) {
 	p = filepath.Clean(p)
-	if !filepath.IsAbs(p) || rootOf(p, LibraryFolderRoots) == "" {
-		return "", fmt.Errorf("pick a folder under %s", strings.Join(LibraryFolderRoots, ", "))
+	if !filepath.IsAbs(p) || rootOf(p, FolderRoots) == "" {
+		return "", refuse("pick a folder under %s", strings.Join(FolderRoots, ", "))
 	}
 	if ownFolder(p) {
-		return "", errors.New("that's one of Roostack's own folders")
+		return "", refuse("that's one of Roostack's own folders")
 	}
 	if real, err := filepath.EvalSymlinks(p); err != nil {
 		return "", err
 	} else if real != p {
-		return "", errors.New("pick the folder itself, not a link to it")
+		return "", refuse("pick the folder itself, not a link to it")
 	}
 	if fi, err := os.Stat(p); err != nil || !fi.IsDir() {
-		return "", fmt.Errorf("%s isn't a folder", p)
+		return "", refuse("%s isn't a folder", p)
 	}
 	return p, nil
 }
@@ -449,15 +443,15 @@ func safeSub(base, sub string) (string, error) {
 	if sub != "" {
 		for _, part := range strings.Split(sub, "/") {
 			if part == "" || part == "." || part == ".." {
-				return "", fmt.Errorf("%q isn't a folder on the drive", printable(sub))
+				return "", refuse("%q isn't a folder on the drive", printable(sub))
 			}
 			dir = filepath.Join(dir, part)
 			fi, err := os.Lstat(dir)
 			if err != nil {
-				return "", fmt.Errorf("%q isn't on the drive (any more?)", printable(sub))
+				return "", refuse("%q isn't on the drive (any more?)", printable(sub))
 			}
 			if !fi.IsDir() {
-				return "", fmt.Errorf("%q isn't a folder (a link, or a file)", printable(sub))
+				return "", refuse("%q isn't a folder (a link, or a file)", printable(sub))
 			}
 		}
 	}
@@ -615,7 +609,7 @@ const lookPrefix = "/run/roostack-look-"
 // transient automount, which systemd unmounts once it's idle a minute.
 func browseMount(d Drive) (string, error) {
 	if !ValidUUID(d.UUID) {
-		return "", fmt.Errorf("the drive's filesystem has an odd UUID (%q)", printable(d.UUID))
+		return "", refuse("the drive's filesystem has an odd UUID (%q)", printable(d.UUID))
 	}
 	mp := lookPrefix + strings.ReplaceAll(d.UUID, "-", "")[:8]
 	if _, err := os.Stat(mp); err == nil {
@@ -635,7 +629,7 @@ func browseMount(d Drive) (string, error) {
 // its UUID (nofail, automounted, as backup drives).
 func (h LinuxHost) mountMediaDrive(d Drive) (string, error) {
 	if !ValidUUID(d.UUID) {
-		return "", fmt.Errorf("the drive's filesystem has an odd UUID (%q)", printable(d.UUID))
+		return "", refuse("the drive's filesystem has an odd UUID (%q)", printable(d.UUID))
 	}
 	var mp string
 	known := false
@@ -699,8 +693,9 @@ func fstabEscape(s string) string {
 	return strings.NewReplacer(`\`, `\134`, " ", `\040`, "\t", `\011`).Replace(s)
 }
 
-// fstabUnescape reads an escaped fstab field.
-func fstabUnescape(s string) string {
+// FstabUnescape reads an escaped fstab or mount table field (spaces as
+// \040).
+func FstabUnescape(s string) string {
 	return strings.NewReplacer(`\040`, " ", `\011`, "\t", `\134`, `\`).Replace(s)
 }
 
@@ -710,76 +705,49 @@ func fstabUnescape(s string) string {
 func checkedFstabLine(fields []string) (string, error) {
 	for _, f := range fields {
 		if f == "" || strings.ContainsFunc(f, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) || r == '#' }) {
-			return "", fmt.Errorf("can't add %q to /etc/fstab", printable(f))
+			return "", refuse("can't add %q to /etc/fstab", printable(f))
 		}
 	}
 	return strings.Join(fields, " "), nil
 }
 
-// Comments marking the fstab lines Roostack adds for media.
-func libraryTag(name string) string { return "# Added by Roostack: media library " + name }
-func mediaDriveTag(mp, label string) string {
-	return "# Added by Roostack: a media drive (" + printable(label) + ") at " + mp
-}
-
 // backupDrive says whether fstab has the UUID as one of Roostack's backup
 // drives.
 func backupDrive(tab, uuid string) bool {
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		if f := strings.Fields(l); len(f) >= 2 && f[0] == "UUID="+uuid && i > 0 &&
-			strings.HasPrefix(lines[i-1], "# Added by Roostack: a backup drive") {
+	for _, b := range fstabBlocks(tab) {
+		if strings.HasPrefix(string(b.tag), backupDriveWords) && len(b.fields) >= 2 && b.fields[0] == "UUID="+uuid {
 			return true
 		}
 	}
 	return false
 }
 
-// withBlock appends a tagged line to fstab.
-func withBlock(tab, tag, line string) string {
-	if tab != "" && !strings.HasSuffix(tab, "\n") {
-		tab += "\n"
-	}
-	return tab + tag + "\n" + line + "\n"
-}
-
-// removeBlock removes a tag and the line after it.
-func removeBlock(tab, tag string) string {
-	lines := strings.Split(tab, "\n")
-	var out []string
-	for i := 0; i < len(lines); i++ {
-		if lines[i] == tag {
-			i++ // and its line
-			continue
-		}
-		out = append(out, lines[i])
-	}
-	return strings.Join(out, "\n")
-}
-
 // mediaDriveMounts are the mount points of the media drives in fstab.
 func mediaDriveMounts(tab string) []string {
 	var mps []string
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		if strings.HasPrefix(l, "# Added by Roostack: a media drive") && i+1 < len(lines) {
-			if f := strings.Fields(lines[i+1]); len(f) >= 2 {
-				mps = append(mps, fstabUnescape(f[1]))
-			}
-		}
+	for _, b := range mediaDriveBlocks(tab) {
+		mps = append(mps, FstabUnescape(b.fields[1]))
 	}
 	return mps
+}
+
+// mediaDriveBlocks are fstab's media drives.
+func mediaDriveBlocks(tab string) []fstabBlock {
+	var out []fstabBlock
+	for _, b := range fstabBlocks(tab) {
+		if strings.HasPrefix(string(b.tag), mediaDriveWords) && len(b.fields) >= 2 {
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 // mediaDriveDevice is the device (UUID=…) of the media drive mounted at
 // mp, or "" if mp isn't one.
 func mediaDriveDevice(tab, mp string) string {
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		if strings.HasPrefix(l, "# Added by Roostack: a media drive") && i+1 < len(lines) {
-			if f := strings.Fields(lines[i+1]); len(f) >= 2 && fstabUnescape(f[1]) == mp {
-				return f[0]
-			}
+	for _, b := range mediaDriveBlocks(tab) {
+		if FstabUnescape(b.fields[1]) == mp {
+			return b.fields[0]
 		}
 	}
 	return ""
@@ -787,12 +755,9 @@ func mediaDriveDevice(tab, mp string) string {
 
 // removeMediaDrive removes the media drive mounted at mp from fstab.
 func removeMediaDrive(tab, mp string) string {
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		if strings.HasPrefix(l, "# Added by Roostack: a media drive") && i+1 < len(lines) {
-			if f := strings.Fields(lines[i+1]); len(f) >= 2 && fstabUnescape(f[1]) == mp {
-				return removeBlock(tab, l)
-			}
+	for _, b := range mediaDriveBlocks(tab) {
+		if FstabUnescape(b.fields[1]) == mp {
+			return removeBlock(tab, b.tag)
 		}
 	}
 	return tab
@@ -807,23 +772,22 @@ type libraryEntry struct {
 // libraryEntries reads the libraries' lines in fstab.
 func libraryEntries(tab string) []libraryEntry {
 	var out []libraryEntry
-	lines := strings.Split(tab, "\n")
-	for i, l := range lines {
-		name, ok := strings.CutPrefix(l, "# Added by Roostack: media library ")
-		if !ok || i+1 >= len(lines) || strings.HasSuffix(name, " (a share)") {
+	for _, b := range fstabBlocks(tab) {
+		name, ok := strings.CutPrefix(string(b.tag), libraryWords)
+		if !ok || strings.HasSuffix(name, shareWords) {
 			continue // a share's (shareEntries)
 		}
-		f := strings.Fields(lines[i+1])
+		f := b.fields
 		if len(f) < 4 {
 			continue
 		}
-		e := libraryEntry{name: name, source: fstabUnescape(f[0])}
+		e := libraryEntry{name: name, source: FstabUnescape(f[0])}
 		for _, o := range strings.Split(f[3], ",") {
 			if v, ok := strings.CutPrefix(o, "x-systemd.requires-mounts-for="); ok {
-				e.base = fstabUnescape(v)
+				e.base = FstabUnescape(v)
 			}
 			if v, ok := strings.CutPrefix(o, "X-mount.idmap="); ok {
-				e.asOwner = fstabUnescape(v)
+				e.asOwner = FstabUnescape(v)
 			}
 		}
 		out = append(out, e)
@@ -837,7 +801,7 @@ func mountedAt(mountinfo, target string) bool {
 	for _, l := range strings.Split(mountinfo, "\n") {
 		f := strings.Fields(l)
 		// An automount's own entry (autofs) doesn't count: only what it mounted.
-		if len(f) > 4 && fstabUnescape(f[4]) == target && !slices.Contains(f, "autofs") {
+		if len(f) > 4 && FstabUnescape(f[4]) == target && !slices.Contains(f, "autofs") {
 			return true
 		}
 	}
@@ -859,9 +823,6 @@ func mountUnit(path string) (string, error) {
 // libraries at their old paths' shared parent (SPEC.md §8.4): the old
 // folder's name → a library it may read.
 func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[string]string) error {
-	if !serviceName.MatchString(service) {
-		return fmt.Errorf("%q isn't a service's name", printable(service))
-	}
 	var start []string
 	err := editFstab(func(tab string) (string, error) {
 		var err error
@@ -871,20 +832,12 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[st
 		}
 		want := map[string]bool{}
 		for _, l := range libraries {
-			if !ValidLibraryName(l) || !known[l] {
-				return "", fmt.Errorf("there's no library %q on this server", printable(l))
+			if !known[l] {
+				return "", refuse("there's no library %q on this server", l)
 			}
 			want[l] = true
 		}
 		at = maps.Clone(at)
-		for name, l := range at {
-			if !atName.MatchString(name) {
-				return "", fmt.Errorf("%q can't name a folder of libraries", printable(name))
-			}
-			if !want[l] {
-				return "", fmt.Errorf("%s doesn't read the library %q", service, printable(l))
-			}
-		}
 		view := filepath.Join(LibraryViews, service)
 		for _, v := range viewEntries(tab) {
 			if v.service == service && !want[v.library] {
@@ -962,14 +915,14 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[st
 }
 
 // withView adds a view of library l at target to fstab, under tag.
-func withView(tab, tag, l, target string) (string, error) {
+func withView(tab string, t tag, l, target string) (string, error) {
 	lib := filepath.Join(LibraryRoot, l)
 	line, err := checkedFstabLine([]string{lib, target, "none",
 		"bind,ro,nofail,x-systemd.automount,x-systemd.requires-mounts-for=" + lib, "0", "0"})
 	if err != nil {
 		return "", err
 	}
-	return withBlock(tab, tag, line), nil
+	return withBlock(tab, t, line), nil
 }
 
 // RemoveLibraryViews removes a service's view folders and their mounts
@@ -990,37 +943,23 @@ func (h LinuxHost) RemoveLibraryViews(service string) error {
 // (instance.CheckLibraryPath allows the same).
 var atName = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,63}$`)
 
-// atTag marks a library in a service's second view folder, under a name.
-func atTag(service, library, name string) string {
-	return "# Added by Roostack: " + service + " reads media library " + library + " as " + name
-}
-
 // atEntry is a library in a service's second view folder.
 type atEntry struct{ service, library, name string }
 
 // atEntries reads the second view folders' entries in fstab.
 func atEntries(tab string) []atEntry {
 	var out []atEntry
-	for _, l := range strings.Split(tab, "\n") {
-		rest, ok := strings.CutPrefix(l, "# Added by Roostack: ")
+	for _, b := range fstabBlocks(tab) {
+		svc, rest, ok := strings.Cut(string(b.tag), readsWords)
 		if !ok {
 			continue
 		}
-		svc, rest, ok := strings.Cut(rest, " reads media library ")
-		if !ok {
-			continue
-		}
-		lib, name, ok := strings.Cut(rest, " as ")
+		lib, name, ok := strings.Cut(rest, asWords)
 		if ok && serviceName.MatchString(svc) && ValidLibraryName(lib) && atName.MatchString(name) {
 			out = append(out, atEntry{svc, lib, name})
 		}
 	}
 	return out
-}
-
-// viewTag marks a service's view of a library in fstab.
-func viewTag(service, library string) string {
-	return "# Added by Roostack: " + service + " reads media library " + library
 }
 
 // viewEntry is a service's view of a library.
@@ -1029,12 +968,8 @@ type viewEntry struct{ service, library string }
 // viewEntries reads the services' views in fstab.
 func viewEntries(tab string) []viewEntry {
 	var out []viewEntry
-	for _, l := range strings.Split(tab, "\n") {
-		rest, ok := strings.CutPrefix(l, "# Added by Roostack: ")
-		if !ok {
-			continue
-		}
-		svc, lib, ok := strings.Cut(rest, " reads media library ")
+	for _, b := range fstabBlocks(tab) {
+		svc, lib, ok := strings.Cut(string(b.tag), readsWords)
 		if ok && serviceName.MatchString(svc) && ValidLibraryName(lib) {
 			out = append(out, viewEntry{svc, lib})
 		}

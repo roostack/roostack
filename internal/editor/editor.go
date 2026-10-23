@@ -15,6 +15,7 @@ package editor
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html"
 	"io/fs"
@@ -25,7 +26,8 @@ import (
 var static embed.FS
 
 // Files are the editor's files: its scripts, in the order a page loads
-// them (Scripts), its stylesheet (Stylesheet) and its markup (editor.html).
+// them (Scripts), its stylesheet (Stylesheet), its markup (editor.html)
+// and the list of them all (scripts.json).
 func Files() fs.FS {
 	sub, err := fs.Sub(static, "static")
 	if err != nil {
@@ -34,15 +36,42 @@ func Files() fs.FS {
 	return sub
 }
 
-// Scripts are the editor's scripts in the order a page loads them: the
-// YAML library, what Go says about the format, then the editor's own.
-var Scripts = []string{
-	"yaml-2.9.1.min.js", "schema.js", "examples.js", "check.js", "compose.js", "suggest.js", "editor.js",
+// editorManifest is static/scripts.json, the one list of the files a page
+// loads: Roostack's pages, the Node tests (test/load.js) and the copy on
+// roostack.cloud (Cloud's tools/sync-editor.sh) all read it, and
+// TestManifest checks it names every script there is.
+type editorManifest struct {
+	// Scripts are the editor's scripts in the order a page loads them:
+	// the YAML library, what Go says about the format, then the editor's
+	// own, editor.js (the page itself) last.
+	Scripts []string `json:"scripts"`
+	// Stylesheet is the editor's own styles, from the design system's
+	// purpose tokens (tokens.css, which the page loads too).
+	Stylesheet string `json:"stylesheet"`
+	// Markup is the editor's markup, which a page puts in its own frame
+	// (Markup).
+	Markup string `json:"markup"`
+	// Vendored are the scripts that aren't Roostack's own (VENDORED.md).
+	Vendored []string `json:"vendored"`
 }
 
-// Stylesheet is the editor's own styles, from the design system's purpose
-// tokens (tokens.css, which the page loads too).
-const Stylesheet = "editor.css"
+var manifest = func() editorManifest {
+	var m editorManifest
+	b, err := fs.ReadFile(Files(), "scripts.json")
+	if err == nil {
+		err = json.Unmarshal(b, &m)
+	}
+	if err != nil {
+		panic("editor: scripts.json: " + err.Error())
+	}
+	return m
+}()
+
+// Scripts and Stylesheet are the manifest's, for a page to load.
+var (
+	Scripts    = manifest.Scripts
+	Stylesheet = manifest.Stylesheet
+)
 
 // Where says where the editor runs, which changes what it offers: inside
 // Roostack it can check a package with the server and add it to the lab.
@@ -70,7 +99,7 @@ type Options struct {
 // Markup returns the editor's markup for a page to put inside its own
 // frame, with the options as data attributes the script reads.
 func Markup(o Options) string {
-	b, err := fs.ReadFile(Files(), "editor.html")
+	b, err := fs.ReadFile(Files(), manifest.Markup)
 	if err != nil {
 		panic(err)
 	}

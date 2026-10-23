@@ -14,6 +14,8 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/testwait"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 type memKV struct {
@@ -70,7 +72,7 @@ func TestInstallHook(t *testing.T) {
 	ctx := context.Background()
 	ex.fail = func(n int) bool { return n == 1 } // not ready at first
 
-	var fe *FormError
+	var fe *usererr.Error
 	short := forgejoRequest()
 	short.Secrets["admin_password"] = "short"
 	if err := m.Install(ctx, "forgejo", short); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "at least 8") {
@@ -120,6 +122,7 @@ func TestInstallHook(t *testing.T) {
 }
 
 func TestInstallHookFailsThenRetry(t *testing.T) {
+	t.Parallel()
 	m, secrets, _, ex := newHookManager(t)
 	ctx := context.Background()
 	failing := true
@@ -149,6 +152,7 @@ func TestInstallHookFailsThenRetry(t *testing.T) {
 // A hook that failed on what was typed runs again with corrected values:
 // new settings, and a new password replacing the one kept.
 func TestRetryInstallWithNewValues(t *testing.T) {
+	t.Parallel()
 	m, secrets, _, ex := newHookManager(t)
 	ctx := context.Background()
 	ex.fail = func(int) bool { return true }
@@ -161,7 +165,7 @@ func TestRetryInstallWithNewValues(t *testing.T) {
 	if got := InstallSettings(m.mustPackage(t, "forgejo")); len(got) != 3 {
 		t.Errorf("install settings = %+v", got)
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.RetryInstallWith(ctx, "forgejo", map[string]string{"admin_username": "", "admin_email": "x@example.com"}, nil); !errors.As(err, &fe) {
 		t.Errorf("an empty username: %v", err)
 	}
@@ -191,7 +195,7 @@ func TestRunAction(t *testing.T) {
 	m.Wait()
 	local(m).WaitHooks()
 
-	var fe *FormError
+	var fe *usererr.Error
 	if _, err := local(m).RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": "mum", "password": "short"}); !errors.As(err, &fe) {
 		t.Errorf("short password: %v", err)
 	}
@@ -231,7 +235,7 @@ func TestUpdateSettingsAndReveal(t *testing.T) {
 	if err != nil || sub != "git" || values["signups_allowed"] != false {
 		t.Fatalf("current = %v %q %v", values, sub, err)
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.UpdateSettings(ctx, "forgejo", SettingsRequest{Subdomain: "vault"}); !errors.As(err, &fe) {
 		t.Errorf("taking vaultwarden's address: %v", err)
 	}
@@ -275,7 +279,7 @@ func (m *Manager) mustPackage(t *testing.T, name string) *pkgspec.Package {
 func TestInstallOverLeftData(t *testing.T) {
 	m, _, kv, ex := newHookManager(t)
 	ctx := context.Background()
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.Install(ctx, "forgejo", InstallRequest{}); !errors.As(err, &fe) {
 		t.Fatalf("no data from before, setup left empty: %v", err)
 	}
@@ -324,17 +328,11 @@ func TestInstallHookStoppedByRemoval(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	for start := time.Now(); ; time.Sleep(time.Millisecond) {
+	testwait.For(t, 5*time.Second, func() bool { // the setup has run
 		ex.mu.Lock()
-		n := len(ex.calls)
-		ex.mu.Unlock()
-		if n > 0 {
-			break
-		}
-		if time.Since(start) > 5*time.Second {
-			t.Fatal("the setup never ran")
-		}
-	}
+		defer ex.mu.Unlock()
+		return len(ex.calls) > 0
+	})
 	if err := m.Remove(ctx, "forgejo"); err != nil {
 		t.Fatal(err)
 	}
@@ -430,6 +428,7 @@ func TestSSOHook(t *testing.T) {
 // A failed sso hook says why on the service's page, and Try again runs it
 // once more.
 func TestSSOHookFailsThenRetry(t *testing.T) {
+	t.Parallel()
 	m, _, _, ex := newHookManager(t)
 	ctx := context.Background()
 	failing := false

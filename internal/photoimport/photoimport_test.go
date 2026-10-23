@@ -139,14 +139,14 @@ func TestScanFolder(t *testing.T) {
 
 func TestCommandGoogle(t *testing.T) {
 	args, err := Command(Run{Kind: KindGoogle, Choices: DefaultChoices(), Server: "http://roostack-immich-server:2283",
-		Source: "/export", Parts: []string{"takeout-1.zip", "takeout-2.zip"}, Log: "/work/run.log", DryRun: true, Tasks: 64})
+		Source: "/export", Parts: []string{"takeout-1.zip", "takeout-2.zip"}, Log: "/work/run.log", Tasks: 64})
 	if err != nil {
 		t.Fatal(err)
 	}
 	line := strings.Join(args, " ")
 	for _, want := range []string{"upload from-google-photos", "--server=http://roostack-immich-server:2283", "--no-ui",
 		"--log-type=JSON", "--log-file=/work/run.log", "--pause-immich-jobs=false", "--on-errors=continue",
-		"--concurrent-tasks=20", "--dry-run", "--include-trashed=false", "--include-partner=false",
+		"--concurrent-tasks=20", "--include-trashed=false", "--include-partner=false",
 		"--include-untitled-albums=false", "--people-tag=true", "--manage-burst=Stack", "--include-unmatched=true",
 		"-- /export/takeout-1.zip /export/takeout-2.zip"} {
 		if !strings.Contains(line, want) {

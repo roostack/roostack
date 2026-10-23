@@ -1,14 +1,12 @@
 package web
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/netip"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -20,166 +18,12 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/dnsrecords"
-	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
-
-type fakeSetup struct {
-	pending bool
-	// noKey: the lab has no recovery key yet (the first backup makes it).
-	noKey       bool
-	drives      []agent.Drive
-	erased      string
-	labName     string
-	restartMode string
-	destination string
-	p           setup.Progress
-	zone        string
-	restarted   bool
-	ssh         string
-	sshLogin    string
-	sshd        agent.SSHStatus
-	policy      string
-	clients     []netip.Addr
-	domainErr   error
-	backupErr   error
-	// network is where the lab is (as saved), uiTunnelOnly its UI choice.
-	network      string
-	uiTunnelOnly bool
-
-	lastProvider string
-	lastValues   map[string]string
-	lastOpts     setup.DomainOptions
-	oldEnded     bool
-	oldFinished  bool
-}
-
-func (f *fakeSetup) Progress(context.Context) (setup.Progress, error) { return f.p, nil }
-func (f *fakeSetup) Done(_ context.Context, step string) error {
-	switch step {
-	case setup.StepTimezone:
-		f.p.TimezoneDone = true
-	case setup.StepSSH:
-		f.p.SSHDone = true
-	default:
-		return fmt.Errorf("unknown step %q", step)
-	}
-	return nil
-}
-
-// fakeSetup is also the server's settings (node.Settings).
-func (f *fakeSetup) Timezones(context.Context) (string, []string, error) {
-	return f.zone, []string{"Australia/Melbourne", "Etc/UTC"}, nil
-}
-func (f *fakeSetup) SSHAccess(context.Context, bool) (node.SSHAccess, error) {
-	return node.SSHAccess{Choice: f.ssh, Login: f.sshLogin, Clients: f.clients, SSHD: f.sshd}, nil
-}
-func (f *fakeSetup) SetSSH(_ context.Context, c node.SSHChange) error {
-	if c.Choice == "off" && len(f.clients) > 0 && !c.Confirmed {
-		return &node.FormError{Msg: "That would disconnect the SSH connection."}
-	}
-	if c.Choice == "off" {
-		c.Login = config.SSHLoginKey
-	}
-	if _, ok := f.sshd.SudoKeyLogin(); c.Login == config.SSHLoginKey && c.Choice != "off" && !f.sshd.KeysOnly && !ok {
-		return &node.FormError{Msg: "Roostack hasn't seen anyone log in with an SSH key."}
-	}
-	f.sshd.KeysOnly = c.Login == config.SSHLoginKey
-	f.sshd.Passwords = !f.sshd.KeysOnly
-	f.ssh, f.sshLogin, f.restarted = c.Choice, c.Login, true
-	return nil
-}
-func (f *fakeSetup) RestartPolicy(context.Context) (string, int, error) {
-	return cmp.Or(f.restartMode, config.RestartAuto), config.Maintenance{}.Hour(), nil
-}
-func (f *fakeSetup) PendingRestart() bool { return f.pending }
-func (f *fakeSetup) BackupDrives(context.Context) ([]agent.Drive, error) {
-	if f.drives != nil {
-		return f.drives, nil
-	}
-	return []agent.Drive{{ID: "system", Kind: "system", Name: "This server's own disk", Usable: true, Free: 30 * units.GB}}, nil
-}
-func (f *fakeSetup) EraseDrive(_ context.Context, disk string) error {
-	f.erased = disk
-	for i, d := range f.drives {
-		if d.Disk == disk {
-			f.drives[i] = agent.Drive{ID: "uuid:new", Kind: d.Kind, Name: "ROOSTACK", Disk: disk, Usable: true, Erasable: true}
-		}
-	}
-	return nil
-}
-func (f *fakeSetup) SetLabName(_ context.Context, name string, restart bool) error {
-	if strings.TrimSpace(name) == "" {
-		return &setup.CheckError{Msg: "Give the lab a name."}
-	}
-	f.labName, f.restarted = name, restart
-	return nil
-}
-func (f *fakeSetup) Network(detect func() string) setup.NetworkChoice {
-	c := setup.NetworkChoice{Saved: f.network, UITunnelOnly: f.uiTunnelOnly}
-	if detect != nil {
-		c.Detected = detect()
-	}
-	return c
-}
-func (f *fakeSetup) SetNetwork(network string, uiTunnelOnly bool) error {
-	if network != config.NetworkHome && network != config.NetworkInternet {
-		return &setup.CheckError{Msg: "Choose where this lab is."}
-	}
-	f.network, f.uiTunnelOnly, f.restarted = network, uiTunnelOnly, true
-	return nil
-}
-func (f *fakeSetup) PromoteBackupCopy(context.Context, string, node.BackupCopy) error { return nil }
-func (f *fakeSetup) SetBackupCopies(context.Context, []node.BackupCopy) error         { return nil }
-func (f *fakeSetup) SetBackupDestination(_ context.Context, d node.BackupDestination) error {
-	f.destination = d.Repository
-	return nil
-}
-func (f *fakeSetup) SetRestartPolicy(_ context.Context, mode string, hour int) error {
-	if hour < 0 || hour > 23 {
-		return &node.FormError{Msg: "Choose an hour between 0 and 23."}
-	}
-	f.policy, f.restarted = fmt.Sprintf("%s %d", mode, hour), true
-	return nil
-}
-func (f *fakeSetup) SetTimezone(_ context.Context, name string) (bool, error) {
-	if name != "Australia/Melbourne" && name != "Etc/UTC" {
-		return false, &node.FormError{Msg: "Choose a time zone from the list."}
-	}
-	changed := name != f.zone
-	f.zone, f.restarted = name, f.restarted || changed
-	return changed, nil
-}
-func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values map[string]string, opts setup.DomainOptions) error {
-	f.lastProvider, f.lastValues, f.lastOpts = provider, values, opts
-	if f.domainErr != nil {
-		return f.domainErr
-	}
-	f.p.DomainDone = true
-	return nil
-}
-func (f *fakeSetup) DomainLater(context.Context) error      { f.p.DomainLater = true; return nil }
-func (f *fakeSetup) EndOldAddress(context.Context) error    { f.oldEnded = true; return nil }
-func (f *fakeSetup) FinishOldAddress(context.Context) error { f.oldFinished = true; return nil }
-func (f *fakeSetup) BackupAdded(_ context.Context, first bool) error {
-	f.noKey = false
-	f.p.BackupDone = true
-	if first {
-		f.p.RecoverySaved = false
-	}
-	return nil
-}
-func (f *fakeSetup) BackupLater(context.Context) error { f.p.BackupLater = true; return nil }
-func (f *fakeSetup) RecoveryKey() (string, error) {
-	if f.noKey {
-		return "", os.ErrNotExist
-	}
-	return "the-recovery-key", nil
-}
-func (f *fakeSetup) ConfirmRecoveryKey(context.Context) error { f.p.RecoverySaved = true; return nil }
 
 func TestWizardFlow(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
@@ -250,7 +94,7 @@ func TestWizardFlow(t *testing.T) {
 		}
 	}
 
-	fs.domainErr = &setup.CheckError{Msg: "Route 53 didn't accept those details."}
+	fs.domainErr = &usererr.Error{Msg: "Route 53 didn't accept those details."}
 	code, body := h.post("/setup/domain", url.Values{"domain": {"home.example.com"}, "email": {"a@b.c"}, "provider": {"route53"},
 		"dns.route53.access_key_id": {"AKIAEXAMPLE"}, "dns.route53.secret_access_key": {"secret-value"},
 		"dns.cloudflare.api_token": {"ignored"}}, h.srv.URL)
@@ -363,36 +207,6 @@ func TestDomainRecordOptions(t *testing.T) {
 	}
 }
 
-type fakeDNS struct {
-	st        dnsrecords.Status
-	records   []dnsrecords.Record
-	managing  []bool
-	takenOver bool
-	forgot    bool
-}
-
-func (f *fakeDNS) Status() dnsrecords.Status                            { return f.st }
-func (f *fakeDNS) Records(context.Context) ([]dnsrecords.Record, error) { return f.records, nil }
-func (f *fakeDNS) SetManaging(on, risk bool) error {
-	if on && f.st.Risky && !risk {
-		return dnsrecords.ErrNeedsRisk
-	}
-	f.managing = append(f.managing, on)
-	return nil
-}
-func (f *fakeDNS) TakeOver(context.Context) error { f.takenOver = true; return nil }
-func (f *fakeDNS) Refresh()                       {}
-
-// Forget forgets what Roostack couldn't delete under old addresses.
-func (f *fakeDNS) Forget(context.Context) error {
-	f.forgot = true
-	if f.st.Old != nil && f.st.Old.Ended {
-		f.st.Old = nil
-	}
-	f.st.Left = nil
-	return nil
-}
-
 func TestDNSCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
@@ -402,7 +216,7 @@ func TestDNSCard(t *testing.T) {
 	if !strings.Contains(body, "Home network access") || !strings.Contains(body, "rebinding protection") || !strings.Contains(body, "DHCP reservation") {
 		t.Error("owner should see the home network card with the problem")
 	}
-	if _, body := h.get("/partials/home"); !strings.Contains(body, "your router blocks their addresses") || !strings.Contains(body, `href="/settings/home-network"`) {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "your router is blocking their addresses") || !strings.Contains(body, `href="/settings/home-network"`) {
 		t.Error("the problem should also be on the home page's attention list, linking to settings")
 	}
 
@@ -447,7 +261,7 @@ func TestDNSControls(t *testing.T) {
 	if !strings.Contains(body, "/dns/take-over") || !strings.Contains(body, "Stop managing") {
 		t.Error("conflict should offer taking over; managed mode should offer stopping")
 	}
-	if !strings.Contains(body, "Stop managing DNS records at Cloudflare? The records stay as they are") ||
+	if !strings.Contains(body, "Stop managing DNS records at Cloudflare? The records will stay as they are") ||
 		!strings.Contains(body, `name="manage" value="off"`) {
 		t.Error("stopping should ask first, saying what changes")
 	}
@@ -457,7 +271,7 @@ func TestDNSControls(t *testing.T) {
 	}
 	fd.st.Syncing = true
 	if _, body := h.get("/settings/home-network"); !strings.Contains(body, `hx-get="/settings/home-network"`) ||
-		!strings.Contains(body, "this page updates by itself") {
+		!strings.Contains(body, "this page will update by itself") {
 		t.Error("while syncing, the page should refresh itself")
 	}
 	fd.st.Syncing = false
@@ -516,7 +330,7 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 func TestTwoFactorWizardStep(t *testing.T) {
 	h := newHarness(t, "")
 	fm := &fakeManager{}
-	h.server.Manager, h.server.Node = fm, fm
+	h.server.Manager, h.server.Guests, h.server.Keys, h.server.Node = fm, fm, fm, fm
 	fs := &fakeSetup{zone: "Etc/UTC"}
 	h.setSetup(fs)
 	ctx := context.Background()
@@ -596,53 +410,6 @@ func TestTimezoneBanner(t *testing.T) {
 	if code, _ := h.post("/setup/timezone", url.Values{"timezone": {"Australia/Melbourne"}}, h.srv.URL); code >= 400 || !fs.restarted {
 		t.Errorf("change zone: %d restarted=%v", code, fs.restarted)
 	}
-}
-
-type fakeUpdates struct {
-	changes   osupdate.HostCheck
-	known     bool
-	last      *osupdate.Result
-	restart   osupdate.RestartStatus
-	submitted int
-	restarted bool
-	busy      bool
-	series    osupdate.Series
-	accepted  string
-}
-
-func (f *fakeUpdates) Series(context.Context) (osupdate.Series, error) {
-	s := f.series
-	if f.accepted != "" {
-		s.Accepted = f.accepted
-	}
-	return s, nil
-}
-func (f *fakeUpdates) AcceptSeries(_ context.Context, series string) error {
-	if series != f.series.Newest {
-		return osupdate.ErrNoSuchSeries
-	}
-	f.accepted = series
-	return nil
-}
-
-func (f *fakeUpdates) Last(context.Context) (*osupdate.Result, error) { return f.last, nil }
-func (f *fakeUpdates) Pending(context.Context) (bool, error)          { return f.submitted > 0, nil }
-func (f *fakeUpdates) Submit(context.Context) error                   { f.submitted++; return nil }
-func (f *fakeUpdates) RestartStatus(context.Context) (osupdate.RestartStatus, error) {
-	return f.restart, nil
-}
-func (f *fakeUpdates) HostChanges(context.Context) (osupdate.HostCheck, error) {
-	c := f.changes
-	c.Known = f.known
-	return c, nil
-}
-func (f *fakeUpdates) AcknowledgeHostChanges(context.Context) error { f.known = true; return nil }
-func (f *fakeUpdates) RestartNow(context.Context) error {
-	if f.busy {
-		return osupdate.ErrBusy{Job: "backup"}
-	}
-	f.restarted = true
-	return nil
 }
 
 func TestUpdatesCard(t *testing.T) {
@@ -731,7 +498,7 @@ func TestRoostackSeries(t *testing.T) {
 	}
 	fu.series.Waiting = "the last backup didn't work"
 	_, body = h.get("/settings/updates")
-	if !strings.Contains(body, "Roostack 0.5 installs with this server's next updates") || !strings.Contains(body, "waiting: the last backup didn&#39;t work.") ||
+	if !strings.Contains(body, "Roostack 0.5 will install with this server's next updates") || !strings.Contains(body, "waiting: the last backup didn&#39;t work.") ||
 		strings.Contains(body, "Update to Roostack") || !strings.Contains(body, "What's new in 0.5") {
 		t.Error("accepted: page wrong")
 	}
@@ -875,7 +642,7 @@ func TestBackupDrivePicker(t *testing.T) {
 	}
 	_, body = h.get("/setup/backup?add=2")
 	for _, want := range []string{`value="uuid:64B1" checked`, "USB drive", "Second disk", "Prepare this disk",
-		`value="disk:/dev/nvme1n1" disabled`, "it helps with mistakes, not a failed disk or ransomware", "sets it up so it's there after a restart"} {
+		`value="disk:/dev/nvme1n1" disabled`, "it helps with mistakes, not a failed disk or ransomware", "will set it up so it's there after a restart"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("picker missing %q", want)
 		}

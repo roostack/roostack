@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -9,7 +10,9 @@ import (
 	"unicode"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // hostname is this server's name as the system knows it: the suggested
@@ -35,20 +38,21 @@ const (
 // setupPassed reports whether this browser entered the setup code lately,
 // or the form carries it.
 func (s *Server) setupPassed(r *http.Request) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.setupToken == "" {
+	s.setupMu.Lock()
+	token := s.setupToken
+	s.setupMu.Unlock()
+	if token == "" {
 		return false
 	}
-	if authkit.TokensEqual(strings.TrimSpace(r.PostFormValue("token")), s.setupToken) {
+	if authkit.TokensEqual(strings.TrimSpace(r.PostFormValue("token")), token) {
 		return true
 	}
 	c, err := r.Cookie(setupCodeCookie)
 	if err != nil {
 		return false
 	}
-	until, ok := s.setupPasses[originOf(r)+authkit.HashToken(c.Value)]
-	return ok && time.Now().Before(until)
+	_, ok := s.setupPasses.get(originOf(r) + authkit.HashToken(c.Value))
+	return ok
 }
 
 // setupCodeSubmit checks the setup code, the first step.
@@ -57,13 +61,13 @@ func (s *Server) setupCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/")
 		return
 	}
-	s.mu.Lock()
+	s.setupMu.Lock()
 	ok := s.setupToken != "" && authkit.TokensEqual(strings.TrimSpace(r.PostFormValue("token")), s.setupToken)
-	s.mu.Unlock()
+	s.setupMu.Unlock()
 	if !ok {
 		time.Sleep(failedLoginDelay)
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "setup", map[string]any{"Error": "That setup code isn't right. Copy it again from what the installer showed, or from /var/lib/roostack/setup-token on the server."})
+		s.render(w, "setup", map[string]any{"Error": "That setup code isn't right. Copy it again from what the installer showed, or from " + s.SetupTokenFile + " on the server."})
 		return
 	}
 	token, err := authkit.NewToken()
@@ -71,16 +75,8 @@ func (s *Server) setupCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	now := time.Now()
-	s.mu.Lock()
-	for k, until := range s.setupPasses {
-		if now.After(until) {
-			delete(s.setupPasses, k)
-		}
-	}
 	// Kept with where it was entered: it works only there (SPEC.md §6.3.2).
-	s.setupPasses[originOf(r)+authkit.HashToken(token)] = now.Add(setupPassFor)
-	s.mu.Unlock()
+	s.setupPasses.put(originOf(r)+authkit.HashToken(token), struct{}{}, time.Now().Add(setupPassFor))
 	http.SetCookie(w, &http.Cookie{Name: setupCodeCookie, Value: token, Path: "/setup", MaxAge: int(setupPassFor.Seconds()),
 		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})
 	redirect(w, r, "/setup")
@@ -122,7 +118,7 @@ func (s *Server) setupJoinSubmit(w http.ResponseWriter, r *http.Request) {
 	c, err := labnet.ParseJoinCode(code)
 	switch {
 	case err != nil:
-		fail(http.StatusBadRequest, capitalize(err.Error())+". Copy it again from your lab's Settings → Servers → Add a server.")
+		fail(http.StatusBadRequest, words.Capitalise(err.Error())+". Copy it again from your lab's Settings → Servers → Add a server.")
 		return
 	case name == "" || len([]rune(name)) > 40 || strings.ContainsFunc(name, unicode.IsControl):
 		fail(http.StatusBadRequest, "Give this server a name of up to 40 characters, such as nas or vps.")
@@ -132,8 +128,38 @@ func (s *Server) setupJoinSubmit(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	addr, err := s.JoinLab(ctx, c, name)
 	if err != nil {
-		fail(http.StatusBadGateway, capitalize(err.Error())+". Nothing was changed here: fix it and try again, or make a new code if this one has expired.")
+		fail(http.StatusBadGateway, words.Capitalise(err.Error())+". Nothing was changed here: fix it and try again, or make a new code if this one has expired.")
 		return
 	}
 	s.render(w, "setup-joined", map[string]any{"Lab": c.LabName, "UI": c.UI, "Endpoint": c.Endpoint, "Addr": addr, "Name": name})
+}
+
+// SetupToken returns the first-run setup code, or "" once an account
+// exists (deleting the code's file, as in a lab restored from its
+// backups). The code is kept at path, readable only by roostack (and
+// root), so it survives restarts until setup is finished.
+func SetupToken(ctx context.Context, users interface {
+	CountUsers(ctx context.Context) (int, error)
+}, path string, log *slog.Logger) (string, error) {
+	n, err := users.CountUsers(ctx)
+	if err != nil || n > 0 {
+		if n > 0 {
+			os.Remove(path)
+		}
+		return "", err
+	}
+	if data, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(data))) > 0 {
+		token := strings.TrimSpace(string(data))
+		log.Info("waiting for first-run setup", "setup_code", token, "file", path)
+		return token, nil
+	}
+	token, err := authkit.NewToken()
+	if err != nil {
+		return "", err
+	}
+	if err := fsutil.WritePrivate(path, []byte(token+"\n")); err != nil {
+		return "", err
+	}
+	log.Info("waiting for first-run setup", "setup_code", token, "file", path)
+	return token, nil
 }

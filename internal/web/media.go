@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Media libraries (SPEC.md §8.1, "Media libraries"): Settings → Media
@@ -19,12 +20,6 @@ import (
 // a folder chosen in the folder picker, its name and readers), and
 // manages each; services' install pages and settings choose the libraries
 // they read.
-
-func init() {
-	templateFuncs["dialogFor"] = dialogFor
-	// join lists strings with a separator, e.g. services reading a library.
-	templateFuncs["join"] = strings.Join
-}
 
 // LibraryManager is the manager's media library operations.
 type LibraryManager interface {
@@ -45,11 +40,7 @@ func (s *Server) mediaPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	servers, err := s.Libraries.MediaLibraries(r.Context())
 	if err != nil {
 		s.serverError(w, err)
@@ -59,10 +50,6 @@ func (s *Server) mediaPage(w http.ResponseWriter, r *http.Request) {
 	data["Several"] = len(servers) > 1
 	s.render(w, "settings-media", withArea(data, "media"))
 }
-
-// mediaCrumb is one step of the folders opened so far ("" Href: the one
-// open now).
-type mediaCrumb struct{ Name, Href string }
 
 // mediaPlace is where a new library would be, so far: a drive and a
 // folder on it, or a folder on the server; with what's there and what the
@@ -102,9 +89,7 @@ type mediaAddView struct {
 	Title             string
 	TitleEdited       bool
 	Error             string
-	// The share form's values, kept when it comes back (never the
-	// password).
-	ShareType, ShareServer, SharePath, ShareUser string
+	shareForm
 	// PhotosFor makes it an additional location for migrating photos into
 	// that Immich (SPEC.md §8.5): the same form, with no services, back to
 	// its page; PhotosTitle is the Immich's title.
@@ -129,6 +114,12 @@ func dialogFor(id, title, back string) addDialog { return addDialog{id, title, b
 
 // mediaAddHref is the add page with a place chosen.
 func mediaAddHref(q url.Values) string { return "/settings/media/add?" + q.Encode() }
+
+// ShareFields are the share's fields, for share-fields.
+func (v mediaAddView) ShareFields() shareFields {
+	return shareFields{shareForm: v.shareForm, ServerName: v.ServerName, Example: "media or /volume1/media", Media: true,
+		Kept: "; Roostack's pages can't show it again. A NAS account that can only read is best."}
+}
 
 // DriveHref chooses a drive (its whole drive), for its radio's refresh.
 func (v mediaAddView) DriveHref(d agent.Drive) string {
@@ -192,7 +183,7 @@ func (s *Server) mediaPlaceAt(ctx context.Context, server string, p mediaPlace) 
 		p.Label, p.Name = p.Folder, path.Base(p.Folder)
 	}
 	list, err := s.Libraries.LibraryFolders(ctx, server, l)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		p.Error = msg
 		return p, nil
 	} else if err != nil {
@@ -210,11 +201,7 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	q := r.Form
 	if q == nil {
 		q = r.URL.Query()
@@ -230,7 +217,7 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 	}
 	posted := r.Method == http.MethodPost
 	v := mediaAddView{Server: sv.ServerID, ServerName: sv.ServerName, Where: q.Get("where"), Error: errMsg,
-		Roots: agent.LibraryFolderRoots}
+		Roots: agent.FolderRoots}
 	if pf := q.Get("photos"); pf != "" {
 		ps, ok := s.photoService(r.Context(), pf)
 		if !ok || ps.Host != sv.ServerID {
@@ -247,7 +234,7 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 	}
 	ctx := r.Context()
 	drives, err := s.Libraries.LibraryDrives(ctx, v.Server)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		v.DrivesError = msg
 	} else if err != nil {
 		s.serverError(w, err)
@@ -289,11 +276,8 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 	for _, rd := range readers {
 		v.Readers = append(v.Readers, mediaReader{Name: rd.Name, Title: rd.Title, Checked: !posted || slices.Contains(q["service"], rd.Name)})
 	}
-	v.ShareType = r.PostFormValue("share_type")
-	if v.ShareType != "nfs" {
-		v.ShareType = "smb"
-	}
-	v.ShareServer, v.SharePath, v.ShareUser = r.PostFormValue("share_server"), r.PostFormValue("share_path"), r.PostFormValue("share_user")
+	v.fillShareFrom(r.PostFormValue)
+	v.shareKind()
 	switch {
 	case posted:
 		v.Title, v.TitleEdited = r.PostFormValue("title"), true
@@ -311,26 +295,6 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 	s.render(w, "settings-media-add", withArea(data, "media"))
 }
 
-// folderPicker is the folder picker (components.html "folder-picker"):
-// the folders in a place, and choosing it.
-type folderPicker struct {
-	Title   string
-	Crumbs  []mediaCrumb
-	Folders []pickerFolder
-	// Label and Counts say what the place is and holds; UseHref chooses
-	// it ("" where nothing can be chosen: the list of places on a server).
-	Label, Counts     string
-	UseHref, UseText  string
-	CancelHref, Error string
-}
-
-// pickerFolder is a folder in the picker, opening it.
-type pickerFolder struct {
-	Name, Href     string
-	Folders, Files int
-	NoCounts       bool
-}
-
 // mediaFoldersPage is the folder picker: in the add page's dialog
 // (app.js shows its #folder-picker), or a page of its own without scripts.
 // Each folder opens a folder below; Use goes back to the add page with it
@@ -340,11 +304,7 @@ func (s *Server) mediaFoldersPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	q := r.URL.Query()
 	sv, ok, err := s.mediaServer(r, q.Get("server"))
 	if err != nil {
@@ -355,12 +315,7 @@ func (s *Server) mediaFoldersPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	server := sv.ServerID
-	back := url.Values{"server": {server}}
-	photos := q.Get("photos")
-	if photos != "" {
-		back.Set("photos", photos)
-	}
+	server, photos := sv.ServerID, q.Get("photos")
 	at := func(set url.Values) string {
 		u := url.Values{"server": {server}}
 		if photos != "" {
@@ -371,71 +326,32 @@ func (s *Server) mediaFoldersPage(w http.ResponseWriter, r *http.Request) {
 		}
 		return "/settings/media/folders?" + u.Encode()
 	}
-	var p folderPicker
-	var l agent.Library
-	var folderHref func(name string) string
-	if drive := q.Get("drive"); drive != "" {
-		name, sub := q.Get("name"), cleanSub(q.Get("sub"))
-		l = agent.Library{Drive: drive, Sub: sub}
-		base := url.Values{"drive": {drive}, "name": {name}}
-		p.Title, p.Label, p.UseText = "Choose a folder on "+name, name, "Use "+name
-		p.Crumbs = []mediaCrumb{{name, at(base)}}
-		if sub != "" {
-			parts := strings.Split(sub, "/")
-			for i, part := range parts {
-				p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(url.Values{"drive": {drive}, "name": {name}, "sub": {strings.Join(parts[:i+1], "/")}})})
+	back := func(pl pickerPlace, use bool) string {
+		u := url.Values{"server": {server}}
+		if photos != "" {
+			u.Set("photos", photos)
+		}
+		if pl.Drive != "" {
+			u.Set("where", "drive")
+			u.Set("drive", pl.Drive)
+			u.Set("name", pl.DriveName)
+			if use {
+				u.Set("sub", pl.Sub)
 			}
-			p.Label, p.UseText = name+" › "+strings.Join(parts, " › "), "Use "+parts[len(parts)-1]
-		}
-		back.Set("where", "drive")
-		back.Set("drive", drive)
-		back.Set("name", name)
-		p.CancelHref = mediaAddHref(back)
-		back.Set("sub", sub)
-		p.UseHref = mediaAddHref(back)
-		folderHref = func(f string) string {
-			return at(url.Values{"drive": {drive}, "name": {name}, "sub": {strings.TrimPrefix(sub+"/"+f, "/")}})
-		}
-	} else {
-		folder := q.Get("folder")
-		back.Set("where", "folder")
-		p.CancelHref = mediaAddHref(back)
-		p.Title = "Choose a folder on " + sv.ServerName
-		p.Crumbs = []mediaCrumb{{sv.ServerName, at(nil)}}
-		if folder == "" {
-			// The places folders can be, to start with.
-			for _, root := range agent.LibraryFolderRoots {
-				p.Folders = append(p.Folders, pickerFolder{Name: root, Href: at(url.Values{"folder": {root}}), NoCounts: true})
+		} else {
+			u.Set("where", "folder")
+			if use {
+				u.Set("folder", pl.Folder)
 			}
-			p.Crumbs[0].Href = ""
-			data["Picker"] = p
-			s.render(w, "settings-media-folders", withArea(data, "media"))
-			return
 		}
-		folder = path.Clean("/" + folder)
-		l = agent.Library{Folder: folder}
-		dir := ""
-		for _, part := range strings.Split(strings.Trim(folder, "/"), "/") {
-			dir += "/" + part
-			p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(url.Values{"folder": {dir}})})
-		}
-		p.Label, p.UseText = folder, "Use "+path.Base(folder)
-		back.Set("folder", folder)
-		p.UseHref = mediaAddHref(back)
-		folderHref = func(f string) string { return at(url.Values{"folder": {path.Join(folder, f)}}) }
+		return mediaAddHref(u)
 	}
-	p.Crumbs[len(p.Crumbs)-1].Href = ""
-	list, err := s.Libraries.LibraryFolders(r.Context(), server, l)
-	if msg, ok := userMessage(err); ok {
-		p.Error, p.UseHref = msg, ""
-	} else if err != nil {
+	p, err := s.pickFolders(r.Context(), server, pickerPlaceOf(q), pickerLinks{at: at, back: back,
+		serverTitle: "Choose a folder on " + sv.ServerName, serverTop: sv.ServerName})
+	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	for _, f := range list.Folders {
-		p.Folders = append(p.Folders, pickerFolder{Name: f.Name, Href: folderHref(f.Name), Folders: f.Folders, Files: f.Files})
-	}
-	p.Counts = folderCounts(len(list.Folders), list.Files)
 	data["Picker"] = p
 	s.render(w, "settings-media-folders", withArea(data, "media"))
 }
@@ -467,7 +383,7 @@ func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if pf := r.FormValue("photos"); pf != "" && s.Photos != nil {
 		err := s.Photos.AddPhotoLocation(r.Context(), pf, req)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderMediaAdd(w, r, msg)
 			return
 		}
@@ -480,7 +396,7 @@ func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := s.Libraries.AddLibrary(r.Context(), req)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderMediaAdd(w, r, msg)
 		return
 	}
@@ -521,11 +437,7 @@ func (s *Server) mediaLibraryPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
+	data := s.pageData(r)
 	readers, err := s.Libraries.LibraryReaders(r.Context(), sv.ServerID)
 	if err != nil {
 		s.serverError(w, err)
@@ -581,7 +493,7 @@ func (s *Server) serviceLibrariesSubmit(w http.ResponseWriter, r *http.Request) 
 	r.ParseForm()
 	name := r.PathValue("name")
 	err := s.Libraries.SetServiceLibraries(r.Context(), name, r.Form["library"], nil)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}

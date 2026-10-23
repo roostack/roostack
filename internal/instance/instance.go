@@ -108,7 +108,7 @@ type Hold struct {
 	// Kept is the data from before, set aside on the server it runs on,
 	// for putting back ("" if there's none). KeptByRestore: the server's
 	// own restore kept it (backup.Restores.PutBack puts it back);
-	// otherwise the controller's (node.Mover.PutBackKeptData).
+	// otherwise the controller's (node.Mover.PutBackKept).
 	Kept          string `yaml:"kept,omitempty"`
 	KeptByRestore bool   `yaml:"kept_by_restore,omitempty"`
 	// MovedFrom is the server a move through a backup came from, when its
@@ -137,6 +137,11 @@ type PortOverride struct {
 	HostPort int    `yaml:"host_port,omitempty"`
 	Exposure string `yaml:"exposure,omitempty"`
 }
+
+// HostOr is the server the service runs on: Host, or controller if Host
+// is empty (a service installed before labs had several servers, until
+// state.AssignHosts sets it).
+func (in *Instance) HostOr(controller string) string { return cmp.Or(in.Host, controller) }
 
 // ID is the service's name: Name, or the package's for its first copy.
 func (in *Instance) ID() string {
@@ -219,7 +224,7 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 		add("package: instance is for %q but package is %q", in.Package, p.Name)
 	}
 	if in.Name != "" && (!ValidName(in.Name) || (in.Name != p.Name && !strings.HasPrefix(in.Name, p.Name+"-"))) {
-		add("name: %q must be %q, or start with %q and go on with lowercase letters, digits and dashes (up to %d in all)",
+		add("name: %q must be %q, or start with %q and go on with lowercase letters, digits, and dashes (up to %d in all)",
 			in.Name, p.Name, p.Name+"-", MaxName)
 	}
 	if in.Version != p.Version {
@@ -244,7 +249,7 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 		}
 	}
 	if !slices.Contains([]string{UpdatesNotify, UpdatesPatch, UpdatesMinor, UpdatesAll}, in.Updates) {
-		add("updates: must be notify, patch, minor or all; got %q", in.Updates)
+		add("updates: must be notify, patch, minor, or all; got %q", in.Updates)
 	}
 	for _, name := range slices.Sorted(maps.Keys(in.Routes)) {
 		r := in.Routes[name]
@@ -348,31 +353,26 @@ func CheckLibraryPath(p *pkgspec.Package, paths map[string]string, l string) err
 		return fmt.Errorf("%q isn't a media library's name", l)
 	}
 	if !libraryPathRe.MatchString(at) || strings.Contains(at+"/", "/../") || strings.Contains(at+"/", "/./") {
-		return errors.New("it must be a folder's full path inside the container, with only letters, digits and - _ .")
+		return errors.New("it must be a folder's full path inside the container, with only letters, digits, and - _ .")
 	}
 	for _, sys := range systemPaths {
-		if within(at, sys) || within(sys, at) {
+		if fsutil.Within(at, sys) || fsutil.Within(sys, at) {
 			return fmt.Errorf("it's one of the container's own folders (%s)", sys)
 		}
 	}
 	for _, cn := range slices.Sorted(maps.Keys(p.Containers)) {
 		for _, m := range p.Containers[cn].Mounts {
-			if within(at, m.Path) || within(m.Path, at) {
+			if fsutil.Within(at, m.Path) || fsutil.Within(m.Path, at) {
 				return fmt.Errorf("it overlaps %s, where %s already has a folder", m.Path, p.Title)
 			}
 		}
 	}
 	for _, other := range slices.Sorted(maps.Keys(paths)) {
-		if other != l && (within(at, paths[other]) || within(paths[other], at)) {
+		if other != l && (fsutil.Within(at, paths[other]) || fsutil.Within(paths[other], at)) {
 			return fmt.Errorf("it overlaps %s, where the library %s is", paths[other], other)
 		}
 	}
 	return nil
-}
-
-// within says whether path p is dir or inside it.
-func within(p, dir string) bool {
-	return p == dir || strings.HasPrefix(p, strings.TrimSuffix(dir, "/")+"/")
 }
 
 // LibraryPlacement is where a service's libraries with paths of their own
@@ -415,7 +415,7 @@ func (in *Instance) PlaceLibraries(p *pkgspec.Package) LibraryPlacement {
 	shared := parents[len(parents)-1] == parent && !slices.Contains(noViewAt, parent)
 	for _, c := range p.Containers {
 		for _, m := range c.Mounts {
-			shared = shared && !within(m.Path, parent)
+			shared = shared && !fsutil.Within(m.Path, parent)
 		}
 	}
 	if shared {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -24,16 +23,19 @@ type MemoryInfo struct {
 // the install summary to compare a new service's needs with (SPEC.md
 // §8.3.4).
 type Memory interface {
-	Memory(ctx context.Context) (MemoryInfo, error)
+	MemoryInfo(ctx context.Context) (MemoryInfo, error)
 }
+
+// Memory is this server, which reads its own memory.
+func (n *Local) Memory() Memory { return n }
 
 var (
 	_ Memory = (*Local)(nil)
 	_ Memory = (*Remote)(nil)
 )
 
-// Memory reads this server's memory.
-func (n *Local) Memory(context.Context) (MemoryInfo, error) {
+// MemoryInfo reads this server's memory.
+func (n *Local) MemoryInfo(context.Context) (MemoryInfo, error) {
 	f, err := os.Open("/proc/meminfo")
 	if err != nil {
 		return MemoryInfo{}, err
@@ -74,11 +76,4 @@ func parseMeminfo(f io.Reader) (MemoryInfo, error) {
 		return MemoryInfo{}, errors.New("meminfo: no MemTotal or MemAvailable")
 	}
 	return m, nil
-}
-
-// Memory asks the server.
-func (r *Remote) Memory(ctx context.Context) (MemoryInfo, error) {
-	var out MemoryInfo
-	err := r.call(ctx, http.MethodGet, "/v1/memory", nil, &out)
-	return out, err
 }

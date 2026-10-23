@@ -14,9 +14,11 @@ import (
 	"context"
 	"log/slog"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -106,6 +108,38 @@ func (s Status) CertDaysLeft(now time.Time) int {
 	return int(s.Last.CertExpires.Sub(now) / (24 * time.Hour))
 }
 
+// DownText says what's wrong with a check that's down, in a sentence.
+func (s Status) DownText() string {
+	switch s.Kind {
+	case KindService:
+		return s.Name + " isn't answering at its address: " + s.Last.Err + "."
+	case KindDomain:
+		return "Devices at home aren't finding this server at the lab's address: " + s.Last.Err
+	}
+	return s.Name + " isn't answering: " + s.Last.Err + "."
+}
+
+// CertWarningText says the certificate isn't being renewed.
+func (s Status) CertWarningText(now time.Time) string {
+	d := s.CertDaysLeft(now)
+	if d < 0 {
+		return "its certificate has expired"
+	}
+	return "its certificate expires in " + DaysText(d) + ": renewing it is failing"
+}
+
+// DaysText is a number of whole days left: "less than a day", "1 day",
+// "12 days".
+func DaysText(d int) string {
+	switch d {
+	case 0:
+		return "less than a day"
+	case 1:
+		return "1 day"
+	}
+	return strconv.Itoa(d) + " days"
+}
+
 // Store keeps results (store.Store).
 type Store interface {
 	AddMonitorResult(ctx context.Context, r store.MonitorResult) error
@@ -179,17 +213,8 @@ func (m *Monitor) Run(ctx context.Context) {
 	if every == 0 {
 		every = time.Minute
 	}
-	t := time.NewTicker(every)
-	defer t.Stop()
 	m.Round(ctx)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			m.Round(ctx)
-		}
-	}
+	sleep.Every(ctx, every, func() { m.Round(ctx) })
 }
 
 // parallel is how many checks run at once.

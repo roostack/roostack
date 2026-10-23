@@ -22,6 +22,7 @@ import (
 
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 type fixture struct {
@@ -39,11 +40,7 @@ const (
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	key, err := LoadKey(filepath.Join(t.TempDir(), "sso", "signing-key.pem"))
 	if err != nil {
 		t.Fatal(err)

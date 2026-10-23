@@ -3,7 +3,6 @@ package backup
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -142,15 +141,6 @@ func (r *Restores) Restore(_ context.Context, name, snapshotID string) error {
 	return nil
 }
 
-// Kept lists the copies restores left behind for a service.
-func (r *Restores) Kept(_ context.Context, name string) ([]KeptCopy, error) {
-	svc, _, err := r.Lookup(name)
-	if err != nil {
-		return nil, err
-	}
-	return KeptCopies(svc)
-}
-
 // PutBack puts one kept copy back (Restorer.PutBack), as a piece of
 // maintenance, in the background.
 func (r *Restores) PutBack(ctx context.Context, name, path string) error {
@@ -158,8 +148,8 @@ func (r *Restores) PutBack(ctx context.Context, name, path string) error {
 	if err != nil {
 		return err
 	}
-	if kept, err := KeptCopies(svc); err != nil || !slices.ContainsFunc(kept, func(k KeptCopy) bool { return k.Path == path }) {
-		return fmt.Errorf("%s is not a copy kept by a restore", path)
+	if _, err := keptInside(svc, path); err != nil {
+		return err
 	}
 	r.mu.Lock()
 	if r.pending {
@@ -187,13 +177,4 @@ func (r *Restores) PutBack(ctx context.Context, name, path string) error {
 		},
 	})
 	return nil
-}
-
-// RemoveKept deletes one kept copy.
-func (r *Restores) RemoveKept(ctx context.Context, name, path string) error {
-	svc, _, err := r.Lookup(name)
-	if err != nil {
-		return err
-	}
-	return r.Restorer.RemoveKept(ctx, svc, path)
 }

@@ -22,6 +22,8 @@ import (
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // healthNode is the controller's own server, whose services' health the
@@ -33,6 +35,10 @@ type healthNode struct {
 	// restarts climb while it's unhealthy, as systemd restarts it.
 	restarts int
 }
+
+// Updater is h itself, so updates use its CheckHealth (Local's would
+// return the Local).
+func (h *healthNode) Updater() node.Updater { return h }
 
 func (h *healthNode) CheckHealth(_ context.Context, service string) (node.Health, error) {
 	in, err := instance.Load(state.InstanceFile(h.m.Lab, service))
@@ -111,13 +117,7 @@ func offerVersion(t *testing.T, m *Manager, name, from, to string, notes ...pkgs
 
 func waitUpdated(t *testing.T, m *Manager, name string) {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
-	for m.Updating(name) != nil {
-		if time.Now().After(deadline) {
-			t.Fatal("the update didn't finish")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 20*time.Second, func() bool { return m.Updating(name) == nil })
 	m.Wait()
 }
 
@@ -127,12 +127,8 @@ func waitUpdated(t *testing.T, m *Manager, name string) {
 func updateSetup(t *testing.T, m *Manager) (*chainBackups, *string) {
 	t.Helper()
 	m.Settings = linkKV{}
-	healthWait, healthStable, healthEvery, statusEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond
-	failedFor = 100 * time.Millisecond
-	t.Cleanup(func() {
-		healthWait, healthStable, healthEvery, statusEvery = 5*time.Minute, time.Minute, 5*time.Second, 2*time.Second
-		failedFor = 30 * time.Second
-	})
+	m.waits.healthWait, m.waits.healthStable, m.waits.healthEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond
+	m.waits.failedFor, m.waits.statusEvery = 100*time.Millisecond, 10*time.Millisecond
 	local := m.Node.(*node.Local)
 	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now,
 		Journal: maintenance.FileJournal{Path: filepath.Join(t.TempDir(), "journal.json")},
@@ -162,6 +158,7 @@ func withVersion(t *testing.T, data []byte, version string) []byte {
 // more than before needs the Owner to accept it, and never updates by
 // itself (SPEC.md §7.1).
 func TestLocalPackageUpdate(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
 	ctx := context.Background()
 	updateSetup(t, m)
@@ -224,15 +221,12 @@ func TestLocalPackageUpdate(t *testing.T) {
 // version and checks it; one that doesn't work goes back, isn't offered
 // automatically again, and the previous package file is still there.
 func TestServiceUpdate(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
 	ctx := context.Background()
 	m.Settings = linkKV{}
-	healthWait, healthStable, healthEvery, statusEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond
-	failedFor = 100 * time.Millisecond
-	t.Cleanup(func() {
-		healthWait, healthStable, healthEvery, statusEvery = 5*time.Minute, time.Minute, 5*time.Second, 2*time.Second
-		failedFor = 30 * time.Second
-	})
+	m.waits.healthWait, m.waits.healthStable, m.waits.healthEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond
+	m.waits.failedFor, m.waits.statusEvery = 100*time.Millisecond, 10*time.Millisecond
 	local := m.Node.(*node.Local)
 	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now,
 		Journal: maintenance.FileJournal{Path: filepath.Join(t.TempDir(), "journal.json")},
@@ -284,11 +278,7 @@ func TestServiceUpdate(t *testing.T) {
 
 	// Backups set up: a manual update backs up first. This version
 	// doesn't work, so it goes back.
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: m.Lab.NodeID, Provider: "local:usb", Repository: "/mnt/usb/backups"})
 	m.BackupStore = st
 	ix = withdrawIndex(t, m, nil)
@@ -347,14 +337,24 @@ func TestServiceUpdate(t *testing.T) {
 	m.SetUpdatePolicy(ctx, "vaultwarden", "notify")
 	m.RegistryChanged()
 	m.Wait()
-	time.Sleep(100 * time.Millisecond)
+	// RegistryChanged decides in its own goroutine, with UpdateStopped:
+	// deciding again here, and waiting for that, shows what it decides
+	// without waiting a while to see that nothing happens.
+	m.UpdateStopped(ctx)
 	if m.Updating("vaultwarden") != nil {
 		t.Fatal("notify only offers it")
 	}
-	m.SetUpdatePolicy(ctx, "vaultwarden", "patch")
+	// Counted before the policy changes, so the update is counted once,
+	// whichever goroutine starts it.
 	runs := backups.runs
+	m.SetUpdatePolicy(ctx, "vaultwarden", "patch")
 	m.RegistryChanged()
-	time.Sleep(100 * time.Millisecond)
+	// Started in the background: wait for it to start (or to have
+	// finished already), then for it to finish.
+	testwait.For(t, 20*time.Second, func() bool {
+		in, _ := instance.Load(state.InstanceFile(m.Lab, "vaultwarden"))
+		return m.Updating("vaultwarden") != nil || in.Version == "1.34.7-roostack.1"
+	})
 	waitUpdated(t, m, "vaultwarden")
 	in, _ = instance.Load(state.InstanceFile(m.Lab, "vaultwarden"))
 	if rec := m.LastUpdate(ctx, "vaultwarden"); in.Version != "1.34.7-roostack.1" || !rec.Automatic || backups.runs != runs+1 {
@@ -362,5 +362,21 @@ func TestServiceUpdate(t *testing.T) {
 	}
 	if w := m.Withdrawals(ctx)["vaultwarden"]; w != nil {
 		t.Errorf("the new version isn't withdrawn: %+v", w)
+	}
+}
+
+// A failed update stays news while its version is on offer; a newer
+// offer replaces it, and with nothing on offer it goes after a week.
+func TestUpdateRecordShown(t *testing.T) {
+	failed := &UpdateRecord{To: "2.1.0-roostack.1", Result: UpdateRolledBack, Finished: time.Now().Add(-30 * 24 * time.Hour)}
+	if !failed.Shown(&Update{To: "2.1.0-roostack.1"}) {
+		t.Error("still on offer: shown")
+	}
+	if failed.Shown(&Update{To: "2.1.1-roostack.1"}) || failed.Shown(nil) {
+		t.Error("replaced, or old with nothing on offer: not shown")
+	}
+	failed.Finished = time.Now()
+	if !failed.Shown(nil) {
+		t.Error("recent with nothing on offer: shown")
 	}
 }

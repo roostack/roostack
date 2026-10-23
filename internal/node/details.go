@@ -14,7 +14,8 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/systemd"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // What a server can tell about its services and itself, so nothing about
@@ -250,7 +251,7 @@ func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 		}
 		out = append(out, b)
 	}
-	sysUnit("Roostack", "roostack.service", "Runs this server's services, backups and updates"+n.versionText())
+	sysUnit("Roostack", "roostack.service", "Runs this server's services, backups, and updates"+n.versionText())
 	sysUnit("Roostack agent", "roostack-agent.service", "Does the few things that need root: firewall, WireGuard, OS updates, restarts")
 	if !n.Lab.IsNode() {
 		b := BuiltIn{Name: "Caddy", Kind: "proxy", Status: "unknown", Detail: "Web addresses and HTTPS certificates for the lab's services"}
@@ -263,17 +264,15 @@ func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 	}
 	if a.Storage != nil {
 		userUnit("Backup store", "store", generate.StorageUnit+".service",
-			plural(len(a.Storage.Users), "server", "servers")+" back up to this server's disk (append-only)")
+			strconv.Itoa(len(a.Storage.Users))+" "+words.Plural(len(a.Storage.Users), "server", "servers")+" back up to this server's disk (append-only)")
 		userUnit("Backup store (controller access)", "store", generate.StorageAdminUnit+".service",
 			"The controller's access, to remove old backups")
 	}
 	for _, g := range a.Guests {
 		userUnit("Store for another lab ("+g.User+")", "store", "roostack-guest-"+g.User+".service",
-			"Up to "+gbText(g.Quota)+" of encrypted backups")
+			"Up to "+units.Bytes(g.Quota)+" of encrypted backups")
 	}
-	for _, l := range n.links(ctx) {
-		out = append(out, l)
-	}
+	out = append(out, n.links(ctx)...)
 	return out, nil
 }
 
@@ -300,7 +299,7 @@ func (n *Local) links(ctx context.Context) []BuiltIn {
 		}
 		if n.WireGuard != nil {
 			if st, err := n.WireGuard.WireGuardStatus(ctx, iface); err == nil {
-				b.Detail += "; address " + st.Address + ", " + plural(len(st.Handshakes), "peer", "peers")
+				b.Detail += "; address " + st.Address + ", " + strconv.Itoa(len(st.Handshakes)) + " " + words.Plural(len(st.Handshakes), "peer", "peers")
 				var last int64
 				for _, t := range st.Handshakes {
 					last = max(last, t)
@@ -356,12 +355,3 @@ func quadletValue(content, key string) string {
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return strconv.Itoa(n) + " " + many
-}
-
-func gbText(b int64) string { return units.Bytes(b) }

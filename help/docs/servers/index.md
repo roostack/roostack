@@ -8,7 +8,7 @@ cloud. Each computer is a **server** in the lab.
   Roostack's pages for all of them. This is the first one you set up.
 - The others **run services**. You manage them from the same pages.
 
-Each server runs its own services, its own backups and its own updates.
+Each server runs its own services, its own backups, and its own updates.
 The servers talk to each other over their own private, encrypted network,
 so a server elsewhere is as easy to manage as one at home.
 
@@ -23,14 +23,14 @@ one's role, services, disk space, and whether it's up to date.
 
 ## Where each server is
 
-Roostack asks where each server is (**At home** or **Somewhere else**),
+Roostack asks where each server is (**At home** or **Somewhere else**)
 because it can't tell for itself. It uses this for your backup plan: a
 backup on a server somewhere else counts as away from home.
 
 ## Backups between servers: direct links
 
 When a server backs up to another server's disk, Roostack links the two
-directly, so the backups don't go through the server that runs the lab
+directly so that the backups don't go through the server that runs the lab
 (using its connection twice). It needs to know where one can reach the
 other:
 
@@ -41,10 +41,10 @@ other:
   the address under **Direct links** on the server's card, as host:port
   (WireGuard's UDP port, 51820 unless your router forwards another).
 
-The backup plan says "linked directly", or warns that backups go through
-the server that runs the lab, and what to set. A link that doesn't
-connect within a few minutes is tried again the next day, or as soon as
-you change the address; meanwhile the backups still work.
+The backup plan says "linked directly", or warns that backups are going
+through the server that runs the lab, and what to set. A link that doesn't
+connect within a few minutes will be tried again the next day or as soon as
+you change the address; meanwhile the backups will still work.
 
 ??? note "For technical users"
 
@@ -59,17 +59,17 @@ you change the address; meanwhile the backups still work.
 
 Under **Rename or remove** on a server's card:
 
-- **Rename** changes its name everywhere. Renaming the server that runs the
-  lab restarts Roostack.
-- **Remove** takes a server out of the lab: it leaves the lab's network and
-  runs on its own again. Remove or move its services first.
+- **Rename** will change its name everywhere. Renaming the server that runs
+  the lab will restart Roostack.
+- **Remove** will take a server out of the lab: it will leave the lab's
+  network and run on its own again. Remove or move its services first.
 
 ??? note "For technical users"
 
     The server that runs the lab is the **controller**; the others are
     **nodes**. The controller keeps the desired state and sends each node
     its **assignment** (the services placed on it); the node applies it
-    itself, and keeps running it if the controller is away.
+    itself and keeps running it if the controller is away.
 
     The lab's network is WireGuard (interface `roostack`, UDP port 51820,
     addresses in `100.96.0.0/24`). Your servers aren't your home network:

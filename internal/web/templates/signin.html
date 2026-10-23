@@ -67,7 +67,7 @@
         {{template "signin-to" .}}
         {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
         <p>{{if .Away}}You've been away from Roostack's pages for a while. {{end}}They can change the whole lab, so they ask again
-          after a while without use. Your other services stay signed in.</p>
+          after a while without use. Your other services will stay signed in.</p>
         <form method="post" action="/roostack/confirm">
           <input type="hidden" name="state" value="{{.Trip}}">
           <input type="hidden" name="next" value="{{.Next}}">
@@ -86,7 +86,7 @@
         {{template "signin-to" .}}
         <p>{{.Error}}</p>
         <p><a class="button secondary" href="{{.RoostackURL}}">Open Roostack</a></p>
-        <p class="hint">Roostack's pages work only at home, or on the lab's VPN.</p>
+        <p class="hint">Roostack's pages work only at home or on the lab's VPN.</p>
 
         {{else if eq .State "denied"}}
         <h1>You can't use {{.App}} yet</h1>
@@ -110,15 +110,15 @@
         </ul>{{end}}
         {{if .Photos}}<div class="signin-extra">
           <a href="{{.RoostackURL}}/immich-photos">{{icon "import"}}<span><strong>Migrate your photos into Immich</strong>
-            <small>From Google Photos or a folder. You sign in to Roostack's pages again, with the same account.</small></span></a>
+            <small>From Google Photos or a folder. You'll sign in to Roostack's pages again with the same account.</small></span></a>
         </div>{{end}}
         <form method="post" action="/sign-out"><button type="submit" class="secondary">Sign out</button></form>
         {{if not .Until.IsZero}}<p class="hint">Signed in on this device until {{date .Until}}.</p>{{end}}
 
         {{else if eq .State "out"}}
         <h1>You've signed out</h1>
-        <p>Services behind the sign-in page need you to sign in again straight away. Apps that keep their own sign-in, such as
-          Mealie or Immich, stay signed in until you sign out there too, so do that if this isn't your device.</p>
+        <p>Services behind the sign-in page will need you to sign in again straight away. Apps that keep their own sign-in, such as
+          Mealie or Immich, will stay signed in until you sign out there too, so do that if this isn't your device.</p>
         <p><a class="button" href="/sign-in">Sign in again</a></p>
 
         {{else}}
