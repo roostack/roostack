@@ -163,13 +163,11 @@ type Manager struct {
 	links linkState
 
 	// Backups: what the junk checks remember (quarantine.go), Backblaze
-	// buckets' lifecycle rules (destination.go), the latest rollback
-	// checks (rollback.go), and one recovery key change at a time
-	// (keychange.go).
+	// buckets' lifecycle rules (destination.go) and the latest rollback
+	// checks (rollback.go).
 	junk      junkState
 	hidden    hiddenCache
 	rollbacks rollbackChecks
-	keyMu     sync.Mutex
 	// Storage at other labs: each one's latest answer, by Ref (remoteMu),
 	// and changes to their records one at a time (servers' users are
 	// added as their backups are set up; remotestorage.go).

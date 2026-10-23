@@ -70,7 +70,7 @@ func do(t *testing.T, c *http.Client, method, base, path, host, origin string, f
 func TestSetupListenerServesOnlySetup(t *testing.T) {
 	h := newHarness(t, "the-setup-code")
 	fm := &fakeManager{}
-	h.server.Manager, h.server.Guests, h.server.Node = fm, fm, fm
+	h.server.Manager, h.server.Guests, h.server.Keys, h.server.Node = fm, fm, fm, fm
 	fs := &fakeSetup{zone: "Etc/UTC"}
 	h.setSetup(fs)
 	done := make(chan struct{}, 1)

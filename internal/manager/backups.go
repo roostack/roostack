@@ -882,3 +882,64 @@ func (m *Manager) recheckS3(ctx context.Context, act *activity.Log, targets []st
 		sayS3Check(act, m.checkS3(ctx, d.s3))
 	}
 }
+
+// keyRepo is a repository the recovery key opens, and how to open it
+// with a given key file.
+type keyRepo struct {
+	Ref, ServerID, Repository string
+	open                      func(keyFile string) (*backup.Repo, error)
+}
+
+func findRepo(repos []keyRepo, ref string) (keyRepo, bool) {
+	i := slices.IndexFunc(repos, func(r keyRepo) bool { return r.Ref == ref })
+	if i < 0 {
+		return keyRepo{}, false
+	}
+	return repos[i], true
+}
+
+// keyRepos lists every repository the recovery key opens: each server's
+// backup and extra copies, through the controller's admin access (as for
+// pruning), and this server's own main backup.
+func (m *Manager) keyRepos(ctx context.Context) ([]keyRepo, error) {
+	if m.BackupStore == nil {
+		return nil, nil
+	}
+	targets, err := m.BackupStore.BackupTargets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	copies, err := m.BackupStore.BackupCopies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []keyRepo
+	add := func(ref string, t store.BackupTarget) {
+		out = append(out, keyRepo{Ref: ref, ServerID: t.ServerID, Repository: t.Repository,
+			open: func(keyFile string) (*backup.Repo, error) {
+				var r *backup.Repo
+				if destination.Parse(t.Provider).Kind == destination.Setup {
+					// Set up by this server's wizard: its own main backup.
+					if t.ServerID != m.Lab.NodeID {
+						return nil, fmt.Errorf("%s's backup was set up on that server", m.nameOf(t.ServerID))
+					}
+					r = m.OpenRepo(t.Repository, m.Lab.Backup.Env)
+				} else {
+					var err error
+					if r, err = m.adminRepo(ctx, t); err != nil {
+						return nil, err
+					}
+				}
+				withKey := *r
+				withKey.PasswordFile = keyFile
+				return &withKey, nil
+			}})
+	}
+	for _, t := range targets {
+		add("backup:"+t.ServerID, t)
+	}
+	for _, t := range copies {
+		add("copy:"+t.ServerID+":"+t.Provider, t)
+	}
+	return out, nil
+}

@@ -39,12 +39,14 @@ type features struct {
 	once   sync.Once
 	photos *Photos
 	guests *Guests
+	keys   *KeyChanges
 }
 
 func (m *Manager) features() *features {
 	m.feats.once.Do(func() {
 		m.feats.photos = &Photos{core: m}
 		m.feats.guests = &Guests{core: m}
+		m.feats.keys = &KeyChanges{core: m}
 	})
 	return &m.feats
 }
@@ -54,3 +56,6 @@ func (m *Manager) Photos() *Photos { return m.features().photos }
 
 // Guests is storage for other labs.
 func (m *Manager) Guests() *Guests { return m.features().guests }
+
+// KeyChanges is changing the recovery key.
+func (m *Manager) KeyChanges() *KeyChanges { return m.features().keys }

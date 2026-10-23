@@ -7,7 +7,7 @@
 //
 // Three features barely touch the rest, so each is a type of its own that
 // reaches the Manager through a small interface (core.go): Photos
-// (photos.go) and Guests (guests.go).
+// (photos.go), Guests (guests.go) and KeyChanges (keychange.go).
 //
 // The files, by feature:
 //
@@ -37,7 +37,8 @@
 //   - location.go: where each server is, at home or away.
 //
 // Backups (SPEC.md §6.9, §10.10):
-//   - backups.go: the main backup's destination, S3 providers and pruning;
+//   - backups.go: the main backup's destination, S3 providers, pruning,
+//     and every repository the recovery key opens;
 //   - copies.go, plan.go: extra backups, the 3-2-1 checks and what a
 //     plan lacks;
 //   - destination.go, s3check.go, accountkey.go: what a destination's
@@ -45,7 +46,7 @@
 //     a new key for an online storage account;
 //   - rollback.go: rolling a server's versioned bucket back;
 //   - quarantine.go: junk found in backup repositories;
-//   - keychange.go: changing the recovery key;
+//   - keychange.go: KeyChanges, changing the recovery key;
 //   - cloudreport.go: which servers back up to Roostack Cloud;
 //   - remotestorage.go: this lab's storage at other labs, as a backup
 //     destination.

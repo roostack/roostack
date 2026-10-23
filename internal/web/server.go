@@ -93,9 +93,11 @@ type Server struct {
 	// so the UI doesn't depend on systemd directly (and tests can fake it).
 	Services func(ctx context.Context) ([]ServiceView, error)
 	// Manager installs and removes services; Guests is its storage for
-	// other labs (manager.Guests).
+	// other labs (manager.Guests), and Keys changes the recovery key
+	// (manager.KeyChanges).
 	Manager ServiceManager
 	Guests  StorageSharing
+	Keys    RecoveryKeys
 	// Setup is the first-run setup wizard's steps.
 	Setup LabSetup
 	// LabSettings are the lab's settings, as Roostack started with them;
@@ -189,7 +191,6 @@ type ServiceManager interface {
 	BackupPlan
 	StorageAtOtherLabs
 	PublicAccess
-	RecoveryKeys
 	LabRestores
 	Withdrawals
 	Holds

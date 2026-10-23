@@ -329,7 +329,7 @@ func (c *controller) wireWeb() error {
 	}
 	srv.Version = version
 	srv.Node = c.local
-	srv.Guests = c.mgr.Guests()
+	srv.Guests, srv.Keys = c.mgr.Guests(), c.mgr.KeyChanges()
 	srv.Libraries = c.mgr
 	// Migrating photos into Immich (SPEC.md §8.5): its pages, and the
 	// email when one ends (sent once the notifier has the mail server).

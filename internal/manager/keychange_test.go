@@ -64,33 +64,33 @@ func TestKeyChange(t *testing.T) {
 		return err == nil
 	}
 
-	if err := m.StartKeyChange(ctx); err != nil {
+	if err := m.KeyChanges().StartKeyChange(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.StartKeyChange(ctx); err == nil {
+	if err := m.KeyChanges().StartKeyChange(ctx); err == nil {
 		t.Error("only one change at a time")
 	}
-	newKey, err := m.NewRecoveryKey()
+	newKey, err := m.KeyChanges().NewRecoveryKey()
 	if err != nil || len(newKey) < 32 || newKey == "the old recovery key" {
 		t.Fatalf("new key %q %v", newKey, err)
 	}
-	if err := m.ConfirmKeyChange(ctx); err != nil {
+	if err := m.KeyChanges().ConfirmKeyChange(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if k, _ := m.KeyChangeStatus(); len(k.Repos) != 2 || k.Done() != 0 {
+	if k, _ := m.KeyChanges().KeyChangeStatus(); len(k.Repos) != 2 || k.Done() != 0 {
 		t.Errorf("the backups to change are listed when confirmed: %+v", k)
 	}
-	if _, err := m.NewRecoveryKey(); err == nil {
+	if _, err := m.KeyChanges().NewRecoveryKey(); err == nil {
 		t.Error("once confirmed, the new key isn't shown here again (Show recovery key shows the lab's key)")
 	}
 
 	// The drive is unplugged: the main backup gets the new key, and the
 	// change waits; the lab's key is still the old one.
 	os.Rename(drive, drive+".away")
-	if err := m.KeyChangeJob().Run(ctx, nil); err == nil {
+	if err := m.KeyChanges().KeyChangeJob().Run(ctx, nil); err == nil {
 		t.Fatal("should wait for the drive")
 	}
-	k, _ := m.KeyChangeStatus()
+	k, _ := m.KeyChanges().KeyChangeStatus()
 	if k == nil || k.Phase != KeyAdding || k.Done() != 1 || len(k.Repos) != 2 {
 		t.Fatalf("waiting: %+v", k)
 	}
@@ -103,10 +103,10 @@ func TestKeyChange(t *testing.T) {
 
 	// Back: the change finishes.
 	os.Rename(drive+".away", drive)
-	if err := m.KeyChangeJob().Run(ctx, nil); err != nil {
+	if err := m.KeyChanges().KeyChangeJob().Run(ctx, nil); err != nil {
 		t.Fatalf("finishing: %v", err)
 	}
-	if k, err := m.KeyChangeStatus(); k != nil || err != nil {
+	if k, err := m.KeyChanges().KeyChangeStatus(); k != nil || err != nil {
 		t.Errorf("still in progress: %+v %v", k, err)
 	}
 	if data, _ := os.ReadFile(keyFile); strings.TrimSpace(string(data)) != newKey {
@@ -132,18 +132,18 @@ func TestKeyChange(t *testing.T) {
 func TestKeyChangeCancel(t *testing.T) {
 	m, _ := newManager(t)
 	keyFile := backup.KeyFile(m.Lab.Paths)
-	if err := m.StartKeyChange(context.Background()); err == nil {
+	if err := m.KeyChanges().StartKeyChange(context.Background()); err == nil {
 		t.Error("no recovery key yet")
 	}
 	os.MkdirAll(filepath.Dir(keyFile), 0o700)
 	os.WriteFile(keyFile, []byte("key\n"), 0o600)
-	if err := m.StartKeyChange(context.Background()); err != nil {
+	if err := m.KeyChanges().StartKeyChange(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.CancelKeyChange(); err != nil {
+	if err := m.KeyChanges().CancelKeyChange(); err != nil {
 		t.Fatal(err)
 	}
-	if k, _ := m.KeyChangeStatus(); k != nil {
+	if k, _ := m.KeyChanges().KeyChangeStatus(); k != nil {
 		t.Error("cancelled")
 	}
 	if data, _ := os.ReadFile(keyFile); string(data) != "key\n" {

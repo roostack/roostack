@@ -113,7 +113,7 @@ func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maint
 		for {
 			// A recovery key change waiting for a backup that couldn't be
 			// reached (SPEC.md §6.9) tries again.
-			mgr.ResumeKeyChange()
+			mgr.KeyChanges().ResumeKeyChange()
 			mgr.CheckRemotes(ctx)
 			// A backup that failed as junk in its repository makes it fail
 			// gets that repository checked now, not at the weekly check.
