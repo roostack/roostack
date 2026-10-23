@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/mailkit"
 )
 
 // fakeMailer keeps what it was asked to send.
@@ -181,11 +182,11 @@ func TestUserGroups(t *testing.T) {
 // A long first line is cut in the subject, which counts the rest.
 func TestSubject(t *testing.T) {
 	long := strings.Repeat("a", 90)
-	subject, body := composeNotification(&Lab{}, &store.User{Username: "sam"}, &notifyMail{fresh: []string{long, "b"}})
+	subject, e := composeNotification(&Lab{}, &store.User{Username: "sam"}, &notifyMail{fresh: []mailkit.Item{{Text: long}, {Text: "b"}}})
 	if subject != "[Your lab] Needs attention: "+strings.Repeat("a", 77)+"… (and 1 more)" {
 		t.Errorf("subject %q", subject)
 	}
-	if strings.Contains(body, "Choose which emails") {
+	if strings.Contains(e.Text(), "Choose which emails") {
 		t.Error("no address, no link")
 	}
 }
