@@ -189,7 +189,7 @@ type waits struct {
 	// applyWait (move.go), restoreWatch (hold.go), lastBackupCheck
 	// (withdrawals.go), linkGrace (links.go), pruneRetry (backups.go) and
 	// pullGap (servers.go).
-	apply, restoreWatch, lastBackupCheck, linkGrace, pruneRetry, pullGap time.Duration
+	applyWait, restoreWatch, lastBackupCheck, linkGrace, pruneRetry, pullGap time.Duration
 	// Checking an updated service (update.go), and how often a server's
 	// update or switch to brought data is looked at (statusEvery).
 	healthWait, healthStable, healthEvery, failedFor, statusEvery time.Duration

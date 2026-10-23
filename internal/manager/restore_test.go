@@ -104,7 +104,7 @@ func TestGoneServer(t *testing.T) {
 	bin := restictest.Bin(t)
 	m, home, vps := setUpMove(t)
 	ctx := context.Background()
-	m.waits.apply = 5 * time.Second
+	m.waits.applyWait = 5 * time.Second
 	st := backedUpForgejo(t, m, bin)
 	defer st.Close()
 	reg := m.Registry.(*fakeRegistry)
@@ -246,7 +246,7 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 	bin := restictest.Bin(t)
 	m, home, vps := setUpMove(t)
 	ctx := context.Background()
-	m.waits.apply = 5 * time.Second
+	m.waits.applyWait = 5 * time.Second
 
 	st := backedUpForgejo(t, m, bin)
 	defer st.Close()

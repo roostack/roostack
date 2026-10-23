@@ -243,7 +243,7 @@ func (j *transferJob) finishMove(ctx context.Context) error {
 
 // waitApplied waits until a server has applied changes made after t.
 func (m *Manager) waitApplied(ctx context.Context, n node.Node, t time.Time) error {
-	deadline := time.Now().Add(cmp.Or(m.waits.apply, applyWait))
+	deadline := time.Now().Add(cmp.Or(m.waits.applyWait, applyWait))
 	for time.Now().Before(deadline) {
 		if st := n.Status(); !st.Running && st.LastRun.After(t) {
 			return st.LastErr
