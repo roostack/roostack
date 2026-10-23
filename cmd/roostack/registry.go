@@ -28,6 +28,8 @@ Commands:
   index     Check every package and build the signed index (the registry's CI)
   check     Fetch a registry's index as a lab would, and say what it holds
   watch     Read the sources of security problems and draft advisories (the registry's CI)
+  images    List the packages' images, or those still without a bill of materials
+  bom-check Compare the bills of materials with each package's built_with
 `
 
 func registryCmd(args []string) error {
@@ -46,6 +48,10 @@ func registryCmd(args []string) error {
 		return registryCheck(args)
 	case "watch":
 		return registryWatch(args)
+	case "images":
+		return registryImages(args)
+	case "bom-check":
+		return registryBOMCheck(args)
 	case "-h", "--help", "help":
 		fmt.Print(registryUsage)
 		return nil
