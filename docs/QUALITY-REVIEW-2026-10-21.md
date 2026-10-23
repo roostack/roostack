@@ -1240,7 +1240,7 @@ Added by the Owner on 2026-10-22. Across both repositories, find sentences peopl
    - **4d.** The package editor's text (`help.yaml`, `editor.js`, `suggest.js`, `compose.js`'s notes). `pkgspec`'s check messages change with `check.js`'s, which the corpus test enforces, so the batch also covers `internal/pkgspec`.
    - **4e.** Cloud's website, console and emails (`internal/web`, `internal/admin`, the email templates and the Go strings they show).
    - **4f.** Cloud's site (`site/`) and status page (`status/`).
-   - **4g.** If the Owner wants it, the project documents (README, ARCHITECTURE, SPEC, DESIGN). These are written for contributors, so they come last.
+   - **4g.** The project documents (README, CONTRIBUTING, ARCHITECTURE, SPEC, DESIGN, in both repositories), after the other batches: decided by the maintainer on 2026-10-23. These are written for contributors, so they come last.
 3. **Checks:**
    - Tests that match exact wording are updated with the text: wave 1's helpers for finding a page's parts (T5) make this lighter.
    - The gallery and the editor's corpus regenerate.
