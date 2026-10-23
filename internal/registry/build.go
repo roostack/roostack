@@ -120,6 +120,9 @@ func Build(opts BuildOptions) (*Index, error) {
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
+	if ix.Advisories, err = readAdvisories(opts.Repo, ix); err != nil {
+		return nil, err
+	}
 	if err := ix.Check(); err != nil {
 		return nil, err
 	}

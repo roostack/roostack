@@ -102,6 +102,9 @@ type Index struct {
 	// they're built with (BuiltWithFile), for their titles; older indexes
 	// have none.
 	BuiltWith []BuiltWith `json:"built_with,omitempty"`
+	// Advisories are the registry's security advisories (advisories.go);
+	// older indexes have none.
+	Advisories []*Advisory `json:"advisories,omitempty"`
 }
 
 // Package is one package in the index: the registry's facts about it, and
@@ -194,6 +197,20 @@ func (ix *Index) Check() error {
 	var errs []error
 	if err := checkBuiltWith(ix.BuiltWith); err != nil {
 		errs = append(errs, fmt.Errorf("built_with: %w", err))
+	}
+	ids := map[string]bool{}
+	for _, a := range ix.Advisories {
+		if a == nil {
+			errs = append(errs, errors.New("advisories: an empty one"))
+			continue
+		}
+		if ids[a.ID] {
+			errs = append(errs, fmt.Errorf("advisory %s: listed twice", a.ID))
+		}
+		ids[a.ID] = true
+		if err := a.check(); err != nil {
+			errs = append(errs, fmt.Errorf("advisory %s: %w", a.ID, err))
+		}
 	}
 	for name, p := range ix.Packages {
 		if !pkgspec.ValidName(name) || p == nil {
