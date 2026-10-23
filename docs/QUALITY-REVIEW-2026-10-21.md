@@ -1220,6 +1220,8 @@ Wave 3 is complete.
 
 ### Wave 4: wording, after waves 1–3
 
+**Status (2026-10-23): complete.** All seven batches are merged into both repositories' local `main`, each with its before-and-after list for the maintainer in the shared notes. 4b also corrected four sentences it found wrong, with the maintainer's agreement. 4g listed the out-of-date facts it found in the documents without changing them; they're in TASKS.md, with the few documents it didn't cover.
+
 Added by the Owner on 2026-10-22. Across both repositories, find sentences people read that use the present simple for actions, or that are short and clipped, and rework them to sound natural.
 
 **The rules:**
