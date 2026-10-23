@@ -119,7 +119,7 @@ func (s *Service) Job() maintenance.Job {
 			if err != nil {
 				run.Error = err.Error()
 				if ctx.Err() != nil {
-					run.Error = "paused for a reboot: it will resume afterwards"
+					run.Error = "paused for a restart: it will carry on afterwards"
 				}
 			}
 			if rerr := s.Store.RecordBackup(context.WithoutCancel(ctx), run); rerr != nil && err == nil {
