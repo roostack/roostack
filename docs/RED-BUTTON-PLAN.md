@@ -714,7 +714,14 @@ it. The report says only "paused since …, N services".
   - Syft in CI for exact versions (§4), which the watcher's exact
     matches depend on.
 
-### 10.1 Raising advisories without a full-time team: the watcher — Decided (2026-10-22), the maintainer's answers to questions 14–17
+### 10.1 Raising advisories without a full-time team: the watcher — Decided (2026-10-22), the maintainer's answers to questions 14–17; first part built (2026-10-23)
+
+**Built (2026-10-23):** `roostack registry watch`, reading GitHub's
+advisories, CISA's list, CrowdSec's rules, EPSS and OSV (for bills of
+materials), drafting strong matches and keeping weaker ones for a weekly
+digest; SPEC §6.16 "phase 4" has what it does, and
+[docs/REGISTRY-WATCH.md](REGISTRY-WATCH.md) the registry's workflow. Not
+yet: VulnCheck, oss-security, Syft in the registry's CI, the AI pass.
 
 Advisories only help if someone writes them within hours of a zero-day.
 The project has no security team, so most of the work has to be done by

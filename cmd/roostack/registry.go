@@ -27,6 +27,7 @@ Commands:
   delegate  Write keys.json naming the signing keys, signed by the root key
   index     Check every package and build the signed index (the registry's CI)
   check     Fetch a registry's index as a lab would, and say what it holds
+  watch     Read the sources of security problems and draft advisories (the registry's CI)
 `
 
 func registryCmd(args []string) error {
@@ -43,6 +44,8 @@ func registryCmd(args []string) error {
 		return registryIndex(args)
 	case "check":
 		return registryCheck(args)
+	case "watch":
+		return registryWatch(args)
 	case "-h", "--help", "help":
 		fmt.Print(registryUsage)
 		return nil
