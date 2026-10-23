@@ -25,6 +25,8 @@ import (
 // A nil feature is one this server doesn't have, and says nothing.
 type Lab struct {
 	Manager Manager
+	// Guests is storage for other labs (manager.Guests).
+	Guests Guests
 	// Node is this server.
 	Node Node
 	// Services lists the lab's services and how each is.
@@ -76,7 +78,12 @@ type Manager interface {
 	AvailableUpdates(ctx context.Context) map[string]*manager.Update
 	Updating(name string) *manager.ServiceUpdate
 	LastUpdate(ctx context.Context, name string) *manager.UpdateRecord
-	// The server that stores other labs' backups, and those labs.
+}
+
+// Guests is what the rules ask about storage for other labs
+// (manager.Guests): the server that stores other labs' backups, and
+// those labs.
+type Guests interface {
 	GuestServer(ctx context.Context) string
 	StorageGuests(ctx context.Context) ([]manager.GuestView, error)
 }

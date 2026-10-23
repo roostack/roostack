@@ -38,14 +38,19 @@ func (m *Manager) logger() *slog.Logger  { return m.Log }
 type features struct {
 	once   sync.Once
 	photos *Photos
+	guests *Guests
 }
 
 func (m *Manager) features() *features {
 	m.feats.once.Do(func() {
 		m.feats.photos = &Photos{core: m}
+		m.feats.guests = &Guests{core: m}
 	})
 	return &m.feats
 }
 
 // Photos is migrating photos into the lab's Immich services.
 func (m *Manager) Photos() *Photos { return m.features().photos }
+
+// Guests is storage for other labs.
+func (m *Manager) Guests() *Guests { return m.features().guests }

@@ -109,13 +109,11 @@ type Manager struct {
 	// uses the account's endpoint).
 	NewS3 func(s3 S3Provider) *s3api.Client
 
-	// Storage for other labs (guests.go; optional): the host's hub and
-	// records, how much a guest stores here, the agent for links between
-	// labs, and a hook when this lab starts storing at another.
-	GuestHub     *labnet.GuestHub
-	GuestRecords GuestRecords
-	LinkAgent    LinkAgent
-	RemoteAdded  func(RemoteStorage)
+	// Storage at other labs (remotestorage.go; optional): the agent for
+	// links between labs, and a hook when this lab starts storing at
+	// another.
+	LinkAgent   LinkAgent
+	RemoteAdded func(RemoteStorage)
 
 	// Applying (servers.go). mu guards state changes (install, remove)
 	// and what is still to hand over to the servers.
@@ -174,7 +172,7 @@ type Manager struct {
 	keyMu     sync.Mutex
 	// Storage at other labs: each one's latest answer, by Ref (remoteMu),
 	// and changes to their records one at a time (servers' users are
-	// added as their backups are set up; guests.go).
+	// added as their backups are set up; remotestorage.go).
 	remoteMu       sync.Mutex
 	remoteSeen     map[string]labnet.GuestUsage
 	remoteConfigMu sync.Mutex

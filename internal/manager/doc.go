@@ -7,7 +7,7 @@
 //
 // Three features barely touch the rest, so each is a type of its own that
 // reaches the Manager through a small interface (core.go): Photos
-// (photos.go).
+// (photos.go) and Guests (guests.go).
 //
 // The files, by feature:
 //
@@ -46,7 +46,9 @@
 //   - rollback.go: rolling a server's versioned bucket back;
 //   - quarantine.go: junk found in backup repositories;
 //   - keychange.go: changing the recovery key;
-//   - cloudreport.go: which servers back up to Roostack Cloud.
+//   - cloudreport.go: which servers back up to Roostack Cloud;
+//   - remotestorage.go: this lab's storage at other labs, as a backup
+//     destination.
 //
 // Moving and restoring (SPEC.md §10.10):
 //   - transfer.go: transferJob, the steps a move and a restore share;
@@ -57,6 +59,6 @@
 //     databases didn't load (SPEC.md §6.9).
 //
 // Storage for other labs (SPEC.md §10.10):
-//   - guests.go, guesthost.go: the labs that store backups here, and
-//     which server holds them.
+//   - guests.go, guesthost.go: Guests, the labs that store backups here,
+//     and which server holds them.
 package manager

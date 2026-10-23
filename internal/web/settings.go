@@ -232,8 +232,8 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		set("backups", sum, level)
 	}
 	set("storage", "Give family or friends space for their backups", "")
-	if s.Manager.OfferStorage(r.Context()) {
-		if guests, err := s.Manager.StorageGuests(r.Context()); err == nil {
+	if s.Guests.OfferStorage(r.Context()) {
+		if guests, err := s.Guests.StorageGuests(r.Context()); err == nil {
 			n := 0
 			for _, g := range guests {
 				if g.Removed.IsZero() {

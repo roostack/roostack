@@ -301,8 +301,8 @@ func (m *Manager) startApplyLocked(reason string) {
 			a.ProxyPorts = m.proxyPorts(context.Background())
 		}
 		// Other labs' stores live on the server offering storage.
-		if n.Identity().ID == m.GuestServer(context.Background()) {
-			a.Guests, a.GuestAddr = m.guestStores(context.Background())
+		if n.Identity().ID == m.Guests().GuestServer(context.Background()) {
+			a.Guests, a.GuestAddr = m.Guests().guestStores(context.Background())
 		}
 		a.Storage = m.storageFor(context.Background(), id)
 		a.Libraries = m.librariesFor(context.Background(), id)

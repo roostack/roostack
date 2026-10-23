@@ -14,6 +14,7 @@ import (
 func (s *Server) AttentionLab() *attention.Lab {
 	lab := &attention.Lab{
 		Manager:        s.Manager,
+		Guests:         s.Guests,
 		Node:           s.Node,
 		Services:       s.attentionServices,
 		Setup:          s.Setup,

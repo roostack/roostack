@@ -157,7 +157,7 @@ func loggedIn(t *testing.T, role string) (*harness, *fakeManager) {
 	t.Helper()
 	h := newHarness(t, "")
 	fm := &fakeManager{}
-	h.server.Manager, h.server.Node = fm, fm
+	h.server.Manager, h.server.Guests, h.server.Node = fm, fm, fm
 	h.server.Domain = "lab.example.com"
 	h.server.HasGPU = true
 	hash, _ := authkit.HashPassword("a long password")

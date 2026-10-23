@@ -401,14 +401,15 @@ func TestRemovedGuestGrace(t *testing.T) {
 	local(m).Links = fakeLinks{}
 	vps := &fakeRemote{settings: &fakeServerSettings{}}
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
-	m.GuestRecords = st
-	m.GuestHub = &labnet.GuestHub{LabName: func() string { return "nuc's lab" }, Store: st, Agent: m.GuestLinkAgent(), Log: m.Log, Now: time.Now}
+	host := m.Guests()
+	host.Records = st
+	host.Hub = &labnet.GuestHub{LabName: func() string { return "nuc's lab" }, Store: st, Agent: host.GuestLinkAgent(), Log: m.Log, Now: time.Now}
 	ctx := context.Background()
 	// The vps offers the storage.
-	if err := m.SetGuestServer(ctx, "n-0000000002"); err != nil || m.HostsGuests(ctx) {
+	if err := host.SetGuestServer(ctx, "n-0000000002"); err != nil || host.HostsGuests(ctx) {
 		t.Fatal(err)
 	}
-	inv, err := m.GuestHub.NewInvite(ctx, "Sam's lab", 10<<30, "203.0.113.7:51821")
+	inv, err := host.Hub.NewInvite(ctx, "Sam's lab", 10<<30, "203.0.113.7:51821")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -420,16 +421,16 @@ func TestRemovedGuestGrace(t *testing.T) {
 	// The vps's disk: 500 of 1000 GB free, 1 GB used by Sam, 10 GB
 	// promised, 100 GB kept free: 391 GB more to offer. A quota change
 	// doesn't count the guest's own quota.
-	if sp, ok := m.GuestSpaceLeft(ctx); !ok || sp.Left != 391<<30 || sp.Promised != 9<<30 || sp.Free != 500<<30 {
+	if sp, ok := host.GuestSpaceLeft(ctx); !ok || sp.Left != 391<<30 || sp.Promised != 9<<30 || sp.Free != 500<<30 {
 		t.Errorf("space %+v, %v", sp, ok)
 	}
-	if err := m.SetGuestQuota(ctx, g.ID, 402<<30); err == nil || !strings.Contains(err.Error(), "doesn't fit") {
+	if err := host.SetGuestQuota(ctx, g.ID, 402<<30); err == nil || !strings.Contains(err.Error(), "doesn't fit") {
 		t.Errorf("a quota that doesn't fit: %v", err)
 	}
-	if err := m.SetGuestQuota(ctx, g.ID, 401<<30); err != nil {
+	if err := host.SetGuestQuota(ctx, g.ID, 401<<30); err != nil {
 		t.Errorf("one that does: %v", err)
 	}
-	if stores, _ := m.guestStores(ctx); len(stores) != 1 {
+	if stores, _ := host.guestStores(ctx); len(stores) != 1 {
 		t.Fatal("a guest's store runs")
 	}
 	m.Apply()
@@ -439,14 +440,14 @@ func TestRemovedGuestGrace(t *testing.T) {
 		t.Errorf("the vps runs the guest's store and link: %+v %d", vps.last.Guests, len(vps.guestLink))
 	}
 	vps.mu.Unlock()
-	if err := m.SetGuestServer(ctx, "n-0000000001"); err == nil {
+	if err := host.SetGuestServer(ctx, "n-0000000001"); err == nil {
 		t.Error("storage can't move while a lab stores there")
 	}
-	if err := m.RemoveGuest(ctx, g.ID); err != nil {
+	if err := host.RemoveGuest(ctx, g.ID); err != nil {
 		t.Fatal(err)
 	}
 	m.Wait()
-	if stores, _ := m.guestStores(ctx); len(stores) != 0 {
+	if stores, _ := host.guestStores(ctx); len(stores) != 0 {
 		t.Error("a removed guest's store stops")
 	}
 	peers := func() int {
@@ -454,23 +455,23 @@ func TestRemovedGuestGrace(t *testing.T) {
 		defer vps.mu.Unlock()
 		return len(vps.guestLink[len(vps.guestLink)-1].Peers)
 	}
-	m.GuestHub.SyncPeers(ctx)
+	host.Hub.SyncPeers(ctx)
 	if peers() != 1 {
 		t.Error("its link stays, so it can be told")
 	}
-	if err := m.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace-time.Hour)); err != nil || len(vps.deleted) != 0 {
+	if err := host.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace-time.Hour)); err != nil || len(vps.deleted) != 0 {
 		t.Fatalf("within the grace period: %v %v", err, vps.deleted)
 	}
-	if err := m.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace+time.Hour)); err != nil || !slices.Equal(vps.deleted, []string{g.User()}) {
+	if err := host.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace+time.Hour)); err != nil || !slices.Equal(vps.deleted, []string{g.User()}) {
 		t.Fatalf("after it: %v %v", err, vps.deleted)
 	}
 	if guests, _ := st.Guests(ctx, time.Now()); len(guests) != 0 || peers() != 0 {
 		t.Errorf("gone: %+v peers %d", guests, peers())
 	}
-	if err := m.SetGuestServer(ctx, "n-0000000001"); err != nil || !m.HostsGuests(ctx) {
+	if err := host.SetGuestServer(ctx, "n-0000000001"); err != nil || !host.HostsGuests(ctx) {
 		t.Errorf("with nobody storing, storage can move back: %v", err)
 	}
-	if err := m.DeleteRemovedGuest(ctx, g.ID); !errors.Is(err, ErrNotFound) {
+	if err := host.DeleteRemovedGuest(ctx, g.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("already deleted: %v", err)
 	}
 }

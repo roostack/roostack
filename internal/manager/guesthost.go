@@ -19,29 +19,29 @@ import (
 const guestServerKey = "guests.server"
 
 // GuestServer is the ID of the server hosting other labs' backups.
-func (m *Manager) GuestServer(ctx context.Context) string {
-	if m.GuestRecords != nil {
-		if id, err := m.GuestRecords.Setting(ctx, guestServerKey); err == nil && id != "" && m.node(id) != nil {
+func (x *Guests) GuestServer(ctx context.Context) string {
+	if x.Records != nil {
+		if id, err := x.Records.Setting(ctx, guestServerKey); err == nil && id != "" && x.core.node(id) != nil {
 			return id
 		}
 	}
-	return m.Lab.NodeID
+	return x.core.labConfig().NodeID
 }
 
 // guestHost is that server.
-func (m *Manager) guestHost(ctx context.Context) node.GuestHost {
-	return node.Capability(m.node(m.GuestServer(ctx)), node.Node.GuestHost)
+func (x *Guests) guestHost(ctx context.Context) node.GuestHost {
+	return node.Capability(x.core.node(x.GuestServer(ctx)), node.Node.GuestHost)
 }
 
 // GuestLinkAgent configures the guests' link on the hosting server (the
 // storage hub's agent).
-func (m *Manager) GuestLinkAgent() GuestLinkAgent { return GuestLinkAgent{m} }
+func (x *Guests) GuestLinkAgent() GuestLinkAgent { return GuestLinkAgent{x} }
 
 // GuestLinkAgent routes the guests' link to the hosting server.
-type GuestLinkAgent struct{ m *Manager }
+type GuestLinkAgent struct{ x *Guests }
 
 func (a GuestLinkAgent) ApplyWireGuard(ctx context.Context, wg agent.WireGuard) (string, error) {
-	h := a.m.guestHost(ctx)
+	h := a.x.guestHost(ctx)
 	if h == nil {
 		return "", errors.New("the server offering storage for others can't be reached")
 	}
@@ -49,8 +49,8 @@ func (a GuestLinkAgent) ApplyWireGuard(ctx context.Context, wg agent.WireGuard) 
 }
 
 // GuestUsage is how much a guest stores on the hosting server.
-func (m *Manager) GuestUsage(ctx context.Context, user string) (int64, error) {
-	h := m.guestHost(ctx)
+func (x *Guests) GuestUsage(ctx context.Context, user string) (int64, error) {
+	h := x.guestHost(ctx)
 	if h == nil {
 		return 0, errors.New("the server offering storage for others can't be reached")
 	}
@@ -59,47 +59,49 @@ func (m *Manager) GuestUsage(ctx context.Context, user string) (int64, error) {
 
 // HostsGuests reports whether this server (the controller) hosts other
 // labs' backups itself.
-func (m *Manager) HostsGuests(ctx context.Context) bool { return m.GuestServer(ctx) == m.Lab.NodeID }
+func (x *Guests) HostsGuests(ctx context.Context) bool {
+	return x.GuestServer(ctx) == x.core.labConfig().NodeID
+}
 
 // SetGuestServer moves storage for others to another server. Only while
 // no other lab stores anything (moving their backups isn't supported).
-func (m *Manager) SetGuestServer(ctx context.Context, id string) error {
-	if m.GuestRecords == nil || m.GuestHub == nil {
+func (x *Guests) SetGuestServer(ctx context.Context, id string) error {
+	if x.Records == nil || x.Hub == nil {
 		return ErrNotFound
 	}
-	n := m.node(id)
+	n := x.core.node(id)
 	if n == nil {
 		return ErrNotFound
 	}
-	if n.GuestHost() == nil || (n != m.Node && n.Settings() == nil) {
+	if n.GuestHost() == nil || (n != x.core.node(x.core.labConfig().NodeID) && n.Settings() == nil) {
 		return usererr.New("Roostack can't reach %s right now.", n.Identity().Name)
 	}
-	old := m.GuestServer(ctx)
+	old := x.GuestServer(ctx)
 	if old == n.Identity().ID {
 		return nil
 	}
-	guests, err := m.GuestRecords.Guests(ctx, time.Now())
+	guests, err := x.Records.Guests(ctx, time.Now())
 	if err != nil {
 		return err
 	}
-	left, _ := m.LeftoverGuests(ctx)
+	left, _ := x.LeftoverGuests(ctx)
 	if len(guests) > 0 || len(left) > 0 {
 		return usererr.New("Other labs store backups on %s: remove them (and delete their backups) before offering storage elsewhere.",
-			m.nameOf(old))
+			x.core.nameOf(old))
 	}
-	if h := m.guestHost(ctx); h != nil && m.GuestHub.Enabled(ctx) {
+	if h := x.guestHost(ctx); h != nil && x.Hub.Enabled(ctx) {
 		if err := h.RemoveGuestLink(ctx); err != nil {
-			m.Log.Warn("removing the guests' link", "server", m.nameOf(old), "err", err)
+			x.core.logger().Warn("removing the guests' link", "server", x.core.nameOf(old), "err", err)
 		}
 	}
-	if err := m.GuestRecords.SetSetting(ctx, guestServerKey, n.Identity().ID); err != nil {
+	if err := x.Records.SetSetting(ctx, guestServerKey, n.Identity().ID); err != nil {
 		return err
 	}
-	if m.GuestHub.Enabled(ctx) {
-		if err := m.GuestHub.SyncPeers(ctx); err != nil {
+	if x.Hub.Enabled(ctx) {
+		if err := x.Hub.SyncPeers(ctx); err != nil {
 			return err
 		}
 	}
-	m.Apply()
+	x.core.Apply()
 	return nil
 }
