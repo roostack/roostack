@@ -83,7 +83,7 @@ func TestAdvisoriesPause(t *testing.T) {
 		t.Fatal(err)
 	}
 	paused(false, "tell")
-	took("public access opened by Roostack: Vaultwarden (2026-0007, no longer paused by the lab's choice)")
+	took("public access opened by Roostack: Vaultwarden: Settings → Public access no longer pauses it for security advisory 2026-0007")
 	adv.Exploited = false
 	if err := m.SetAdvisoryPolicy(config.AdvisoriesExploited); err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestAdvisoriesPause(t *testing.T) {
 		t.Fatal(err)
 	}
 	paused(false, "kept public anyway")
-	took("public access opened by Roostack: Vaultwarden (2026-0007, kept public anyway)")
+	took("public access opened by Roostack: Vaultwarden: the Owner chose to keep it public despite security advisory 2026-0007")
 	if in, _ := instance.Load(state.InstanceFile(m.Lab, "vaultwarden")); !in.KeptPublicFor("2026-0007") {
 		t.Errorf("not kept: %+v", in.PublicAnyway)
 	}

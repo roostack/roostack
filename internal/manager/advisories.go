@@ -204,7 +204,7 @@ func (m *Manager) markAdvisories(ctx context.Context, lab config.Lab, services [
 		case was != "":
 			m.Settings.SetSetting(ctx, advisedKey+name, "")
 			m.Log.Info("opening public access again after a security advisory", "service", name, "advisory", was)
-			m.audit(ctx, AuditAdvisoryOpened, s.Title()+" ("+was+", "+liftReason(s.Instance, was, all[name])+")")
+			m.audit(ctx, AuditAdvisoryOpened, s.Title()+": "+liftReason(s.Instance, was, all[name]))
 		}
 	}
 	var key []string
@@ -217,7 +217,7 @@ func (m *Manager) markAdvisories(ctx context.Context, lab config.Lab, services [
 // advisoryDetail is an advisory for the audit log and the Owners' email:
 // the service, then what the registry says, its ID and severity.
 func advisoryDetail(title string, a *ServiceAdvisory) string {
-	s := fmt.Sprintf("%s: %s (%s, %s", title, a.Title, a.ID, a.Severity)
+	s := fmt.Sprintf("%s: %s (%s, %s", title, strings.TrimRight(a.Title, "."), a.ID, a.Severity)
 	if a.Exploited {
 		s += ", being used in attacks"
 	}
@@ -232,12 +232,12 @@ func liftReason(in *instance.Instance, id string, now []*ServiceAdvisory) string
 	for _, a := range now {
 		if a.ID == id {
 			if a.KeptPublic {
-				return "kept public anyway"
+				return "the Owner chose to keep it public despite security advisory " + id
 			}
-			return "no longer paused by the lab's choice"
+			return "Settings → Public access no longer pauses it for security advisory " + id
 		}
 	}
-	return "updated past it, or the registry changed it"
+	return "security advisory " + id + " no longer affects it: it was updated, or the registry changed the advisory"
 }
 
 // KeepPublicAnyway keeps a service's current version public despite an

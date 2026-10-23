@@ -634,6 +634,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /pause", s.require(auth.ManageServices, s.pausePage))
 	mux.Handle("POST /pause", s.require(auth.ManageServices, s.pauseSubmit))
 	mux.Handle("POST /pause/lift", s.requireOwner(s.liftSubmit))
+	mux.Handle("POST /settings/public/advisories", s.requireOwner(s.advisoryPolicySubmit))
+	mux.Handle("POST /services/{name}/public-anyway", s.requireOwner(s.keepPublicSubmit))
 	mux.Handle("POST /settings/public/sharing", s.requireOwner(s.publicSharingSubmit))
 	mux.Handle("POST /settings/public/edge", s.requireOwner(s.publicEdgeSubmit))
 	mux.Handle("POST /settings/public/countries", s.requireOwner(s.publicCountriesSubmit))

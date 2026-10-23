@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/mail"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/mailkit"
@@ -145,6 +146,14 @@ func TestSecurityEvents(t *testing.T) {
 		{store.AuditEntry{Action: AuditPublicPaused, Username: "sam", Detail: "services built with php", At: at},
 			"", "Public access to services built with php was paused by sam (5 October at 09:30). Visitors from the internet are seeing a page " +
 				"saying it's closed for a while, and it's still working at home.", ""},
+		{store.AuditEntry{Action: manager.AuditAdvisoryPaused, Username: "system", Detail: "Lychee: PHP lets anyone run code (2026-0007, critical, being used in attacks)", At: at},
+			"", "Roostack paused public access to Lychee (5 October at 09:30) because the service registry published a security problem in it: " +
+				"PHP lets anyone run code (2026-0007, critical, being used in attacks). Visitors from the internet are seeing a page saying it's closed " +
+				"for a while, and it's still working at home. Updating it will fix it.", ""},
+		{store.AuditEntry{Action: manager.AuditAdvisoryOpened, Username: "system", Detail: "Lychee: security advisory 2026-0007 no longer affects it: it was updated, or the registry changed the advisory", At: at},
+			"", "Roostack opened public access to Lychee again (5 October at 09:30): security advisory 2026-0007 no longer affects it: it was updated, or the registry changed the advisory.", ""},
+		{store.AuditEntry{Action: manager.AuditAdvisory, Username: "system", Detail: "Ghost: Ghost leaks drafts (2026-0008, high)", At: at},
+			"", "The service registry warns of a security problem in Ghost (5 October at 09:30): Ghost leaks drafts (2026-0008, high).", ""},
 		{store.AuditEntry{Action: AuditPublicOpened, Username: "system", Detail: "everything via command line", At: at},
 			"", "Public access to everything was opened again from the server's command line (5 October at 09:30).", ""},
 	} {

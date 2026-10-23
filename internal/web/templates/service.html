@@ -71,7 +71,38 @@
     {{end}}
   </div>
   {{end}}
-  {{with .PublicService}}{{if .Paused}}{{$t := $.Service.Title}}{{$ps := .}}
+  {{range $i, $a := .Advisories}}{{$t := $.Service.Title}}
+  {{/* A security advisory from the service registry (SPEC.md §6.16). */}}
+  <div id="advisory{{if $i}}-{{$a.ID}}{{end}}" class="notice{{if $a.Paused}} notice-error{{else if not (or $a.Possibly (eq $a.Severity "low"))}} notice-warn{{end}}" role="status">
+    <p><strong>{{if $a.Paused}}Roostack has paused public access to {{$t}} to keep it safe.{{else if $a.Possibly}}{{$t}} may be affected by a security problem.
+      {{- else}}The service registry warns of a security problem in {{$t}}.{{end}}</strong>
+      <em>“{{$a.Title}}”</em>{{with $a.CVEs}} ({{joinAnd .}}){{end}}</p>
+    <p>{{if eq $a.Severity "critical"}}The registry rates it critical: anyone on the internet could use it without signing in.
+      {{- else if eq $a.Severity "high"}}The registry rates it high: using it would take more than a visit, such as an account.
+      {{- else}}The registry rates it low.{{end}}{{if $a.Exploited}} It's being used in attacks now.{{end}}
+      {{- if $a.Possibly}} {{$t}} is from one of your own packages, which says it's built with {{$a.BuiltWith}}, so Roostack can't tell whether it's affected.{{end}}</p>
+    {{if $a.Paused}}<p>Visitors from the internet are seeing a page saying it's closed for a while, and it's working at home as usual.</p>
+    {{else if $a.KeptPublic}}<p>You chose to keep this version public anyway.</p>{{end}}
+    <p><strong>What to do:</strong> {{if $a.Fixed}}update it to {{appVersion $a.Fixed}}, which fixes it{{if $a.Paused}}: once the update has worked, {{$t}} will be public again{{end}}.
+      {{- else if $a.Possibly}}check with whoever wrote the package.{{else}}there's no fixed version yet{{if $a.Paused}}, so Roostack will keep it paused until there is{{end}}.{{end}}</p>
+    {{if and $a.Fixed $.Update (not $i)}}{{template "update-form" $}}{{end}}
+    <p>{{with $a.Link}}<a href="{{.}}" target="_blank" rel="noopener">Read the registry's notice{{template "new-window"}}</a> · {{end}}
+      <small class="hint">Published by the service registry on {{$a.Published}} ({{$a.ID}})</small></p>
+    {{if and $a.Paused $.IsOwner}}
+    <details>
+      <summary>Keep it public anyway…</summary>
+      <form method="post" action="/services/{{$.Service.Name}}/public-anyway">
+        <input type="hidden" name="advisory" value="{{$a.ID}}">
+        <p class="hint">Only do this if you know {{$t}} isn't affected, or you're about to update it: anyone on the internet can try this problem.
+          It will be recorded in the history, and it will end when {{$t}}'s version changes.</p>
+        {{if $a.Exploited}}{{confirmSubmit (printf "Keep %s public anyway? Anyone on the internet will be able to try this security problem against it, and it's being used in attacks now." $t) "Keep it public anyway" "danger"}}
+        {{- else}}{{confirmSubmit (printf "Keep %s public anyway? Anyone on the internet will be able to try this security problem against it." $t) "Keep it public anyway" "danger"}}{{end}}
+      </form>
+    </details>
+    {{end}}
+  </div>
+  {{end}}
+  {{with .PublicService}}{{if or .Own .ByAll .ByBuiltWith}}{{$t := $.Service.Title}}{{$ps := .}}
   {{/* Its public access is paused (SPEC.md §6.16). */}}
   <div id="paused" class="notice notice-warn" role="status">
     <p><strong>Public access to {{$t}} is paused.</strong> Visitors from the internet are seeing a page saying it's closed for a while,
@@ -225,7 +256,7 @@
         {{- else if eq $.Service.Status "awaiting-data"}}<span class="address-pending">{{.}}</span> <small class="hint">· ready once its data is in</small>
         {{- else}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>
         {{- with $.Old}}{{with .URL $u}}<br><small class="hint">Until {{date $.Old.Until}} also at its old address, {{.}}</small>{{end}}{{end}}{{end}}</dd>{{end}}
-      {{if not .Service.NoAddress}}{{range .Access}}<dt>Reachable from</dt><dd>{{if .Public}}{{if and $.PublicService $.PublicService.Paused}}Home only for now: <a href="#paused">public access is paused</a>{{else}}Anyone on the internet{{end}}{{else}}{{template "private-where" $.Internet}}{{end}}{{if gt (len $.Access) 1}} <small>({{.Host}})</small>{{end}}
+      {{if not .Service.NoAddress}}{{range .Access}}<dt>Reachable from</dt><dd>{{if .Public}}{{if and $.PublicService $.PublicService.Paused}}Home only for now: <a href="{{if $.PublicService.Advisory}}#advisory{{else}}#paused{{end}}">public access is paused</a>{{else}}Anyone on the internet{{end}}{{else}}{{template "private-where" $.Internet}}{{end}}{{if gt (len $.Access) 1}} <small>({{.Host}})</small>{{end}}
         {{- if $.IsOwner}} · <a href="/services/{{$.Service.Name}}/public/{{.Route}}">{{if .Public}}Public access…{{else}}Make public…{{end}}</a>{{end}}</dd>
       {{else}}<dt>Reachable from</dt><dd>{{template "private-where" $.Internet}}</dd>{{end}}{{end}}
       {{with .Service.Server}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
