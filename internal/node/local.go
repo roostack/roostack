@@ -39,9 +39,10 @@ import (
 // the server's cached status (WireStatus), so they're nil while it
 // doesn't answer; its other capabilities are always there, and the server
 // answers "not found" to one it lacks. Photos isn't on the lab API yet,
-// so Remote's is nil. Local's return the Local itself, so a type that
-// embeds Local and overrides a capability's methods overrides its
-// capability method too.
+// so Remote's is nil. Local's Photos is a type of its own (localPhotos),
+// as Remote's capabilities are; its others return the Local itself, so a
+// type that embeds Local and overrides a capability's methods overrides
+// its capability method too.
 type Node interface {
 	Identity() nodeid.Identity
 	// Apply hands the node its latest assignment; the node works towards
@@ -272,8 +273,15 @@ type Local struct {
 	libWatch libraryWatch
 	// imp is bringing data into services (import.go).
 	imp imports
-	// pho is migrating photos into Immich (photos.go).
-	pho photos
+	// pho is what migrating photos into Immich shares (photos.go).
+	pho photoRuns
+}
+
+// services is a copy of the services this server runs.
+func (n *Local) services() []state.Service {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return slices.Clone(n.assignment.Services)
 }
 
 // Identity is this server's identity.
@@ -290,7 +298,7 @@ func (n *Local) Apply(a Assignment) {
 		n.imp.resumed = true
 		defer func() {
 			go n.resumeImports(context.Background())
-			go n.resumePhotos(context.Background())
+			go n.photos().resumePhotos(context.Background())
 		}()
 	}
 	n.imp.mu.Unlock()

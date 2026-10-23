@@ -33,7 +33,8 @@
 //     aside (internal/kept);
 //   - import*.go: bringing data in from the person's own copy (SPEC.md
 //     §8.4);
-//   - photos.go: running immich-go for photo migration (SPEC.md §8.5);
+//   - photos.go: running immich-go for photo migration (SPEC.md §8.5),
+//     localPhotos;
 //   - media.go, libraries.go, libwatch.go: drives, shares and media
 //     libraries (SPEC.md §8.1);
 //   - guesthost.go: storage for other labs.
