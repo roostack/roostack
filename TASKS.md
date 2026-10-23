@@ -217,7 +217,7 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
   - [x] Cloud's reconciliation after 1h's move to `internal/ui`: the sync scripts' and mock-ups' paths, the design copy re-synced and checked, the docs (batch 1i's follow-up), merged into Cloud's `main` on 2026-10-22; Cloud's editor copy reads 1g's `scripts.json` (merged on 2026-10-22, pinned at Roostack `f27115b`)
   - [x] Moving a service back to the controller with "copy directly" hung (found by 1c; on `main` before wave 1): the import now reads each tar stream to its end (2026-10-22, SPEC §10.10). Checked on VMs 5 and 6: Vaultwarden there and back, with its data
   - [ ] T1's later step: split `agent` into portable wire types and client, and the Linux server
-  - [ ] Turn on GitHub's private vulnerability reporting in the repository's settings (SECURITY.md relies on it; the maintainer)
+  - [ ] Turn on GitHub's private vulnerability reporting in the repository's settings when the repository goes public: GitHub offers it only for public repositories (the maintainer, 2026-10-23). SECURITY.md names it beside `security@roostack.cloud`, which works until then
   - [ ] `web.NewServer` could take `Node` as an argument too (always set in production; not in S1's decision)
   - [ ] `li.card.service` in app.css is unused (not on §9's list)
   - [ ] The media library form doesn't trim a share's server and path, as the photo and import steps do
