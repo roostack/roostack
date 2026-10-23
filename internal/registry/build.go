@@ -120,6 +120,14 @@ func Build(opts BuildOptions) (*Index, error) {
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
+	if ix.Advisories, err = readAdvisories(opts.Repo, ix); err != nil {
+		return nil, err
+	}
+	for _, a := range ix.Advisories {
+		if known != nil && a.BuiltWith != "" && !known[a.BuiltWith] {
+			return nil, fmt.Errorf("%s/%s.yaml: built_with: %q isn't in the registry's %s: add it there, with its title, in the same change", AdvisoriesDir, a.ID, a.BuiltWith, BuiltWithFile)
+		}
+	}
 	if err := ix.Check(); err != nil {
 		return nil, err
 	}

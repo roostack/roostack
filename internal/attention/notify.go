@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/mail"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/words"
@@ -314,6 +315,17 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 	case AuditPublicPaused:
 		return "", "Public access to " + strings.TrimSuffix(e.Detail, " via command line") + " was paused " + by + " (" + when + "). Visitors from the internet are seeing a page " +
 			"saying it's closed for a while, and it's still working at home.", ""
+	case manager.AuditAdvisoryPaused:
+		svc, what, _ := strings.Cut(e.Detail, ": ")
+		return "", "Roostack paused public access to " + svc + " (" + when + ") because the service registry published a security problem in it: " +
+			what + ". Visitors from the internet are seeing a page saying it's closed for a while, and it's still working at home. " +
+			"Updating it will fix it.", ""
+	case manager.AuditAdvisoryOpened:
+		svc, why, _ := strings.Cut(e.Detail, ": ")
+		return "", "Roostack opened public access to " + svc + " again (" + when + "): " + why + ".", ""
+	case manager.AuditAdvisory:
+		svc, what, _ := strings.Cut(e.Detail, ": ")
+		return "", "The service registry warns of a security problem in " + svc + " (" + when + "): " + what + ".", ""
 	case AuditPublicOpened:
 		return "", "Public access to " + strings.TrimSuffix(e.Detail, " via command line") + " was opened again " + by + " (" + when + ").", ""
 	}

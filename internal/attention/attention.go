@@ -284,6 +284,8 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 					l.add(it)
 				}
 			}
+			// Security advisories (SPEC.md §6.16).
+			lab.advisoryItems(ctx, services, &l)
 			// Versions the service registry withdrew (SPEC.md §8.3.4).
 			lab.withdrawals(ctx, services, &l)
 			// Restores and moves that didn't finish (SPEC.md §6.9, §10.10).

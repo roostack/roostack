@@ -38,6 +38,9 @@
     {{range $b, $p := .BuiltWith}}<li class="row-split"><span><strong>Services built with {{$.Pauses.Title $b}}</strong><br><small class="hint">Since {{when $p.Since}}{{with $p.By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
       <form method="post" action="/pause/lift"><input type="hidden" name="built_with" value="{{$b}}"><input type="hidden" name="next" value="/settings/public#paused">
         {{confirmSubmit (printf "Open services built with %s to the internet again? Those that nothing else pauses will be reachable from the internet straight away." ($.Pauses.Title $b)) "Open them again" ""}}</form></li>{{end}}
+    {{range .PausedServices}}{{$ps := .}}{{with .Advisory}}<li class="row-split"><span><strong>{{$ps.Title}}</strong><br><small class="hint">By Roostack, for a security problem
+      ({{.ID}}): {{.Title}}{{if .Fixed}} It will be public again once it's updated to {{appVersion .Fixed}}.{{else}} There's no fixed version yet.{{end}}</small></span>
+      <a class="button secondary small" href="/services/{{$ps.Name}}#advisory">What to do</a></li>{{end}}{{end}}
     {{range .PausedServices}}{{if .Own}}<li class="row-split"><span><strong>{{.Title}}</strong><br><small class="hint">Since {{when .Own.Since}}{{with .Own.By}} by {{.}}{{else}} from the server's command line{{end}}</small></span>
       <form method="post" action="/pause/lift"><input type="hidden" name="service" value="{{.Name}}"><input type="hidden" name="next" value="/settings/public#paused">
         {{confirmSubmit (printf "Open %s to the internet again? Anyone on the internet will be able to reach it straight away, unless something else still pauses it." .Title) "Open it again" ""}}</form></li>{{end}}{{end}}
@@ -45,6 +48,25 @@
   {{with .PausedServices}}<p class="hint">Paused now: {{range $i, $s := .}}{{if $i}}, {{end}}{{$s.Title}}{{end}}.</p>{{end}}
 </section>
 {{end}}{{end}}
+<section class="card section" id="advisories">
+  <h2>When the service registry warns of a security problem</h2>
+  <p class="hint">The service registry's maintainers publish a warning when a security problem affects a service in the registry, naming the
+    versions affected and the version that fixes it. Roostack checks for them every hour.</p>
+  {{if eq .Saved "advisories"}}{{notice "ok" "Saved."}}{{end}}
+  <form method="post" action="/settings/public/advisories" class="advisory-policy">
+    <label class="check"><input type="radio" name="advisories" value="tell"{{if eq .AdvisoryPolicy "tell"}} checked{{end}}>
+      <span>Tell me<small>Roostack will show it on Home and email the Owners, and won't pause anything by itself.</small></span></label>
+    <label class="check"><input type="radio" name="advisories" value="exploited"{{if eq .AdvisoryPolicy "exploited"}} checked{{end}}>
+      <span>Pause it when it's being used in attacks {{badge "Recommended"}}<small>Roostack will pause public access to a service the registry says
+        has a critical problem that's being used in attacks now, until it's updated, and tell you about anything else.</small></span></label>
+    <label class="check"><input type="radio" name="advisories" value="critical"{{if eq .AdvisoryPolicy "critical"}} checked{{end}}>
+      <span>Pause it for any critical problem<small>Roostack will pause public access for every critical problem, whether or not it's being
+        used in attacks yet.</small></span></label>
+    <p class="hint">Critical means anyone on the internet could use it without signing in. Services from your own packages will never be paused
+      by Roostack: if one might be affected, Roostack will tell you.</p>
+    <button type="submit">Save</button>
+  </form>
+</section>
 {{with .NotDeleted}}
 <section class="card section" id="not-deleted">
   <h2>Records Roostack couldn't delete</h2>

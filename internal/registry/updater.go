@@ -11,16 +11,17 @@ import (
 )
 
 // Every is how often the controller checks the registry (SPEC.md §8.3.3):
-// often enough that a withdrawal reaches labs within hours, and the
+// hourly since 2026-10-23, so a security advisory reaches labs within the
+// hour (SPEC.md §6.16; an unchanged index is one small request), and the
 // background check, not the Owner opening the catalog, is what keeps a lab
 // up to date. Each lab adds up to Jitter, so labs don't all ask at once.
 const (
-	Every  = 4 * time.Hour
-	Jitter = 30 * time.Minute
+	Every  = time.Hour
+	Jitter = 10 * time.Minute
 )
 
 // Updater runs the Fetcher on the controller: when Roostack starts, every
-// few hours, and when asked; not at all while the Owner has turned
+// hour, and when asked; not at all while the Owner has turned
 // fetching off.
 type Updater struct {
 	Fetcher *Fetcher
@@ -37,7 +38,7 @@ func NewUpdater(f *Fetcher, off bool, save func(off bool) error, log *slog.Logge
 	return &Updater{Fetcher: f, Save: save, Log: log, off: off}
 }
 
-// Run checks now, then every few hours until ctx ends.
+// Run checks now, then every hour until ctx ends.
 func (u *Updater) Run(ctx context.Context) {
 	for {
 		if u.On() {

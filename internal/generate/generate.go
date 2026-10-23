@@ -267,7 +267,7 @@ func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream 
 // built with. Worked out wherever it's generated, from the lab's settings
 // its server is sent and its instance.
 func Paused(lab config.Lab, p *pkgspec.Package, in *instance.Instance) bool {
-	return in.PublicPause != nil || lab.Public.Pause.Covers(p.BuiltWithNames())
+	return in.PublicPause != nil || lab.Public.Pause.Covers(p.BuiltWithNames()) || lab.Public.Pause.Advised[in.ID()] != ""
 }
 
 type gen struct {

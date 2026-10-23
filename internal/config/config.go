@@ -251,6 +251,31 @@ type Public struct {
 	// lab, or for every service built with something (SPEC.md §6.16).
 	// One service's own pause is in its instance (PublicPause).
 	Pause PublicPause `yaml:"pause,omitempty"`
+	// Advisories is what Roostack does when the service registry warns
+	// of a security problem in a public service (SPEC.md §6.16): tell,
+	// exploited (the default, when empty) or critical (AdvisoriesTell…).
+	Advisories string `yaml:"advisories,omitempty"`
+}
+
+// What Roostack does about the service registry's security advisories
+// (Public.Advisories, SPEC.md §6.16). Only critical ones (usable by anyone
+// on the internet without signing in) ever pause a service by themselves.
+const (
+	// AdvisoriesTell: tell the Owner, and pause nothing by itself.
+	AdvisoriesTell = "tell"
+	// AdvisoriesExploited: pause a public service a critical advisory
+	// affects when it's being used in attacks (the default).
+	AdvisoriesExploited = "exploited"
+	// AdvisoriesCritical: pause it for any critical advisory.
+	AdvisoriesCritical = "critical"
+)
+
+// AdvisoryPolicy is Advisories, AdvisoriesExploited when unset.
+func (p Public) AdvisoryPolicy() string {
+	if p.Advisories == "" {
+		return AdvisoriesExploited
+	}
+	return p.Advisories
 }
 
 // PublicPause is public access paused for the whole lab (All), or for
@@ -263,6 +288,11 @@ type Public struct {
 type PublicPause struct {
 	All       *Pause           `yaml:"all,omitempty" json:"all,omitempty"`
 	BuiltWith map[string]Pause `yaml:"built_with,omitempty" json:"built_with,omitempty"`
+	// Advised are the services Roostack paused because of a security
+	// advisory, by name, each with the advisory's ID: worked out by the
+	// controller from the registry's index for each assignment, and
+	// sent to every server, never saved (SPEC.md §6.16).
+	Advised map[string]string `yaml:"-" json:"advised,omitempty"`
 }
 
 // Pause is who paused public access, and when.
@@ -287,7 +317,9 @@ func (p PublicPause) Covers(builtWith []string) bool {
 }
 
 // IsZero: nothing is paused (and yaml's omitempty leaves it out).
-func (p PublicPause) IsZero() bool { return p.All == nil && len(p.BuiltWith) == 0 }
+func (p PublicPause) IsZero() bool {
+	return p.All == nil && len(p.BuiltWith) == 0 && len(p.Advised) == 0
+}
 
 // Countries lets in only visitors from Allow, or everyone but those from
 // Block (ISO 3166 codes, such as AU; never both; neither is anyone).

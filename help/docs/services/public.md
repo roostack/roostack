@@ -362,6 +362,37 @@ away to say who did. A pause will last until an Owner opens it again,
 from **Settings → Public access** or the service's page: Home and the
 weekly summary will keep saying what's paused until then.
 
+### When the service registry warns of a security problem
+
+The service registry's maintainers publish a warning when a security
+problem affects a service in the registry, naming the versions affected
+and the version that fixes it. Roostack checks for them every hour, and
+what it will do about one is your choice, in **Settings → Public
+access**:
+
+- **Tell me**: Roostack will show it on Home and email the Owners, and
+  won't pause anything by itself.
+- **Pause it when it's being used in attacks** (the default): Roostack
+  will pause public access to a service the registry says has a critical
+  problem that's being used in attacks now, until it's updated.
+- **Pause it for any critical problem**: the same for every critical
+  problem, whether or not it's being used in attacks yet.
+
+Critical means anyone on the internet could use it without signing in.
+When Roostack pauses a service by itself, the Owners will get an email
+straight away, and the service's page will say why and what to do: usually,
+update it to the version that fixes it. If its update setting allows that
+version, Roostack will update it straight away rather than at night. Once
+the service is updated past the problem, or the registry changes its
+warning, Roostack will open public access again by itself. If there's no
+fixed version yet, the service will stay paused until there is.
+
+On the service's page, an Owner can choose **Keep it public anyway…**:
+Roostack won't pause that version for that problem again, until the
+service's version changes. Services from your own packages are never paused
+by Roostack: if one says it's built with something a warning is about,
+Roostack will tell you it may be affected.
+
 ??? note "For technical users"
 
     - The lab's pauses are in `lab.yaml`, under `public.pause` (`all`, and
@@ -377,6 +408,13 @@ weekly summary will keep saying what's paused until then.
       services that aren't paused.
     - Monitoring still checks it from inside the lab; the public status
       page shows it as paused.
+    - What Roostack does about the registry's warnings is
+      `public.advisories` in `lab.yaml` (`tell`, `exploited`, or
+      `critical`). The warnings are in the registry's signed index, and
+      Roostack works out which services they pause each time it applies
+      changes, from the exact package file each service runs, so nothing
+      about them is saved but your choices. **Keep it public anyway** is
+      `public_anyway` in the service's instance file.
     - When Roostack's pages can't be reached, pause from the controller's
       command line: `sudo roostack public pause -all` (or `-built-with
       php`, or `-service lychee`), `sudo roostack public resume …` to open

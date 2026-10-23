@@ -358,6 +358,7 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 	if pp, err := s.Manager.PublicPauses(); err == nil {
 		data["Pauses"] = pp
 	}
+	data["AdvisoryPolicy"] = s.Manager.AdvisoryPolicy()
 	data["Saved"] = r.FormValue("saved")
 	s.render(w, "settings-public", withArea(data, "public"))
 }

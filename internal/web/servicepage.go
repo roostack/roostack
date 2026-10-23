@@ -74,6 +74,8 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		}
 	}
 	data["BuiltWith"] = s.Manager.BuiltWith(name)
+	// The registry's security advisories affecting it (SPEC.md §6.16).
+	data["Advisories"] = s.Manager.Advisories(r.Context())[name]
 	// Installing: its log, for the step list's Details. Once it's done, the
 	// step list's polling reloads the page (status, Open link).
 	if install := data["Service"].(ServiceView).Install; install != nil {

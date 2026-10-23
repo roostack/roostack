@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/registry"
 )
 
 // Pausing public access (SPEC.md §6.16): Home offers it while anything is
@@ -131,5 +132,71 @@ func TestApplyWaiting(t *testing.T) {
 	fm.status.Waiting = nil
 	if _, body := h.get("/"); strings.Contains(body, "waiting for the one being applied") {
 		t.Error("nothing waiting says nothing")
+	}
+}
+
+// A security advisory (SPEC.md §6.16) Roostack paused a service for shows
+// on Home, the service's page (with what to do, and Keep it public anyway
+// for the Owner) and Settings → Public access, whose policy the Owner sets.
+func TestAdvisoryPages(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	adv := &registry.Advisory{ID: "2026-0007", Title: "Vaultwarden lets anyone read every vault", Severity: registry.SeverityCritical,
+		Exploited: true, Published: "2026-10-22", CVEs: []string{"CVE-2026-41234"}, Link: "https://example.org/notice"}
+	fm.access = []manager.RouteAccess{{Route: "web", Host: "passwords.lab.example.com", Public: true, WAF: true}}
+	fm.advisories = map[string][]*manager.ServiceAdvisory{"vaultwarden": {{Advisory: adv, Version: "1.34.3-roostack.1",
+		Fixed: "1.34.4-roostack.1", Public: true, Paused: true}}}
+	_, body := h.get("/")
+	if !strings.Contains(body, "Roostack has paused public access to Vaultwarden because of a security problem that&#39;s being used in attacks") ||
+		!strings.Contains(body, `href="/services/vaultwarden#advisory"`) {
+		t.Errorf("Home:\n%s", body)
+	}
+	_, body = h.get("/services/vaultwarden")
+	for _, want := range []string{`id="advisory"`, "Roostack has paused public access to Vaultwarden to keep it safe.", "(CVE-2026-41234)",
+		"The registry rates it critical", "It's being used in attacks now.", "update it to 1.34.4, which fixes it",
+		"Keep it public anyway…", `name="advisory" value="2026-0007"`, `href="#advisory">public access is paused`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the service's page lacks %q", want)
+		}
+	}
+	if strings.Contains(body, `id="paused"`) {
+		t.Error("the person's pause notice shows for an advisory's pause")
+	}
+
+	h.post("/services/vaultwarden/public-anyway", url.Values{"advisory": {"2026-0007"}}, h.srv.URL)
+	if strings.Join(fm.keptPublic, ",") != "vaultwarden 2026-0007" {
+		t.Errorf("kept: %v", fm.keptPublic)
+	}
+	_, body = h.get("/settings/public")
+	for _, want := range []string{`id="advisories"`, `name="advisories" value="exploited" checked`,
+		"By Roostack, for a security problem\n      (2026-0007)"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Settings → Public access lacks %q", want)
+		}
+	}
+	h.post("/settings/public/advisories", url.Values{"advisories": {"critical"}}, h.srv.URL)
+	if fm.advPolicy != "critical" {
+		t.Errorf("policy %q", fm.advPolicy)
+	}
+	entries, _ := h.store.AuditSince(context.Background(), 0)
+	var got []string
+	for _, e := range entries {
+		if e.Action == "public access" {
+			got = append(got, e.Detail)
+		}
+	}
+	if strings.Join(got, "|") != "vaultwarden kept public despite security advisory 2026-0007|security advisories: pause it for any critical problem" {
+		t.Errorf("audit: %q", got)
+	}
+
+	h, fm = loggedIn(t, auth.RoleAdmin)
+	fm.advisories = map[string][]*manager.ServiceAdvisory{"vaultwarden": {{Advisory: adv, Public: true, Paused: true}}}
+	if _, body := h.get("/services/vaultwarden"); strings.Contains(body, "Keep it public anyway") {
+		t.Error("only the Owner keeps it public")
+	}
+	if code, _ := h.post("/settings/public/advisories", url.Values{"advisories": {"tell"}}, h.srv.URL); code != http.StatusForbidden || fm.advPolicy != "" {
+		t.Errorf("an Admin setting the policy: %d", code)
+	}
+	if code, _ := h.post("/services/vaultwarden/public-anyway", url.Values{"advisory": {"2026-0007"}}, h.srv.URL); code != http.StatusForbidden {
+		t.Errorf("an Admin keeping it public: %d", code)
 	}
 }

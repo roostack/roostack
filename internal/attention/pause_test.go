@@ -7,6 +7,7 @@ import (
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/words"
 )
 
@@ -52,5 +53,37 @@ func TestPauseItems(t *testing.T) {
 	}
 	if pauseSummary(manager.PublicPauses{}) != "" || len(pauseItems(manager.PublicPauses{}, true)) != 0 {
 		t.Error("nothing paused says nothing")
+	}
+}
+
+// What Home says about each service's newest advisory, the one it's
+// paused for first (SPEC.md §6.16): what Roostack did and what to do.
+func TestAdvisoryItems(t *testing.T) {
+	adv := func(sev string, exploited bool) *registry.Advisory {
+		return &registry.Advisory{ID: "2026-0007", Title: "PHP lets anyone run code.", Severity: sev, Exploited: exploited, BuiltWith: "php"}
+	}
+	for _, c := range []struct {
+		a     *manager.ServiceAdvisory
+		level string
+		text  string
+	}{
+		{&manager.ServiceAdvisory{Advisory: adv("critical", true), Fixed: "7.11.2-roostack.1", Paused: true}, Warning,
+			"Roostack has paused public access to Lychee because of a security problem that's being used in attacks: PHP lets anyone run code. " +
+				"Lychee is still working at home. Updating it to 7.11.2 will fix it, and Lychee will be public again once the update has worked."},
+		{&manager.ServiceAdvisory{Advisory: adv("critical", false), Paused: true}, Warning,
+			"Roostack has paused public access to Lychee because of a security problem: PHP lets anyone run code. Lychee is still working at home. " +
+				"There's no fixed version yet. Roostack will keep it paused until there is."},
+		{&manager.ServiceAdvisory{Advisory: adv("high", false), Fixed: "7.11.2-roostack.1"}, Warning,
+			"The service registry warns of a security problem in Lychee: PHP lets anyone run code. Updating it to 7.11.2 will fix it."},
+		{&manager.ServiceAdvisory{Advisory: adv("critical", true), KeptPublic: true}, Warning,
+			"Lychee is public although the service registry warns of a security problem in it: PHP lets anyone run code. There's no fixed version yet."},
+		{&manager.ServiceAdvisory{Advisory: adv("critical", true), Possibly: true}, Info,
+			"The service registry warns of a security problem in php, which Lychee is built with, so it may be affected"},
+		{&manager.ServiceAdvisory{Advisory: adv("low", false)}, Info, "The service registry has a security notice about Lychee"},
+	} {
+		it := advisoryItem("lychee", "Lychee", c.a)
+		if it.Level != c.level || !strings.HasPrefix(it.Text, c.text) || it.Link != "/services/lychee#advisory" {
+			t.Errorf("%+v:\n%+v", c.a, it)
+		}
 	}
 }

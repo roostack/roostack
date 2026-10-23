@@ -710,6 +710,10 @@ type fakePauses struct {
 	paused   []manager.PauseRequest
 	lifted   []manager.PauseRequest
 	pausedBy []string
+	// advisories by service; policy and kept, what the Owner chose.
+	advisories map[string][]*manager.ServiceAdvisory
+	advPolicy  string
+	keptPublic []string
 }
 
 func (f *fakePauses) PublicPauses() (manager.PublicPauses, error) {
@@ -719,6 +723,12 @@ func (f *fakePauses) PublicPauses() (manager.PublicPauses, error) {
 	out := manager.PublicPauses{All: f.all, BuiltWith: f.builtW, Titles: map[string]string{"rust": "Rust"}}
 	for _, s := range f.public {
 		s.Own, s.ByAll, s.ByBuiltWith = f.own[s.Name], f.all != nil, nil
+		for _, a := range f.advisories[s.Name] {
+			if a.Paused {
+				s.Advisory = a
+				break
+			}
+		}
 		for _, b := range s.BuiltWith {
 			if _, ok := f.builtW[b]; ok {
 				s.ByBuiltWith = append(s.ByBuiltWith, b)
@@ -753,6 +763,22 @@ func (f *fakePauses) PausePublic(by string, r manager.PauseRequest) error {
 		}
 		f.own[n] = &p
 	}
+	return nil
+}
+
+func (f *fakePauses) Advisories(context.Context) map[string][]*manager.ServiceAdvisory {
+	return f.advisories
+}
+func (f *fakePauses) AdvisoryPolicy() string { return cmp.Or(f.advPolicy, config.AdvisoriesExploited) }
+func (f *fakePauses) SetAdvisoryPolicy(p string) error {
+	f.advPolicy = p
+	return nil
+}
+func (f *fakePauses) KeepPublicAnyway(_ context.Context, name, id string) error {
+	if name != "vaultwarden" {
+		return manager.ErrNotFound
+	}
+	f.keptPublic = append(f.keptPublic, name+" "+id)
 	return nil
 }
 

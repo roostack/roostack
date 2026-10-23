@@ -76,7 +76,7 @@ Everything starts again by itself after a restart.
 
 Roostack gets the services you can install, and fixes to them, from the
 **service registry**, [Roostack's public list of packages](https://github.com/roostack/services).
-It checks every few hours, and when you open **Add a service**. On the
+It checks every hour, and when you open **Add a service**. On the
 controller, **Settings → Updates and restarts** shows:
 
 - when it last checked, and whether that worked (if not, **What went

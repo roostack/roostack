@@ -273,8 +273,16 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	// on a lab on the internet it can start with the public UI, before
 	// anything asks.
 	pub := m.labNow().Public
+	// Services the registry's security advisories pause (SPEC.md §6.16),
+	// worked out now and sent with the lab's own pauses, never saved.
+	pause := pub.Pause
+	advised, key := m.markAdvisories(context.Background(), m.labNow(), services)
+	m.advisedKey = key
+	if len(advised) > 0 {
+		pause.Advised = advised
+	}
 	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked,
-		StatusPage: m.StatusPageOn(), Pause: pub.Pause}
+		StatusPage: m.StatusPageOn(), Pause: pause}
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
 		nodes = append(nodes, r)

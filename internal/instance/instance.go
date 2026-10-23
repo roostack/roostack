@@ -81,6 +81,10 @@ type Instance struct {
 	// closed for a while, until someone lifts it. The lab's own pauses
 	// (everything, or by what services are built with) are in lab.yaml.
 	PublicPause *config.Pause `yaml:"public_pause,omitempty"`
+	// PublicAnyway are the security advisories the Owner chose to keep
+	// this version public despite (SPEC.md §6.16): Roostack doesn't pause
+	// it for them. Another version (an update) isn't covered.
+	PublicAnyway *KeptPublic `yaml:"public_anyway,omitempty"`
 	// SSO: single sign-on is on (SPEC.md §5.2), for a package that takes
 	// it. Who may sign in is runtime data (store.Access).
 	SSO bool `yaml:"sso,omitempty"`
@@ -142,6 +146,19 @@ type PortOverride struct {
 	Enabled  *bool  `yaml:"enabled,omitempty"`
 	HostPort int    `yaml:"host_port,omitempty"`
 	Exposure string `yaml:"exposure,omitempty"`
+}
+
+// KeptPublic is a version kept public despite security advisories.
+type KeptPublic struct {
+	Version    string   `yaml:"version"`
+	Advisories []string `yaml:"advisories"`
+}
+
+// KeptPublicFor says whether the Owner kept this version public despite
+// the advisory with id.
+func (in *Instance) KeptPublicFor(id string) bool {
+	k := in.PublicAnyway
+	return k != nil && k.Version == in.Version && slices.Contains(k.Advisories, id)
 }
 
 // HostOr is the server the service runs on: Host, or controller if Host

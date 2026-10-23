@@ -2,10 +2,12 @@ package web
 
 import (
 	"cmp"
+	"context"
 	"net/http"
 	"slices"
 
 	"roostack.cloud/roostack/internal/attention"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/usererr"
 	"roostack.cloud/roostack/internal/words"
@@ -18,6 +20,53 @@ type Pauses interface {
 	LiftPause(r manager.PauseRequest) error
 	// BuiltWith is what a service is built with, as people write it.
 	BuiltWith(name string) []string
+	// The service registry's security advisories: those affecting each
+	// service, what Roostack does about them (lab.yaml), and keeping a
+	// version public despite one.
+	Advisories(ctx context.Context) map[string][]*manager.ServiceAdvisory
+	AdvisoryPolicy() string
+	SetAdvisoryPolicy(policy string) error
+	KeepPublicAnyway(ctx context.Context, name, id string) error
+}
+
+// advisoryPolicySubmit saves what Roostack does when the registry warns of
+// a security problem (Settings → Public access, the Owner's).
+func (s *Server) advisoryPolicySubmit(w http.ResponseWriter, r *http.Request) {
+	policy := r.FormValue("advisories")
+	if err := s.Manager.SetAdvisoryPolicy(policy); err != nil {
+		if msg, ok := usererr.Message(err); ok {
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "public access", "security advisories: "+advisoryPolicyWords[policy])
+	redirect(w, r, "/settings/public?saved=advisories#advisories")
+}
+
+// advisoryPolicyWords say each policy for the audit log.
+var advisoryPolicyWords = map[string]string{
+	config.AdvisoriesTell:      "tell me",
+	config.AdvisoriesExploited: "pause it when it's being used in attacks",
+	config.AdvisoriesCritical:  "pause it for any critical problem",
+}
+
+// keepPublicSubmit keeps a service's version public despite a security
+// advisory, at the Owner's word, after a warning: Roostack won't pause it
+// for that advisory again until its version changes.
+func (s *Server) keepPublicSubmit(w http.ResponseWriter, r *http.Request) {
+	name, id := r.PathValue("name"), r.FormValue("advisory")
+	if err := s.Manager.KeepPublicAnyway(r.Context(), name, id); err != nil {
+		if err == manager.ErrNotFound {
+			http.NotFound(w, r)
+			return
+		}
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "public access", name+" kept public despite security advisory "+id)
+	redirect(w, r, "/services/"+name+"#advisory")
 }
 
 // builtWithChoice is something the lab's public services are built with,
