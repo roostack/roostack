@@ -15,7 +15,6 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
-	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/photoimport"
@@ -45,6 +44,8 @@ type PhotoMigrations interface {
 	RemovePhotoLocation(ctx context.Context, service, name string) error
 	PhotoDrives(ctx context.Context, service string, admin bool) ([]manager.PhotoDrive, error)
 	CheckPhotoSource(ctx context.Context, service string, src node.PhotoSource, admin bool) error
+	// MigrationStarted tells the Owners when someone else starts one.
+	MigrationStarted(ctx context.Context, service string, u *store.User)
 }
 
 // Steps of a migration, in order.
@@ -733,7 +734,7 @@ func (s *Server) photoStartSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	err := x.StartPhotos(r.Context(), name, who)
 	if err == nil && who == u.Username {
-		s.photosStarted(r.Context(), name, u)
+		s.Photos.MigrationStarted(r.Context(), name, u)
 	}
 	s.photoDone(w, r, err, "started migrating photos for "+who, "#step-7")
 }
@@ -915,80 +916,6 @@ func photoTotals(photos, videos int64) string {
 		return words.Count(videos, "video", "videos")
 	}
 	return words.Count(photos, "photo", "photos") + " and " + words.Count(videos, "video", "videos")
-}
-
-// photosStarted tells the lab's Owners that someone else started
-// migrating photos (the Owner's card says they're told), by email.
-func (s *Server) photosStarted(ctx context.Context, service string, u *store.User) {
-	if s.Mail == nil || u.Role == auth.RoleOwner {
-		return
-	}
-	title := service
-	if ps, ok := s.photoService(ctx, service); ok {
-		title = ps.Title
-	}
-	body := fmt.Sprintf("%s started migrating photos into their %s account. You'll get another email when it ends.\n\n"+
-		"Follow it on %s's page: https://%s/services/%s#photos\n", cmp.Or(u.Name, u.Username), title, title, s.UIHost, service)
-	s.mailOwners(ctx, fmt.Sprintf("%s is migrating photos into %s", cmp.Or(u.Name, u.Username), title), body)
-}
-
-// PhotosEnded tells the person whose migration ended, and the Owners if
-// it isn't theirs, how it went (node.Local.OnPhotos).
-func (s *Server) PhotosEnded(ctx context.Context, m node.PhotoSummary) {
-	if s.Mail == nil || m.Run == nil {
-		return
-	}
-	title := m.Service
-	if ps, ok := s.photoService(ctx, m.Service); ok {
-		title = ps.Title
-	}
-	t := m.Run.Tally
-	var subject, what string
-	switch {
-	case m.Run.Err != "":
-		subject, what = "Migrating photos into "+title+" stopped", "It stopped with an error: "+m.Run.Err+"."
-	case m.Run.Stopped:
-		subject, what = "Migrating photos into "+title+" was stopped", "It was stopped. What's in Immich stays there; carry on whenever you like."
-	case m.Run.Interrupted:
-		subject, what = "Migrating photos into "+title+" was interrupted", "It stopped when the server restarted. What's in Immich stays there; carry on from the page."
-	default:
-		subject = "Your photos are in " + title
-		what = fmt.Sprintf("%s migrated, %s already there.", words.Count(m.Run.Migrated(), "photo or video", "photos and videos"),
-			words.Count(m.Run.HadBefore(), "was", "were"))
-		if t.Failed > 0 {
-			what += fmt.Sprintf(" %s couldn't be migrated: the page says which.", words.Count(t.Failed, "file", "files"))
-		}
-	}
-	link := fmt.Sprintf("https://%s/immich-photos/%s", s.UIHost, m.Service)
-	body := what + "\n\nThe details: " + link + "\n"
-	if u, err := s.Store.UserByUsername(ctx, m.Who); err == nil && u.Email != "" {
-		if err := s.Mail.Send(ctx, mail.Message{To: []string{u.Email}, Subject: subject, Body: body}); err != nil && err != mail.ErrNotConfigured {
-			s.Log.Warn("emailing the end of a photo migration", "err", err)
-		}
-		if u.Role == auth.RoleOwner {
-			return
-		}
-	}
-	s.mailOwners(ctx, m.Who+": "+subject, body)
-}
-
-// mailOwners emails the lab's Owners who have an address.
-func (s *Server) mailOwners(ctx context.Context, subject, body string) {
-	users, err := s.Store.ListUsers(ctx)
-	if err != nil {
-		return
-	}
-	for _, u := range users {
-		if u.Role != auth.RoleOwner || u.Email == "" {
-			continue
-		}
-		if err := s.Mail.Send(ctx, mail.Message{To: []string{u.Email}, Subject: subject, Body: body}); err != nil {
-			if err != mail.ErrNotConfigured {
-				s.Log.Warn("emailing an Owner about a photo migration", "err", err)
-			}
-			return
-		}
-	}
 }
 
 // Kinds are the places this person may choose, in order.

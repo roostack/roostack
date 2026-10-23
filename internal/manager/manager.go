@@ -178,6 +178,9 @@ type Manager struct {
 	remoteMu       sync.Mutex
 	remoteSeen     map[string]labnet.GuestUsage
 	remoteConfigMu sync.Mutex
+
+	// feats are the features with types of their own (core.go).
+	feats features
 }
 
 // labNow is lab.yaml as it is now: Lab with the settings changed while

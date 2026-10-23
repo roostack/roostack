@@ -5,11 +5,16 @@
 // instance files), builds each server's assignment from it and hands it
 // over (servers.go).
 //
+// Three features barely touch the rest, so each is a type of its own that
+// reaches the Manager through a small interface (core.go): Photos
+// (photos.go).
+//
 // The files, by feature:
 //
 // Services:
 //   - manager.go: the Manager type, the catalog, installing and removing,
 //     the install summary, package files and icons, ports;
+//   - core.go: what the features with types of their own use of it;
 //   - local.go: the Owner's own packages and the package policy (SPEC.md
 //     §8.3.4); withdrawals.go: the registry's withdrawals and stops;
 //   - update.go: updating to newer package versions (SPEC.md §7.1);
@@ -19,7 +24,8 @@
 //     §10.5);
 //   - sso.go: single sign-on for each service (SPEC.md §5.2);
 //   - import.go: switching a service to data brought in (SPEC.md §8.4);
-//   - photos.go: photo migration into Immich (SPEC.md §8.5);
+//   - photos.go: photo migration into Immich (SPEC.md §8.5), and its
+//     emails;
 //   - libraries.go: media libraries (SPEC.md §8.1);
 //   - monitor.go: monitoring's checks and the status page (SPEC.md §6.15).
 //

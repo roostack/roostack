@@ -331,9 +331,9 @@ func (c *controller) wireWeb() error {
 	srv.Node = c.local
 	srv.Libraries = c.mgr
 	// Migrating photos into Immich (SPEC.md §8.5): its pages, and the
-	// email when one ends.
-	srv.Photos = c.mgr
-	c.local.OnPhotos = srv.PhotosEnded
+	// email when one ends (sent once the notifier has the mail server).
+	srv.Photos = c.mgr.Photos()
+	c.local.OnPhotos = c.mgr.Photos().MigrationEnded
 	if err := startSignIn(c.ctx, lab, c.st, srv, c.mgr, c.local, c.log); err != nil {
 		return err
 	}
@@ -660,6 +660,9 @@ func (c *controller) startCloud() {
 func (c *controller) wireNotifier() {
 	m := &mail.Service{LabPath: c.labPath, PasswordFile: c.lab.Paths.MailPasswordFile()}
 	c.srv.Mail = m
+	// The photo migration emails (SPEC.md §8.5).
+	photos := c.mgr.Photos()
+	photos.Mail, photos.Users = m, c.st
 	n := &attention.Notifier{Store: c.st, Log: c.log, Mail: m, Lab: c.srv.AttentionLab}
 	go n.Run(c.ctx)
 }
