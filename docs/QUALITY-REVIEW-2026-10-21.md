@@ -1209,7 +1209,8 @@ Each its own session, in any order, once waves 1 and 2 have landed:
   - **S2** steps 2 and 4 (the backup plan's and location rules in `manager`; `internal/attention` for the attention list and the notifier; every item and email identical before and after);
   - Cloud's helpers and tests (the rest of S16, B9, B10, T3, T6, T7, T9; Cloud's suite from about 45 s to 25 s);
   - the portal's sidebar following Roostack's layout (the maintainer's decision, 2026-10-23).
-- **Still to do:** S8 and S11 (splitting `Manager` and `node.Local`), then T2 with the rest of T8 and T9 (Roostack's test speed and helpers).
+- **Round 2b, merged:** S8 steps 2–4 and S11: `Manager`'s fields grouped, apply reasons passed as arguments, one runtime `lab.yaml`; photo migration, storage for other labs and recovery key changes as types of their own in `manager`; `node.Local`'s photo migration and imports as types of their own. The recorded activity lines, attention items and emails match before and after.
+- **Still to do:** T2 with the rest of T8 and T9 (Roostack's test speed and helpers).
 - **Found along the way, filed in TASKS.md:**
   - two backup drives with one label get one mount point;
   - `podman.Pull` can lose podman's reason when its error line comes first;
