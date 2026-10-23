@@ -133,12 +133,8 @@ func waitUpdated(t *testing.T, m *Manager, name string) {
 func updateSetup(t *testing.T, m *Manager) (*chainBackups, *string) {
 	t.Helper()
 	m.Settings = linkKV{}
-	healthWait, healthStable, healthEvery, statusEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond
-	failedFor = 100 * time.Millisecond
-	t.Cleanup(func() {
-		healthWait, healthStable, healthEvery, statusEvery = 5*time.Minute, time.Minute, 5*time.Second, 2*time.Second
-		failedFor = 30 * time.Second
-	})
+	m.waits.healthWait, m.waits.healthStable, m.waits.healthEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond
+	m.waits.failedFor, m.waits.statusEvery = 100*time.Millisecond, 10*time.Millisecond
 	local := m.Node.(*node.Local)
 	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now,
 		Journal: maintenance.FileJournal{Path: filepath.Join(t.TempDir(), "journal.json")},
@@ -233,12 +229,8 @@ func TestServiceUpdate(t *testing.T) {
 	m, _ := newManager(t)
 	ctx := context.Background()
 	m.Settings = linkKV{}
-	healthWait, healthStable, healthEvery, statusEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond
-	failedFor = 100 * time.Millisecond
-	t.Cleanup(func() {
-		healthWait, healthStable, healthEvery, statusEvery = 5*time.Minute, time.Minute, 5*time.Second, 2*time.Second
-		failedFor = 30 * time.Second
-	})
+	m.waits.healthWait, m.waits.healthStable, m.waits.healthEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond
+	m.waits.failedFor, m.waits.statusEvery = 100*time.Millisecond, 10*time.Millisecond
 	local := m.Node.(*node.Local)
 	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now,
 		Journal: maintenance.FileJournal{Path: filepath.Join(t.TempDir(), "journal.json")},

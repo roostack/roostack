@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net"
@@ -49,7 +50,7 @@ const (
 
 // How long a new direct link has to connect, and how long one that didn't
 // waits before it's tried again.
-var (
+const (
 	linkGrace = 3 * time.Minute
 	linkRetry = 24 * time.Hour
 )
@@ -259,7 +260,7 @@ func (m *Manager) CheckLinks(ctx context.Context) {
 		m.links.mu.Lock()
 		since, ok := m.links.since[key]
 		m.links.mu.Unlock()
-		if !ok || time.Since(since) < linkGrace || m.linkFailed(ctx, p[0], p[1]) {
+		if !ok || time.Since(since) < cmp.Or(m.waits.linkGrace, linkGrace) || m.linkFailed(ctx, p[0], p[1]) {
 			continue
 		}
 		// Either side seeing a recent handshake is enough.

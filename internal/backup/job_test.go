@@ -212,14 +212,12 @@ func TestBackupCopies(t *testing.T) {
 }
 
 // A copy whose storage never answers (a server that's off) gives up after
-// reachTimeout instead of holding the backup up while restic retries.
+// ReachTimeout instead of holding the backup up while restic retries.
 func TestBackupCopyUnreachable(t *testing.T) {
 	main := testRepo(t)
 	if err := main.Init(context.Background()); err != nil { // slow the first time (key derivation)
 		t.Fatal(err)
 	}
-	reachTimeout = 5 * time.Second
-	defer func() { reachTimeout = 2 * time.Minute }()
 	// Accepts connections and never answers.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -243,10 +241,11 @@ func TestBackupCopyUnreachable(t *testing.T) {
 	var copyErr error
 	d := JobDeps{
 		Repo: main, Preparer: &Preparer{}, Paths: paths, Host: "test",
-		DumpState: func(_ context.Context, path string) error { writeFile(t, path, "db copy"); return nil },
-		Plan:      func() (Plan, error) { return LabPlan(paths, nil), nil },
-		Copies:    []Copy{{Name: "server:dev2", Title: "dev2's disk", Repo: silent}},
-		OnCopy:    func(_ Copy, _ time.Time, _ *Summary, err error) { copyErr = err },
+		DumpState:    func(_ context.Context, path string) error { writeFile(t, path, "db copy"); return nil },
+		Plan:         func() (Plan, error) { return LabPlan(paths, nil), nil },
+		Copies:       []Copy{{Name: "server:dev2", Title: "dev2's disk", Repo: silent}},
+		OnCopy:       func(_ Copy, _ time.Time, _ *Summary, err error) { copyErr = err },
+		ReachTimeout: 5 * time.Second,
 	}
 	start := time.Now()
 	if _, err := Run(context.Background(), d, nopReporter{}); err != nil {

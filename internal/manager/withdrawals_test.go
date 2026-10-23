@@ -78,13 +78,12 @@ func quadletExists(m *Manager, name string) bool {
 // private; with stops off, it's only a warning.
 func TestRegistryStop(t *testing.T) {
 	m, _ := newManager(t)
+	m.waits.lastBackupCheck = 10 * time.Millisecond
 	ctx := context.Background()
 	m.Settings = linkKV{}
 	m.UpdateLab = func(func(*config.Lab)) error { return nil }
 	backups := &stopBackups{}
 	m.Node.(*node.Local).Jobs.Backups = backups
-	lastBackupCheck = 10 * time.Millisecond
-	t.Cleanup(func() { lastBackupCheck = time.Minute })
 
 	for _, name := range []string{"immich", "vaultwarden"} {
 		if err := m.Install(ctx, name, InstallRequest{Settings: map[string]string{}}); err != nil {

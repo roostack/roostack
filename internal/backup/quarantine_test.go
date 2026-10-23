@@ -73,8 +73,7 @@ func TestCleanJunk(t *testing.T) {
 		t.Fatalf("with junk: %v, want restic to fail on it", err)
 	}
 
-	defer func(d time.Duration) { JunkRecheck = d }(JunkRecheck)
-	JunkRecheck = 0
+	r.JunkRecheck = time.Millisecond
 	files := FilesOf(r)
 	if files == nil {
 		t.Fatal("no direct access to a folder repository")

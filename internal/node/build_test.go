@@ -36,8 +36,6 @@ func (u *buildUnits) Status(_ context.Context, units ...string) ([]systemd.UnitS
 // The build's output is copied whole lines at a time, including what it
 // wrote just before finishing; a failed build is an error.
 func TestCopyBuildLog(t *testing.T) {
-	buildPoll = time.Millisecond
-	t.Cleanup(func() { buildPoll = 2 * time.Second })
 	logFile := filepath.Join(t.TempDir(), "caddy-build.log")
 	appendLog := func(s string) {
 		f, _ := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
@@ -60,7 +58,7 @@ func TestCopyBuildLog(t *testing.T) {
 					appendLog("COMMIT localhost/roostack-caddy\n")
 				}
 			}}
-		n := &Local{Units: units}
+		n := &Local{Units: units, buildPoll: time.Millisecond}
 		var out strings.Builder
 		err := n.copyBuildLog(context.Background(), logFile, &out)
 		if (err != nil) != c.wantErr {

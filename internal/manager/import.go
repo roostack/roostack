@@ -156,7 +156,7 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 
 	step := func(name, say string, args ...any) ([]string, error) {
 		act.Step(say, args...)
-		kept, err := runSwitchStep(ctx, x, service, name)
+		kept, err := m.runSwitchStep(ctx, x, service, name)
 		if err != nil {
 			act.Printf("%v", err)
 		}
@@ -173,7 +173,7 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 		// Back to how it was: the data from before, and the instance.
 		if committed {
 			act.Step("Putting %s's data from before back", title)
-			if _, uerr := runSwitchStep(context.WithoutCancel(ctx), x, service, node.SwitchUndo); uerr != nil {
+			if _, uerr := m.runSwitchStep(context.WithoutCancel(ctx), x, service, node.SwitchUndo); uerr != nil {
 				err = fmt.Errorf("%w; putting its data from before back failed too: %v", err, uerr)
 				return
 			}
@@ -183,10 +183,10 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 				err = fmt.Errorf("%w; going back failed too: %v", err, serr)
 				return
 			}
-			waitApplied(context.WithoutCancel(ctx), m.node(host), time.Now().Add(-time.Second))
+			m.waitApplied(context.WithoutCancel(ctx), m.node(host), time.Now().Add(-time.Second))
 		}
 		if !before.AwaitingData {
-			runSwitchStep(context.WithoutCancel(ctx), x, service, node.SwitchStart)
+			m.runSwitchStep(context.WithoutCancel(ctx), x, service, node.SwitchStart)
 		}
 		err = fmt.Errorf("%w; %s has its data from before again", err, title)
 	}()
@@ -210,7 +210,7 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 		if err := m.saveInstance(after, "Bringing data into "+title); err != nil {
 			return err
 		}
-		if err := waitApplied(ctx, m.node(host), time.Now().Add(-time.Second)); err != nil {
+		if err := m.waitApplied(ctx, m.node(host), time.Now().Add(-time.Second)); err != nil {
 			return err
 		}
 	} else if _, err := step(node.SwitchStart, "Starting %s", title); err != nil {
@@ -220,7 +220,7 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 	if err := m.checkHealth(ctx, act, up, service); err != nil {
 		return err
 	}
-	if _, err := runSwitchStep(ctx, x, service, node.SwitchFinish); err != nil {
+	if _, err := m.runSwitchStep(ctx, x, service, node.SwitchFinish); err != nil {
 		act.Printf("%v", err)
 	}
 	act.Step("%s is running with your data", title)
@@ -233,7 +233,7 @@ var switchStepWait = 2 * time.Hour
 
 // runSwitchStep does a step of the switch on the service's server and
 // waits for it, returning what it set aside.
-func runSwitchStep(ctx context.Context, x node.Imports, service, name string) ([]string, error) {
+func (m *Manager) runSwitchStep(ctx context.Context, x node.Imports, service, name string) ([]string, error) {
 	if err := x.SwitchImport(ctx, service, name); err != nil {
 		return nil, err
 	}
@@ -250,7 +250,7 @@ func runSwitchStep(ctx context.Context, x node.Imports, service, name string) ([
 			}
 			return v.Kept, nil
 		}
-		if !sleep.For(ctx, statusEvery) {
+		if !sleep.For(ctx, cmp.Or(m.waits.statusEvery, statusEvery)) {
 			return nil, ctx.Err()
 		}
 	}

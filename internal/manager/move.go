@@ -221,7 +221,7 @@ func (j *transferJob) finishMove(ctx context.Context) error {
 	// It runs on the new server now; its old copy stays put.
 	if j.repo != nil {
 		j.act.Step("Loading its databases from the backup")
-		if err := waitApplied(ctx, j.m.node(j.to), switched); err != nil {
+		if err := j.m.waitApplied(ctx, j.m.node(j.to), switched); err != nil {
 			return err
 		}
 		if err := j.dst.LoadDumps(ctx, j.name); err != nil {
@@ -242,8 +242,8 @@ func (j *transferJob) finishMove(ctx context.Context) error {
 }
 
 // waitApplied waits until a server has applied changes made after t.
-func waitApplied(ctx context.Context, n node.Node, t time.Time) error {
-	deadline := time.Now().Add(applyWait)
+func (m *Manager) waitApplied(ctx context.Context, n node.Node, t time.Time) error {
+	deadline := time.Now().Add(cmp.Or(m.waits.apply, applyWait))
 	for time.Now().Before(deadline) {
 		if st := n.Status(); !st.Running && st.LastRun.After(t) {
 			return st.LastErr
@@ -257,7 +257,7 @@ func waitApplied(ctx context.Context, n node.Node, t time.Time) error {
 
 // applyWait bounds waiting for a server to start a moved service (its
 // first start may download images).
-var applyWait = 20 * time.Minute
+const applyWait = 20 * time.Minute
 
 // moveViaBackup moves a service through a fresh backup: the old server
 // backs up, the service stops, and the controller streams its folders

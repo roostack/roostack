@@ -52,8 +52,8 @@ const (
 // last update (UpdateRecord, as JSON).
 const updateKey = "service-update:"
 
-// Timings for checking an updated service (variables for tests).
-var (
+// Timings for checking an updated service.
+const (
 	healthWait   = 5 * time.Minute
 	healthStable = time.Minute
 	healthEvery  = 5 * time.Second
@@ -65,7 +65,7 @@ var (
 // on (failed) for failedFor.
 const maxRestarts = 5
 
-var failedFor = 30 * time.Second
+const failedFor = 30 * time.Second
 
 // Update is an installed service's available update.
 type Update struct {
@@ -655,7 +655,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		return rec
 	}
 	switched := time.Now()
-	herr := waitApplied(ctx, n, switched.Add(-time.Second))
+	herr := m.waitApplied(ctx, n, switched.Add(-time.Second))
 	if herr == nil {
 		// 4: check.
 		act.Step("Checking %s works", u.Title)
@@ -677,7 +677,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		return rec
 	}
 	back := time.Now()
-	if aerr := waitApplied(ctx, n, back.Add(-time.Second)); aerr != nil {
+	if aerr := m.waitApplied(ctx, n, back.Add(-time.Second)); aerr != nil {
 		rec.Result, err = UpdateFailed, fmt.Errorf("%w; going back failed too: %v", herr, aerr)
 		return rec
 	}
@@ -755,7 +755,7 @@ func (m *Manager) awaitHold(ctx context.Context, act *activity.Log, u *Update, u
 				return st, errors.New("its server let go of the update")
 			}
 		}
-		if !sleep.For(ctx, statusEvery) {
+		if !sleep.For(ctx, cmp.Or(m.waits.statusEvery, statusEvery)) {
 			return st, ctx.Err()
 		}
 	}
@@ -784,6 +784,9 @@ func (m *Manager) switchVersion(from, to *instance.Instance, reason string) erro
 // checkHealth waits for a service to be healthy, without restarts, for
 // healthStable, giving up after healthWait with the last problem.
 func (m *Manager) checkHealth(ctx context.Context, act *activity.Log, up node.Updater, name string) error {
+	// The timings, or the ones a test set (waits).
+	healthWait, healthStable := cmp.Or(m.waits.healthWait, healthWait), cmp.Or(m.waits.healthStable, healthStable)
+	healthEvery, failedFor := cmp.Or(m.waits.healthEvery, healthEvery), cmp.Or(m.waits.failedFor, failedFor)
 	deadline := time.Now().Add(healthWait)
 	var stableSince, failedSince time.Time
 	restarts, first, problem := -1, -1, "it didn't start"

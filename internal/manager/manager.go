@@ -177,6 +177,22 @@ type Manager struct {
 
 	// feats are the features with types of their own (core.go).
 	feats features
+
+	// waits are how long it waits for some things; tests shorten them.
+	waits waits
+}
+
+// waits are how long the controller waits for some things. Each is zero
+// for the constant of the same name beside its use, and a test sets its
+// own Manager's, so tests that shorten them can run in parallel.
+type waits struct {
+	// applyWait (move.go), restoreWatch (hold.go), lastBackupCheck
+	// (withdrawals.go), linkGrace (links.go), pruneRetry (backups.go) and
+	// pullGap (servers.go).
+	apply, restoreWatch, lastBackupCheck, linkGrace, pruneRetry, pullGap time.Duration
+	// Checking an updated service (update.go), and how often a server's
+	// update or switch to brought data is looked at (statusEvery).
+	healthWait, healthStable, healthEvery, failedFor, statusEvery time.Duration
 }
 
 // labNow is lab.yaml as it is now: Lab with the settings changed while

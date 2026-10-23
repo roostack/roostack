@@ -303,7 +303,7 @@ func (j *transferJob) restoreBackup(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
-		if err := waitApplied(ctx, m.node(j.to), switched); err != nil {
+		if err := m.waitApplied(ctx, m.node(j.to), switched); err != nil {
 			return err
 		}
 	}

@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"cmp"
 	"context"
 	"maps"
 	"os"
@@ -35,8 +36,8 @@ const stopKey = "registry-stop:"
 
 // lastBackupCheck is how often the controller checks whether a stopped
 // service's server has finished its last backup, so the databases on the
-// package's own images can stop too (a variable for tests).
-var lastBackupCheck = time.Minute
+// package's own images can stop too.
+const lastBackupCheck = time.Minute
 
 // Withdrawal is the registry's withdrawal of an installed service's
 // version, and what Roostack does about it.
@@ -270,7 +271,7 @@ func (m *Manager) awaitLastBackup(ctx context.Context, host string) {
 	}
 	go func() {
 		for {
-			time.Sleep(lastBackupCheck)
+			time.Sleep(cmp.Or(m.waits.lastBackupCheck, lastBackupCheck))
 			m.mu.Lock()
 			services, err := state.LoadServices(m.Lab)
 			due := false

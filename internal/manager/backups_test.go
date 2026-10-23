@@ -517,6 +517,7 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 // later, up to pruneTries in all; the others aren't.
 func TestPruneRetriesLocked(t *testing.T) {
 	m, _ := newManager(t)
+	m.waits.pruneRetry = time.Millisecond
 	m.Activity = activity.New()
 	ctx := context.Background()
 	st := storetest.Open(t)
@@ -540,8 +541,6 @@ func TestPruneRetriesLocked(t *testing.T) {
 		st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-000000000" + map[string]string{"busy": "2", "idle": "3"}[id],
 			Provider: "local:" + filepath.Join(dir, id), Repository: filepath.Join(dir, id), Created: time.Now()})
 	}
-	pruneRetry = time.Millisecond
-	defer func() { pruneRetry = time.Hour }()
 	submitted := make(chan maintenance.Job, 5)
 	m.Submit = func(j maintenance.Job) { submitted <- j }
 

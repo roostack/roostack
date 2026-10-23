@@ -107,8 +107,7 @@ func TestDirectLinks(t *testing.T) {
 	}
 
 	// No handshake within the grace time: through the controller, for a day.
-	linkGrace = time.Millisecond
-	defer func() { linkGrace = 3 * time.Minute }()
+	m.waits.linkGrace = time.Millisecond
 	time.Sleep(5 * time.Millisecond)
 	vps.handshakes = map[string]int64{homeKey: time.Now().Unix()}
 	m.CheckLinks(ctx)

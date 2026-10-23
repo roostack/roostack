@@ -78,7 +78,8 @@ type Reconciler struct {
 	// service's install step by step (optional).
 	Progress func(Event)
 	// Settle is how long a unit that failed to start gets to come up after
-	// all, through systemd restarting it (0 means 30 s).
+	// all, through systemd restarting it (0 means 30 s). Its state is read
+	// every 2 s, or every Settle if that's shorter (tests).
 	Settle time.Duration
 	// Unfinished are units of new containers whose first start didn't
 	// finish (a failed download, or Roostack restarted halfway): they're
@@ -105,9 +106,10 @@ func (r *Reconciler) start(ctx context.Context, log *activity.Log, units ...stri
 		return err
 	}
 	log.Printf("Starting failed; waiting for systemd to try again: %v", err)
-	deadline := time.Now().Add(cmp.Or(r.Settle, 30*time.Second))
+	settle := cmp.Or(r.Settle, 30*time.Second)
+	deadline := time.Now().Add(settle)
 	for time.Now().Before(deadline) {
-		if !sleep.For(ctx, 2*time.Second) {
+		if !sleep.For(ctx, min(2*time.Second, settle)) {
 			return err
 		}
 		states, serr := st.Status(ctx, units...)

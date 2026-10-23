@@ -258,8 +258,10 @@ type Local struct {
 	hooksCancel map[string]context.CancelCauseFunc
 	hooksDone   chan struct{}
 
-	// followingBuild: a Caddy image build is being shown (build.go).
+	// followingBuild: a Caddy image build is being shown (build.go), and
+	// buildPoll how often its log is read (zero: build.go's buildPoll).
 	followingBuild bool
+	buildPoll      time.Duration
 	// installs are new services being installed, step by step (install.go);
 	// installsLoaded, once they've been read from State.
 	installs       map[string]*InstallProgress

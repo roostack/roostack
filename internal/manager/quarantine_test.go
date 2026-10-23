@@ -32,8 +32,6 @@ func (f fakeBackups) RunNow(context.Context) error                  { return nil
 // reported until the Owner dismisses it; the prune then works.
 func TestJunkJob(t *testing.T) {
 	bin := restictest.Bin(t)
-	defer func(d time.Duration) { backup.JunkRecheck = d }(backup.JunkRecheck)
-	backup.JunkRecheck = 0
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
@@ -50,7 +48,8 @@ func TestJunkJob(t *testing.T) {
 	os.WriteFile(recovery, []byte("the recovery key\n"), 0o600)
 	repoDir := filepath.Join(dir, "repo")
 	m.OpenRepo = func(url string, env []string) *backup.Repo {
-		return &backup.Repo{Bin: bin, URL: repoDir, PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache")}
+		return &backup.Repo{Bin: bin, URL: repoDir, PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache"),
+			JunkRecheck: time.Millisecond}
 	}
 	ctx := context.Background()
 	if err := m.SetBackupDestination(ctx, "n-0000000002", "server:n-0000000001"); err != nil {

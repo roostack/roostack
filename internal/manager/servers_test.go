@@ -375,8 +375,7 @@ func TestPendingFor(t *testing.T) {
 	m, _ := newManager(t)
 	vps := pendingRemote{&fakeRemote{settings: &fakeServerSettings{}}}
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
-	defer func(g time.Duration) { pullGap = g }(pullGap)
-	pullGap = time.Hour
+	m.waits.pullGap = time.Hour
 
 	// None yet (the controller just started): it's built.
 	w, err := m.PendingFor("n-0000000002")
@@ -391,7 +390,7 @@ func TestPendingFor(t *testing.T) {
 		t.Errorf("a server not in the lab: %v", err)
 	}
 	// Later fetches get the latest without applying anew.
-	pullGap = 0
+	m.waits.pullGap = time.Nanosecond
 	for range 5 {
 		if w, err := m.PendingFor("n-0000000002"); err != nil || w.Version != 1 {
 			t.Fatalf("later fetch: %+v %v", w, err)

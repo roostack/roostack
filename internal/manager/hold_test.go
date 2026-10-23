@@ -81,8 +81,7 @@ func waitHeld(t *testing.T, m *Manager, held bool) *instance.Instance {
 func TestOwnRestoreHeld(t *testing.T) {
 	m, a, b := setUpMove(t)
 	ctx := context.Background()
-	restoreWatch = 5 * time.Millisecond
-	defer func() { restoreWatch = 2 * time.Second }()
+	m.waits.restoreWatch = 5 * time.Millisecond
 	home := &restoringServer{movingServer: a, restores: &ownRestores{}}
 	m.Others = func() []RemoteServer { return []RemoteServer{home, b} }
 	var mu sync.Mutex

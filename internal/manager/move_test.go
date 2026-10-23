@@ -345,8 +345,7 @@ func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 	bin := restictest.Bin(t)
 	m, a, b := setUpMove(t)
 	ctx := context.Background()
-	applyWait = 5 * time.Second
-	t.Cleanup(func() { applyWait = 20 * time.Minute })
+	m.waits.apply = 5 * time.Second
 	svcDir := filepath.Join(m.Lab.Paths.ServicesDir, "forgejo")
 	os.MkdirAll(filepath.Join(svcDir, "data"), 0o755)
 	os.WriteFile(filepath.Join(svcDir, "data", "app.ini"), []byte("from the backup"), 0o644)
