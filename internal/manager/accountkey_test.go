@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/b2"
@@ -49,16 +48,6 @@ func TestChangeS3Key(t *testing.T) {
 	}
 	m.NewB2 = func(id, key string) *b2.Client { return &b2.Client{KeyID: id, Key: key, API: api.URL} }
 	ctx := context.Background()
-	wait := func(key string) activity.Snapshot {
-		t.Helper()
-		for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-			if l, _ := m.Activity.Latest(key); !l.Running() {
-				return l
-			}
-		}
-		t.Fatalf("%s still running", key)
-		return activity.Snapshot{}
-	}
 
 	// The vps backs up to Backblaze with a key from the website: it gets
 	// the account's key.
@@ -69,7 +58,7 @@ func TestChangeS3Key(t *testing.T) {
 	if err := m.SetBackupDestination(ctx, "n-0000000002", "provider:1"); err != nil {
 		t.Fatal(err)
 	}
-	if l := wait(activity.BackupSetupFor("n-0000000002")); l.Err != "" {
+	if l := waitDone(t, m, activity.BackupSetupFor("n-0000000002")); l.Err != "" {
 		t.Fatalf("setup: %s", l.Err)
 	}
 	if env := strings.Join(vps.settings.dest.Env, " "); !strings.Contains(env, "AWS_ACCESS_KEY_ID=old-id") {
@@ -98,7 +87,7 @@ func TestChangeS3Key(t *testing.T) {
 	if err := m.ChangeS3Key(ctx, "provider:1", "new-id", "new-key"); err != nil {
 		t.Fatal(err)
 	}
-	if l := wait(activity.BackupKeyFor("1")); !strings.Contains(l.Err, "couldn't reach vps, which still has the old key") {
+	if l := waitDone(t, m, activity.BackupKeyFor("1")); !strings.Contains(l.Err, "couldn't reach vps, which still has the old key") {
 		t.Errorf("err = %q", l.Err)
 	}
 	if deleted := api.Deleted(); !slices.Equal(deleted, []string{"scoped-1"}) {
@@ -114,7 +103,7 @@ func TestChangeS3Key(t *testing.T) {
 	if err := m.ChangeS3Key(ctx, "provider:1", "new-id", "new-key"); err != nil {
 		t.Fatal(err)
 	}
-	l := wait(activity.BackupKeyFor("1"))
+	l := waitDone(t, m, activity.BackupKeyFor("1"))
 	if l.Err != "" {
 		t.Fatalf("err = %s", l.Err)
 	}
@@ -140,7 +129,7 @@ func TestChangeS3Key(t *testing.T) {
 	if err := m.ChangeS3Key(ctx, "provider:1", "new-id", "new-key"); err != nil {
 		t.Fatal(err)
 	}
-	l = wait(activity.BackupKeyFor("1"))
+	l = waitDone(t, m, activity.BackupKeyFor("1"))
 	if log := strings.Join(l.Lines, "\n"); !strings.Contains(log, "vps keeps the key of its own it has") || len(api.Created()) != 2 {
 		t.Errorf("created %v; log:\n%s", api.Created(), log)
 	}
@@ -155,7 +144,7 @@ func TestChangeS3Key(t *testing.T) {
 	if err := m.ChangeS3Key(ctx, "provider:2", "wasabi-2", "secret-2"); err != nil {
 		t.Fatal(err)
 	}
-	if l := wait(activity.BackupKeyFor("2")); l.Err != "" {
+	if l := waitDone(t, m, activity.BackupKeyFor("2")); l.Err != "" {
 		t.Fatal(l.Err)
 	}
 	c := vps.settings.copies

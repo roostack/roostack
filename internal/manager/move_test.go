@@ -24,6 +24,7 @@ import (
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -210,13 +211,13 @@ func setUpMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 
 func waitMove(t *testing.T, m *Manager) activity.Snapshot {
 	t.Helper()
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
-		if l, ok := m.Activity.Latest(activity.Move); ok && !l.Running() {
-			return l
-		}
-	}
-	t.Fatal("move didn't finish")
-	return activity.Snapshot{}
+	var l activity.Snapshot
+	testwait.For(t, 10*time.Second, func() bool {
+		var ok bool
+		l, ok = m.Activity.Latest(activity.Move)
+		return ok && !l.Running()
+	})
+	return l
 }
 
 func TestMoveService(t *testing.T) {

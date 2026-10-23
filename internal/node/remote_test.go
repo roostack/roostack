@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -244,15 +245,12 @@ func TestRemote(t *testing.T) {
 	// before its reply reaches the controller, which only then counts it
 	// as delivered.
 	pushed := func() {
-		for deadline := time.Now().Add(5 * time.Second); ; {
+		t.Helper()
+		testwait.For(t, 5*time.Second, func() bool {
 			r.mu.Lock()
-			pushing := r.pushing
-			r.mu.Unlock()
-			if !pushing || time.Now().After(deadline) {
-				return
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
+			defer r.mu.Unlock()
+			return !r.pushing
+		})
 	}
 	// Once the send has finished, the secrets aren't kept.
 	pushed()

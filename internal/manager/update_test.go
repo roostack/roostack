@@ -117,13 +117,7 @@ func offerVersion(t *testing.T, m *Manager, name, from, to string, notes ...pkgs
 
 func waitUpdated(t *testing.T, m *Manager, name string) {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
-	for m.Updating(name) != nil {
-		if time.Now().After(deadline) {
-			t.Fatal("the update didn't finish")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 20*time.Second, func() bool { return m.Updating(name) == nil })
 	m.Wait()
 }
 

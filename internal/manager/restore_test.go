@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 func TestMoments(t *testing.T) {
@@ -228,13 +229,13 @@ func waitDone(t *testing.T, m *Manager, kind string) activity.Snapshot {
 
 func waitRestore(t *testing.T, m *Manager) activity.Snapshot {
 	t.Helper()
-	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if l, ok := m.Activity.Latest(activity.Restore); ok && !l.Running() && !m.Restoring("forgejo") {
-			return l
-		}
-	}
-	t.Fatal("the restore didn't finish")
-	return activity.Snapshot{}
+	var l activity.Snapshot
+	testwait.For(t, 20*time.Second, func() bool {
+		var ok bool
+		l, ok = m.Activity.Latest(activity.Restore)
+		return ok && !l.Running() && !m.Restoring("forgejo")
+	})
+	return l
 }
 
 // A service's backup, made by one server, is found by the controller and

@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/s3api/s3fake"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -166,16 +167,12 @@ func testRollBack(t *testing.T, markersFirst bool) {
 		if err := m.CheckRollback(ctx, "n-0000000002", "provider:1", before); err != nil {
 			t.Fatal(err)
 		}
-		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-			if l, _ := m.Activity.Latest(kind); !l.Running() {
-				if l.Err != "" {
-					t.Fatalf("check: %s", l.Err)
-				}
-				return m.RollbackChecked("n-0000000002", "provider:1").Summary
-			}
+		var l activity.Snapshot
+		testwait.For(t, 10*time.Second, func() bool { l, _ = m.Activity.Latest(kind); return !l.Running() })
+		if l.Err != "" {
+			t.Fatalf("check: %s", l.Err)
 		}
-		t.Fatal("the check didn't finish")
-		return nil
+		return m.RollbackChecked("n-0000000002", "provider:1").Summary
 	}
 
 	// Nothing to roll back to before backups started, or in the future;

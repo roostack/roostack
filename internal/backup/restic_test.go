@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/backup/restictest"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // These tests run the real restic binary (restictest.Bin), against a
@@ -251,15 +252,10 @@ func TestUnlockClearsStaleLocks(t *testing.T) {
 	}
 	defer stdin.Close()
 	locks := filepath.Join(r.URL, "locks")
-	for i := 0; ; i++ {
-		if entries, _ := os.ReadDir(locks); len(entries) > 0 {
-			break
-		}
-		if i == 100 {
-			t.Fatal("the backup didn't lock the repository")
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool { // the backup has locked the repository
+		entries, _ := os.ReadDir(locks)
+		return len(entries) > 0
+	})
 	if n, err := r.Unlock(ctx); err != nil || n != 0 {
 		t.Errorf("a running backup's lock must stay: removed %d, %v", n, err)
 	}

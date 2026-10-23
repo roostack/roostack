@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/trust"
 )
 
@@ -170,12 +171,10 @@ func startLogged(t *testing.T, allowed []uint32) (*Client, *fakeHost, *strings.B
 			t.Error(err)
 		}
 	})
-	for i := 0; i < 100; i++ {
-		if _, err := os.Stat(socket); err == nil {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool {
+		_, err := os.Stat(socket)
+		return err == nil
+	})
 	return NewClient(socket), host, &log
 }
 

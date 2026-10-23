@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // fakePhotoAgent mounts nothing: the test puts the export there itself.
@@ -121,14 +122,12 @@ func writeTakeout(t *testing.T, dir, name string, files map[string]string) {
 
 func waitPhotos(t *testing.T, n *Local, done func(*PhotoState) bool) *PhotoState {
 	t.Helper()
-	for range 500 {
-		if st := n.photos().loadPhotos(t.Context(), "immich").People["anna"]; st != nil && done(st) {
-			return st
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("waited too long: %+v", n.photos().loadPhotos(t.Context(), "immich").People["anna"])
-	return nil
+	var st *PhotoState
+	testwait.For(t, 5*time.Second, func() bool {
+		st = n.photos().loadPhotos(t.Context(), "immich").People["anna"]
+		return st != nil && done(st)
+	})
+	return st
 }
 
 // Migrating a Takeout into Immich (SPEC.md §8.5): the export mounted and

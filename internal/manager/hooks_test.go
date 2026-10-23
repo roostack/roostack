@@ -14,6 +14,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -327,17 +328,11 @@ func TestInstallHookStoppedByRemoval(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	for start := time.Now(); ; time.Sleep(time.Millisecond) {
+	testwait.For(t, 5*time.Second, func() bool { // the setup has run
 		ex.mu.Lock()
-		n := len(ex.calls)
-		ex.mu.Unlock()
-		if n > 0 {
-			break
-		}
-		if time.Since(start) > 5*time.Second {
-			t.Fatal("the setup never ran")
-		}
-	}
+		defer ex.mu.Unlock()
+		return len(ex.calls) > 0
+	})
 	if err := m.Remove(ctx, "forgejo"); err != nil {
 		t.Fatal(err)
 	}
