@@ -111,15 +111,15 @@ func (m *Manager) setUpCopy(ctx context.Context, act *activity.Log, serverID str
 		return err
 	}
 	if m.alone() {
-		act.Step("Saving the copy (Roostack restarts to use it)")
+		act.Step("Saving the copy (Roostack will restart to use it)")
 	} else {
-		act.Step("Telling %s about the copy (it restarts Roostack)", m.nameOf(serverID))
+		act.Step("Telling %s about the copy (it will restart Roostack)", m.nameOf(serverID))
 	}
 	c := node.BackupCopy{Name: choice.Ref, Title: choice.Title, Repository: dest.Repository, Env: dest.Env, Cloud: dest.Cloud, Key: dest.Key, KeyHint: dest.KeyHint, Drive: dest.Drive}
 	if err := n.Settings().SetBackupCopies(ctx, m.copiesFor(ctx, serverID, &c)); err != nil {
 		return err
 	}
-	act.Step("%s backups are also copied to %s from the next backup", capital(m.backupsOf(serverID)), inSentence(choice.Title))
+	act.Step("%s backups will also be copied to %s from the next backup", capital(m.backupsOf(serverID)), inSentence(choice.Title))
 	return nil
 }
 

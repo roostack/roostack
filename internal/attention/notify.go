@@ -44,9 +44,9 @@ type NotifyGroup struct {
 
 // NotifyGroups are the groups, in the order the account page lists them.
 var NotifyGroups = []NotifyGroup{
-	{GroupProblems, "Problems", "Backups failing, a disk running low, a service or server that stopped working, updates that failed. Sent once a problem has lasted a few minutes, then once a day while it lasts, and when it's fixed.", auth.ManageServices},
+	{GroupProblems, "Problems", "Backups failing, a disk running low, a service or server that stopped working, or updates that failed. Roostack will email you once a problem has lasted a few minutes, then once a day while it lasts, and again when it's fixed.", auth.ManageServices},
 	{GroupWaiting, "Waiting for you", "Something Roostack can't finish without you, such as a restart to finish installing updates, once it has waited a day.", auth.ManageServices},
-	{GroupSecurity, "Security for the lab", "A new Owner or Admin, someone's password or two-factor reset, a server joining the lab, another lab starting to store backups here.", auth.ManageHost},
+	{GroupSecurity, "Security for the lab", "A new Owner or Admin, someone's password or two-factor reset, a server joining the lab, or another lab starting to store backups here.", auth.ManageHost},
 	{GroupWeekly, "Weekly summary", "On Monday mornings: backups, disk space, attacks blocked on your public addresses, and anything still needing attention.", auth.ManageServices},
 }
 

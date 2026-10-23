@@ -213,7 +213,7 @@ func (s *Server) notificationsSubmit(w http.ResponseWriter, r *http.Request) {
 	msg := ""
 	switch {
 	case email == "" && u.Role == auth.RoleOwner:
-		msg = "As the Owner, you need an email address, so Roostack can tell you when the lab needs you."
+		msg = "As the Owner, you need an email address so that Roostack can tell you when the lab needs you."
 	case email != "":
 		msg = emailProblem(email)
 	}

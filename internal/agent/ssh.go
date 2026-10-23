@@ -487,7 +487,7 @@ func (h LinuxHost) SetSSHKeysOnly(on bool) error {
 			return fmt.Errorf("sshd %s refused the change (%s), and putting the old file back failed: %w", check,
 				sshdOutput(out), rerr)
 		}
-		return fmt.Errorf("sshd %s refused the change, so SSH keeps its old settings: %s", check, sshdOutput(out))
+		return fmt.Errorf("sshd %s refused the change, so SSH is keeping its old settings: %s", check, sshdOutput(out))
 	}
 	// Reloads a running sshd (its ExecReload runs sshd -t again). One
 	// started by ssh.socket can't reload: on SIGHUP sshd starts itself

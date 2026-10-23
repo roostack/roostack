@@ -173,6 +173,6 @@ func (j *transferJob) setAsideOld(ctx context.Context) {
 		j.act.Printf("Couldn't set the old copy aside on %s: %v", j.m.nameOf(j.from), err)
 	}
 	for _, a := range aside {
-		j.act.Printf("The old copy stays on %s at %s until you delete it", j.m.nameOf(j.from), a)
+		j.act.Printf("The old copy will stay on %s at %s until you delete it", j.m.nameOf(j.from), a)
 	}
 }

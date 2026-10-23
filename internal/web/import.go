@@ -521,7 +521,7 @@ func importOldText(old string) string {
 func leftText(l importer.Left) string {
 	why := map[string]string{
 		importer.WhyDBFiles: "the old database's own files: never copied, as its dump brings the database",
-		importer.WhyFile:    "a single file of the system's: Roostack sets what it's for itself",
+		importer.WhyFile:    "a single file of the system's: Roostack will set what it's for itself",
 		importer.WhyUnused:  "nothing here is kept there",
 	}[l.Why]
 	return fmt.Sprintf("%s (%s's %s): %s.", l.Source, l.Container, l.Target, why)
@@ -545,9 +545,9 @@ func libraryPlacementText(at []string, title string) string {
 		}
 	}
 	if parent != "/" && !slices.Contains([]string{"/app", "/opt", "/srv", "/var"}, parent) {
-		return fmt.Sprintf("%s's media folder goes at %s, with each library in it under the name it had. A drive unplugged and plugged back in comes back by itself.", title, parent)
+		return fmt.Sprintf("%s's media folder will go at %s, with each library in it under the name it had. A drive unplugged and plugged back in will come back by itself.", title, parent)
 	}
-	return fmt.Sprintf("These aren't in one folder, so each library is shown at its own place. If a library's drive is unplugged, %s can't see it again until it restarts: Roostack restarts %s by itself once the drive is back, which takes a few seconds.", title, title)
+	return fmt.Sprintf("These aren't in one folder, so each library will be shown at its own place. If a library's drive is unplugged, %s won't be able to see it again until it restarts: Roostack will restart %s by itself once the drive is back, which will take a few seconds.", title, title)
 }
 
 // dumpChoices are the dump-like files at the top of the person's copy and

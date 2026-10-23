@@ -110,7 +110,7 @@ func (s *Server) domainResult() store.MonitorResult {
 	}
 	why := st.Message
 	if why == "" {
-		why = "devices at home don't find this server at it"
+		why = "devices at home aren't finding this server at it"
 	}
 	return store.MonitorResult{Err: why}
 }
@@ -228,7 +228,7 @@ func (s *Server) statusChoices(ctx context.Context, statuses []monitor.Status) [
 		case st.Kind == monitor.KindService && st.Public:
 			c.Hint = "open to the internet"
 		case st.Kind == monitor.KindService:
-			c.Hint = "only on your home network: showing it tells everyone you run it"
+			c.Hint = "only on your home network: showing it will tell everyone you run it"
 		case st.Kind == monitor.KindOwn:
 			c.Hint = "your own check"
 		default:

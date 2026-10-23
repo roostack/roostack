@@ -89,7 +89,7 @@ func TestCloudLinking(t *testing.T) {
 	f.Decline(f.Codes()[0])
 	testwait.For(t, 10*time.Second, func() bool { return link.Status().Waiting == nil })
 	if _, body := h.get("/setup/domain"); !strings.Contains(body, `<input name="name" value="smiths"`) ||
-		!strings.Contains(body, "Linking was cancelled, or the code expired, in Roostack Cloud") {
+		!strings.Contains(body, "In Roostack Cloud, linking was cancelled or the code expired") {
 		t.Errorf("the address step after linking was cancelled in Cloud: %.3000s", body)
 	}
 

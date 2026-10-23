@@ -126,7 +126,7 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 		}
 		for _, mc := range servers {
 			out = append(out, BackupChoice{Ref: destination.New(destination.Server, mc.ID), Title: mc.Name + "'s disk",
-				Note: "Kept in " + mc.Name + "'s backups folder. A copy somewhere else protects against theft, fire or a failed disk."})
+				Note: "Kept in " + mc.Name + "'s backups folder. A copy somewhere else protects against theft, fire, or a failed disk."})
 		}
 	}
 	if m.BackupStore == nil {
@@ -240,17 +240,17 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 		return err
 	}
 	if m.alone() {
-		act.Step("Saving where backups go (Roostack restarts to use it)")
+		act.Step("Saving where backups go (Roostack will restart to use it)")
 	} else {
-		act.Step("Telling %s where to back up (it restarts Roostack)", m.nameOf(serverID))
+		act.Step("Telling %s where to back up (it will restart Roostack)", m.nameOf(serverID))
 	}
 	if err := n.Settings().SetBackupDestination(ctx, dest); err != nil {
 		return err
 	}
 	if m.alone() {
-		act.Step("Backups go to %s", inSentence(choice.Title))
+		act.Step("Backups will go to %s", inSentence(choice.Title))
 	} else {
-		act.Step("Backups for %s go to %s", m.nameOf(serverID), inSentence(choice.Title))
+		act.Step("Backups for %s will go to %s", m.nameOf(serverID), inSentence(choice.Title))
 	}
 	if err := m.BackupStore.RemoveLostBackup(ctx, serverID); err != nil {
 		m.Log.Warn("forgetting a lost main backup", "server", serverID, "err", err)
@@ -446,7 +446,7 @@ func (m *Manager) scopedB2Key(ctx context.Context, act *activity.Log, serverID, 
 	folder := backup.ServerFolder(s3.Prefix, labID, serverID) + "/"
 	key, err := m.b2(s3).CreateKey(ctx, "roostack-"+labID+"-"+serverID, s3.Bucket, folder)
 	if err != nil {
-		act.Printf("%v. %s uses the account's key instead, which can delete its backups there.", err, capital(name))
+		act.Printf("%v. %s will use the account's key instead, which can delete its backups there.", err, capital(name))
 		return
 	}
 	target.ScopedKey = key.ID
@@ -458,7 +458,7 @@ func (m *Manager) scopedB2Key(ctx context.Context, act *activity.Log, serverID, 
 	case days < 0:
 		act.Printf("Roostack couldn't read how long this bucket keeps hidden files.")
 	case days == 0:
-		act.Printf("This bucket keeps hidden files for good. Old backups the controller removes still take space until a lifecycle rule erases them.")
+		act.Printf("This bucket keeps hidden files for good. Old backups the controller removes will still take space until a lifecycle rule erases them.")
 	case days < MinKeepHidden:
 		after := fmt.Sprintf("after %d days", days)
 		if days == 1 {
@@ -530,12 +530,12 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 		}
 		if t.ServerID != serverID {
 			// The other server stops copying there (it restarts Roostack).
-			act.Printf("%s's backups were also copied to %s's disk: that copy stops.", m.nameOf(t.ServerID), name)
+			act.Printf("%s's backups were also copied to %s's disk: that copy will stop.", m.nameOf(t.ServerID), name)
 			err := m.RemoveBackupCopy(ctx, t.ServerID, t.Provider)
 			if err == nil {
 				continue
 			}
-			act.Printf("%s couldn't be told (%v), so its nightly copy there fails until its backups change on its Backups page.",
+			act.Printf("Roostack couldn't tell %s (%v), so its nightly copy there will fail until its backups change on its Backups page.",
 				m.nameOf(t.ServerID), words.FirstLine(strings.TrimSpace(err.Error())))
 		}
 		m.BackupStore.RemoveBackupCopy(ctx, t.ServerID, t.Provider)
@@ -711,7 +711,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 					errs = append(errs, err)
 					continue
 				}
-				act.Step("%s", m.aboutServer(t.ServerID, "keeping 7 daily, 4 weekly and 6 monthly"))
+				act.Step("%s", m.aboutServer(t.ServerID, "keeping 7 daily, 4 weekly, and 6 monthly"))
 				// Stale locks first, or one crashed backup blocks every
 				// prune there (docs/ASSUMPTIONS.md N1); a running
 				// backup's lock stays.
@@ -725,7 +725,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 				err = repo.Forget(ctx, backup.DefaultRetention)
 				switch {
 				case errors.Is(err, backup.ErrLocked) && try < pruneTries && m.Submit != nil:
-					act.Printf("Busy (a backup is running there): tried again in %s", retry)
+					act.Printf("Busy (a backup is running there): Roostack will try again in %s", retry)
 					locked[pruneKey(t)] = true
 				case err != nil:
 					act.Printf("%v", err)
@@ -802,7 +802,7 @@ func (m *Manager) recoveryKey() error {
 	if m.EnsureRecoveryKey != nil {
 		return m.EnsureRecoveryKey()
 	}
-	return usererr.New("Set up this server's backups first: that creates the recovery key every backup can be read with.")
+	return usererr.New("Set up this server's backups first: that will create the recovery key every backup can be read with.")
 }
 
 // choiceFor finds a place a server can back up: one of BackupChoices, or a

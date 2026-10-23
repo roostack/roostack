@@ -54,7 +54,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/setup") // the setup code first (again, if it's been a while)
 		return
 	case !auth.ValidUsername(username):
-		fail("Choose a username of letters and digits (dots, dashes and underscores are fine too), up to 32 characters.")
+		fail("Choose a username of letters and digits (dots, dashes, and underscores are fine too), up to 32 characters.")
 		return
 	case emailProblem(email) != "":
 		// Every Owner has one (ownerNeedsEmail).

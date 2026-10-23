@@ -263,7 +263,7 @@ func (x localImports) SetImportSource(ctx context.Context, service string, src I
 		return usererr.New("Wait for the check or copy to finish, or stop it, first.")
 	}
 	if !slices.Contains([]string{"drive", "folder", "share"}, src.Kind) {
-		return usererr.New("Choose a drive, a folder or a share.")
+		return usererr.New("Choose a drive, a folder, or a share.")
 	}
 	if _, err := x.n.ImportAgent.MountImport(ctx, service, src.Library); err != nil {
 		return usererr.New("Roostack couldn't open those files: %v.", strings.TrimSuffix(err.Error(), "."))

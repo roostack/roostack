@@ -122,11 +122,11 @@ func (x localImports) runImportCheck(ctx context.Context, s state.Service, act *
 		}
 		more := "All readable."
 		if c.Links > 0 {
-			more += fmt.Sprintf(" %s in it %s copied as %s, never followed.", words.Count(c.Links, "link", "links"), words.Plural(int(c.Links), "is", "are"),
+			more += fmt.Sprintf(" %s in it will be copied as %s, never followed.", words.Count(c.Links, "link", "links"),
 				words.Plural(int(c.Links), "a link", "links"))
 		}
 		if c.Special > 0 {
-			more += fmt.Sprintf(" %s (sockets, devices) aren't copied.", words.Count(c.Special, "special file", "special files"))
+			more += fmt.Sprintf(" %s (sockets, devices) won't be copied.", words.Count(c.Special, "special file", "special files"))
 		}
 		add(importer.LevelOK, head, more)
 	}
@@ -155,7 +155,7 @@ func (x localImports) runImportCheck(ctx context.Context, s state.Service, act *
 		label := fmt.Sprintf("Database %q", db.Name)
 		if db.From == "" {
 			if db.Why == importer.WhyLeft {
-				add(importer.LevelWarn, label+": not brought.", title+" starts with an empty database.")
+				add(importer.LevelWarn, label+": not brought.", title+" will start with an empty database.")
 			} else {
 				add(importer.LevelBad, label+": no dump found.", "Take a dump on the old machine (the commands are beside these steps) and put it with your files, or choose it in step 3.")
 			}
@@ -174,7 +174,7 @@ func (x localImports) runImportCheck(ctx context.Context, s state.Service, act *
 				f.Close()
 			}
 			if kind := importer.SQLDump(head); kind != "" {
-				add(importer.LevelOK, fmt.Sprintf("%s: a %s dump.", label, kind), "Loaded as Roostack's restores load one.")
+				add(importer.LevelOK, fmt.Sprintf("%s: a %s dump.", label, kind), "It will be loaded as Roostack's restores load one.")
 			} else {
 				add(importer.LevelBad, label+" isn't a dump Roostack can load.",
 					"It should be what mariadb-dump (or mysqldump) prints, as SQL, not compressed.")
@@ -196,7 +196,7 @@ func (x localImports) runImportCheck(ctx context.Context, s state.Service, act *
 		case importer.SameImage:
 			add(importer.LevelOK, "The same version.", fmt.Sprintf("The old %s ran %s, as %s does here.", m.Old, importer.TagVersion(oc.Image), title))
 		case importer.OlderImage:
-			add(importer.LevelWarn, "An older version.", fmt.Sprintf("The old %s ran %s, and %s here is %s. %s upgrades its data as it first starts, if it can make the jump: read its release notes first.",
+			add(importer.LevelWarn, "An older version.", fmt.Sprintf("The old %s ran %s, and %s here is %s. %s will upgrade its data as it first starts, if it can make the jump: read its release notes first.",
 				m.Old, importer.TagVersion(oc.Image), title, importer.TagVersion(newImage), title))
 		case importer.NewerImage:
 			add(importer.LevelWarn, "A newer version.", fmt.Sprintf("The old %s ran %s, newer than %s here (%s): data from a newer version is likely not to work. Wait for the package to catch up, or update the lab's.",
@@ -208,7 +208,7 @@ func (x localImports) runImportCheck(ctx context.Context, s state.Service, act *
 			add(importer.LevelInfo, "Versions that can't be compared.", fmt.Sprintf("The old %s ran %s; %s here is %s.", m.Old, oc.Image, title, importer.TagVersion(newImage)))
 		}
 		if oc.NVIDIA {
-			add(importer.LevelInfo, "An NVIDIA graphics card isn't used here.", m.Old+" used one; Roostack doesn't support NVIDIA cards, so the processor does the work.")
+			add(importer.LevelInfo, "An NVIDIA graphics card isn't used here.", m.Old+" used one; Roostack doesn't support NVIDIA cards, so the processor will do the work.")
 		}
 		// Settings the package doesn't set, leaving out the image's own.
 		c := p.Containers[m.Part]
@@ -221,7 +221,7 @@ func (x localImports) runImportCheck(ctx context.Context, s state.Service, act *
 		x.pullImage(ctx, act, newImage)
 		if diff := importer.EnvDiff(oc.Env, set, x.imageEnv(ctx, newImage)); len(diff) > 0 {
 			it := add(importer.LevelWarn, fmt.Sprintf("%s the old %s had that Roostack doesn't set:", words.Count(int64(len(diff)), "setting", "settings"), m.Old),
-				"compare them with "+title+"'s settings here, and its own settings page. A config file's settings belong in "+title+"'s own settings before you move, or they're lost.")
+				"compare them with "+title+"'s settings here, and its own settings page. A config file's settings belong in "+title+"'s own settings before you move, or they'll be lost.")
 			it.List = diff
 		}
 	}
@@ -265,10 +265,10 @@ func (x localImports) runImportCheck(ctx context.Context, s state.Service, act *
 
 	// The service's data now: set aside at the switch, not lost.
 	if s.Instance.AwaitingData {
-		add(importer.LevelOK, title+" has no data yet,", "so nothing is replaced.")
+		add(importer.LevelOK, title+" has no data yet,", "so nothing will be replaced.")
 	} else if size, err := x.n.DataSize(ctx, service); err == nil && size > 1<<20 {
 		add(importer.LevelWarn, fmt.Sprintf("%s has data already (%s).", title, units.Bytes(size)),
-			"Switching sets it aside, kept until you delete it, so you can put it back.")
+			"Switching will set it aside and keep it until you delete it so that you can put it back.")
 	}
 	r.At = time.Now()
 	return r, nil
@@ -280,14 +280,14 @@ func (x localImports) notBrought(sp importer.Storage, st ImportState, title stri
 	switch {
 	case sp.Why == importer.WhyNotMount && !critical:
 		add(importer.LevelInfo, sp.Title+": not a folder of its own before,",
-			fmt.Sprintf("so it was inside the old container, in no folder. %s makes it again.", title))
+			fmt.Sprintf("so it was inside the old container, in no folder. %s will make it again.", title))
 	case sp.Why == importer.WhyNotMount:
 		add(importer.LevelBad, sp.Title+": not a folder of its own before,",
 			fmt.Sprintf("so it was inside the old container (at %s), in no folder you could copy. Copy it out of the old container (docker cp), or tick Start without it in step 3.", sp.Path))
 	case !critical:
-		add(importer.LevelInfo, sp.Title+": not brought.", title+" makes it again.")
+		add(importer.LevelInfo, sp.Title+": not brought.", title+" will make it again.")
 	case slices.Contains(st.Choices.Without, sp.Name):
-		add(importer.LevelWarn, sp.Title+": not brought.", title+" starts without it, as you chose.")
+		add(importer.LevelWarn, sp.Title+": not brought.", title+" will start without it, as you chose.")
 	default:
 		add(importer.LevelBad, sp.Title+": not brought.", "Choose a folder for it in step 3, or tick Start without it there.")
 	}

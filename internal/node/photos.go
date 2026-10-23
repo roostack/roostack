@@ -517,7 +517,7 @@ func (x localPhotos) SetPhotoSource(ctx context.Context, service, who string, sr
 			x.n.PhotoAgent.UnmountPhotos(ctx, service, who)
 		}
 	default:
-		return usererr.New("Choose a drive, a folder or a share.")
+		return usererr.New("Choose a drive, a folder, or a share.")
 	}
 	if err := x.updatePhotos(ctx, service, who, func(st *PhotoState) error {
 		st.Source, st.Scan, st.ScanErr, st.Check, st.Scanning = &src, nil, "", nil, true
@@ -691,7 +691,7 @@ func (x localPhotos) StartPhotos(ctx context.Context, service, who string) error
 	}
 	st := x.loadPhotos(ctx, service).People[who]
 	if st == nil || st.Check == nil || st.Scan == nil {
-		return usererr.New("Check first: it says whether everything's there and there's room.")
+		return usererr.New("Check first: it will say whether everything's there and there's room.")
 	}
 	if p := st.Problems(); len(p) > 0 {
 		return usererr.New("%s", p[0])

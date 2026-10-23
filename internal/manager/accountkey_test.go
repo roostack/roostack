@@ -130,7 +130,7 @@ func TestChangeS3Key(t *testing.T) {
 		t.Fatal(err)
 	}
 	l = waitDone(t, m, activity.BackupKeyFor("1"))
-	if log := strings.Join(l.Lines, "\n"); !strings.Contains(log, "vps keeps the key of its own it has") || len(api.Created()) != 2 {
+	if log := strings.Join(l.Lines, "\n"); !strings.Contains(log, "vps will keep the key of its own it has") || len(api.Created()) != 2 {
 		t.Errorf("created %v; log:\n%s", api.Created(), log)
 	}
 

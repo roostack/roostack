@@ -199,7 +199,7 @@ func TestBackupItems(t *testing.T) {
 	}
 	b.st.Retry = &backup.Retry{Drive: true}
 	if it := find(lab.For(ctx, owner()), "backup-failed:n-1"); it == nil ||
-		!strings.HasSuffix(it.Text, " It backs up there as soon as the drive is plugged in.") {
+		!strings.HasSuffix(it.Text, " It will back up there as soon as the drive is plugged in.") {
 		t.Errorf("waiting for its drive: %+v", it)
 	}
 

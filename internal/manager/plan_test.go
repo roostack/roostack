@@ -34,7 +34,7 @@ func TestPlanChecks(t *testing.T) {
 	c = PlanChecks([]PlanBackup{usb, b2}, false)
 	if !c.Copies || !c.Away || c.Safe || c.Missing != "A backup safe from ransomware" ||
 		c.Suggest != "Suggested: give Roostack a Backblaze key that can make keys (see Backblaze B2), or use another server in your lab, "+
-			"a friend's lab or Roostack Cloud. This server can add backups there but not delete them." || c.Hint != "" {
+			"a friend's lab, or Roostack Cloud. This server can add backups there but not delete them." || c.Hint != "" {
 		t.Errorf("USB and B2: %+v", c)
 	}
 	c = PlanChecks([]PlanBackup{usb, safe}, false)

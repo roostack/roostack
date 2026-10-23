@@ -47,12 +47,12 @@ func TestBackupCard(t *testing.T) {
 		t.Error("failure and staleness must be shown")
 	}
 
-	// A failure Roostack tries again by itself: the card says when, and
+	// A failure Roostack will try again by itself: the card says when, and
 	// Home doesn't flag it yet; a missing drive is flagged at once.
 	unreachable := &store.BackupRun{OK: false, Finished: time.Now(), Error: "couldn't reach vps's disk in 2m0s"}
 	at := time.Now().Add(time.Hour)
 	fb.status = backup.Status{Configured: true, Last: unreachable, LastOK: ok, Progress: -1, Retry: &backup.Retry{At: at}}
-	if body := card(); !strings.Contains(body, "couldn&#39;t reach vps&#39;s disk in 2m0s Roostack tries again "+words.When(at)+".") {
+	if body := card(); !strings.Contains(body, "couldn&#39;t reach vps&#39;s disk in 2m0s Roostack will try again "+words.When(at)+".") {
 		t.Errorf("retry on the card:\n%s", body)
 	}
 	if _, body := h.get("/"); strings.Contains(body, "The last backup didn") {
@@ -63,7 +63,7 @@ func TestBackupCard(t *testing.T) {
 		t.Error("once the retries are over, it needs attention")
 	}
 	fb.status.Retry = &backup.Retry{Drive: true}
-	if _, body := h.get("/"); !strings.Contains(body, "It backs up there as soon as the drive is plugged in.") {
+	if _, body := h.get("/"); !strings.Contains(body, "It will back up there as soon as the drive is plugged in.") {
 		t.Error("a missing drive needs someone: flagged at once")
 	}
 

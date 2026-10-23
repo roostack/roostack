@@ -261,7 +261,7 @@ func (m *Manager) remoteServerUser(ctx context.Context, ref, serverID string) (R
 		return r, err
 	}
 	if err := labnet.SetGuestUser(ctx, r.HostAddr, r.User, r.AdminPassword, serverID, hash); err != nil {
-		return r, usererr.New("%s didn't take a user for %s: %v. Check their lab is running, and try again.", r.HostName, m.nameOf(serverID), err)
+		return r, usererr.New("%s didn't take a user for %s: %v. Check their lab is running and try again.", r.HostName, m.nameOf(serverID), err)
 	}
 	if r.Servers[serverID] == pw {
 		return r, nil

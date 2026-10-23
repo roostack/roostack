@@ -245,7 +245,7 @@ func (m *Manager) ApplyBecause(reason string) {
 // saying why in the servers' logs ("" for a change to backups, storage or
 // the lab's servers); servers apply in the background. Callers hold mu.
 func (m *Manager) startApplyLocked(reason string) {
-	reason = cmp.Or(reason, "A change to backups, storage or the lab's servers")
+	reason = cmp.Or(reason, "A change to backups, storage, or the lab's servers")
 	services, err := state.LoadServices(m.Lab)
 	if err == nil {
 		err = m.allocateAndSave(services)
@@ -521,12 +521,12 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 		return err
 	}
 	if on := m.onNode(all, id); len(on) > 0 {
-		return usererr.New("%s still runs %s. Remove it first, or move it to another server.",
+		return usererr.New("%s is still running %s. Remove it first or move it to another server.",
 			r.Identity().Name, on[0].Title())
 	}
 	if w := waitingOn(all, id); len(w) > 0 {
 		// Its backups are how they come back: keep it until they have.
-		return usererr.New("%s waits to be restored from %s's backups. Restore it or remove it first.",
+		return usererr.New("%s is waiting to be restored from %s's backups. Restore it or remove it first.",
 			w[0].Title(), r.Identity().Name)
 	}
 	reachable := r.Settings() != nil

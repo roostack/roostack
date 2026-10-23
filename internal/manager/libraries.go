@@ -163,7 +163,7 @@ func (m *Manager) libraryMedia(serverID string) (node.Media, error) {
 	}
 	media := n.Media()
 	if media == nil {
-		return nil, usererr.New("That server can't have media libraries: it doesn't answer, or its Roostack is too old.")
+		return nil, usererr.New("That server can't have media libraries: it isn't answering or its Roostack is too old.")
 	}
 	return media, nil
 }
@@ -261,7 +261,7 @@ func (m *Manager) AddLibrary(ctx context.Context, req LibraryRequest) error {
 	}
 	l := agent.Library{Name: name, Drive: req.Drive, Sub: req.Sub, Folder: req.Folder}
 	if (l.Drive == "") == (l.Folder == "") {
-		return usererr.New("Choose where the library is: a drive, or a folder on the server.")
+		return usererr.New("Choose where the library is: a drive or a folder on the server.")
 	}
 	// The server checks it can be one, and says who owns what can't be read.
 	list, err := m.LibraryFolders(ctx, req.Server, l)

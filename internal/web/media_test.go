@@ -231,7 +231,7 @@ func TestLibraryDriveGone(t *testing.T) {
 		}
 	}
 	if _, body = h.get("/"); !strings.Contains(html.UnescapeString(body), "Plex can't see Films: its drive isn't connected.") ||
-		!strings.Contains(html.UnescapeString(body), "Plug it back in, and Roostack restarts Plex by itself.") {
+		!strings.Contains(html.UnescapeString(body), "Plug it back in and Roostack will restart Plex by itself.") {
 		t.Error("Home doesn't say the drive is gone")
 	}
 	libs.gone = nil

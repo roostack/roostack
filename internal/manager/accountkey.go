@@ -134,7 +134,7 @@ func (m *Manager) handOutS3Key(ctx context.Context, act *activity.Log, name stri
 	for _, u := range using {
 		server := m.serverName(u.ServerID)
 		if u.ScopedKey != "" {
-			act.Printf("%s keeps the key of its own it has.", capital(server))
+			act.Printf("%s will keep the key of its own it has.", capital(server))
 			continue
 		}
 		n := m.node(u.ServerID)
@@ -148,7 +148,7 @@ func (m *Manager) handOutS3Key(ctx context.Context, act *activity.Log, name stri
 		if scoped {
 			m.scopedB2Key(ctx, act, u.ServerID, labID, s3, &t, &dest)
 		}
-		act.Step("Giving %s its new key (it restarts Roostack)", server)
+		act.Step("Giving %s its new key (it will restart Roostack)", server)
 		if u.Main {
 			err = n.Settings().SetBackupDestination(ctx, dest)
 		} else {
@@ -184,7 +184,7 @@ func (m *Manager) handOutS3Key(ctx context.Context, act *activity.Log, name stri
 		return fmt.Errorf("Roostack couldn't reach %s, which still have the old key: give the key again once they're back, before you delete the old one",
 			words.And(missed))
 	case len(using) == 0:
-		act.Step("No server backs up to %s yet. You can delete the old key at %s now.", name, name)
+		act.Step("No server is backing up to %s yet. You can delete the old key at %s now.", name, name)
 	default:
 		act.Step("Every server backing up to %s has the new key. You can delete the old one at %s now.", name, name)
 	}

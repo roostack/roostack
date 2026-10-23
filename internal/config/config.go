@@ -693,7 +693,7 @@ func (l Lab) Validate() error {
 	switch l.Firewall.SSH {
 	case "", SSHFromLAN, SSHFromAny, SSHOff:
 	default:
-		errs = append(errs, fmt.Errorf("firewall.ssh must be %q, %q or %q", SSHFromLAN, SSHFromAny, SSHOff))
+		errs = append(errs, fmt.Errorf("firewall.ssh must be %q, %q, or %q", SSHFromLAN, SSHFromAny, SSHOff))
 	}
 	switch l.Firewall.SSHLogin {
 	case "", SSHLoginKey, SSHLoginPassword:

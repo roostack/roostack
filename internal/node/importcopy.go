@@ -45,7 +45,7 @@ func (x localImports) CopyImport(ctx context.Context, service string) error {
 		return err
 	}
 	if st := x.loadImport(ctx, service); !st.Check.Ready() {
-		return usererr.New("Check your files first: the copy starts once the check finds nothing in the way.")
+		return usererr.New("Check your files first: the copy will start once the check finds nothing in the way.")
 	}
 	return x.startImportRun(service, func(ctx context.Context) { x.runImportCopy(ctx, s) })
 }

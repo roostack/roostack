@@ -203,10 +203,10 @@ func startNote(quadlet string) string {
 			continue
 		}
 		if strings.HasSuffix(image, ".build") {
-			return "builds its image the first time (compiling: several minutes)"
+			return "building its image the first time (compiling: several minutes)"
 		}
 		name, _, _ := strings.Cut(image, "@") // without the digest
-		return "downloads " + name + " if it isn't here yet"
+		return "downloading " + name + " if it isn't here yet"
 	}
 	return ""
 }

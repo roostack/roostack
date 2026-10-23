@@ -188,9 +188,9 @@ func testRollBack(t *testing.T, markersFirst bool) {
 	}
 
 	lines := check(at(2))
-	want := []string{"1 backup (a snapshot) and 1 other file hidden since then come back.",
-		"The repository's config file overwritten since then is put back as it was.",
-		"1 backup (a snapshot) added since then is hidden."}
+	want := []string{"1 backup (a snapshot) and 1 other file hidden since then will come back.",
+		"The repository's config file overwritten since then will be put back as it was.",
+		"1 backup (a snapshot) added since then will be hidden."}
 	if strings.Join(lines, "\n") != strings.Join(want, "\n") {
 		t.Errorf("check says:\n%s", strings.Join(lines, "\n"))
 	}
@@ -230,8 +230,8 @@ func testRollBack(t *testing.T, markersFirst bool) {
 	}
 	// Undone: back to just before the rollback.
 	lines = check(at(4))
-	if !strings.Contains(strings.Join(lines, "\n"), "added since then are hidden") ||
-		!strings.Contains(strings.Join(lines, "\n"), "1 backup (a snapshot) hidden since then comes back") {
+	if !strings.Contains(strings.Join(lines, "\n"), "added since then will be hidden") ||
+		!strings.Contains(strings.Join(lines, "\n"), "1 backup (a snapshot) hidden since then will come back") {
 		t.Errorf("undo:\n%s", strings.Join(lines, "\n"))
 	}
 }

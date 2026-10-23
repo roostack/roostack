@@ -37,7 +37,7 @@ const (
 
 // DNSHeadline summarises a DNS problem for the home page and Settings.
 var DNSHeadline = map[string]string{
-	dnsrecords.StateBlocked:    "Devices at home can't reach your services: your router blocks their addresses.",
+	dnsrecords.StateBlocked:    "Devices at home can't reach your services: your router is blocking their addresses.",
 	dnsrecords.StateOverridden: "Devices at home are sent somewhere else when they open your services.",
 	dnsrecords.StateConflict:   "A DNS record for your services points somewhere else, so Roostack can't update it.",
 	dnsrecords.StateError:      "Roostack couldn't check or update your DNS records.",
@@ -90,7 +90,7 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 	if owner {
 		for _, e := range lab.Manager.EndingStorages(ctx) {
 			l.add(Item{Key: "ending-storage:" + e.HostName, Level: Warning,
-				Text: e.HostName + " has stopped storing your backups. What's there is deleted on " +
+				Text: e.HostName + " has stopped storing your backups. What's there will be deleted on " +
 					e.DeleteOn.Local().Format("2 January") + ": send them somewhere else.",
 				Link: "/backups#destination", LinkText: "Choose where backups go"})
 		}
@@ -106,7 +106,7 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 	// everyone has bookmarks and apps to update.
 	if o := lab.oldAddress(); o != nil {
 		level, link, text := Info, "", "Your lab's address changed to "+o.Now+". The old addresses ("+o.Domain+
-			") keep working until "+o.Until.Local().Format("2 January")+": update bookmarks, and the server address in apps."
+			") will keep working until "+o.Until.Local().Format("2 January")+": update bookmarks and the server address in apps."
 		if o.Soon() {
 			level = Warning
 		}
@@ -127,7 +127,7 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 				Link: "/settings/cloud", LinkText: "See why"})
 		case st.Linked && st.Refused != "":
 			l.add(Item{Key: "cloud-refused", Level: Warning,
-				Text: "Roostack Cloud refuses this lab's requests: " + st.Refused,
+				Text: "Roostack Cloud is refusing this lab's requests: " + st.Refused,
 				Link: "/settings/cloud", LinkText: "Roostack Cloud"})
 		case st.Linked && st.LastError != "" && time.Since(st.LastContact) > CloudUnreachableFor:
 			l.add(Item{Key: "cloud-unreachable", Level: Warning,
@@ -154,7 +154,7 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 			if left := time.Until(mc.CertExpires); owner && !mc.CertExpires.IsZero() && left < certWarning {
 				level, key, text := Problem, "cert-expired:"+mc.ID, mc.Name+"'s certificate on Roostack's network has expired, so the lab can't reach it."
 				if left > 0 {
-					level, key, text = Warning, "cert-expiring:"+mc.ID, mc.Name+"'s certificate on Roostack's network expires "+
+					level, key, text = Warning, "cert-expiring:"+mc.ID, mc.Name+"'s certificate on Roostack's network will expire "+
 						words.When(mc.CertExpires)+" and isn't renewing. Check that it's running and can reach the controller."
 				}
 				l.add(Item{Key: key, Level: level, Text: text, Link: "/servers#server-" + mc.ID, LinkText: "View servers"})
@@ -174,7 +174,7 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 				// was): say so plainly, and offer what to do about it.
 				if since := mc.UnreachableSince; owner && !since.IsZero() && time.Since(since) > goneAfter {
 					item.Text = "Roostack hasn't reached " + mc.Name + " since " + words.When(since) + ". If it's gone for good " +
-						"(reinstalled, or switched off for good), "
+						"(reinstalled or switched off for good), "
 					if len(mc.Services) > 0 || len(mc.Waiting) > 0 {
 						item.Text += "its services can come back from their backups on another server."
 						item.Link, item.LinkText = "/settings/servers/"+mc.ID+"/gone", "Restore its services"
@@ -227,7 +227,7 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 					name := cmp.Or(e.Name, e.ID)
 					l.add(Item{Level: Problem, Key: "edge:" + e.ID,
 						Text: "Public services can't be reached from the internet: visitors come in through " + name +
-							", which isn't connected to the lab. Check it's running, or choose port forwarding meanwhile.",
+							", which isn't connected to the lab. Check it's running or choose port forwarding meanwhile.",
 						Link: "/settings/public#way-in", LinkText: "Public access"})
 				}
 			}
@@ -239,8 +239,8 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 				switch {
 				case d.Verified && d.Missing:
 					l.add(Item{Level: Problem, Key: "relay-proof-missing:" + d.Domain,
-						Text: "Roostack Cloud can't find the record proving " + d.Domain + " is this lab's any more. " +
-							"Public services stop coming through the relay a day after it went: put it back.",
+						Text: "Roostack Cloud can't find the record proving " + d.Domain + " is this lab's any more, " +
+							"so public services will stop coming through the relay a day after it went: put it back.",
 						Link: "/settings/public#way-in", LinkText: "Public access"})
 				case !d.Verified:
 					l.add(Item{Level: Warning, Key: "relay-proof:" + d.Domain,
@@ -293,7 +293,7 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 				if lab.Libraries != nil {
 					if c, err := lab.Libraries.ServiceLibraries(ctx, svc.Name); err == nil && len(c.Gone) > 0 {
 						l.add(Item{Key: "library-gone:" + svc.Name, Level: Warning,
-							Text: fmt.Sprintf("%s can't see %s: %s isn't connected. Plug it back in, and Roostack restarts %s by itself.",
+							Text: fmt.Sprintf("%s can't see %s: %s isn't connected. Plug it back in and Roostack will restart %s by itself.",
 								svc.Title, words.And(c.Gone), words.Plural(len(c.Gone), "its drive", "their drives"), svc.Title),
 							Link: "/services/" + svc.Name, LinkText: "View"})
 					}
@@ -341,8 +341,8 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 	if owner {
 		if c := lab.network(); c.Saved == "" && c.Detected == config.NetworkInternet {
 			l.add(Item{Key: "looks-like-cloud", Level: Warning,
-				Text: "This server looks like a cloud server: it has a public address of its own. Tell Roostack, " +
-					"so private services and the public access checklist fit.",
+				Text: "This server looks like a cloud server, as it has a public address of its own. Tell Roostack where it is " +
+					"so that private services and the public access checklist fit it.",
 				Link: "/settings/home-network", LinkText: "Where it is"})
 		}
 	}
@@ -354,7 +354,7 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 			// A headline here; the full explanation is on the Settings card.
 			headline := DNSHeadline[st.State]
 			if st.Internet && st.State == dnsrecords.StateOverridden {
-				headline = "This server's DNS sends your services' addresses somewhere else."
+				headline = "This server's DNS is sending your services' addresses somewhere else."
 			}
 			l.add(Item{Key: "dns:" + st.State, Level: Problem,
 				Text: headline,
@@ -380,7 +380,7 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 		if len(st.NotDeleted) > 0 {
 			l.add(Item{Key: "dns-not-deleted", Level: Warning,
 				Text: "Roostack couldn't delete the DNS record of an address that isn't public any more, so it still " +
-					"points at your home. It keeps trying.",
+					"points at your home. Roostack will keep trying.",
 				Link: "/settings/public#not-deleted", LinkText: "View"})
 		}
 		switch o := st.Old; {
@@ -451,7 +451,7 @@ func (lab *Lab) backups(ctx context.Context, m Server, n Node, owner bool, l *Li
 		lost = true
 		l.add(Item{Key: "backup-lost-main:" + m.ID, Level: Problem,
 			Text: "The main backup" + m.on() + " was on " + gone.HostName + "'s disk, and " + gone.HostName +
-				" has left the lab. Choose a new place for it: until then, nightly backups there fail.",
+				" has left the lab. Choose a new place for it: until then, nightly backups there will fail.",
 			Link: link + "#plan", LinkText: "Choose a new place"})
 	}
 	switch {
@@ -502,7 +502,7 @@ func (lab *Lab) backups(ctx context.Context, m Server, n Node, owner bool, l *Li
 			Link: link, LinkText: "View backups"})
 	case st.LastOK == nil:
 		l.add(Item{Key: "backup-first:" + m.ID, Level: Info,
-			Text: "The first backup" + m.on() + " runs " + words.When(st.Next) + ". You can also back up now.",
+			Text: "The first backup" + m.on() + " will run " + words.When(st.Next) + ". You can also back up now.",
 			Link: link, LinkText: "Back up now"})
 	case manager.BackupStale(st.LastOK.Finished):
 		l.add(Item{Key: "backup-stale:" + m.ID, Level: Warning,
@@ -516,7 +516,7 @@ func (lab *Lab) backups(ctx context.Context, m Server, n Node, owner bool, l *Li
 		}
 		l.add(Item{Key: "backup-local-only:" + m.ID, Level: Warning,
 			Text: "Backups are only stored on " + where + ". Add a copy somewhere else to protect " +
-				"against theft, fire or a failed disk.",
+				"against theft, fire, or a failed disk.",
 			Link: link, LinkText: "Improve backups"})
 	}
 }
@@ -576,10 +576,10 @@ func seriesText(ser osupdate.Series, m Server) string {
 	case ser.Accepted != "" && ser.Waiting != "":
 		return "Roostack " + ser.Accepted + " is waiting to install" + m.on() + ": " + ser.Waiting + "."
 	case ser.Accepted != "":
-		return "Roostack " + ser.Accepted + " installs with the next OS updates" + m.on() + ", tonight after the backup."
+		return "Roostack " + ser.Accepted + " will install with the next OS updates" + m.on() + ", tonight after the backup."
 	case ser.Newest != "":
 		return "Roostack " + ser.NewestVersion + " is available" + m.on() + ". It starts a new series of releases, " +
-			"so it waits for you to say yes."
+			"so it's waiting for you to say yes."
 	}
 	return ""
 }

@@ -75,15 +75,14 @@ func (p *RollbackPlan) lines() []string {
 	}
 	var out []string
 	for _, k := range []struct{ kind, since, then string }{
-		{rollUnhide, "hidden since then", "come back"},
-		{rollPutBack, "overwritten since then", "are put back as they were"},
-		{rollHide, "added since then", "are hidden"},
+		{rollUnhide, "hidden since then", "will come back"},
+		{rollPutBack, "overwritten since then", "will be put back as they were"},
+		{rollHide, "added since then", "will be hidden"},
 	} {
 		if what, n := p.describe(k.kind); n > 0 {
 			then := k.then
-			if n == 1 {
-				then = map[string]string{"come back": "comes back", "are put back as they were": "is put back as it was",
-					"are hidden": "is hidden"}[then]
+			if n == 1 && k.kind == rollPutBack {
+				then = "will be put back as it was"
 			}
 			out = append(out, fmt.Sprintf("%s %s %s.", words.Capitalise(what), k.since, then))
 		}

@@ -224,7 +224,7 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 		add("package: instance is for %q but package is %q", in.Package, p.Name)
 	}
 	if in.Name != "" && (!ValidName(in.Name) || (in.Name != p.Name && !strings.HasPrefix(in.Name, p.Name+"-"))) {
-		add("name: %q must be %q, or start with %q and go on with lowercase letters, digits and dashes (up to %d in all)",
+		add("name: %q must be %q, or start with %q and go on with lowercase letters, digits, and dashes (up to %d in all)",
 			in.Name, p.Name, p.Name+"-", MaxName)
 	}
 	if in.Version != p.Version {
@@ -249,7 +249,7 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 		}
 	}
 	if !slices.Contains([]string{UpdatesNotify, UpdatesPatch, UpdatesMinor, UpdatesAll}, in.Updates) {
-		add("updates: must be notify, patch, minor or all; got %q", in.Updates)
+		add("updates: must be notify, patch, minor, or all; got %q", in.Updates)
 	}
 	for _, name := range slices.Sorted(maps.Keys(in.Routes)) {
 		r := in.Routes[name]
@@ -353,7 +353,7 @@ func CheckLibraryPath(p *pkgspec.Package, paths map[string]string, l string) err
 		return fmt.Errorf("%q isn't a media library's name", l)
 	}
 	if !libraryPathRe.MatchString(at) || strings.Contains(at+"/", "/../") || strings.Contains(at+"/", "/./") {
-		return errors.New("it must be a folder's full path inside the container, with only letters, digits and - _ .")
+		return errors.New("it must be a folder's full path inside the container, with only letters, digits, and - _ .")
 	}
 	for _, sys := range systemPaths {
 		if fsutil.Within(at, sys) || fsutil.Within(sys, at) {

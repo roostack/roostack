@@ -274,7 +274,7 @@ func (j *transferJob) restoreBackup(ctx context.Context) (err error) {
 	j.src = node.Capability(m.node(j.from), node.Node.Mover)
 	if r, ok := m.node(j.from).(RemoteServer); ok && r.Settings() == nil {
 		j.src = nil
-		j.act.Printf("Roostack can't reach %s, where %s ran: it's restored without stopping it there", m.nameOf(j.from), j.title)
+		j.act.Printf("Roostack can't reach %s, where %s ran, so it's restoring %s without stopping it there", m.nameOf(j.from), j.title, j.title)
 	}
 	defer func() { j.startAgainIfFailed(ctx, err) }()
 	if j.src != nil {
@@ -307,7 +307,7 @@ func (j *transferJob) restoreBackup(ctx context.Context) (err error) {
 			return err
 		}
 	}
-	j.act.Step("Loading its databases from the backup, and starting it")
+	j.act.Step("Loading its databases from the backup and starting it")
 	// Whatever happens now, it isn't started again as it was.
 	j.stopped = false
 	if err := j.dst.LoadDumps(ctx, j.name); err != nil {

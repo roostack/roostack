@@ -278,7 +278,7 @@ func TestRemoveAndRenameServer(t *testing.T) {
 	m.Wait()
 
 	var fe *usererr.Error
-	if err := m.RemoveServer(ctx, "n-0000000002"); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "still runs Forgejo") {
+	if err := m.RemoveServer(ctx, "n-0000000002"); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "is still running Forgejo") {
 		t.Errorf("removing a server with services: %v", err)
 	}
 	if err := m.RemoveServer(ctx, "n-0000000001"); !errors.Is(err, ErrNotFound) {

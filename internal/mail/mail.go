@@ -82,7 +82,7 @@ func check(m config.Mail) error {
 	case m.Host == "" || strings.ContainsAny(m.Host, " /:@"):
 		return &usererr.Error{Msg: "Enter the SMTP server's name, such as smtp.fastmail.com."}
 	case m.Port < 1 || m.Port > 65535:
-		return &usererr.Error{Msg: "Enter the SMTP server's port: usually 587, or 465."}
+		return &usererr.Error{Msg: "Enter the SMTP server's port: usually 587 or 465."}
 	case m.Security != config.MailSTARTTLS && m.Security != config.MailTLS:
 		return &usererr.Error{Msg: "Choose how the connection is encrypted."}
 	}

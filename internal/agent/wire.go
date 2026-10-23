@@ -126,7 +126,7 @@ func (r *mountLibrary) fromURL(req *http.Request) { r.Name = req.PathValue("name
 
 func (r mountLibrary) Validate() error {
 	if !ValidLibraryName(r.Name) {
-		return fmt.Errorf("%q can't name a library: lower-case letters, digits and -", printable(r.Name))
+		return fmt.Errorf("%q can't name a library: lower-case letters, digits, and -", printable(r.Name))
 	}
 	return nil
 }

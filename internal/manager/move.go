@@ -96,7 +96,7 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	}
 	from := in.HostOr(m.Lab.NodeID)
 	if to == from {
-		return usererr.New("%s already runs there.", p.Title)
+		return usererr.New("%s is already running there.", p.Title)
 	}
 	if err := m.checkArch(ctx, p, cmp.Or(in.Title, p.Title), to); err != nil {
 		return err
@@ -237,7 +237,7 @@ func (j *transferJob) finishMove(ctx context.Context) error {
 		}
 	}
 	j.setAsideOld(ctx)
-	j.act.Step("%s now runs on %s", j.title, j.m.nameOf(j.to))
+	j.act.Step("%s is now running on %s", j.title, j.m.nameOf(j.to))
 	return nil
 }
 

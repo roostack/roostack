@@ -190,7 +190,7 @@ func (e *forgedError) Error() string {
 		where = "server " + e.folder + "'s folder"
 	}
 	return fmt.Sprintf("It says it's the backup of %s (%s), the lab's controller, but it's in %s. Roostack keeps each server's backups "+
-		"in a folder named after it, so this isn't offered: another server of the lab could have made it, to take the lab over when "+
+		"in a folder named after it, so this isn't offered: another server of the lab could have made it to take the lab over when "+
 		"it's restored. If you moved the backups yourself, put them back in a folder named %s.", e.name, e.id, where, e.id)
 }
 
@@ -215,7 +215,7 @@ func FolderServer(repository string) string {
 func describe(err error) string {
 	switch {
 	case errors.Is(err, backup.ErrWrongKey):
-		return "The recovery key doesn't open it (another lab's backups, or a mistyped key)."
+		return "The recovery key doesn't open it (another lab's backups or a mistyped key)."
 	case errors.Is(err, backup.ErrNoRepository):
 		return "No backup there."
 	case strings.Contains(err.Error(), "permission denied"):

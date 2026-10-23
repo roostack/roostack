@@ -520,7 +520,7 @@ func TestServers(t *testing.T) {
 
 	// Renaming and removing.
 	if code, body := h.post("/settings/servers/n-9876543210/remove", nil, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "vps still runs Forgejo") {
+		!strings.Contains(body, "vps is still running Forgejo") {
 		t.Errorf("removing a server with services: %d", code)
 	}
 	h.post("/settings/servers/n-9876543210/rename", url.Values{"name": {"cloud"}}, h.srv.URL)
@@ -536,7 +536,7 @@ func TestServers(t *testing.T) {
 	_, body = h.get("/servers")
 	if !strings.Contains(body, "forgejo.moved-to-nuc-20260928-002806") || !strings.Contains(body, "70.0 MB") ||
 		!strings.Contains(body, "From before a move") || !strings.Contains(body, "Its old copy, from before it moved to nuc") ||
-		!strings.Contains(body, "forgejo runs on nuc now, so this copy can&#39;t be put back on vps") || strings.Contains(body, "Put back…") {
+		!strings.Contains(body, "forgejo is running on nuc now, so this copy can&#39;t be put back on vps") || strings.Contains(body, "Put back…") {
 		t.Errorf("servers page should list kept copies:\n%s", body)
 	}
 	h.post("/settings/servers/n-9876543210/kept/remove", url.Values{"path": {"/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806"}}, h.srv.URL)
@@ -900,7 +900,7 @@ func TestCertificateExpiry(t *testing.T) {
 		t.Error("Servers should show each certificate")
 	}
 	_, body := h.get("/")
-	if !strings.Contains(body, "vps&#39;s certificate on Roostack&#39;s network expires") || strings.Contains(body, "nuc&#39;s certificate") {
+	if !strings.Contains(body, "vps&#39;s certificate on Roostack&#39;s network will expire") || strings.Contains(body, "nuc&#39;s certificate") {
 		t.Errorf("a certificate that isn't renewing should need attention")
 	}
 	fm.servers[1].CertExpires = time.Now().Add(-time.Hour)
@@ -1024,12 +1024,12 @@ func TestStorageOfferedByAnotherServer(t *testing.T) {
 func TestHomeShowsWhatAnApplyDoes(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	log := h.acts().Start(activity.Apply, "Applying changes")
-	log.Step("Starting roostack-caddy: builds its image the first time (compiling: several minutes)")
-	if _, body := h.get("/"); !strings.Contains(body, "builds its image the first time") {
+	log.Step("Starting roostack-caddy: building its image the first time (compiling: several minutes)")
+	if _, body := h.get("/"); !strings.Contains(body, "building its image the first time") {
 		t.Error("the home page shows what the apply is doing")
 	}
 	log.Finish(nil)
-	if _, body := h.get("/"); strings.Contains(body, "builds its image the first time") {
+	if _, body := h.get("/"); strings.Contains(body, "building its image the first time") {
 		t.Error("a finished apply isn't shown")
 	}
 }

@@ -50,7 +50,7 @@ func TestServiceUpdateOffered(t *testing.T) {
 	_, body = h.get("/services/immich")
 	for _, want := range []string{"a new major version. <a href=\"https://github.com/immich-app/immich/releases/tag/v2.1.0\" target=\"_blank\" rel=\"noopener\">What's new in 2.1.0",
 		"</a> Read these first:", "<strong>2.0.0:</strong> Faces are rebuilt.",
-		"Update Immich to 2.1.0? Roostack backs it up first", "It has notes to read, so Roostack is waiting for you."} {
+		"Update Immich to 2.1.0? Roostack will back it up first", "It has notes to read, so Roostack is waiting for you."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("immich page missing %q", want)
 		}

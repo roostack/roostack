@@ -240,8 +240,8 @@ func (s *Server) pagesCallback(w http.ResponseWriter, r *http.Request) {
 		s.Log.Warn("refused a sign-in from the sign-in page", "remote", r.RemoteAddr)
 		s.Store.Audit(ctx, nil, "failed login", "a link from the sign-in page that didn't work, from "+r.RemoteAddr)
 		w.WriteHeader(http.StatusBadRequest)
-		s.renderLogin(w, r, map[string]any{"Error": "Signing in through the sign-in page didn't work: the link was too old, " +
-			"or opened in another browser. Try again, or log in here."})
+		s.renderLogin(w, r, map[string]any{"Error": "Signing in through the sign-in page didn't work: the link was too old " +
+			"or opened in another browser. Try again or log in here."})
 		return
 	}
 	u, err := s.Store.UserByID(ctx, h.userID)
