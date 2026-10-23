@@ -146,7 +146,7 @@ func (m *Manager) probeS3(ctx context.Context, s3 S3Provider) S3Check {
 	}
 	folder := backup.ServerFolder(s3.Prefix, labID, "") + "/"
 	probe := folder + "roostack-check"
-	version, err := cl.Put(ctx, probe, []byte("Roostack checks this bucket keeps old versions its key can't erase. It deletes this file again.\n"))
+	version, err := cl.Put(ctx, probe, []byte("Roostack is checking this bucket keeps old versions its key can't erase, and it will delete this file again.\n"))
 	switch {
 	case err != nil:
 		c.Err = "writing a file to check with: " + err.Error()
@@ -180,7 +180,7 @@ func (m *Manager) probeS3(ctx context.Context, s3 S3Provider) S3Check {
 func sayS3Check(act *activity.Log, c S3Check) {
 	switch {
 	case c.Err != "":
-		act.Printf("Roostack couldn't check whether this bucket keeps what's deleted (%s), so backups there count as ones a server could delete.", c.Err)
+		act.Printf("Roostack couldn't check whether this bucket keeps what's deleted (%s), so backups there will count as ones a server could delete.", c.Err)
 	case !c.Versioned:
 		act.Printf("Every server backing up here uses this account's key, which can delete its backups: if a server were taken over, they could be deleted too. " +
 			"To protect them, turn on versioning for the bucket, with a rule that keeps old versions for 30 days, and give Roostack a key that can't delete old versions.")
@@ -193,7 +193,7 @@ func sayS3Check(act *activity.Log, c S3Check) {
 		case d < 0:
 			act.Printf("Roostack couldn't read how long the bucket keeps old versions.")
 		case d == 0:
-			act.Printf("Old versions are kept for good. Old backups the controller removes still take space until a lifecycle rule erases them.")
+			act.Printf("Old versions are kept for good. Old backups the controller removes will still take space until a lifecycle rule erases them.")
 		case d < MinKeepHidden:
 			act.Printf("The bucket erases old versions after %s, so a server that's taken over could still destroy its backups. "+
 				"In the bucket's lifecycle rules, keep old versions for at least %d days.", days(d), MinKeepHidden)

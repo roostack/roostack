@@ -18,8 +18,8 @@ const userUsage = `Usage:
   roostack user reset-2fa <name>       turn off two-factor (a lost phone)
 
 add and reset-password print a temporary password, to be changed at the
-next login. Run as root or the roostack user: started as root, it runs as
-the roostack user.
+next login. Run as root or the roostack user: started as root, it will run
+as the roostack user.
 `
 
 // user manages accounts from the host command line: the way back in for
@@ -97,6 +97,6 @@ func user(args []string) error {
 		return fmt.Errorf("user: unknown command %q", sub)
 	}
 	fmt.Printf("Temporary password: %s\n", password)
-	fmt.Println("They choose their own password when they next log in.")
+	fmt.Println("They'll choose their own password when they next log in.")
 	return nil
 }

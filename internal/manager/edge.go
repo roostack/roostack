@@ -267,7 +267,7 @@ func ownDomain(lab config.Lab) string {
 // domain's proof (a "Check now").
 func (m *Manager) CheckRelay(ctx context.Context) error {
 	if !m.RelayOn() || m.Relay.Set == nil {
-		return usererr.New("Public visitors don't come in through Roostack Cloud's relay.")
+		return usererr.New("Public visitors aren't coming in through Roostack Cloud's relay.")
 	}
 	services, err := state.LoadServices(m.Lab)
 	if err != nil {

@@ -91,7 +91,7 @@ func (s *Service) Job() maintenance.Job {
 				return nil // not a failure to retry: there's nothing to do
 			}
 			if ctx.Err() != nil && err != nil {
-				act.Printf("Paused for a restart; the backup continues afterwards.")
+				act.Printf("Paused for a restart: the backup will carry on afterwards.")
 			}
 			if deps.wants("") {
 				results[""] = err
@@ -119,7 +119,7 @@ func (s *Service) Job() maintenance.Job {
 			if err != nil {
 				run.Error = err.Error()
 				if ctx.Err() != nil {
-					run.Error = "paused for a reboot; it resumes afterwards"
+					run.Error = "paused for a reboot: it will resume afterwards"
 				}
 			}
 			if rerr := s.Store.RecordBackup(context.WithoutCancel(ctx), run); rerr != nil && err == nil {
@@ -142,9 +142,9 @@ func (s *Service) MaintenanceJob() maintenance.Job {
 			act := s.Activity.Start(activity.Backup, "Backup maintenance")
 			defer func() { act.Finish(err) }()
 			if s.PrunedElsewhere {
-				act.Step("Old backups are removed by the controller")
+				act.Step("Not removing old backups here: the controller will do that")
 			} else {
-				act.Step("Removing old backups (keeping 7 daily, 4 weekly and 6 monthly)")
+				act.Step("Removing old backups (keeping 7 daily, 4 weekly, and 6 monthly)")
 				if err := s.Deps.Repo.Forget(ctx, DefaultRetention); err != nil {
 					return err
 				}
@@ -260,9 +260,9 @@ func (s *Service) logRetries(act *activity.Log) {
 	}
 	for name, st := range s.retries {
 		if st.Drive {
-			act.Printf("%s: backs up as soon as its drive is plugged in.", names[name])
+			act.Printf("Roostack will back up to %s as soon as its drive is plugged in.", names[name])
 		} else {
-			act.Printf("%s: tries again at %s.", names[name], st.At.Local().Format("15:04"))
+			act.Printf("Roostack will try %s again at %s.", names[name], st.At.Local().Format("15:04"))
 		}
 	}
 }

@@ -251,7 +251,7 @@ func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 		}
 		out = append(out, b)
 	}
-	sysUnit("Roostack", "roostack.service", "Runs this server's services, backups and updates"+n.versionText())
+	sysUnit("Roostack", "roostack.service", "Runs this server's services, backups, and updates"+n.versionText())
 	sysUnit("Roostack agent", "roostack-agent.service", "Does the few things that need root: firewall, WireGuard, OS updates, restarts")
 	if !n.Lab.IsNode() {
 		b := BuiltIn{Name: "Caddy", Kind: "proxy", Status: "unknown", Detail: "Web addresses and HTTPS certificates for the lab's services"}

@@ -412,7 +412,7 @@ func (s *Service) poll(ctx context.Context, p *pending) {
 		case cloudapi.StateExpired:
 			s.mu.Lock()
 			if s.pending == p {
-				s.pending, s.startErr, s.triedName = nil, "Linking was cancelled, or the code expired, in Roostack Cloud. Try again.", p.name
+				s.pending, s.startErr, s.triedName = nil, "In Roostack Cloud, linking was cancelled or the code expired. Try again.", p.name
 			}
 			s.mu.Unlock()
 			return

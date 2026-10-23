@@ -76,7 +76,7 @@ func (lab *Lab) cloudStanding(l *List) {
 	if st.Suspended != "" {
 		l.add(Item{Key: "cloud-suspended", Level: Problem,
 			Text: "Roostack Cloud has suspended this lab's account: " + strings.TrimSuffix(st.Suspended, ".") +
-				". Its names and relay don't work until it's lifted.",
+				". Its names and relay won't work until it's lifted.",
 			Link: "/settings/cloud", LinkText: "Roostack Cloud"})
 	}
 	for _, n := range st.Names {
@@ -87,11 +87,11 @@ func (lab *Lab) cloudStanding(l *List) {
 				Link: "/settings/cloud#names", LinkText: "Roostack Cloud"})
 		case cloudapi.NameRefused:
 			l.add(Item{Key: "cloud-name-refused:" + n.Host, Level: Problem,
-				Text: n.Host + " wasn't approved by Roostack Cloud, so it doesn't work: choose another name.",
+				Text: n.Host + " wasn't approved by Roostack Cloud, so it won't work: choose another name.",
 				Link: "/settings/cloud#names", LinkText: "Why"})
 		case cloudapi.NameWaiting:
 			l.add(Item{Key: "cloud-name-waiting:" + n.Host, Level: Info,
-				Text: n.Host + " is waiting for Roostack Cloud's approval: it works once approved.",
+				Text: n.Host + " is waiting for Roostack Cloud's approval: it will work once it's approved.",
 				Link: "/settings/cloud#names", LinkText: "Why"})
 		}
 	}
@@ -102,11 +102,11 @@ func (lab *Lab) cloudStanding(l *List) {
 	case suspended != "":
 		l.add(Item{Key: "cloud-relay-suspended", Level: Problem,
 			Text: "Roostack Cloud has suspended this lab's relay: " + strings.TrimSuffix(suspended, ".") +
-				". Public services don't come through it.",
+				". Public services aren't coming through it.",
 			Link: "/settings/public#way-in", LinkText: "Public access"})
 	case !off.IsZero():
 		l.add(Item{Key: "cloud-relay-off", Level: Warning,
-			Text: "Public services don't come through Roostack Cloud's relay: it was turned off in Roostack Cloud.",
+			Text: "Public services aren't coming through Roostack Cloud's relay: it was turned off in Roostack Cloud.",
 			Link: "/settings/public#way-in", LinkText: "Turn it on"})
 	}
 }

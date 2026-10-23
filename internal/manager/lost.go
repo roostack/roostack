@@ -175,7 +175,7 @@ func (m *Manager) RestoreLostServer(ctx context.Context, id string, names []stri
 			}
 		}
 	}
-	m.ApplyBecause(srv.Name + " is gone: its services wait to be restored")
+	m.ApplyBecause(srv.Name + " is gone: its services are waiting to be restored")
 	if len(names) == 0 {
 		m.leaveIfDone(context.WithoutCancel(ctx), id)
 		return nil

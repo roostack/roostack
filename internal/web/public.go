@@ -271,7 +271,7 @@ func (s *Server) publicCheckVisit(w http.ResponseWriter, r *http.Request) {
 	msg := map[int]string{
 		public.VisitUnknown: "This check link has expired or was already used. Make a new one on the service's page in Roostack.",
 		public.VisitFromHome: "This came from your home network, so it doesn't show whether the internet can reach " + host +
-			". Turn Wi-Fi off, so your phone uses mobile data, and open the link again.",
+			". Turn Wi-Fi off so that your phone uses mobile data, and open the link again.",
 		public.VisitOutside: "It works: " + host + " is reachable from the internet. You can close this page; Roostack has ticked the check.",
 	}[result]
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -470,7 +470,7 @@ func (s *Server) publicCountriesSubmit(w http.ResponseWriter, r *http.Request) {
 	switch mode := r.FormValue("mode"); {
 	case mode == "anyone":
 	case (mode == "allow" || mode == "block") && len(codes) == 0:
-		s.countriesFailed(w, r, "Choose at least one country, or let in anyone.")
+		s.countriesFailed(w, r, "Choose at least one country or let in anyone.")
 		return
 	case mode == "allow":
 		c.Allow = codes

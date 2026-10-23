@@ -101,7 +101,7 @@ func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, a
 			return false
 		}
 		s.Store.Audit(r.Context(), u, action, "wrong password or code")
-		again(http.StatusBadRequest, "That password or code didn't work. Check your authenticator app, and try again.")
+		again(http.StatusBadRequest, "That password or code didn't work. Check your authenticator app and try again.")
 		return false
 	}
 	s.stepUps.mu.Lock()

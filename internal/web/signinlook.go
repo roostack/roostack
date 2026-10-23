@@ -195,11 +195,11 @@ func checkLogo(data []byte, wide bool) (string, error) {
 	if (strings.HasPrefix(text, "<svg") || strings.HasPrefix(text, "<?xml")) && strings.Contains(text, "<svg") {
 		for _, bad := range []string{"<script", "javascript:", "<foreignobject", "<iframe", "<!entity"} {
 			if strings.Contains(text, bad) {
-				return "", usererr.New("That SVG has scripts or embedded pages in it. Save it again without them, or use a PNG.")
+				return "", usererr.New("That SVG has scripts or embedded pages in it. Save it again without them or use a PNG.")
 			}
 		}
 		if onAttr(text) {
-			return "", usererr.New("That SVG has scripts in it. Save it again without them, or use a PNG.")
+			return "", usererr.New("That SVG has scripts in it. Save it again without them or use a PNG.")
 		}
 		return "svg", nil
 	}

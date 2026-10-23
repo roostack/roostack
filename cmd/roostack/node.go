@@ -17,8 +17,8 @@ import (
 const nodeUsage = `Usage:
   roostack node join <code> [-name <name>]   join a lab (the code comes from its Settings → Servers)
 
-Run as root: the join itself runs as the roostack user, and root restarts
-Roostack afterwards.
+Run as root: the join itself will run as the roostack user, and root will
+restart Roostack afterwards.
 `
 
 func nodeCmd(args []string) error {

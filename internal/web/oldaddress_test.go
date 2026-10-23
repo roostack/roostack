@@ -23,7 +23,7 @@ func TestOldAddress(t *testing.T) {
 	h.server.OldAddress = &config.OldAddress{Domain: "old.example.net", Until: until, DNS: config.DNS{Provider: "cloudflare"}}
 	day := until.Local().Format("2 January")
 
-	if _, body := h.get("/"); !strings.Contains(body, "Your lab&#39;s address changed to lab.example.com.</strong><span>The old addresses (old.example.net) keep working until "+day) ||
+	if _, body := h.get("/"); !strings.Contains(body, "Your lab&#39;s address changed to lab.example.com.</strong><span>The old addresses (old.example.net) will keep working until "+day) ||
 		!strings.Contains(body, `href="/settings/domain#old-address"`) {
 		t.Error("home: the old address's notice")
 	}
@@ -114,7 +114,7 @@ func TestNotDeletedRecords(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	h.server.DNS = &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateOK, NotDeleted: []dnsrecords.PublicRecord{{
 		Host: "photos.lab.example.com", IP: "81.2.69.160", State: dnsrecords.PublicError,
-		Message: "Roostack couldn't delete its record, which still points at 81.2.69.160: 500. It tries again in a few minutes."}}}}
+		Message: "Roostack couldn't delete its record, which still points at 81.2.69.160: 500. It will try again in a few minutes."}}}}
 	if _, body := h.get("/settings/public"); !strings.Contains(body, `id="not-deleted"`) || !strings.Contains(body, "<code>photos.lab.example.com</code>") {
 		t.Error("public access: the record left")
 	}

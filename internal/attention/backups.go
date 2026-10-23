@@ -8,16 +8,16 @@ import (
 	"roostack.cloud/roostack/internal/words"
 )
 
-// RetryText says when a failed backup is tried again (" Roostack tries
+// RetryText says when a failed backup is tried again (" Roostack will try
 // again today 14:00."), or nothing.
 func RetryText(r *backup.Retry) string {
 	switch {
 	case r == nil:
 		return ""
 	case r.Drive:
-		return " It backs up there as soon as the drive is plugged in."
+		return " It will back up there as soon as the drive is plugged in."
 	}
-	return " Roostack tries again " + words.When(r.At) + "."
+	return " Roostack will try again " + words.When(r.At) + "."
 }
 
 // junk adds one item per backup with junk found: files the controller
@@ -42,7 +42,7 @@ func (lab *Lab) junk(ctx context.Context, l *List) {
 		}
 		l.add(Item{Key: "junk:" + rep.ServerID + ":" + rep.Provider, Level: Problem,
 			Text: words.Capitalise(backups) + " on " + rep.Where + " " + hold + " " + files + " Roostack can't read, which " +
-				words.Plural(len(rep.Files), "stops", "stop") + " those backups working, and Roostack couldn't remove " + them + ".",
+				words.Plural(len(rep.Files), "is stopping", "are stopping") + " those backups working, and Roostack couldn't remove " + them + ".",
 			Link: "/backups/junk", LinkText: "What to do"})
 	}
 }

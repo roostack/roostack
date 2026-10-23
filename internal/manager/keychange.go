@@ -140,7 +140,7 @@ func (x *KeyChanges) StartKeyChange(ctx context.Context) error {
 		return cmpErr(err, usererr.New("A recovery key change is already under way."))
 	}
 	if _, err := os.Stat(backup.KeyFile(x.core.labConfig().Paths)); err != nil {
-		return usererr.New("The lab has no recovery key yet: it's made with the first backup.")
+		return usererr.New("The lab has no recovery key yet: Roostack will make one with the first backup.")
 	}
 	key := backup.NewRecoveryKey()
 	if err := fsutil.WritePrivate(x.newKeyFile(), []byte(key+"\n")); err != nil {
@@ -247,7 +247,7 @@ func (x *KeyChanges) KeyChangeJob() maintenance.Job {
 			// check-in tells it.
 			if cb := x.core.cloudBackup(); cb != nil {
 				if err := cb.RegisterIdentity(ctx); err != nil {
-					act.Printf("Roostack Cloud couldn't be told about the new key yet (%v); Roostack tries again at its next daily check.", err)
+					act.Printf("Roostack couldn't tell Roostack Cloud about the new key yet (%v), so it will try again at its next daily check.", err)
 				}
 			}
 			if err := x.saveKeyChange(k); err != nil {

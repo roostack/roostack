@@ -407,7 +407,7 @@ type conflictError struct{ record, current, want string }
 
 func (e *conflictError) Error() string {
 	return fmt.Sprintf("%s already points at %s, and Roostack didn't create that record, so it won't change it. "+
-		"Delete it at your DNS provider, or point it at %s.", e.record, e.current, e.want)
+		"Delete it at your DNS provider or point it at %s.", e.record, e.current, e.want)
 }
 
 // ownerKey is where Roostack remembers a record it created and its value;
@@ -625,7 +625,7 @@ func (m *Manager) check(ctx context.Context, st Status) Status {
 		st.State = StateOverridden
 		st.Message = fmt.Sprintf("Your home network's DNS answers %s with %s instead of this server (%s). "+
 			"Something on your network overrides this domain, such as a local DNS server (Pi-hole, AdGuard) "+
-			"or a router setting. Point %s at %s there, or remove the override.",
+			"or a router setting. Point %s at %s there or remove the override.",
 			st.Record, strings.Join(local, ", "), st.IP, st.Record, st.IP)
 	case public && st.Internet:
 		// Public DNS has it; this server's resolver doesn't yet (a cache).
@@ -636,10 +636,10 @@ func (m *Manager) check(ctx context.Context, st Status) Status {
 		st.Message = "The record exists, but your home network's DNS won't return it. This is usually " +
 			"the router's \"DNS rebinding protection\", which blocks answers that point at home addresses. " +
 			"Allow " + m.Lab.Domain + " in the router's settings (often called rebind protection or " +
-			"private domain exceptions), or use a local DNS server."
+			"private domain exceptions) or use a local DNS server."
 	default:
 		st.State = StatePending
-		st.Message = "The record isn't visible yet. DNS changes can take a few minutes; Roostack checks again automatically."
+		st.Message = "The record isn't visible yet. DNS changes can take a few minutes, and Roostack will check again automatically."
 	}
 	return st
 }

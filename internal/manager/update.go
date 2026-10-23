@@ -123,7 +123,7 @@ func (u *Update) Confirm() string {
 	if u.NoBackups {
 		q += " Its server has no backups set up, so if the update changes its data, there's no copy to go back to."
 	} else {
-		q += " Roostack backs it up first (only what changed since the last backup), then updates it; it's unavailable for a few minutes."
+		q += " Roostack will back it up first (only what changed since the last backup), then update it; it will be unavailable for a few minutes."
 	}
 	if len(u.Notes) > 0 {
 		q += " Read the notes first."
@@ -229,7 +229,7 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 		// build for the one this service's server has (SPEC.md §8.3.3).
 		if a, _ := m.noBuildFor(ctx, p.Name, p.Version, in.Host); a != "" && u.Blocked == "" {
 			u.Blocked = fmt.Sprintf("This version has no build for %s's kind of processor (%s), so it can't run there. "+
-				"Roostack offers it once it has one.", m.serverName(in.HostOr(m.Lab.NodeID)), a)
+				"Roostack will offer it once it has one.", m.serverName(in.HostOr(m.Lab.NodeID)), a)
 		}
 		if rec := m.LastUpdate(ctx, s.Name()); rec != nil && rec.To == p.Version && rec.Result != UpdateDone {
 			u.FailedBefore = true
@@ -458,7 +458,7 @@ func (m *Manager) UpdateService(ctx context.Context, name, to, by string, accept
 	case u.Blocked != "":
 		return usererr.New("%s", u.Blocked)
 	case len(u.NewRisks) > 0 && !acceptRisks:
-		return usererr.New("%s %s asks for things the version it runs didn't. Read them, and tick the box if you want to update anyway.", u.Title, u.ToApp())
+		return usererr.New("%s %s asks for things the version it runs didn't. Read them and tick the box if you want to update anyway.", u.Title, u.ToApp())
 	case len(u.NewRisks) > 0:
 		m.Log.Warn("updating to a package of your own with new risks, as the Owner confirmed",
 			"service", name, "version", to, "risks", u.NewRisks)
@@ -590,7 +590,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		return rec
 	}
 	for _, d := range dropped {
-		act.Printf("%s %s has no %s any more: it's left out.", p.Title, u.ToApp(), d)
+		act.Printf("%s %s has no %s any more: it's being left out.", p.Title, u.ToApp(), d)
 	}
 	for _, note := range u.Notes {
 		act.Printf("Upgrade note (%s): %s", note.Version, note.Note)
@@ -682,14 +682,14 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		return rec
 	}
 	if w := m.Withdrawals(ctx)[u.Service]; w != nil && w.Stopped {
-		act.Printf("%s %s stays stopped: the service registry says it's dangerous.", u.Title, u.FromApp())
+		act.Printf("%s %s will stay stopped: the service registry says it's dangerous.", u.Title, u.FromApp())
 		return rec
 	}
 	if cerr := m.checkHealth(ctx, act, up, u.Service); cerr != nil {
 		rec.Result, err = UpdateFailed, fmt.Errorf("%w; %s doesn't work on %s either: %v", herr, u.Title, u.FromApp(), cerr)
 		return rec
 	}
-	act.Printf("%s runs %s again.", u.Title, u.FromApp())
+	act.Printf("%s is running %s again.", u.Title, u.FromApp())
 	return rec
 }
 
@@ -868,7 +868,7 @@ func (m *Manager) AutoUpdate(ctx context.Context, since time.Time) {
 			}
 			slices.SortFunc(us, func(a, b *Update) int { return strings.Compare(a.Service, b.Service) })
 			for _, u := range us {
-				why := fmt.Sprintf("its update policy (%s) takes this %s update, after the nightly backup", u.Policy, u.Kind)
+				why := fmt.Sprintf("its update policy (%s) takes this %s update after the nightly backup", u.Policy, u.Kind)
 				if err := m.startUpdate(u, why, true, "", false); err != nil {
 					m.Log.Info("automatic update not started", "service", u.Service, "err", err)
 				}

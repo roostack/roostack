@@ -68,7 +68,7 @@ func (s *Server) userAddSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case !auth.ValidUsername(name):
-		fail("Choose a username of letters and digits (dots, dashes and underscores are fine too), up to 32 characters.")
+		fail("Choose a username of letters and digits (dots, dashes, and underscores are fine too), up to 32 characters.")
 		return
 	case !auth.ValidRole(role):
 		fail("Choose a role.")

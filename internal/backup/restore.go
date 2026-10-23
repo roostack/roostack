@@ -88,7 +88,7 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 	res := &RestoreResult{Snapshot: *snap, MovedAside: map[string]string{}}
 	at := r.Now()
 	suffix := kept.Suffix(kept.BeforeRestore, "", at)
-	r.Log.Step("Moving the current data aside (nothing is deleted)")
+	r.Log.Step("Moving the current data aside (nothing will be deleted)")
 	for _, dir := range dirs {
 		if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
 			continue
@@ -273,7 +273,7 @@ func (r *Restorer) PutBack(ctx context.Context, svc *generate.Output, path strin
 	if err := r.Units.Stop(ctx, svc.Units...); err != nil {
 		return err
 	}
-	r.Log.Step("Putting the kept copy back (what's there now is kept)")
+	r.Log.Step("Putting the kept copy back (what's there now will be kept)")
 	for _, dir := range svc.Backup.Include {
 		if _, err := os.Stat(dir + suffix); err != nil {
 			continue

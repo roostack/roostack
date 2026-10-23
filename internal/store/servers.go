@@ -38,7 +38,7 @@ type JoinCode struct {
 }
 
 // ErrJoinCode means a join code is unknown, used or expired.
-var ErrJoinCode = errors.New("the join code is unknown, already used or expired")
+var ErrJoinCode = errors.New("the join code is unknown, already used, or expired")
 
 // AddJoinCode records a new join code.
 func (s *Store) AddJoinCode(ctx context.Context, c JoinCode) error {

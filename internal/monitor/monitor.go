@@ -114,7 +114,7 @@ func (s Status) DownText() string {
 	case KindService:
 		return s.Name + " isn't answering at its address: " + s.Last.Err + "."
 	case KindDomain:
-		return "Devices at home don't find this server at the lab's address: " + s.Last.Err
+		return "Devices at home aren't finding this server at the lab's address: " + s.Last.Err
 	}
 	return s.Name + " isn't answering: " + s.Last.Err + "."
 }

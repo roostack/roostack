@@ -113,7 +113,7 @@ var providers = []*Provider{
 	{
 		ID: "route53", Title: "Amazon Route 53 (AWS)", Plugin: "github.com/caddy-dns/route53",
 		Help: "Create an IAM user with an access key, allowed to use route53:ListHostedZonesByName, " +
-			"route53:ListResourceRecordSets, route53:ChangeResourceRecordSets and route53:GetChange.",
+			"route53:ListResourceRecordSets, route53:ChangeResourceRecordSets, and route53:GetChange.",
 		Fields: []Field{
 			{Key: "access_key_id", Label: "Access key ID"},
 			{Key: "secret_access_key", Label: "Secret access key", Sensitive: true},
@@ -164,7 +164,7 @@ var providers = []*Provider{
 			{Key: "user", Label: "Namecheap username"},
 			{Key: "api_key", Label: "API key", Sensitive: true},
 			{Key: "client_ip", Label: "Public IP address", Optional: true,
-				Help: "Optional: detected automatically if left empty."},
+				Help: "Optional: Roostack will detect it automatically if it's left empty."},
 		},
 		directive: func(set []string) string { return block("namecheap", set, "api_key", "user", "client_ip") },
 		probe:     namecheapProbe,

@@ -216,7 +216,7 @@ func TestDNSCard(t *testing.T) {
 	if !strings.Contains(body, "Home network access") || !strings.Contains(body, "rebinding protection") || !strings.Contains(body, "DHCP reservation") {
 		t.Error("owner should see the home network card with the problem")
 	}
-	if _, body := h.get("/partials/home"); !strings.Contains(body, "your router blocks their addresses") || !strings.Contains(body, `href="/settings/home-network"`) {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "your router is blocking their addresses") || !strings.Contains(body, `href="/settings/home-network"`) {
 		t.Error("the problem should also be on the home page's attention list, linking to settings")
 	}
 

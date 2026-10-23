@@ -174,7 +174,7 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 		return &usererr.Error{Msg: "Enter a domain like lab.example.com."}
 	}
 	if _, err := mail.ParseAddress(email); err != nil || strings.ContainsAny(email, " <>") {
-		return &usererr.Error{Msg: "Enter an email address. Let's Encrypt uses it to warn about certificate problems."}
+		return &usererr.Error{Msg: "Enter an email address. Let's Encrypt will use it to warn about certificate problems."}
 	}
 	p := dns.Get(providerID)
 	if p == nil {

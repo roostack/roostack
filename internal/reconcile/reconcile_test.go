@@ -214,11 +214,11 @@ func TestInstallUpdateRemove(t *testing.T) {
 	}
 	// New containers say what their first start involves, and start one by
 	// one after the rest.
-	if n := plan.StartNotes["roostack-vaultwarden-app.service"]; !strings.HasPrefix(n, "downloads docker.io/vaultwarden/server:") ||
+	if n := plan.StartNotes["roostack-vaultwarden-app.service"]; !strings.HasPrefix(n, "downloading docker.io/vaultwarden/server:") ||
 		strings.Contains(n, "sha256") {
 		t.Errorf("vaultwarden's note = %q", n)
 	}
-	if n := plan.StartNotes["roostack-caddy.service"]; !strings.Contains(n, "builds its image") {
+	if n := plan.StartNotes["roostack-caddy.service"]; !strings.Contains(n, "building its image") {
 		t.Errorf("caddy's note = %q", n)
 	}
 	// Caddy's image build starts in the background as soon as its file is

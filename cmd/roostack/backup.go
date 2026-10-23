@@ -32,10 +32,10 @@ const backupUsage = `Usage:
   roostack backup snapshots                     List backups
   roostack backup restore <service> [-snapshot ID]
                                              Restore a service (latest backup by default).
-                                             Current data is moved aside, never deleted.
+                                             Current data will be moved aside, never deleted.
 
 The repository is set in lab.yaml (backup.repository). Run as root or the
-roostack user: started as root, it runs as the roostack user.
+roostack user: started as root, it will run as the roostack user.
 `
 
 func backupCmd(args []string) error {

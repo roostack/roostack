@@ -200,7 +200,7 @@ func cloudMessage(err error) string {
 	var e *cloud.Error
 	switch {
 	case errors.As(err, &u):
-		return "Roostack Cloud can't be reached right now. Check this server's internet connection, or try again later."
+		return "Roostack Cloud can't be reached right now. Check this server's internet connection or try again later."
 	case errors.As(err, &e):
 		return e.Message
 	}
@@ -211,7 +211,7 @@ func cloudMessage(err error) string {
 // nothing).
 func roostAcNameProblem(name string) string {
 	if !roostAcName.MatchString(name) || strings.Contains(name, "--") {
-		return "A name is 3 to 40 lowercase letters, numbers or single hyphens, starting and ending with a letter or number."
+		return "A name is 3 to 40 lowercase letters, numbers, or single hyphens, starting and ending with a letter or number."
 	}
 	return ""
 }
@@ -285,7 +285,7 @@ func (s *Server) cloudDismissSubmit(w http.ResponseWriter, r *http.Request) {
 func cloudSummary(st cloud.Status) (string, string) {
 	switch {
 	case st.Linked && st.Refused != "":
-		return "Linked, but Roostack Cloud refuses its requests", "warn"
+		return "Linked, but Roostack Cloud is refusing its requests", "warn"
 	case st.Linked && st.LastError != "" && time.Since(st.LastContact) > attention.CloudUnreachableFor:
 		return "Linked, but it can't be reached", "warn"
 	case st.Linked:

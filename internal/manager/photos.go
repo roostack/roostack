@@ -333,9 +333,9 @@ func (p *Photos) MigrationEnded(ctx context.Context, m node.PhotoSummary) {
 	case m.Run.Err != "":
 		subject, what = "Migrating photos into "+title+" stopped", "It stopped with an error: "+m.Run.Err+"."
 	case m.Run.Stopped:
-		subject, what = "Migrating photos into "+title+" was stopped", "It was stopped. What's in Immich stays there; carry on whenever you like."
+		subject, what = "Migrating photos into "+title+" was stopped", "It was stopped. What's in Immich will stay there: carry on whenever you like."
 	case m.Run.Interrupted:
-		subject, what = "Migrating photos into "+title+" was interrupted", "It stopped when the server restarted. What's in Immich stays there; carry on from the page."
+		subject, what = "Migrating photos into "+title+" was interrupted", "It stopped when the server restarted. What's in Immich will stay there: carry on from the page."
 	default:
 		subject = "Your photos are in " + title
 		what = fmt.Sprintf("%s migrated, %s already there.", words.Count(m.Run.Migrated(), "photo or video", "photos and videos"),

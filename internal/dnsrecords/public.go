@@ -111,7 +111,7 @@ func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[st
 				m.mu.Lock()
 				m.notDeleted = append(m.notDeleted, PublicRecord{Host: r.Name, IP: r.Value, State: PublicError,
 					Message: fmt.Sprintf("Roostack couldn't delete its record, which still points at %s: %v. "+
-						"It tries again in a few minutes.", r.Value, err)})
+						"It will try again in a few minutes.", r.Value, err)})
 				m.mu.Unlock()
 			}
 		}
@@ -190,7 +190,7 @@ func (m *Manager) covered(ctx context.Context, st Status, h string) PublicRecord
 		r.State, r.Message = PublicManual, fmt.Sprintf("Add this record at your DNS provider: %s  A  %s", st.Record, st.IP)
 	case len(got) > 0:
 		r.State, r.Message = PublicConflict, fmt.Sprintf("Public DNS answers %s with %s, not this server (%s). "+
-			"A record for it at your DNS provider is in the way: delete it, so %s covers it.", h, strings.Join(got, ", "), st.IP, st.Record)
+			"A record for it at your DNS provider is in the way: delete it so that %s covers it.", h, strings.Join(got, ", "), st.IP, st.Record)
 	default:
 		r.State, r.Message = PublicPending, fmt.Sprintf("Waiting for %s to be visible in public DNS.", st.Record)
 	}

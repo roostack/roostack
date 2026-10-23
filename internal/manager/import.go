@@ -79,7 +79,7 @@ func (m *Manager) SwitchImport(ctx context.Context, service string) error {
 		return err
 	}
 	if v.Copy == nil || v.Copy.Running || v.Copy.Passes == 0 {
-		return usererr.New("Copy your files first; switching copies only what changed since.")
+		return usererr.New("Copy your files first: when you switch, Roostack will copy only what's changed since.")
 	}
 	if !v.Check.Ready() {
 		return usererr.New("Check your files again first.")
@@ -196,7 +196,7 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 	kept, err := step(node.SwitchCommit, "Putting your data in place")
 	committed = err == nil || len(kept) > 0
 	for _, k := range kept {
-		act.Printf("Its data from before is kept at %s, until you delete it", k)
+		act.Printf("Its data from before is kept at %s until you delete it", k)
 	}
 	if err != nil {
 		return err

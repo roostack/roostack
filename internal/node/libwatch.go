@@ -102,7 +102,7 @@ func (n *Local) checkLibraryMounts(ctx context.Context, mountinfo func() string)
 			act = n.Activity.Start(activity.LibraryRestart, "Restarting "+titles[svc])
 		}
 		libs := restart[svc]
-		act.Printf("The media %s %s %s back. %s shows %s at a place of its own, and sees %s again only once it restarts.",
+		act.Printf("The media %s %s %s back. %s shows %s at a place of its own and will see %s again only once it restarts.",
 			words.Plural(len(libs), "library", "libraries"), strings.Join(libs, ", "), words.Plural(len(libs), "is", "are"),
 			titles[svc], words.Plural(len(libs), "it", "them"), words.Plural(len(libs), "it", "them"))
 		err := n.Reconciler.Systemd.Restart(ctx, units[svc]...)

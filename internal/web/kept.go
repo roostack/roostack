@@ -88,7 +88,7 @@ func newKeptView(c manager.KeptCopy, title string, names map[string]string, ofSe
 		}
 		if c.Host != "" && c.Host != c.Server {
 			v.AboutEnd = " when " + it + " couldn't move from " + host
-			v.Note = fmt.Sprintf("%s runs on %s, as before.", title, host)
+			v.Note = fmt.Sprintf("%s is running on %s, as before.", title, host)
 		}
 	case kept.BeforeImport:
 		v.AboutStart = "What " + it + " had before you brought your old data in"
@@ -117,9 +117,9 @@ func newKeptView(c manager.KeptCopy, title string, names map[string]string, ofSe
 	case c.Why == kept.MovedAway && c.Host == c.Server:
 		v.Note = "It's from before " + title + " moved away and back, so it can't be put back. Restore a backup instead."
 	case c.Why == kept.MovedAway:
-		v.Note = fmt.Sprintf("%s runs on %s now, so this copy can't be put back on %s. Restore a backup instead.", title, host, server)
+		v.Note = fmt.Sprintf("%s is running on %s now, so this copy can't be put back on %s. Restore a backup instead.", title, host, server)
 	default:
-		v.Note = fmt.Sprintf("%s runs on %s now, so this copy can't be put back on %s.", title, host, server)
+		v.Note = fmt.Sprintf("%s is running on %s now, so this copy can't be put back on %s.", title, host, server)
 	}
 	return v
 }

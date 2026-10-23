@@ -174,21 +174,21 @@ func (c PlanCheck) missing(backups []PlanBackup, internet bool) (title, suggest 
 	switch {
 	case !c.Away && internet:
 		return "A backup away from this server", "Suggested: online storage with another company, or space at your own or a friend's lab. " +
-			"It survives losing this server, or your account with its provider."
+			"It will survive losing this server or your account with its provider."
 	case !c.Away:
-		return "A backup away from home", "Suggested: online storage, or space at a friend's lab. It survives a fire or theft at home."
+		return "A backup away from home", "Suggested: online storage or space at a friend's lab. It will survive a fire or theft at home."
 	case !c.TwoKinds:
-		return "A different kind of storage", "Suggested: online storage, or a friend's lab: not a disk like the one your data is on."
+		return "A different kind of storage", "Suggested: online storage or a friend's lab: not a disk like the one your data is on."
 	case !c.Safe:
 		// Backblaze already, with the account's key: a better key is the
 		// quickest way there.
 		for _, b := range backups {
 			if b.Access.B2 && b.Access.CanDelete {
 				return "A backup safe from ransomware", "Suggested: give Roostack a Backblaze key that can make keys (see " + b.Title +
-					"), or use another server in your lab, a friend's lab or Roostack Cloud. This server can add backups there but not delete them."
+					"), or use another server in your lab, a friend's lab, or Roostack Cloud. This server can add backups there but not delete them."
 			}
 		}
-		return "A backup safe from ransomware", "Suggested: another server in your lab, a friend's lab, Roostack Cloud or Backblaze B2. " +
+		return "A backup safe from ransomware", "Suggested: another server in your lab, a friend's lab, Roostack Cloud, or Backblaze B2. " +
 			"This server can add backups there but not delete them."
 	}
 	return "", ""

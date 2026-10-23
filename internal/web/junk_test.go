@@ -28,7 +28,7 @@ func TestJunkReported(t *testing.T) {
 	_, body := h.get("/")
 	for _, want := range []string{"Roostack removed a file it can&#39;t read from vps&#39;s backups on nuc&#39;s disk",
 		"it stopped those backups working.", "Only vps or nuc could have put it there",
-		"The copy of nuc&#39;s backups on Wasabi holds a file Roostack can&#39;t read, which stops those backups working, and Roostack couldn&#39;t remove it.", `href="/backups/junk"`} {
+		"The copy of nuc&#39;s backups on Wasabi holds a file Roostack can&#39;t read, which is stopping those backups working, and Roostack couldn&#39;t remove it.", `href="/backups/junk"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("home page without %q", want)
 		}

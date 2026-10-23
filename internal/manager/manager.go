@@ -473,7 +473,7 @@ func checkSecret(s pkgspec.Setting, v string) error {
 func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bool) (*instance.Instance, string, error) {
 	host := cmp.Or(req.Host, m.Lab.NodeID)
 	if m.node(host) == nil {
-		return nil, "", usererr.New("Choose which server runs %s.", p.Title)
+		return nil, "", usererr.New("Choose which server will run %s.", p.Title)
 	}
 	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
 		Settings: map[string]any{}}
@@ -493,7 +493,7 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 	id := p.Name
 	if n := strings.ToLower(strings.TrimSpace(req.Name)); n != "" && n != p.Name {
 		if !strings.HasPrefix(n, p.Name+"-") || !instance.ValidName(n) {
-			return nil, "", usererr.New("Its name is %s, or %s- and then lowercase letters, digits and dashes (up to %d in all), e.g. %s-work.",
+			return nil, "", usererr.New("Its name is %s, or %s- and then lowercase letters, digits, and dashes (up to %d in all), e.g. %s-work.",
 				p.Name, p.Name, instance.MaxName, p.Name)
 		}
 		id, in.Name = n, n

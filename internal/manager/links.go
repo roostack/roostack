@@ -285,7 +285,7 @@ func (m *Manager) CheckLinks(ctx context.Context) {
 	}
 	if len(failed) > 0 {
 		m.Log.Warn("direct links didn't connect; backups between them go through the controller", "servers", strings.Join(failed, "; "))
-		m.ApplyBecause(strings.Join(failed, "; ") + " couldn't link directly: their backups go through the controller")
+		m.ApplyBecause(strings.Join(failed, "; ") + " couldn't link directly: their backups are going through the controller")
 	}
 }
 

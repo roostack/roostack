@@ -71,7 +71,7 @@ func (n *Notifier) weeklySummary(ctx context.Context, lab *Lab, u *store.User, n
 			case a.Alerts == 0:
 				b.WriteString("CrowdSec " + refused + "\n")
 			default:
-				fmt.Fprintf(&b, "CrowdSec saw %d %s from %d %s, and blocked %d.",
+				fmt.Fprintf(&b, "CrowdSec saw %d %s from %d %s and blocked %d.",
 					a.Alerts, words.Plural(a.Alerts, "attack", "attacks"), a.Addresses, words.Plural(a.Addresses, "address", "addresses"), a.Blocked)
 				if len(a.Kinds) > 0 {
 					b.WriteString(" Most were: " + strings.Join(a.Kinds, ", ") + ".")

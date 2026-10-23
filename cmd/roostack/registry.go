@@ -143,7 +143,7 @@ func registryIndex(args []string) error {
 	keyPath := fs.String("key", "", "the signing key's file; default: the REGISTRY_SIGNING_KEY environment variable")
 	commit := fs.String("commit", "", "the registry commit being built, recorded in the index")
 	noImages := fs.Bool("skip-image-check", false, "don't ask the image registries for architectures (testing only)")
-	check := fs.Bool("check", false, "only check the packages (a pull request): nothing is signed or written")
+	check := fs.Bool("check", false, "only check the packages (a pull request): nothing will be signed or written")
 	fs.Parse(args)
 	if *out == "" && !*check {
 		return errors.New("registry index: -out is required")

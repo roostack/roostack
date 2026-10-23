@@ -759,7 +759,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.renderAccount(w, "account", "account", map[string]any{"User": u, "Action": "/account/password",
-		"Done": "Password changed. Other devices you were logged in on need to log in again."})
+		"Done": "Password changed. Other devices you were logged in on will need to log in again."})
 }
 
 func (s *Server) applyStatus() *manager.ApplyStatus {

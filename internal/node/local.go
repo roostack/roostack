@@ -520,7 +520,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	if a.Links != nil && n.Links != nil {
 		act.Step("Updating direct links to other servers")
 		for _, p := range a.Links.Peers {
-			to := "waits for it to connect"
+			to := "waiting for it to connect"
 			if p.Endpoint != "" {
 				to = "at " + p.Endpoint
 			}

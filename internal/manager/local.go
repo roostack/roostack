@@ -70,7 +70,7 @@ func (m *Manager) CheckPolicy(p *pkgspec.Package, acceptRisks bool) error {
 			"package", p.Name, "problems", c.Problems)
 		return nil
 	case c.Local:
-		return usererr.New("%s asks for things packages from the service registry can't have. Read them above, and tick the box if you want to install it anyway.", p.Title)
+		return usererr.New("%s asks for things packages from the service registry can't have. Read them above and tick the box if you want to install it anyway.", p.Title)
 	}
 	for _, problem := range c.Problems {
 		m.Log.Error("refusing to install a package that breaks the package policy", "package", p.Name, "problem", problem)
