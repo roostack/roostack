@@ -33,6 +33,10 @@ type BuiltWith struct {
 	CPEs  []string `yaml:"cpes" json:"cpes,omitempty"`
 }
 
+// ReadBuiltWith reads a registry repository's list of built-with names, or
+// nil without one (the watcher matches on its package URLs and CPEs).
+func ReadBuiltWith(repo string) ([]BuiltWith, error) { return readBuiltWith(repo) }
+
 // readBuiltWith reads the registry's list, or nil without one.
 func readBuiltWith(repo string) ([]BuiltWith, error) {
 	data, err := os.ReadFile(filepath.Join(repo, BuiltWithFile))

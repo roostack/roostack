@@ -83,7 +83,7 @@ Grouped by layer, from the commands down. Sub-packages that exist only for tests
 
 | Package | Purpose |
 |---|---|
-| `cmd/roostack` | The web service and the command line: `serve` (the controller's UI and lab API, or a node's lab API), `apply`, `user` (`add`, `reset-password`, `reset-2fa`), `backup` (`init`, `snapshots`, `run`, `restore`), `node join`, `registry` (`keygen`, `delegate`, `index`, `check`), `render`, and `validate`; `backup-helper` is internal, run inside `podman unshare` (SQLite copies for backups and restores). `serve` wires the packages below together: on the controller a step at a time, in order, each step a method of `controller` (`serve.go`, with `controller.go`); every server's maintenance jobs in `jobs.go`; another server's lab API in `nodeserve.go` |
+| `cmd/roostack` | The web service and the command line: `serve` (the controller's UI and lab API, or a node's lab API), `apply`, `user` (`add`, `reset-password`, `reset-2fa`), `backup` (`init`, `snapshots`, `run`, `restore`), `node join`, `registry` (`keygen`, `delegate`, `index`, `check`, `watch`), `render`, and `validate`; `backup-helper` is internal, run inside `podman unshare` (SQLite copies for backups and restores). `serve` wires the packages below together: on the controller a step at a time, in order, each step a method of `controller` (`serve.go`, with `controller.go`); every server's maintenance jobs in `jobs.go`; another server's lab API in `nodeserve.go` |
 | `cmd/roostack-agent` | The root helper (`internal/agent` is its code) |
 
 ### Desired state: what the lab should be
@@ -94,7 +94,7 @@ Grouped by layer, from the commands down. Sub-packages that exist only for tests
 | `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`), its validation, and the package policy registry packages follow (SPEC §8.3.4; `Risks` is the part shown for the Owner's own); `Describe` gives the package editor what they use |
 | `internal/instance` | A user's installed service, validated against its package |
 | `internal/state` | Load desired state from disk; keep and prune the lab's copies of its packages (SPEC §8.3.1); read the catalog's newest version of a package; keep the Owner's own packages (SPEC §8.3.4) |
-| `internal/registry` | The service registry (SPEC §8.3.3): the signed index and key statement, building them from the registry repository (`roostack registry`), and the controller's fetcher (`Updater`: at start, every 4 hours, on opening the catalog) keeping `CatalogDir`. `buildkeys` reports the root keys a build trusts, for `make build` to record and `scripts/build-deb.sh` to check |
+| `internal/registry` | The service registry (SPEC §8.3.3): the signed index and key statement, building them from the registry repository (`roostack registry`), and the controller's fetcher (`Updater`: at start, every 4 hours, on opening the catalog) keeping `CatalogDir`. `buildkeys` reports the root keys a build trusts, for `make build` to record and `scripts/build-deb.sh` to check. `watch` is the registry CI's watcher (`roostack registry watch`, docs/REGISTRY-WATCH.md): it reads free sources of security problems, matches them to the packages, and drafts advisories for a maintainer to approve |
 | `internal/imagecheck` | Asks container registries which processors a pinned image has builds for (`make check-images`, the registry's index) |
 | `internal/nodeid` | This server's identity (node ID and name) |
 | `internal/pkgtest` | For tests: finds the package fixtures in `internal/testdata/packages` and copies them into a catalog |
