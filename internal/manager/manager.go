@@ -149,6 +149,9 @@ type Manager struct {
 	// (withdrawals.go).
 	stopsKey string
 	awaiting map[string]bool
+	// advisedKey is what the last assignment paused for security
+	// advisories (markAdvisories), to tell a change.
+	advisedKey string
 
 	// Public access: relayMu makes updates to Roostack Cloud's relay one
 	// at a time, so an older one can't reach Cloud after a newer one

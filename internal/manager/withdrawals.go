@@ -297,8 +297,14 @@ func (m *Manager) awaitLastBackup(ctx context.Context, host string) {
 // RegistryChanged is called after each check of the registry: if a
 // withdrawal changed what should run, the servers get new assignments.
 func (m *Manager) RegistryChanged() {
-	// A stopped service whose fix is out may update now (update.go).
-	defer func() { go m.UpdateStopped(context.Background()) }()
+	// A stopped service whose fix is out may update now (update.go), and
+	// so may one paused for a security advisory (advisories.go).
+	defer func() {
+		go func() {
+			m.UpdateStopped(context.Background())
+			m.UpdateAdvised(context.Background())
+		}()
+	}()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	services, err := state.LoadServices(m.Lab)
@@ -314,10 +320,24 @@ func (m *Manager) RegistryChanged() {
 		}
 	}
 	slices.Sort(key)
-	if strings.Join(key, ",") == m.stopsKey {
-		return
+	// What security advisories pause (SPEC.md §6.16): a change applies at
+	// once, without waiting behind anything running.
+	var advised []string
+	for name, as := range m.advisories(ctx, m.labNow(), services) {
+		for _, a := range as {
+			if a.Paused {
+				advised = append(advised, name+"="+a.ID)
+				break
+			}
+		}
 	}
-	m.startApplyLocked("The service registry changed which services Roostack stops")
+	slices.Sort(advised)
+	switch {
+	case strings.Join(advised, ",") != m.advisedKey:
+		m.startApplyNowLocked("The service registry published or changed a security advisory")
+	case strings.Join(key, ",") != m.stopsKey:
+		m.startApplyLocked("The service registry changed which services Roostack stops")
+	}
 }
 
 // StartAnyway runs a service Roostack stopped, at the Owner's word: this

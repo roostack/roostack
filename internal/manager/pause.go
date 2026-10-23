@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"context"
 	"maps"
 	"slices"
 	"strings"
@@ -89,14 +90,17 @@ type PublicService struct {
 	// BuiltWith is what it's built with (pkgspec.Package.BuiltWithNames).
 	BuiltWith []string
 	// Own is its own pause; ByAll and ByBuiltWith are the lab's that
-	// cover it.
+	// cover it; Advisory is the security advisory Roostack paused it for.
 	Own         *config.Pause
 	ByAll       bool
 	ByBuiltWith []string
+	Advisory    *ServiceAdvisory
 }
 
 // Paused says whether its public access is paused, whichever way.
-func (s PublicService) Paused() bool { return s.Own != nil || s.ByAll || len(s.ByBuiltWith) > 0 }
+func (s PublicService) Paused() bool {
+	return s.Own != nil || s.ByAll || len(s.ByBuiltWith) > 0 || s.Advisory != nil
+}
 
 // PausedServices are the public services whose public access is paused.
 func (a PublicPauses) PausedServices() []PublicService {
@@ -116,6 +120,15 @@ func (m *Manager) PublicPauses() (PublicPauses, error) {
 		return PublicPauses{}, err
 	}
 	pp := PublicPausesOf(m.labNow(), services)
+	advs := m.advisories(context.Background(), m.labNow(), services)
+	for i := range pp.Services {
+		for _, a := range advs[pp.Services[i].Name] {
+			if a.Paused {
+				pp.Services[i].Advisory = a
+				break
+			}
+		}
+	}
 	if m.RegistryIndex != nil {
 		if ix, err := m.RegistryIndex(); err == nil {
 			pp = pp.WithTitles(ix)
