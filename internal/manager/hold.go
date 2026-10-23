@@ -147,7 +147,7 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 
 // restoreWatch is how often the controller asks a server whether its own
 // restore of a service has ended, and restoreWatchFor how long it asks.
-var (
+const (
 	restoreWatch    = 2 * time.Second
 	restoreWatchFor = 24 * time.Hour
 )
@@ -163,7 +163,7 @@ func (m *Manager) watchRestore(name, host, backupID string, putBack bool) {
 	ctx := context.Background()
 	deadline := time.Now().Add(restoreWatchFor)
 	for {
-		time.Sleep(restoreWatch)
+		time.Sleep(cmp.Or(m.waits.restoreWatch, restoreWatch))
 		x := m.node(host).Restores()
 		if x == nil {
 			if time.Now().After(deadline) {
@@ -275,7 +275,7 @@ func (j *transferJob) moveBack(ctx context.Context, cause error) error {
 	switched := time.Now()
 	err := m.switchHost(j.name, from)
 	if err == nil {
-		err = waitApplied(ctx, m.node(from), switched)
+		err = m.waitApplied(ctx, m.node(from), switched)
 	}
 	if err != nil {
 		act.Printf("%v", err)

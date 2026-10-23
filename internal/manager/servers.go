@@ -448,7 +448,7 @@ func (m *Manager) ServiceStates(ctx context.Context) map[string]ServiceState {
 // pullGap is the least time between two assignment fetches by one server
 // (M26 of the 2026-10-16 review). A server fetches when it starts, every
 // 15 minutes, and every 30 seconds while fetching fails.
-var pullGap = 10 * time.Second
+const pullGap = 10 * time.Second
 
 // ErrPullTooSoon refuses a server fetching its assignment again within
 // pullGap.
@@ -469,7 +469,7 @@ type pullTimes struct {
 // refused (ErrPullTooSoon). ErrNotFound for a server not in the lab.
 func (m *Manager) PendingFor(id string) (node.WireAssignment, error) {
 	m.pulls.mu.Lock()
-	if last, ok := m.pulls.last[id]; ok && time.Since(last) < pullGap {
+	if last, ok := m.pulls.last[id]; ok && time.Since(last) < cmp.Or(m.waits.pullGap, pullGap) {
 		m.pulls.mu.Unlock()
 		return node.WireAssignment{}, ErrPullTooSoon
 	}

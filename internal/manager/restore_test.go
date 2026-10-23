@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,11 +13,14 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 func TestMoments(t *testing.T) {
@@ -85,10 +87,7 @@ func backedUpForgejo(t *testing.T, m *Manager, bin string) *store.Store {
 	os.RemoveAll(svcDir) // it lives on the servers, not here
 	os.RemoveAll(backup.SecretsDir(paths))
 
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	st := storetest.Open(t)
 	m.BackupStore, m.OpenRepo = st, open
 	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "local:" + repo.URL,
 		Repository: repo.URL, Created: time.Now()})
@@ -98,26 +97,14 @@ func backedUpForgejo(t *testing.T, m *Manager, bin string) *store.Store {
 	return st
 }
 
-func resticBin(t *testing.T) string {
-	t.Helper()
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
-	return bin
-}
-
 // home is gone: Forgejo waits to be restored (home stays in the lab, for
 // its backups), then is restored onto vps, and home leaves the lab.
 func TestGoneServer(t *testing.T) {
-	bin := resticBin(t)
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, home, vps := setUpMove(t)
 	ctx := context.Background()
-	applyWait = 5 * time.Second
-	defer func() { applyWait = 20 * time.Minute }()
+	m.waits.applyWait = 5 * time.Second
 	st := backedUpForgejo(t, m, bin)
 	defer st.Close()
 	reg := m.Registry.(*fakeRegistry)
@@ -178,7 +165,8 @@ func TestGoneServer(t *testing.T) {
 
 // Removing a service that waits deletes its backups everywhere.
 func TestRemoveWaiting(t *testing.T) {
-	bin := resticBin(t)
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, home, _ := setUpMove(t)
 	ctx := context.Background()
 	st := backedUpForgejo(t, m, bin)
@@ -241,24 +229,24 @@ func waitDone(t *testing.T, m *Manager, kind string) activity.Snapshot {
 
 func waitRestore(t *testing.T, m *Manager) activity.Snapshot {
 	t.Helper()
-	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if l, ok := m.Activity.Latest(activity.Restore); ok && !l.Running() && !m.Restoring("forgejo") {
-			return l
-		}
-	}
-	t.Fatal("the restore didn't finish")
-	return activity.Snapshot{}
+	var l activity.Snapshot
+	testwait.For(t, 20*time.Second, func() bool {
+		var ok bool
+		l, ok = m.Activity.Latest(activity.Restore)
+		return ok && !l.Running() && !m.Restoring("forgejo")
+	})
+	return l
 }
 
 // A service's backup, made by one server, is found by the controller and
 // restored onto another server, with its secrets; then again while the
 // server it runs on can't be reached (lost).
 func TestRestoreAcrossTheLab(t *testing.T) {
-	bin := resticBin(t)
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, home, vps := setUpMove(t)
 	ctx := context.Background()
-	applyWait = 5 * time.Second
-	defer func() { applyWait = 20 * time.Minute }()
+	m.waits.applyWait = 5 * time.Second
 
 	st := backedUpForgejo(t, m, bin)
 	defer st.Close()
@@ -375,7 +363,8 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 // version still generates from it when the catalog has moved on to a newer
 // one (SPEC.md §8.3.1).
 func TestRestoreUsesTheLabsPackages(t *testing.T) {
-	bin := resticBin(t)
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	ctx := context.Background()
 	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {

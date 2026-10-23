@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
-	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -17,14 +16,11 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 func TestGuestHub(t *testing.T) {
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	ag := &fakeAgent{}
 	h := &GuestHub{LabName: func() string { return "Mum's lab" }, Store: st, Agent: ag, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now,
 		Usage: func(context.Context, store.Guest) (int64, error) { return 3 << 30, nil }}

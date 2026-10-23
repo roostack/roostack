@@ -27,6 +27,7 @@ import (
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/node/nodetest"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -1009,6 +1010,7 @@ func (f *fakeDataImports) Switching(string) bool { return false }
 // fakeNode is the lab's one server (node.Node, ServiceNode): its
 // services' setup and actions, its jobs, history and disks.
 type fakeNode struct {
+	nodetest.Base
 	setup     map[string]manager.HookStatus
 	retried   []string
 	actions   []string
@@ -1058,17 +1060,9 @@ func (f *fakeNode) CullHistory(_ context.Context, before time.Time) (int64, erro
 
 // DiskSpaces is f.disk (the system disk, with the backup store) and any
 // more disks in f.disks.
-// Capabilities: its disks and history, and nothing else.
-func (f *fakeNode) Disks() node.Disks         { return f }
-func (f *fakeNode) History() node.History     { return f }
-func (f *fakeNode) Mover() node.Mover         { return nil }
-func (f *fakeNode) Updater() node.Updater     { return nil }
-func (f *fakeNode) Memory() node.Memory       { return nil }
-func (f *fakeNode) LeftData() node.LeftData   { return nil }
-func (f *fakeNode) Linked() node.Linked       { return nil }
-func (f *fakeNode) GuestHost() node.GuestHost { return nil }
-func (f *fakeNode) Processor() node.Processor { return nil }
-func (f *fakeNode) Photos() node.Photos       { return nil }
+// Capabilities: its disks and history; nothing else (nodetest.Base).
+func (f *fakeNode) Disks() node.Disks     { return f }
+func (f *fakeNode) History() node.History { return f }
 
 func (f *fakeNode) DiskSpaces(context.Context) ([]node.DiskSpace, error) {
 	if f.disk == nil {
@@ -1081,17 +1075,9 @@ func (f *fakeNode) DiskSpaces(context.Context) ([]node.DiskSpace, error) {
 
 func (f *fakeNode) Settings() node.Settings { return f.settings }
 
-func (f *fakeNode) Media() node.Media { return nil }
-
 // The fake is also the lab's one server.
 func (f *fakeNode) Identity() nodeid.Identity {
 	return nodeid.Identity{ID: "n-0123456789", Name: "nuc"}
-}
-
-func (f *fakeNode) Apply(node.Assignment) {}
-
-func (f *fakeNode) ServiceStates(context.Context) (map[string]string, error) {
-	return nil, nil
 }
 
 func (f *fakeNode) Backups() node.Backups { return f.backups }
@@ -1123,10 +1109,6 @@ func (f *fakeNode) RetryInstall(_ context.Context, name string) error {
 func (f *fakeNode) RunAction(_ context.Context, name, action string, inputs map[string]string) (string, error) {
 	f.actions = append(f.actions, fmt.Sprintf("%s %s %v", name, action, inputs))
 	return f.actionOut, f.actionErr
-}
-
-func (f *fakeNode) ServiceDetails(context.Context) (map[string]node.ServiceDetail, error) {
-	return nil, nil
 }
 
 func (f *fakeNode) BuiltIns(context.Context) ([]node.BuiltIn, error) {

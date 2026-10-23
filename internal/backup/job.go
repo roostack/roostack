@@ -215,6 +215,8 @@ type JobDeps struct {
 	// Generation is the lab's (fence.go): every snapshot is tagged with
 	// it, and a newer one in a repository means this copy is out of date.
 	Generation int
+	// ReachTimeout limits opening each repository; zero is reachTimeout.
+	ReachTimeout time.Duration
 }
 
 // wants reports whether a run backs up to destination name.
@@ -358,7 +360,7 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 // reachTimeout limits opening a repository: restic keeps retrying one it
 // can't reach (a server that's off), which would hold up every backup
 // after it.
-var reachTimeout = 2 * time.Minute
+const reachTimeout = 2 * time.Minute
 
 // snapshot is one snapshot a run makes, in every repository.
 type snapshot struct {
@@ -434,11 +436,12 @@ func upload(ctx context.Context, d JobDeps, repo *Repo, to string, snaps []snaps
 		d.Log.Step("Copying to %s", to)
 	}
 	d.Log.Printf("Repository: %s", repo.URL)
-	ictx, cancel := context.WithTimeout(ctx, reachTimeout)
+	limit := cmp.Or(d.ReachTimeout, reachTimeout)
+	ictx, cancel := context.WithTimeout(ctx, limit)
 	err := repo.Init(ictx)
 	cancel()
 	if ictx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
-		return nil, fmt.Errorf("couldn't reach %s in %s: is it switched on and connected?", cmp.Or(to, "the backup storage"), reachTimeout)
+		return nil, fmt.Errorf("couldn't reach %s in %s: is it switched on and connected?", cmp.Or(to, "the backup storage"), limit)
 	}
 	if err != nil {
 		return nil, err

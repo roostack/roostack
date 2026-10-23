@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/internal/testwait"
 )
 
@@ -116,13 +117,7 @@ func offerVersion(t *testing.T, m *Manager, name, from, to string, notes ...pkgs
 
 func waitUpdated(t *testing.T, m *Manager, name string) {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
-	for m.Updating(name) != nil {
-		if time.Now().After(deadline) {
-			t.Fatal("the update didn't finish")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 20*time.Second, func() bool { return m.Updating(name) == nil })
 	m.Wait()
 }
 
@@ -132,12 +127,8 @@ func waitUpdated(t *testing.T, m *Manager, name string) {
 func updateSetup(t *testing.T, m *Manager) (*chainBackups, *string) {
 	t.Helper()
 	m.Settings = linkKV{}
-	healthWait, healthStable, healthEvery, statusEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond
-	failedFor = 100 * time.Millisecond
-	t.Cleanup(func() {
-		healthWait, healthStable, healthEvery, statusEvery = 5*time.Minute, time.Minute, 5*time.Second, 2*time.Second
-		failedFor = 30 * time.Second
-	})
+	m.waits.healthWait, m.waits.healthStable, m.waits.healthEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond
+	m.waits.failedFor, m.waits.statusEvery = 100*time.Millisecond, 10*time.Millisecond
 	local := m.Node.(*node.Local)
 	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now,
 		Journal: maintenance.FileJournal{Path: filepath.Join(t.TempDir(), "journal.json")},
@@ -167,6 +158,7 @@ func withVersion(t *testing.T, data []byte, version string) []byte {
 // more than before needs the Owner to accept it, and never updates by
 // itself (SPEC.md §7.1).
 func TestLocalPackageUpdate(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
 	ctx := context.Background()
 	updateSetup(t, m)
@@ -229,15 +221,12 @@ func TestLocalPackageUpdate(t *testing.T) {
 // version and checks it; one that doesn't work goes back, isn't offered
 // automatically again, and the previous package file is still there.
 func TestServiceUpdate(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
 	ctx := context.Background()
 	m.Settings = linkKV{}
-	healthWait, healthStable, healthEvery, statusEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond
-	failedFor = 100 * time.Millisecond
-	t.Cleanup(func() {
-		healthWait, healthStable, healthEvery, statusEvery = 5*time.Minute, time.Minute, 5*time.Second, 2*time.Second
-		failedFor = 30 * time.Second
-	})
+	m.waits.healthWait, m.waits.healthStable, m.waits.healthEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond
+	m.waits.failedFor, m.waits.statusEvery = 100*time.Millisecond, 10*time.Millisecond
 	local := m.Node.(*node.Local)
 	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now,
 		Journal: maintenance.FileJournal{Path: filepath.Join(t.TempDir(), "journal.json")},
@@ -289,11 +278,7 @@ func TestServiceUpdate(t *testing.T) {
 
 	// Backups set up: a manual update backs up first. This version
 	// doesn't work, so it goes back.
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: m.Lab.NodeID, Provider: "local:usb", Repository: "/mnt/usb/backups"})
 	m.BackupStore = st
 	ix = withdrawIndex(t, m, nil)

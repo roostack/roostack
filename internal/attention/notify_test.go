@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 // fakeMailer keeps what it was asked to send.
@@ -31,11 +32,7 @@ func (f *fakeMailer) Send(_ context.Context, msg mail.Message) error {
 // sam@example.com) and kim (a Member).
 func newNotifier(t *testing.T) (*Notifier, *Lab, *fakeNode, *fakeMailer, *store.Store) {
 	t.Helper()
-	st, err := store.Open(t.TempDir() + "/roostack.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	ctx := context.Background()
 	id, _ := st.CreateUser(ctx, store.User{Username: "sam", Role: auth.RoleOwner, TOTPSecret: "x"})
 	st.SetEmail(ctx, id, "sam@example.com")

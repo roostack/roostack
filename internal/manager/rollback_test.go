@@ -16,6 +16,8 @@ import (
 	"roostack.cloud/roostack/internal/s3api"
 	"roostack.cloud/roostack/internal/s3api/s3fake"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -27,11 +29,7 @@ func s3Lab(t *testing.T, b *s3fake.Bucket) (*Manager, *store.Store) {
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
 	m.Activity = activity.New()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	m.BackupStore = st
 	srv := httptest.NewServer(b)
 	t.Cleanup(srv.Close)
@@ -124,6 +122,7 @@ func TestS3BucketKeepsWhatsDeleted(t *testing.T) {
 // file back as it was, erasing nothing, leaves lock files alone, and can
 // itself be undone (SPEC.md §10.10).
 func TestRollBack(t *testing.T) {
+	t.Parallel()
 	for _, markersFirst := range []bool{false, true} {
 		t.Run(map[bool]string{false: "AWS", true: "Backblaze"}[markersFirst], func(t *testing.T) { testRollBack(t, markersFirst) })
 	}
@@ -168,16 +167,12 @@ func testRollBack(t *testing.T, markersFirst bool) {
 		if err := m.CheckRollback(ctx, "n-0000000002", "provider:1", before); err != nil {
 			t.Fatal(err)
 		}
-		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-			if l, _ := m.Activity.Latest(kind); !l.Running() {
-				if l.Err != "" {
-					t.Fatalf("check: %s", l.Err)
-				}
-				return m.RollbackChecked("n-0000000002", "provider:1").Summary
-			}
+		var l activity.Snapshot
+		testwait.For(t, 10*time.Second, func() bool { l, _ = m.Activity.Latest(kind); return !l.Running() })
+		if l.Err != "" {
+			t.Fatalf("check: %s", l.Err)
 		}
-		t.Fatal("the check didn't finish")
-		return nil
+		return m.RollbackChecked("n-0000000002", "provider:1").Summary
 	}
 
 	// Nothing to roll back to before backups started, or in the future;

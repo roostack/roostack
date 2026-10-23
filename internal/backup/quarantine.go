@@ -2,6 +2,7 @@ package backup
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -47,9 +48,10 @@ type Junk struct {
 // Path is the file's path in the repository.
 func (j Junk) Path() string { return j.Kind + "/" + j.Name }
 
-// JunkRecheck is how long FindJunk waits before reading a suspect file a
-// second time, so a passing network fault isn't mistaken for junk.
-var JunkRecheck = time.Minute
+// junkRecheck is how long FindJunk waits before reading a suspect file a
+// second time, so a passing network fault isn't mistaken for junk, unless
+// the repository's JunkRecheck says otherwise.
+const junkRecheck = time.Minute
 
 // junkError is restic's error for a file not written with the
 // repository's key: its authentication check failed. Other errors (the
@@ -275,7 +277,7 @@ func badKey(data []byte) string {
 // FindJunk lists the files in r that its key can't read: key files that
 // aren't keys (read through files; skipped when files is nil), and lock,
 // snapshot and index files that fail restic's authentication check. Each
-// suspect is read again after JunkRecheck and counts only if it fails the
+// suspect is read again after junkRecheck and counts only if it fails the
 // same way. good holds "kind/name" of files already read fine (they never
 // change), and gains those read now; nil reads every file.
 func FindJunk(ctx context.Context, r *Repo, files Files, good map[string]bool) ([]Junk, error) {
@@ -309,7 +311,7 @@ func FindJunk(ctx context.Context, r *Repo, files Files, good map[string]bool) (
 	if len(suspects) == 0 {
 		return nil, nil
 	}
-	if !sleep.For(ctx, JunkRecheck) {
+	if !sleep.For(ctx, cmp.Or(r.JunkRecheck, junkRecheck)) {
 		return nil, ctx.Err()
 	}
 	var junk []Junk

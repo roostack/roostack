@@ -23,6 +23,7 @@ import (
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // The lab API, end to end: every Remote method against a Server wrapping
@@ -561,14 +562,11 @@ func TestRoundTrip(t *testing.T) {
 		}, status, []any{rtAddrs, rtLinks}},
 		{"Apply", func() (any, error) {
 			r.Apply(Assignment{Lab: LabContext{Domain: "lab.example.com"}, Reason: "Testing"})
-			for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+			testwait.For(t, 5*time.Second, func() bool {
 				r.mu.Lock()
-				pushing := r.pushing
-				r.mu.Unlock()
-				if !pushing {
-					break
-				}
-			}
+				defer r.mu.Unlock()
+				return !r.pushing
+			})
 			return nil, nil
 		}, []rtCall{call("Apply", "lab.example.com", "Testing")}, nil},
 		{"Leave", func() (any, error) { return nil, r.Leave(ctx) }, []rtCall{call("Leave")}, nil},
@@ -804,7 +802,8 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-// bareNode is a node with no capabilities.
+// bareNode is a node with no capabilities; fakes embed it for those they
+// lack (nodetest.Base, which other packages use, imports node).
 type bareNode struct{ Node }
 
 func (bareNode) Backups() Backups     { return nil }

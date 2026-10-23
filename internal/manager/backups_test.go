@@ -4,10 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -19,23 +16,21 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/b2"
+	"roostack.cloud/roostack/internal/b2/b2test"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
 func TestBackupDestinationOnAServersDisk(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
@@ -44,11 +39,7 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	// The repository really lives in a folder; the URLs are checked below.
 	dir := t.TempDir()
@@ -137,39 +128,13 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 }
 
 func TestBackupDestinationB2ScopedKey(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
-	// A fake Backblaze: authorises the account key, makes and deletes keys.
-	var created map[string]any
-	var deleted []string
-	mux := http.NewServeMux()
-	var api *httptest.Server
-	mux.HandleFunc("GET /b2api/v2/b2_authorize_account", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"accountId": "acct", "apiUrl": api.URL, "authorizationToken": "tok",
-			"allowed": map[string]any{"capabilities": []string{"writeKeys", "deleteKeys", "listBuckets"}}})
-	})
-	// The bucket erases hidden files a day after they're hidden.
-	mux.HandleFunc("POST /b2api/v2/b2_list_buckets", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]any{"bucketId": "bkt1",
-			"lifecycleRules": []any{map[string]any{"fileNamePrefix": "", "daysFromHidingToDeleting": 1}}}}})
-	})
-	mux.HandleFunc("POST /b2api/v2/b2_create_key", func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&created)
-		json.NewEncoder(w).Encode(map[string]string{"applicationKeyId": "scoped-id", "applicationKey": "scoped-secret"})
-	})
-	mux.HandleFunc("POST /b2api/v2/b2_delete_key", func(w http.ResponseWriter, r *http.Request) {
-		var in map[string]string
-		json.NewDecoder(r.Body).Decode(&in)
-		deleted = append(deleted, in["applicationKeyId"])
-		w.Write([]byte("{}"))
-	})
-	api = httptest.NewServer(mux)
-	defer api.Close()
+	t.Parallel()
+	bin := restictest.Bin(t)
+	// A fake Backblaze: the account key can make and delete keys, and the
+	// bucket erases hidden files a day after they're hidden.
+	api := b2test.New(t)
+	api.Keys["master-id master-key"] = []string{"writeKeys", "deleteKeys", "listBuckets"}
+	api.Buckets["backups"] = b2test.Bucket{ID: "bkt1", Rules: []map[string]any{{"fileNamePrefix": "", "daysFromHidingToDeleting": 1}}}
 
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
@@ -177,11 +142,7 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	dir := t.TempDir()
 	recovery := filepath.Join(dir, "recovery")
@@ -203,10 +164,11 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	}
 	d := vps.settings.dest
 	env := strings.Join(d.Env, " ")
-	if d == nil || !strings.Contains(env, "AWS_ACCESS_KEY_ID=scoped-id") || strings.Contains(env, "master") {
+	if d == nil || !strings.Contains(env, "AWS_ACCESS_KEY_ID=scoped-1") || strings.Contains(env, "master") {
 		t.Fatalf("the vps must get only its scoped key: %+v", d)
 	}
 	labID, _ := st.LabID(ctx)
+	created := api.Created()[0]
 	if created["namePrefix"] != "roostack/"+labID+"/n-0000000002/" || created["bucketId"] != "bkt1" {
 		t.Errorf("key made with %v", created)
 	}
@@ -256,7 +218,7 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil {
 		t.Fatal(err)
 	}
-	if len(deleted) != 1 || deleted[0] != "scoped-id" {
+	if deleted := api.Deleted(); len(deleted) != 1 || deleted[0] != "scoped-1" {
 		t.Errorf("deleted = %v", deleted)
 	}
 	removal, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002"))
@@ -288,13 +250,8 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 // An extra copy of the vps's backups on nuc's disk: its own repository,
 // key and store user, never at the main destination.
 func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
@@ -303,11 +260,7 @@ func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	dir := t.TempDir()
 	recovery := filepath.Join(dir, "recovery")
@@ -369,11 +322,7 @@ func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
 
 func TestRemoteStorageFollowsRename(t *testing.T) {
 	m, _ := newManager(t)
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	ctx := context.Background()
 	cfg, _ := json.Marshal(RemoteStorage{HostName: "lab.example.com", Quota: 5 << 30})
@@ -391,11 +340,7 @@ func TestRemoteStorageFollowsRename(t *testing.T) {
 // about it) and its data for the grace period, then both go.
 func TestRemovedGuestGrace(t *testing.T) {
 	m, _ := newManager(t)
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.Lab.NodeID = "n-0000000001"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
 	local(m).Links = fakeLinks{}
@@ -503,13 +448,8 @@ func (f fakeDriveAgent) PrepareBackupFolder(_ context.Context, dir string) (stri
 // This server backs up to its USB drive (backup 1), then a copy on vps's
 // disk is made backup 1 instead: both repositories stay, swapped.
 func TestBackupOnADriveAndPromote(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
@@ -520,11 +460,7 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	mount := t.TempDir()
 	m.Drives = fakeDriveAgent{dir: mount}
@@ -584,14 +520,12 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 // A repository that's locked (its server still backing up) is tried again
 // later, up to pruneTries in all; the others aren't.
 func TestPruneRetriesLocked(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
+	m.waits.pruneRetry = time.Millisecond
 	m.Activity = activity.New()
 	ctx := context.Background()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	dir := t.TempDir()
 	// restic exits 11 when it can't lock the repository.
@@ -612,8 +546,6 @@ func TestPruneRetriesLocked(t *testing.T) {
 		st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-000000000" + map[string]string{"busy": "2", "idle": "3"}[id],
 			Provider: "local:" + filepath.Join(dir, id), Repository: filepath.Join(dir, id), Created: time.Now()})
 	}
-	pruneRetry = time.Millisecond
-	defer func() { pruneRetry = time.Hour }()
 	submitted := make(chan maintenance.Job, 5)
 	m.Submit = func(j maintenance.Job) { submitted <- j }
 
@@ -681,13 +613,8 @@ func (f *fakeCloudBackup) StorageUsage(context.Context) (cloudapi.StorageUsage, 
 // Cloud, reached with keys that expire (no credentials of its own kept);
 // the controller creates and prunes it with the lab's prune keys.
 func TestCloudBackupDestination(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
 	m.Lab.Paths.StateDir = t.TempDir()
@@ -695,11 +622,7 @@ func TestCloudBackupDestination(t *testing.T) {
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	dir := t.TempDir()
 	recovery := filepath.Join(dir, "recovery")

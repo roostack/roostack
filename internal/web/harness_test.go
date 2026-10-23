@@ -10,7 +10,6 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 // The harness the web tests drive the real handlers through: an
@@ -38,11 +38,7 @@ type harness struct {
 
 func newHarness(t *testing.T, setupToken string) *harness {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	services := func(context.Context) ([]ServiceView, error) {
 		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running",
 			URLs: []string{"https://passwords.lab.example.com"}}}, nil

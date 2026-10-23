@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -31,11 +32,7 @@ func setUpLinks(t *testing.T) (*Manager, *movingServer, *movingServer, linkKV) {
 	t.Helper()
 	m, home, vps := setUpMove(t)
 	kv := linkKV{}
-	st, err := store.Open(t.TempDir() + "/roostack.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	m.BackupStore, m.Settings = st, kv
 	st.SetBackupTarget(context.Background(), store.BackupTarget{ServerID: "n-0000000002", Provider: "server:n-0000000003",
 		Repository: "rest:http://100.96.0.3:8000/n-0000000002/lab", Created: time.Now()})
@@ -110,8 +107,7 @@ func TestDirectLinks(t *testing.T) {
 	}
 
 	// No handshake within the grace time: through the controller, for a day.
-	linkGrace = time.Millisecond
-	defer func() { linkGrace = 3 * time.Minute }()
+	m.waits.linkGrace = time.Millisecond
 	time.Sleep(5 * time.Millisecond)
 	vps.handshakes = map[string]int64{homeKey: time.Now().Unix()}
 	m.CheckLinks(ctx)
