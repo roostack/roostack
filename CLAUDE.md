@@ -58,10 +58,11 @@ CONTRIBUTING.md's "Writing" applies to everything you write: British English, sh
 - **No present simple for actions.** It sounds generated: "Roostack keeps it stopped." or "Immich starts again."
 - **The future for what will happen,** especially after something a person might do: "Roostack will keep the service stopped until you choose."
 - **The present continuous for what's happening now:** "Immich is starting again on server-1."
-- **What's fine as it is:** states with "is" ("Immich is stopped"), past results ("its restore didn't finish") and instructions ("Choose what to do").
+- **What's fine as it is:** states with "is" ("Immich is stopped"), past results ("its restore didn't finish"), and instructions ("Choose what to do").
 - **Not clipped, and not too long.** Stay concise, but don't string short statements together: join them where a person would. Not "Its databases didn't load. Roostack keeps it stopped. Choose what to do." but "Its databases didn't load, so Roostack will keep the service stopped until you choose what to do."
-- **Habits and standing facts stay in the present simple** (2026-10-23): a routine that always runs ("Every minute, Roostack checks that each service answers at its address"), what Roostack is ("Roostack runs useful services on a computer you own") and a fact that always holds ("Codes change every 30 seconds"). Field help takes the future, since it says what will happen once a package uses the field: "Roostack will create a random value".
+- **Habits and standing facts stay in the present simple** (2026-10-23): a routine that always runs ("Every minute, Roostack checks that each service answers at its address"), what Roostack is ("Roostack runs useful services on a computer you own"), and a fact that always holds ("Codes change every 30 seconds"). Field help takes the future, since it says what will happen once a package uses the field: "Roostack will create a random value".
 - **Commas where grammar needs them, not for a pause** (2026-10-23). There's no comma before a clause of purpose ("once the current job has finished so that it isn't interrupted") or before "because" after the main clause. Keep one after an opening clause, before "so" when it means "and so", around a "which" that adds detail, and wherever leaving it out would let the sentence be misread.
+- **The Oxford comma** (2026-10-23): a list of three or more takes a comma before its last "and" or "or": "Roostack will stop the service, turn its addresses off, and say so on its page, under Needs attention, and by email."
 
 Examples the user approved (2026-10-23; all 37 are in [docs/wording-examples.md](docs/wording-examples.md), which the wave 4 batches follow):
 

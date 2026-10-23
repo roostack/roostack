@@ -7,7 +7,7 @@ Each pair is filed under the main rule it shows, and says so when it shows more 
 ## The line, as decided
 
 - **Actions take the future or the present continuous.** Use the future for a single action that will follow something a person does or an event ("Roostack will try again tomorrow"), and the present continuous for something going on now ("these backups are going through server-1").
-- **Habits and standing facts stay in the present simple:** a routine that always runs ("Every minute, Roostack checks…"), what Roostack is ("Roostack runs useful services…"), a fact that always holds ("Codes change every 30 seconds") and a check's name ("New names and certificate records reach DNS").
+- **Habits and standing facts stay in the present simple:** a routine that always runs ("Every minute, Roostack checks…"), what Roostack is ("Roostack runs useful services…"), a fact that always holds ("Codes change every 30 seconds"), and a check's name ("New names and certificate records reach DNS").
 - **Field help takes the future,** since it says what will happen once a package uses the field ("Roostack will create a random value").
 - **Commas where grammar needs them, not for a pause** (the maintainer, 2026-10-23):
   - no comma before a clause of purpose ("has finished so that it isn't interrupted");
@@ -16,6 +16,7 @@ Each pair is filed under the main rule it shows, and says so when it shows more 
   - move a phrase rather than fence it off with commas ("Unlink from either side whenever you like").
 
   A comma stays after an opening clause ("Once you've saved it, Roostack will…"), before "so" when it means "and so" ("didn't connect, so these backups are going through server-1"), around a "which" or "where" that adds detail, and wherever leaving it out would let the sentence be misread.
+- **The Oxford comma** (the maintainer, 2026-10-23): a list of three or more takes a comma before its last "and" or "or" ("stop the service, turn its addresses off, and say so on its page, under Needs attention, and by email").
 
 ## The future for what will happen
 
@@ -59,7 +60,7 @@ Especially after something a person might do or an event Roostack is waiting for
   - After: Roostack will keep the login and try again every hour. To finish it yourself, delete the records at the old DNS provider, then choose I've deleted them, and Roostack will stop trying and delete the login.
 - `help/docs/services/settings.md:162` (Help site). What will happen if the registry says Stop.
   - Before: Roostack stops the service and turns its addresses off, and says so on its page, under Needs attention and by email.
-  - After: Roostack will stop the service, turn its addresses off, and say so on its page, under Needs attention and by email.
+  - After: Roostack will stop the service, turn its addresses off, and say so on its page, under Needs attention, and by email.
 - `internal/editor/help.yaml:143` (Package editor). Field help: what will happen if you choose this. See question 2.
   - Before: For a secret: Roostack creates a random value, so nobody has to think of one.
   - After: For a secret: Roostack will create a random value, so nobody has to think of one.
@@ -71,7 +72,7 @@ Especially after something a person might do or an event Roostack is waiting for
   - After: Subject: In 3 days, your Roostack Cloud account will go to your continuity contact. Body: …Unless you stop it, they'll become its billing user on 2 December 2026.
 - `cloud:internal/web/portal.go:241` (Cloud's console and emails). This name is waiting, so it's what will happen to it.
   - Before: (name) is waiting for our approval. It looks like a bank's, a government service's or a well-known brand's name: a person checks names like that first, so nobody can pass as one.
-  - After: (name) is waiting for our approval. It looks like a bank's, a government service's or a well-known brand's name: a person will check it first so that nobody can pass as one.
+  - After: (name) is waiting for our approval. It looks like a bank's, a government service's, or a well-known brand's name: a person will check it first so that nobody can pass as one.
 - `cloud:site/src/pages/cloud.astro:141` (Cloud's site and status page). After something a person might do.
   - Before: Unlink whenever you like, from either side: your lab keeps running exactly as before.
   - After: Unlink from either side whenever you like: your lab will keep running exactly as before.
@@ -122,7 +123,7 @@ Join short statements where a person would, often with "so", "and" or a colon.
 
 ## Fine as they are
 
-States with "is", past results, instructions and the future already in place.
+States with "is", past results, instructions, and the future already in place.
 
 - `internal/labrestore/restore.go:135` (Activity logs). Past result, then the future.
   - Before: Couldn't keep which key opens each backup (error): Roostack will ask restic again
@@ -135,7 +136,7 @@ States with "is", past results, instructions and the future already in place.
 
 ## Habits and standing facts
 
-These stay in the present simple: a routine that always runs, what Roostack is, a fact that always holds and a check's name.
+These stay in the present simple: a routine that always runs, what Roostack is, a fact that always holds, and a check's name.
 
 - `internal/web/templates/monitoring.html:23` (Roostack's pages). A routine that always runs, not one action.
   - Before: Every minute, Roostack checks that each service answers at its address, and tells you when one stops.
