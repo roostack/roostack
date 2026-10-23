@@ -3,9 +3,7 @@ package web
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -14,7 +12,6 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/usererr"
-	"roostack.cloud/roostack/internal/words"
 )
 
 // Blocking known exploits (SPEC.md §6.10 item 4): CrowdSec's AppSec
@@ -132,50 +129,4 @@ func (s *Server) wafSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "public access", detail)
 	redirect(w, r, "/services/"+name+"/public/"+ra.Route+"#waf")
-}
-
-// titlesByHost names the service at each of the lab's web addresses.
-func (s *Server) titlesByHost(ctx context.Context) map[string]string {
-	titles := map[string]string{}
-	services, err := s.Services(ctx)
-	if err != nil {
-		return titles
-	}
-	for _, sv := range services {
-		for _, u := range sv.URLs {
-			if pu, err := url.Parse(u); err == nil {
-				titles[strings.ToLower(pu.Hostname())] = sv.Title
-			}
-		}
-	}
-	return titles
-}
-
-// wafSummary says how many requests AppSec refused, by service, for the
-// weekly summary ("refused 7 requests that tried a known exploit
-// (Vaultwarden 5, Immich 2)."; "" when none were): titles names each
-// public address's service.
-func wafSummary(blocks []public.Block, titles map[string]string) string {
-	if len(blocks) == 0 {
-		return ""
-	}
-	counts := map[string]int{}
-	var order []string
-	for _, b := range blocks {
-		t := titles[b.Host]
-		if t == "" {
-			t = b.Host
-		}
-		if counts[t] == 0 {
-			order = append(order, t)
-		}
-		counts[t]++
-	}
-	slices.SortStableFunc(order, func(a, b string) int { return counts[b] - counts[a] })
-	var parts []string
-	for _, t := range order {
-		parts = append(parts, fmt.Sprintf("%s %d", t, counts[t]))
-	}
-	return fmt.Sprintf("refused %d %s that tried a known exploit (%s).",
-		len(blocks), words.Plural(len(blocks), "request", "requests"), strings.Join(parts, ", "))
 }

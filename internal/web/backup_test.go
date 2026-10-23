@@ -10,6 +10,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/words"
 )
 
 func TestBackupCard(t *testing.T) {
@@ -51,7 +52,7 @@ func TestBackupCard(t *testing.T) {
 	unreachable := &store.BackupRun{OK: false, Finished: time.Now(), Error: "couldn't reach vps's disk in 2m0s"}
 	at := time.Now().Add(time.Hour)
 	fb.status = backup.Status{Configured: true, Last: unreachable, LastOK: ok, Progress: -1, Retry: &backup.Retry{At: at}}
-	if body := card(); !strings.Contains(body, "couldn&#39;t reach vps&#39;s disk in 2m0s Roostack tries again "+whenText(at)+".") {
+	if body := card(); !strings.Contains(body, "couldn&#39;t reach vps&#39;s disk in 2m0s Roostack tries again "+words.When(at)+".") {
 		t.Errorf("retry on the card:\n%s", body)
 	}
 	if _, body := h.get("/"); strings.Contains(body, "The last backup didn") {

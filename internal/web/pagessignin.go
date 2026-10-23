@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/sso"
@@ -378,7 +379,7 @@ func (s *Server) signInConfirm(w http.ResponseWriter, r *http.Request) {
 			s.Log.Warn("failed 2FA code", "user", u.Username, "remote", r.RemoteAddr)
 			time.Sleep(failedLoginDelay)
 			if res == codeLocked {
-				s.Store.Audit(ctx, u, auditLocked, "opening Roostack's pages from the sign-in page")
+				s.Store.Audit(ctx, u, attention.AuditLocked, "opening Roostack's pages from the sign-in page")
 				s.renderSignIn(w, r, http.StatusTooManyRequests, s.confirmView(r, sess, trip, lockedMessage(until)))
 				return
 			}

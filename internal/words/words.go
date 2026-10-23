@@ -1,7 +1,7 @@
 // Package words writes the small pieces of sentences people read, one way
 // everywhere in Roostack: a capital at the start, lists ("a, b and c"),
-// counts ("1 photo", "1,284 photos"), an error's first line and lengths of
-// time. Sizes and plain numbers are units'.
+// counts ("1 photo", "1,284 photos"), an error's first line, lengths of
+// time and when something happens. Sizes and plain numbers are units'.
 package words
 
 import (
@@ -91,4 +91,38 @@ func ExactDuration(d time.Duration) string {
 		return fmt.Sprintf("%d min", int(d.Minutes()))
 	}
 	return fmt.Sprintf("%d h %d min", int(d.Hours()), int(d.Minutes())%60)
+}
+
+// When is a time for people, in this server's time zone: "today 02:00",
+// "yesterday 14:30", "tomorrow 02:00", or "Mon 3 Oct 02:00" further off;
+// "never" for none.
+func When(t time.Time) string {
+	if t.IsZero() {
+		return "never"
+	}
+	// Times from another server arrive in its time zone; show them in
+	// this one's, like everything else (SPEC.md §3.2).
+	t = t.Local()
+	now := time.Now()
+	y1, m1, d1 := now.Date()
+	y2, m2, d2 := t.Date()
+	switch {
+	case y1 == y2 && m1 == m2 && d1 == d2:
+		return "today " + t.Format("15:04")
+	case y1 == y2 && m1 == m2 && d2 == d1-1:
+		return "yesterday " + t.Format("15:04")
+	case y1 == y2 && m1 == m2 && d2 == d1+1:
+		return "tomorrow " + t.Format("15:04")
+	}
+	return t.Format("Mon 2 Jan 15:04")
+}
+
+// LowerFirstWord lowers a phrase's first letter, unless its first word
+// looks like a name (another capital in it, such as "PostgreSQL").
+func LowerFirstWord(s string) string {
+	word, _, _ := strings.Cut(s, " ")
+	if len(word) < 2 || strings.ToLower(word[1:]) != word[1:] {
+		return s
+	}
+	return strings.ToLower(s[:1]) + s[1:]
 }

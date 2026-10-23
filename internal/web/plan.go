@@ -13,6 +13,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/labnet"
@@ -57,12 +58,12 @@ type planEntry struct {
 	Stored int64
 	Free   int64
 	// FreeOn names where Free is ("this server's disk", "the drive",
-	// "vps's disk"); LowSpace is lowSpace's level for it.
+	// "vps's disk"); LowSpace is attention.LowSpace's level for it.
 	FreeOn, LowSpace string
 	Lab              *labnet.GuestUsage
 	// Cloud is Roostack Cloud backup's space, on its backup (nil
 	// otherwise, or not known yet).
-	Cloud *cloudSpace
+	Cloud *attention.CloudSpace
 	// Path says how backups reach another server's disk: manager.PathDirect
 	// or PathHub (through the controller, named by Via); "" otherwise.
 	// For PathHub, Host and HostName are that server, and LinkFailed says
@@ -180,7 +181,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			e.Stored = int64(e.LastOK.Stored)
 		}
 		if d, ok := drives[driveOf(e.Ref, e.Kind)]; ok && m.This {
-			e.Free, e.FreeOn, e.LowSpace = d.Free, "the drive", lowSpace(d.Free, d.Size)
+			e.Free, e.FreeOn, e.LowSpace = d.Free, "the drive", attention.LowSpace(d.Free, d.Size)
 			if e.Kind == manager.KindSystem {
 				e.FreeOn = "this server's disk"
 			}
@@ -202,14 +203,14 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 				dctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 				if disks, err := d.DiskSpaces(dctx); err == nil {
 					if ds, ok := node.StoreDisk(disks); ok {
-						e.Free, e.FreeOn, e.LowSpace = ds.Free, "that disk", lowSpace(ds.Free, ds.Total)
+						e.Free, e.FreeOn, e.LowSpace = ds.Free, "that disk", attention.LowSpace(ds.Free, ds.Total)
 					}
 				}
 				cancel()
 			}
 		}
 		if e.Kind == manager.KindCloud && s.Cloud != nil {
-			e.Cloud = cloudSpaceOf(s.Cloud.Status())
+			e.Cloud = attention.CloudSpaceOf(s.Cloud.Status())
 		}
 		e.AtHome, e.Away = manager.AtHome(e.Kind), manager.Away(e.Kind)
 		e.Access = s.Manager.BackupAccess(ctx, m.ID, e.Ref)

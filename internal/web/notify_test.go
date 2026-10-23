@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
@@ -43,35 +44,35 @@ func TestNotifyProblems(t *testing.T) {
 	h, fm, fb := notifyHarness(t, auth.RoleOwner)
 	ctx := context.Background()
 	t0 := time.Now()
-	h.server.notify(ctx, t0) // starts following the audit log
+	h.notify(ctx, t0) // starts following the audit log
 
 	fb.status.Last = &store.BackupRun{OK: false, Finished: t0, Error: "couldn't reach the backup storage in 2m0s"}
-	if h.server.notify(ctx, t0); len(fm.sent) != 0 {
+	if h.notify(ctx, t0); len(fm.sent) != 0 {
 		t.Fatalf("too new to email: %+v", fm.sent)
 	}
-	h.server.notify(ctx, t0.Add(11*time.Minute))
+	h.notify(ctx, t0.Add(11*time.Minute))
 	if len(fm.sent) != 1 || !strings.HasPrefix(fm.sent[0].Subject, "[") || !strings.Contains(fm.sent[0].Subject, "Needs attention: The last backup didn't finish") ||
 		!strings.Contains(fm.sent[0].Body, "https://roost.lab.example.com/backups") || fm.sent[0].To[0] != "sam@example.com" {
 		t.Fatalf("first email: %+v", fm.sent)
 	}
 	// The time in it changes; still the same problem, and nothing new to say.
 	fb.status.Last.Finished = t0.Add(5 * time.Minute)
-	if h.server.notify(ctx, t0.Add(20*time.Minute)); len(fm.sent) != 1 {
+	if h.notify(ctx, t0.Add(20*time.Minute)); len(fm.sent) != 1 {
 		t.Fatalf("no repeat: %+v", fm.sent)
 	}
-	if h.server.notify(ctx, t0.Add(36*time.Hour)); len(fm.sent) != 2 || !strings.Contains(fm.sent[1].Subject, "Still needs attention") {
+	if h.notify(ctx, t0.Add(36*time.Hour)); len(fm.sent) != 2 || !strings.Contains(fm.sent[1].Subject, "Still needs attention") {
 		t.Fatalf("reminder: %+v", fm.sent[len(fm.sent)-1])
 	}
 	fb.status.Last = &store.BackupRun{OK: true, Finished: t0.Add(37 * time.Hour)}
 	fb.status.LastOK = fb.status.Last
 	// Fixed once it has stayed fixed as long as a problem must last.
-	if h.server.notify(ctx, t0.Add(37*time.Hour)); len(fm.sent) != 2 {
+	if h.notify(ctx, t0.Add(37*time.Hour)); len(fm.sent) != 2 {
 		t.Fatalf("fixed too soon: %+v", fm.sent[len(fm.sent)-1])
 	}
-	if h.server.notify(ctx, t0.Add(37*time.Hour+11*time.Minute)); len(fm.sent) != 3 || !strings.Contains(fm.sent[2].Subject, "Fixed: The last backup") {
+	if h.notify(ctx, t0.Add(37*time.Hour+11*time.Minute)); len(fm.sent) != 3 || !strings.Contains(fm.sent[2].Subject, "Fixed: The last backup") {
 		t.Fatalf("fixed: %+v", fm.sent[len(fm.sent)-1])
 	}
-	if h.server.notify(ctx, t0.Add(38*time.Hour)); len(fm.sent) != 3 {
+	if h.notify(ctx, t0.Add(38*time.Hour)); len(fm.sent) != 3 {
 		t.Error("nothing more once fixed")
 	}
 
@@ -79,8 +80,8 @@ func TestNotifyProblems(t *testing.T) {
 	u, _ := h.store.UserByUsername(ctx, "u")
 	h.store.SetNotify(ctx, u.ID, "security")
 	fb.status.Last = &store.BackupRun{OK: false, Finished: t0, Error: "boom"}
-	h.server.notify(ctx, t0.Add(40*time.Hour))
-	if h.server.notify(ctx, t0.Add(41*time.Hour)); len(fm.sent) != 3 {
+	h.notify(ctx, t0.Add(40*time.Hour))
+	if h.notify(ctx, t0.Add(41*time.Hour)); len(fm.sent) != 3 {
 		t.Errorf("chose no problems: %+v", fm.sent[len(fm.sent)-1])
 	}
 }
@@ -98,27 +99,27 @@ func TestNotifyNoFlapping(t *testing.T) {
 	}
 	refused := fmt.Errorf("Roostack can't reach pi: %w", node.ErrUnreachable)
 	pi(manager.ApplyStatus{Finished: true, LastErr: refused})
-	h.server.notify(ctx, t0)
-	h.server.notify(ctx, t0.Add(11*time.Minute))
+	h.notify(ctx, t0)
+	h.notify(ctx, t0.Add(11*time.Minute))
 	if len(fm.sent) != 1 || !strings.Contains(fm.sent[0].Subject, "Needs attention: Roostack can't reach pi") {
 		t.Fatalf("first email: %+v", fm.sent)
 	}
 	// Between retries: applying for a moment, then failing again with
 	// other words for the same thing.
 	pi(manager.ApplyStatus{Running: true})
-	h.server.notify(ctx, t0.Add(12*time.Minute))
+	h.notify(ctx, t0.Add(12*time.Minute))
 	pi(manager.ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach pi right now: %w", node.ErrUnreachable)})
-	h.server.notify(ctx, t0.Add(14*time.Minute))
-	h.server.notify(ctx, t0.Add(30*time.Minute))
+	h.notify(ctx, t0.Add(14*time.Minute))
+	h.notify(ctx, t0.Add(30*time.Minute))
 	if len(fm.sent) != 1 {
 		t.Errorf("flapped: %d emails, the last %q", len(fm.sent), fm.sent[len(fm.sent)-1].Subject)
 	}
 	// A failed change's error can change too: still one problem.
 	pi(manager.ApplyStatus{Finished: true, LastErr: errors.New("restarting vaultwarden: exit status 1")})
-	h.server.notify(ctx, t0.Add(41*time.Minute))
+	h.notify(ctx, t0.Add(41*time.Minute))
 	pi(manager.ApplyStatus{Finished: true, LastErr: errors.New("restarting vaultwarden: timed out")})
-	h.server.notify(ctx, t0.Add(52*time.Minute))
-	h.server.notify(ctx, t0.Add(53*time.Minute))
+	h.notify(ctx, t0.Add(52*time.Minute))
+	h.notify(ctx, t0.Add(53*time.Minute))
 	var apply int
 	for _, m := range fm.sent {
 		if strings.Contains(m.Subject, "didn't finish") {
@@ -139,21 +140,21 @@ func TestNotifyWaiting(t *testing.T) {
 	t0 := time.Now()
 	h.node().updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}}
 	h.node().settings = &fakeSetup{restartMode: config.RestartNotify}
-	h.server.notify(ctx, t0)
-	if h.server.notify(ctx, t0.Add(11*time.Minute)); len(fm.sent) != 0 {
+	h.notify(ctx, t0)
+	if h.notify(ctx, t0.Add(11*time.Minute)); len(fm.sent) != 0 {
 		t.Fatalf("emailed like a problem: %+v", fm.sent)
 	}
-	if h.server.notify(ctx, t0.Add(25*time.Hour)); len(fm.sent) != 1 || !strings.Contains(fm.sent[0].Subject, "needs a restart") {
+	if h.notify(ctx, t0.Add(25*time.Hour)); len(fm.sent) != 1 || !strings.Contains(fm.sent[0].Subject, "needs a restart") {
 		t.Fatalf("after a day: %+v", fm.sent)
 	}
 
 	o, om, _ := notifyHarness(t, auth.RoleOwner)
 	u, _ := o.store.UserByUsername(ctx, "u")
-	o.store.SetNotify(ctx, u.ID, notifyProblems)
+	o.store.SetNotify(ctx, u.ID, attention.GroupProblems)
 	o.node().updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}}
 	o.node().settings = &fakeSetup{restartMode: config.RestartNotify}
-	o.server.notify(ctx, t0)
-	if o.server.notify(ctx, t0.Add(25*time.Hour)); len(om.sent) != 0 {
+	o.notify(ctx, t0)
+	if o.notify(ctx, t0.Add(25*time.Hour)); len(om.sent) != 0 {
 		t.Errorf("chose only Problems, and got: %+v", om.sent)
 	}
 }
@@ -163,19 +164,19 @@ func TestNotifyWaiting(t *testing.T) {
 func TestNotifySecurity(t *testing.T) {
 	h, fm, _ := notifyHarness(t, auth.RoleOwner)
 	ctx := context.Background()
-	h.server.notify(ctx, time.Now())
+	h.notify(ctx, time.Now())
 	u, _ := h.store.UserByUsername(ctx, "u")
 	h.store.Audit(ctx, u, "password changed", "")
-	h.store.Audit(ctx, nil, AuditServerJoined, "vps")
+	h.store.Audit(ctx, nil, attention.AuditServerJoined, "vps")
 	h.store.SetNotify(ctx, u.ID, "none")
 	u, _ = h.store.UserByUsername(ctx, "u")
-	h.server.notify(ctx, time.Now())
+	h.notify(ctx, time.Now())
 	if len(fm.sent) != 1 || !strings.Contains(fm.sent[0].Body, "Your password was changed") || strings.Contains(fm.sent[0].Body, "vps") {
 		t.Fatalf("own account only, with no groups chosen: %+v", fm.sent)
 	}
 	h.store.SetNotify(ctx, u.ID, "security")
-	h.store.Audit(ctx, nil, AuditServerJoined, "vps")
-	if h.server.notify(ctx, time.Now()); len(fm.sent) != 2 || !strings.Contains(fm.sent[1].Body, "A server joined the lab: vps") {
+	h.store.Audit(ctx, nil, attention.AuditServerJoined, "vps")
+	if h.notify(ctx, time.Now()); len(fm.sent) != 2 || !strings.Contains(fm.sent[1].Body, "A server joined the lab: vps") {
 		t.Fatalf("lab security: %+v", fm.sent)
 	}
 
@@ -209,7 +210,7 @@ func TestNewDeviceLogin(t *testing.T) {
 		entries, _ := h.store.RecentAudit(ctx, 50)
 		n := 0
 		for _, e := range entries {
-			if e.Action == auditNewDevice {
+			if e.Action == attention.AuditNewDevice {
 				n++
 				if !strings.Contains(e.Detail, "Firefox on Linux") {
 					t.Errorf("detail %q", e.Detail)
@@ -253,11 +254,11 @@ func TestWeeklySummary(t *testing.T) {
 	// attention: it has a line of its own.
 	h.node().updates = &fakeUpdates{series: osupdate.Series{Current: "0.4", Newest: "0.5", NewestVersion: "0.5.0"}}
 	monday := time.Date(2026, 10, 5, 9, 0, 0, 0, time.Local)
-	h.server.notify(ctx, monday.Add(-48*time.Hour)) // Saturday: not due
+	h.notify(ctx, monday.Add(-48*time.Hour)) // Saturday: not due
 	if len(fm.sent) != 0 {
 		t.Fatalf("not Monday: %+v", fm.sent)
 	}
-	h.server.notify(ctx, monday)
+	h.notify(ctx, monday)
 	if len(fm.sent) != 1 || !strings.Contains(fm.sent[0].Subject, "This week") {
 		t.Fatalf("Monday: %+v", fm.sent)
 	}
@@ -268,7 +269,7 @@ func TestWeeklySummary(t *testing.T) {
 			t.Errorf("summary missing %q:\n%s", want, fm.sent[0].Body)
 		}
 	}
-	if h.server.notify(ctx, monday.Add(time.Hour)); len(fm.sent) != 1 {
+	if h.notify(ctx, monday.Add(time.Hour)); len(fm.sent) != 1 {
 		t.Error("once a week")
 	}
 }
@@ -359,13 +360,13 @@ func TestAttentionKeys(t *testing.T) {
 			{Name: "vaultwarden", Title: "Vaultwarden", Status: "failed"}}, nil
 	}
 	u, _ := h.store.UserByUsername(ctx, "u")
-	items := h.server.attention(ctx, u)
+	items := h.server.AttentionLab().For(ctx, u)
 	if len(items) < 12 {
 		t.Fatalf("only %d items: %+v", len(items), items)
 	}
 	keys := map[string]bool{}
 	for _, it := range items {
-		if it.Key == "" || it.Group != notifyProblems && it.Group != notifyWaiting {
+		if it.Key == "" || it.Group != attention.GroupProblems && it.Group != attention.GroupWaiting {
 			t.Errorf("%q: key %q, group %q", it.Text, it.Key, it.Group)
 		}
 		if keys[it.Key] {

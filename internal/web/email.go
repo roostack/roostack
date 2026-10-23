@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
@@ -68,15 +69,15 @@ func (s *Server) renderEmail(w http.ResponseWriter, r *http.Request, extra map[s
 		var list []recipient
 		for i := range users {
 			u := &users[i]
-			chosen := userGroups(u)
+			chosen := attention.UserGroups(u)
 			var groups []string
-			for _, g := range groupsFor(u.Role) {
+			for _, g := range attention.GroupsFor(u.Role) {
 				if chosen[g.ID] {
 					groups = append(groups, g.Title)
 				}
 			}
 			rc := recipient{Name: u.Username, Role: u.Role, Email: u.Email, Groups: groups}
-			if cloudSt.Linked && u.Email != "" && chosen[notifyProblems] {
+			if cloudSt.Linked && u.Email != "" && chosen[attention.GroupProblems] {
 				if j := slices.IndexFunc(cloudSt.Recipients, func(c cloudapi.RecipientStatus) bool { return strings.EqualFold(c.Email, u.Email) }); j >= 0 {
 					rc.Cloud = &cloudSt.Recipients[j]
 				} else {
@@ -191,7 +192,7 @@ func (s *Server) renderNotifications(w http.ResponseWriter, r *http.Request, ext
 		m, _ := s.Mail.Settings()
 		ready = m.Configured()
 	}
-	data := map[string]any{"User": u, "Groups": groupsFor(u.Role), "Chosen": userGroups(u), "MailReady": ready,
+	data := map[string]any{"User": u, "Groups": attention.GroupsFor(u.Role), "Chosen": attention.UserGroups(u), "MailReady": ready,
 		"Owner": auth.Can(u.Role, auth.ManageHost), "NeedEmail": ownerNeedsEmail(u),
 		"Action": withQuery("/account/notifications", nextQuery(r))}
 	for k, v := range extra {
@@ -221,7 +222,7 @@ func (s *Server) notificationsSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var chosen []string
-	for _, g := range groupsFor(u.Role) {
+	for _, g := range attention.GroupsFor(u.Role) {
 		if slices.Contains(r.Form["notify"], g.ID) {
 			chosen = append(chosen, g.ID)
 		}

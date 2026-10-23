@@ -289,7 +289,7 @@ func (s *Server) homePartial(w http.ResponseWriter, r *http.Request) {
 // attention, and for those who manage services, the servers and the
 // figures across the top (docs/DESIGN.md "Layout").
 func (s *Server) homeData(r *http.Request, data map[string]any) {
-	data["Attention"] = s.attention(r.Context(), currentUser(r))
+	data["Attention"] = s.AttentionLab().For(r.Context(), currentUser(r))
 	// Members see a link to migrate their photos into each Immich they may
 	// (SPEC.md §8.5).
 	if u := currentUser(r); !isAdmin(u) {

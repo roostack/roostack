@@ -10,6 +10,7 @@ import (
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/store"
@@ -148,7 +149,7 @@ func TestProblemRecipients(t *testing.T) {
 			h.store.SetNotify(ctx, id, p.notify)
 		}
 	}
-	got, err := h.server.ProblemRecipients(ctx)
+	got, err := attention.ProblemRecipients(ctx, h.store)
 	slices.Sort(got)
 	if want := []string{"admin@example.com", "owner@example.com"}; err != nil || !slices.Equal(got, want) {
 		t.Errorf("recipients: %v %v, want %v", got, err, want)
@@ -175,7 +176,7 @@ func TestCloudRecipients(t *testing.T) {
 		t.Error("not told before the first report")
 	}
 	link.Report = func(ctx context.Context) (cloudapi.LabReport, error) {
-		emails, err := h.server.ProblemRecipients(ctx)
+		emails, err := attention.ProblemRecipients(ctx, h.store)
 		return cloudapi.LabReport{Emails: emails}, err
 	}
 	f.AskedAt = time.Now()

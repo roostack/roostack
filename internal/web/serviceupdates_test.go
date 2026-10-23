@@ -150,22 +150,6 @@ func TestServiceUpdateRevision(t *testing.T) {
 	}
 }
 
-// A failed update stays news while its version is on offer; a newer
-// offer replaces it, and with nothing on offer it goes after a week.
-func TestLastUpdateShown(t *testing.T) {
-	failed := &manager.UpdateRecord{To: "2.1.0-roostack.1", Result: manager.UpdateRolledBack, Finished: time.Now().Add(-30 * 24 * time.Hour)}
-	if !lastUpdateShown(failed, &manager.Update{To: "2.1.0-roostack.1"}) {
-		t.Error("still on offer: shown")
-	}
-	if lastUpdateShown(failed, &manager.Update{To: "2.1.1-roostack.1"}) || lastUpdateShown(failed, nil) {
-		t.Error("replaced, or old with nothing on offer: not shown")
-	}
-	failed.Finished = time.Now()
-	if !lastUpdateShown(failed, nil) {
-		t.Error("recent with nothing on offer: shown")
-	}
-}
-
 // A newer version of the Owner's own package that asks for more lists
 // what, and only the Owner can accept it; an Admin is told so.
 func TestServiceUpdateNewRisks(t *testing.T) {

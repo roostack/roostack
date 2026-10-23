@@ -90,3 +90,46 @@ func TestExactDuration(t *testing.T) {
 		}
 	}
 }
+
+func TestWhen(t *testing.T) {
+	now := time.Now()
+	at := func(days int) time.Time {
+		y, m, d := now.Date()
+		return time.Date(y, m, d+days, 2, 30, 0, 0, time.Local)
+	}
+	if got := When(time.Time{}); got != "never" {
+		t.Errorf("zero: %q", got)
+	}
+	if got := When(at(0)); got != "today 02:30" {
+		t.Errorf("today: %q", got)
+	}
+	// Yesterday and tomorrow within this month only; a date otherwise.
+	for _, days := range []int{-1, 1} {
+		t0 := at(days)
+		want := map[int]string{-1: "yesterday 02:30", 1: "tomorrow 02:30"}[days]
+		if t0.Month() != now.Month() {
+			want = t0.Format("Mon 2 Jan 15:04")
+		}
+		if got := When(t0); got != want {
+			t.Errorf("%d days: %q, want %q", days, got, want)
+		}
+	}
+	if got, want := When(at(40)), at(40).Format("Mon 2 Jan 15:04"); got != want {
+		t.Errorf("further off: %q, want %q", got, want)
+	}
+	// A time from another server's zone is shown in this one's.
+	if got := When(at(0).In(time.FixedZone("elsewhere", 5*3600))); got != "today 02:30" {
+		t.Errorf("another zone: %q", got)
+	}
+}
+
+func TestLowerFirstWord(t *testing.T) {
+	for in, want := range map[string]string{
+		"Media disk": "media disk", "USB drive BACKUP": "USB drive BACKUP", "PostgreSQL data": "PostgreSQL data",
+		"A": "A", "": "",
+	} {
+		if got := LowerFirstWord(in); got != want {
+			t.Errorf("LowerFirstWord(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

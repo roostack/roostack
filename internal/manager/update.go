@@ -148,6 +148,33 @@ type UpdateRecord struct {
 	Server string `json:"server,omitempty"`
 }
 
+// updateNews is how long a service's page says it was updated.
+const updateNews = 7 * 24 * time.Hour
+
+// Shown says whether the update is still news, for the service's page and
+// Needs attention: a success for a week; a failure while that version is
+// still on offer (available, the update on offer now, or nil), or for a
+// week if nothing newer has replaced it.
+func (r *UpdateRecord) Shown(available *Update) bool {
+	recent := time.Since(r.Finished) < updateNews
+	if r.Result == UpdateDone {
+		return recent
+	}
+	return (available != nil && available.To == r.To) || (available == nil && recent)
+}
+
+// AppVersion is the app's version in a package version, with the package
+// revision when other (the version it updated from or to) has the same
+// app version, so the two never read the same: "1.34.3", or "1.34.3,
+// package revision 2".
+func AppVersion(v string, other ...string) string {
+	up := pkgspec.Upstream(v)
+	if len(other) == 0 || up != pkgspec.Upstream(other[0]) {
+		return up
+	}
+	return up + ", package revision " + strings.TrimPrefix(v[len(up):], "-roostack.")
+}
+
 // ServiceUpdate is an update queued or in progress, for the service page.
 type ServiceUpdate struct {
 	From, To string

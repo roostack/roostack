@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
@@ -148,7 +149,7 @@ type Server struct {
 	// codeMu makes two-factor checks run one at a time (checkCode).
 	codeMu     sync.Mutex
 	issues     serverIssues
-	hostChecks hostCheckCache
+	hostChecks attention.HostChecks
 	// bootID changes each time Roostack starts; the "restarting" page waits
 	// for a new one.
 	bootID string

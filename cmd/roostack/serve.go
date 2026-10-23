@@ -17,6 +17,7 @@ import (
 
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
@@ -393,7 +394,7 @@ func (c *controller) wireCloud() error {
 		// to too, and each server's last backup there (link adds the lab's
 		// name).
 		link.Report = func(ctx context.Context) (cloudapi.LabReport, error) {
-			emails, err := srv.ProblemRecipients(ctx)
+			emails, err := attention.ProblemRecipients(ctx, c.st)
 			if err != nil {
 				return cloudapi.LabReport{}, err
 			}
@@ -463,7 +464,7 @@ func (c *controller) wireNetwork() {
 	c.hub = &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: c.labName, Self: c.id, Store: st, Agent: c.agent,
 		Log: log, Now: time.Now, Started: c.restarts.restart,
 		Joined: func(ctx context.Context, id, name string) {
-			st.Audit(ctx, nil, web.AuditServerJoined, name)
+			st.Audit(ctx, nil, attention.AuditServerJoined, name)
 			// A new server keeps the lab's time zone (it can change it).
 			go mgr.MatchTimezone(context.WithoutCancel(ctx), id)
 			// The firewall lets it past the lab API now (SetLabServers).
@@ -517,7 +518,7 @@ func (c *controller) wireNetwork() {
 	// that server's link, forwarded here when it's another server).
 	c.guestHub = &labnet.GuestHub{LabName: c.labName, Store: st, Agent: mgr.GuestLinkAgent(), Log: log, Now: time.Now,
 		Usage:  func(ctx context.Context, g store.Guest) (int64, error) { return mgr.GuestUsage(ctx, g.User()) },
-		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, web.AuditGuestJoined, name) },
+		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, attention.AuditGuestJoined, name) },
 		// A guest server's store user added or removed: the guest's store
 		// follows (its password file).
 		Changed: func() { mgr.Apply() }}
@@ -654,10 +655,13 @@ func (c *controller) startCloud() {
 }
 
 // wireNotifier sends email through the lab's SMTP server (SPEC.md §6.13),
-// and the notifier the emails about problems.
+// and the notifier the emails about problems, from what needs attention
+// as the pages have the lab.
 func (c *controller) wireNotifier() {
-	c.srv.Mail = &mail.Service{LabPath: c.labPath, PasswordFile: c.lab.Paths.MailPasswordFile()}
-	go c.srv.RunNotifier(c.ctx)
+	m := &mail.Service{LabPath: c.labPath, PasswordFile: c.lab.Paths.MailPasswordFile()}
+	c.srv.Mail = m
+	n := &attention.Notifier{Store: c.st, Log: c.log, Mail: m, Lab: c.srv.AttentionLab}
+	go n.Run(c.ctx)
 }
 
 // wireMonitoring starts monitoring: every service's address, the servers,

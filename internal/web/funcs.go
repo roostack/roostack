@@ -8,12 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/errpage"
 	"roostack.cloud/roostack/internal/labrestore"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/photoimport"
+	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/words"
 	"roostack.cloud/roostack/units"
 )
@@ -50,13 +52,13 @@ func templateFuncs() template.FuncMap {
 		"errorScene": func(name, id string) template.HTML { return template.HTML(errpage.Scene(name, id)) },
 
 		// Words, times and sizes, and how pages look.
-		"when": whenText,
+		"when": words.When,
 		// daysText and certWarning are monitoring's (monitor.go).
-		"daysText":    daysText,
-		"certWarning": func(st monitor.Status) string { return certWarningText(st, time.Now()) },
+		"daysText":    monitor.DaysText,
+		"certWarning": func(st monitor.Status) string { return st.CertWarningText(time.Now()) },
 		// retryText says when a failed backup is tried again (" Roostack tries
 		// again today 14:00."), or nothing.
-		"retryText": retryText,
+		"retryText": attention.RetryText,
 		"stale":     manager.BackupStale,
 		// firstLine and otherLines split an error: restic's own first line,
 		// then what follows (a stack trace, at worst), shown under Details.
@@ -114,7 +116,7 @@ func templateFuncs() template.FuncMap {
 		// whenParts is a time as when shows it, split into its day and its
 		// clock time ("today", "02:00"), for a big figure.
 		"whenParts": func(t time.Time) [2]string {
-			w := whenText(t)
+			w := words.When(t)
 			if i := strings.LastIndex(w, " "); i > 0 {
 				return [2]string{w[:i], w[i+1:]}
 			}
@@ -177,10 +179,10 @@ func templateFuncs() template.FuncMap {
 		"publicState": func(state string) string { return publicState[state] },
 
 		// Service updates (serviceupdates.go, SPEC.md §7).
-		"appVersion": appVersion,
+		"appVersion": manager.AppVersion,
 		// sentence ends an error's text with a full stop.
 		"sentence":         func(s string) string { return strings.TrimRight(strings.TrimSpace(s), ".") + "." },
-		"revision":         func(v string) string { return strings.TrimPrefix(v[len(upstream(v)):], "-roostack.") },
+		"revision":         func(v string) string { return strings.TrimPrefix(v[len(pkgspec.Upstream(v)):], "-roostack.") },
 		"updateKind":       updateKindText,
 		"updatePolicyText": updatePolicyText,
 

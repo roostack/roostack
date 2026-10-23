@@ -5,43 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 )
-
-// whenText formats a time for people, e.g. "today 02:00" or "Mon 3 Oct 02:00".
-func whenText(t time.Time) string {
-	if t.IsZero() {
-		return "never"
-	}
-	// Times from another server arrive in its time zone; show them in
-	// this one's, like everything else (SPEC.md §3.2).
-	t = t.Local()
-	now := time.Now()
-	y1, m1, d1 := now.Date()
-	y2, m2, d2 := t.Date()
-	switch {
-	case y1 == y2 && m1 == m2 && d1 == d2:
-		return "today " + t.Format("15:04")
-	case y1 == y2 && m1 == m2 && d2 == d1-1:
-		return "yesterday " + t.Format("15:04")
-	case y1 == y2 && m1 == m2 && d2 == d1+1:
-		return "tomorrow " + t.Format("15:04")
-	}
-	return t.Format("Mon 2 Jan 15:04")
-}
-
-func retryText(r *backup.Retry) string {
-	switch {
-	case r == nil:
-		return ""
-	case r.Drive:
-		return " It backs up there as soon as the drive is plugged in."
-	}
-	return " Roostack tries again " + whenText(r.At) + "."
-}
 
 // backupView is the dashboard's backup card.
 func (s *Server) backupView(r *http.Request) any {

@@ -1081,29 +1081,6 @@ func TestBackupPlanSpace(t *testing.T) {
 	}
 }
 
-func TestLowSpace(t *testing.T) {
-	for _, c := range []struct {
-		free, total int64
-		want        string
-	}{
-		{100 * units.GB, 200 * units.GB, ""},
-		{15 * units.GB, 200 * units.GB, levelWarning},  // under 10%
-		{4 * units.GB, 20 * units.GB, levelWarning},    // under 5 GB
-		{8 * units.GB, 200 * units.GB, levelProblem},   // under 5%
-		{1500 * units.MB, 25 * units.GB, levelProblem}, // under 2 GB
-		// A disk under 20 GB: the floors are a quarter and a tenth of it.
-		{1900 * units.MB, 2100 * units.MB, ""},
-		{400 * units.MB, 2000 * units.MB, levelWarning},
-		{150 * units.MB, 2000 * units.MB, levelProblem},
-		{3 * units.GB, 10 * units.GB, ""},
-		{-1, 10 * units.GB, ""},
-	} {
-		if got := lowSpace(c.free, c.total); got != c.want {
-			t.Errorf("lowSpace(%d, %d) = %q, want %q", c.free, c.total, got, c.want)
-		}
-	}
-}
-
 // Settings → Servers shows each server's disk; the home page warns when
 // one runs low, or when other labs were promised more than is free.
 func TestServerDiskSpace(t *testing.T) {
