@@ -68,6 +68,16 @@ var (
 			"If you were only using {service} as usual, tell whoever runs it: the check sometimes gets it wrong, and they can fix it."}
 )
 
+// pausedPage is what visitors from the internet see while the service's
+// public access is paused (SPEC.md §6.16): 503.html shows it when the
+// route set caddy.BlockedVar, and the starting page otherwise. It doesn't
+// say why: that would tell an attacker what to try once it's open again,
+// and a pause placed for another reason would say something false. No
+// "Try again" and no reloading: it won't be back in a minute.
+var pausedPage = Page{503, "asleep", "Resting its wings.",
+	"{service} is closed to visitors from the internet for a while. Its owner will open it again soon. " +
+		"If you're at home, it's working as usual."}
+
 // CaddyPages are the files of the services' error pages, by file name, for
 // /etc/caddy/errors (Caddy's handle_errors serves <status>.html, or
 // error.html). They're Caddy templates: the service's title, whether it's
@@ -85,6 +95,8 @@ func CaddyPages(labName, ui string) map[string]string {
 		out[name] = caddyPage(p, labName, ui)
 	}
 	out["403.html"] = refusedPage()
+	out["503.html"] = `{{if eq (placeholder "http.vars.` + caddy.BlockedVar + `") "yes"}}` + publicPage(pausedPage) +
+		`{{else}}` + out["503.html"] + `{{end}}`
 	return out
 }
 
@@ -128,6 +140,14 @@ func refusedPage() string {
 		`<p class="code">{{placeholder "http.error.status_code"}}</p>` +
 		either(func(p Page) string { return `<h1>` + fill(p.Headline) + `</h1><p>` + fill(p.Text) + `</p>` }) +
 		`</main></body></html>` + "\n"
+}
+
+// publicPage is a page only visitors from outside see, so like the refused
+// page it never names the lab, links to Roostack or has the details.
+func publicPage(p Page) string {
+	return pageHead("", fill(p.Headline)) + `<body><main>` + Scene(p.Scene, "page") +
+		`<p class="code">{{placeholder "http.error.status_code"}} · {{.Host | html}}</p>` +
+		`<h1>` + fill(p.Headline) + `</h1><p>` + fill(p.Text) + `</p></main></body></html>`
 }
 
 // pageHead is the start of a page, up to its body.
