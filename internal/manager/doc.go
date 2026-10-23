@@ -41,6 +41,7 @@
 //   - cloudreport.go: which servers back up to Roostack Cloud.
 //
 // Moving and restoring (SPEC.md §10.10):
+//   - transfer.go: transferJob, the steps a move and a restore share;
 //   - restore.go: restoring a service from any backup onto any server;
 //   - move.go: moving a service to another server, and the data kept;
 //   - lost.go: a lost server, and restoring its services elsewhere;

@@ -106,14 +106,10 @@
     <a href="/settings/servers/{{.ID}}/remote-access">Remote access</a> ·
     <a href="/settings/servers/{{.ID}}/backups">Backups</a></p>
   {{end}}
-  {{with index $.Kept .ID}}
+  {{$kept := index $.Kept .ID}}{{if $kept.Copies}}
   <h3>Kept copies</h3>
-  <p class="hint">Data moves left on {{$m.Name}}, in case you need it. Delete it once you're sure you don't.</p>
-  <ul class="plain">
-    {{range .}}<li><code>{{.Path}}</code> · {{if .MovedAway}}{{.Service}} before it moved away{{else}}what was here before {{.Service}} moved in{{end}},
-      {{when .Time}}{{if ge .Size 0}}, {{size .Size}}{{end}}
-      {{confirm (printf "/settings/servers/%s/kept/remove" $m.ID) (printf "Delete %s for good? This can't be undone." .Path) "Delete" "quiet danger" (printf "path=%s" .Path)}}</li>{{end}}
-  </ul>
+  <p class="hint">Data Roostack set aside on {{$m.Name}} rather than deleting it. Each copy will stay until you delete it.</p>
+  {{template "kept-copies" $kept}}
   {{end}}
   {{if and $.ErrorServer (eq $.ErrorServer .ID)}}<p class="error" role="alert">{{$.Error}}</p>{{end}}
   <details{{if or (and $.ErrorServer (eq $.ErrorServer .ID)) (eq $.Remove .ID)}} open{{end}}>

@@ -42,5 +42,7 @@ copies**, with its size. **Delete** it once you're sure you don't.
     controller streams the service's folders out of it (`restic dump`, with
     the recovery key) to the new server, which loads the database dumps.
 
-    The old data is renamed with a `.moved-<time>` suffix; anything
-    already at the destination is kept as `.before-move-<time>`.
+    The old data is renamed with a `.moved-to-<server>-<time>` suffix;
+    anything already at the destination is kept as `.before-move-<time>`.
+    Both are listed under **Kept copies** on the **Servers** page until you
+    delete them.

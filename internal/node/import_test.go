@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/reconcile"
@@ -217,9 +218,9 @@ func TestImportImmich(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(lab.Paths.ServicesDir, "immich/db/main")); err != nil {
 		t.Error("the database's folder wasn't made again")
 	}
-	folders, _ := n.KeptData(ctx)
-	if len(folders) != 1 || !folders[0].Imported {
-		t.Errorf("kept folders %+v", folders)
+	copies, _ := n.keptCopies()
+	if len(copies) != 1 || copies[0].Why != kept.BeforeImport {
+		t.Errorf("kept copies %+v", copies)
 	}
 	step(SwitchUndo)
 	if _, err := os.Stat(filepath.Join(lab.Paths.ServicesDir, "immich/db/main")); err != nil {
@@ -228,8 +229,8 @@ func TestImportImmich(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(lab.Paths.MediaDir, "immich")); err == nil {
 		t.Error("what was brought is still in place")
 	}
-	if folders, _ := n.KeptData(ctx); !slices.ContainsFunc(folders, func(k KeptFolder) bool { return k.FailedImport }) {
-		t.Errorf("what was brought isn't kept: %+v", folders)
+	if copies, _ := n.keptCopies(); !slices.ContainsFunc(copies, func(c kept.Copy) bool { return c.Why == kept.FailedImport }) {
+		t.Errorf("what was brought isn't kept: %+v", copies)
 	}
 
 	if err := n.CancelImport(ctx, "immich"); err != nil || len(ag.unmounted) != 1 {

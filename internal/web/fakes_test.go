@@ -21,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/labrestore"
 	"roostack.cloud/roostack/internal/mail"
@@ -346,22 +347,33 @@ type fakeServers struct {
 	linkAddrs  map[string]string
 	linkPath   string
 	linkFailed bool
+	// kept are the servers' kept copies; nil: Forgejo's old copy on
+	// n-9876543210.
+	kept []manager.KeptCopy
 }
 
-func (f *fakeServers) KeptData(_ context.Context, id string) ([]node.KeptFolder, error) {
-	if id != "n-9876543210" {
-		return nil, nil
+func (f *fakeServers) KeptCopies(_ context.Context, id string) ([]manager.KeptCopy, error) {
+	all := f.kept
+	if all == nil {
+		all = []manager.KeptCopy{{Copy: kept.Copy{Service: "forgejo", Why: kept.MovedAway, Note: "to-nuc", Time: time.Now(),
+			Whole: true, Size: 70 * units.MB, Paths: []string{"/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806"}},
+			Server: "n-9876543210", Host: "n-0123456789"}}
 	}
-	return []node.KeptFolder{{Path: "/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806", Service: "forgejo",
-		MovedAway: true, Time: time.Now(), Size: 70 * units.MB}}, nil
+	var out []manager.KeptCopy
+	for _, c := range all {
+		if c.Server == id {
+			out = append(out, c)
+		}
+	}
+	return out, nil
 }
 
-func (f *fakeServers) RemoveKeptData(_ context.Context, id, path string) error {
+func (f *fakeServers) RemoveKept(_ context.Context, id, path string) error {
 	f.serverOps = append(f.serverOps, "delete "+path+" on "+id)
 	return nil
 }
 
-func (f *fakeServers) PutBackKeptData(_ context.Context, id, path string) error {
+func (f *fakeServers) PutBackKept(_ context.Context, id, path string) error {
 	f.serverOps = append(f.serverOps, "put back "+path+" on "+id)
 	return nil
 }
@@ -1325,9 +1337,7 @@ func (f *fakeRegistry) Dir() string { return "/var/lib/roostack/catalog" }
 
 type fakeRestores struct {
 	snaps    []backup.Snapshot
-	kept     []backup.KeptCopy
 	restored []string
-	removed  []string
 	pending  bool
 	putBack  []string
 }
@@ -1346,17 +1356,8 @@ func (f *fakeRestores) Restore(_ context.Context, name, id string) error {
 
 func (f *fakeRestores) Pending(context.Context) (bool, error) { return f.pending, nil }
 
-func (f *fakeRestores) Kept(context.Context, string) ([]backup.KeptCopy, error) {
-	return f.kept, nil
-}
-
 func (f *fakeRestores) Outcome(context.Context, string) (backup.RestoreOutcome, error) {
 	return backup.RestoreOutcome{}, nil
-}
-
-func (f *fakeRestores) RemoveKept(_ context.Context, _, p string) error {
-	f.removed = append(f.removed, p)
-	return nil
 }
 
 func (f *fakeRestores) PutBack(_ context.Context, _, p string) error {

@@ -74,7 +74,7 @@ func (s *Server) labRoutes(handle handleFunc) {
 		st := n.Status()
 		w := WireStatus{Running: st.Running, LastRun: st.LastRun, Finished: st.Finished, Version: s.Version(),
 			Backups: n.Backups() != nil, Restores: n.Restores() != nil, Updates: n.Updates() != nil,
-			Settings: n.Settings() != nil, Imports: n.Imports() != nil}
+			Settings: n.Settings() != nil, Imports: n.Imports() != nil, Kept: n.Mover() != nil}
 		if p := n.Processor(); p != nil {
 			w.Arch = p.Arch()
 		}

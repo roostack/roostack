@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
@@ -22,11 +24,14 @@ func TestRestoreFlow(t *testing.T) {
 	fr := &fakeRestores{
 		snaps: []backup.Snapshot{{ID: "9a6817f7aaaa", Short: "9a6817f7", Time: time.Now().Add(-time.Hour)},
 			{ID: "8550fc0abbbb", Short: "8550fc0a", Time: time.Now().Add(-26 * time.Hour)}},
-		kept: []backup.KeptCopy{{Path: "/srv/roostack/services/vaultwarden/data.before-restore-20260926-130602",
-			Of: "/srv/roostack/services/vaultwarden/data", Time: time.Now().Add(-2 * time.Hour)}},
 	}
 	h.node().restores = fr
 	fm := h.node()
+	keptPath := "/srv/roostack/services/vaultwarden/data.before-restore-20260926-130602"
+	fm.kept = []manager.KeptCopy{{Copy: kept.Copy{Service: "vaultwarden", Why: kept.BeforeRestore, Time: time.Now().Add(-2 * time.Hour),
+		Paths: []string{keptPath}, Size: -1}, Server: "n-0123456789", Host: "n-0123456789", CanPutBack: true},
+		{Copy: kept.Copy{Service: "forgejo", Why: kept.BeforeImport, Paths: []string{"/srv/roostack/services/forgejo.before-import-20260926-130602"}},
+			Server: "n-0123456789", Host: "n-0123456789", CanPutBack: true}}
 	// The newest moment is also in a copy; an old one is in a copy only.
 	copyOf := func(id string, at time.Time) manager.ServiceBackup {
 		return manager.ServiceBackup{Ref: "copy:n-0123456789:provider:1", ServerID: "n-0123456789", ServerName: "nuc",
@@ -47,8 +52,9 @@ func TestRestoreFlow(t *testing.T) {
 	_, body := h.get("/backups/restore/vaultwarden")
 	for _, want := range []string{`<option value="backup:n-0123456789@9a6817f7aaaa">USB drive BACKUP (main backup)</option>`,
 		`<option value="copy:n-0123456789:provider:1@77aa00bbcccc">Backblaze (copy)</option>`, "(newest)", "This week", "Older",
-		`name="backup" value="copy:n-0123456789:provider:1@66bb11cccccc"`, "Kept copies",
-		"data.before-restore-20260926-130602", "Couldn&#39;t read vps&#39;s backups"} {
+		`name="backup" value="copy:n-0123456789:provider:1@66bb11cccccc"`, "Kept copies", "From before a restore",
+		"What Vaultwarden had before you restored it on", "data.before-restore-20260926-130602", "1 copy.",
+		"Couldn&#39;t read vps&#39;s backups"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("restore page missing %q", want)
 		}
@@ -103,17 +109,19 @@ func TestRestoreFlow(t *testing.T) {
 		t.Error("a finished restore should lead with its result")
 	}
 
-	h.post("/backups/restore/vaultwarden/kept/remove", url.Values{"path": {fr.kept[0].Path}}, h.srv.URL)
-	if len(fr.removed) != 1 {
-		t.Error("kept copy not removed")
+	// Only the service's own copies are listed; each can be put back
+	// (SPEC.md §8.4) or deleted.
+	if strings.Contains(body, "forgejo.before-import") {
+		t.Error("another service's copy is listed")
 	}
-	// Every kept copy can be put back (SPEC.md §8.4).
 	if !strings.Contains(body, "Put back…") {
 		t.Error("no Put back on a kept copy")
 	}
-	h.post("/backups/restore/vaultwarden/kept/put-back", url.Values{"path": {fr.kept[0].Path}}, h.srv.URL)
-	if len(fr.putBack) != 1 || fr.putBack[0] != fr.kept[0].Path {
-		t.Errorf("put back %v", fr.putBack)
+	fm.serverOps = nil
+	h.post("/backups/restore/vaultwarden/kept/remove", url.Values{"path": {keptPath}, "server": {"n-0123456789"}}, h.srv.URL)
+	h.post("/backups/restore/vaultwarden/kept/put-back", url.Values{"path": {keptPath}, "server": {"n-0123456789"}}, h.srv.URL)
+	if !slices.Equal(fm.serverOps, []string{"delete " + keptPath + " on n-0123456789", "put back " + keptPath + " on n-0123456789"}) {
+		t.Errorf("ops %v", fm.serverOps)
 	}
 
 	// Admins can't restore.
