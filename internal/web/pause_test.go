@@ -26,7 +26,7 @@ func TestPausePublic(t *testing.T) {
 	}
 	code, body := h.get("/pause")
 	for _, want := range []string{"Pause public access", `value="all" checked`, "Vaultwarden", "passwords.lab.example.com",
-		`name="built_with" value="rust"`, `name="service" value="vaultwarden"`, "Pause now"} {
+		`name="built_with" value="rust">`, "Rust <small", "<code>sqlite</code>", `name="service" value="vaultwarden"`, "Pause now"} {
 		if code != http.StatusOK || !strings.Contains(body, want) {
 			t.Errorf("the pause page lacks %q (%d)", want, code)
 		}
@@ -44,7 +44,8 @@ func TestPausePublic(t *testing.T) {
 		!strings.Contains(body, `href="/settings/public#paused"`) {
 		t.Errorf("Home doesn't say it's paused:\n%s", body)
 	}
-	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, `id="paused"`) || !strings.Contains(body, "Everything public is paused.") {
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, `id="paused"`) || !strings.Contains(body, "Everything public is paused.") ||
+		!strings.Contains(body, "<dt>Built with</dt><dd>Rust and SQLite") {
 		t.Errorf("the service's page doesn't say it's paused")
 	}
 	if _, body := h.get("/settings/public"); !strings.Contains(body, "Paused now") || !strings.Contains(body, "Everything public") {
@@ -82,7 +83,7 @@ func TestPausePublic(t *testing.T) {
 			got = append(got, e.Action+": "+e.Detail)
 		}
 	}
-	want := "public access paused: everything|public access opened: everything|public access paused: Vaultwarden|public access paused: services built with rust"
+	want := "public access paused: everything|public access opened: everything|public access paused: Vaultwarden|public access paused: services built with Rust"
 	if strings.Join(got, "|") != want {
 		t.Errorf("audit: %q", got)
 	}

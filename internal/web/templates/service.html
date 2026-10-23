@@ -78,7 +78,7 @@
       and it's working at home as usual.</p>
     <p class="hint">{{with .Own}}Paused {{when .Since}}{{with .By}} by {{.}}{{else}} from the server's command line{{end}}.{{end}}
       {{- if .ByAll}} Everything public is paused{{if .Own}} too{{end}}.{{end}}
-      {{- with .ByBuiltWith}} Services built with {{joinAnd .}} are paused{{if or $ps.Own $ps.ByAll}} too{{end}}.{{end}}</p>
+      {{- with $.PausedByTitles}} Services built with {{joinAnd .}} are paused{{if or $ps.Own $ps.ByAll}} too{{end}}.{{end}}</p>
     {{if $.IsOwner}}
     {{if .Own}}<form method="post" action="/pause/lift">
       <input type="hidden" name="service" value="{{$.Service.Name}}"><input type="hidden" name="next" value="/services/{{$.Service.Name}}">
@@ -229,6 +229,7 @@
         {{- if $.IsOwner}} · <a href="/services/{{$.Service.Name}}/public/{{.Route}}">{{if .Public}}Public access…{{else}}Make public…{{end}}</a>{{end}}</dd>
       {{else}}<dt>Reachable from</dt><dd>{{template "private-where" $.Internet}}</dd>{{end}}{{end}}
       {{with .Service.Server}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
+      {{with .BuiltWith}}<dt>Built with</dt><dd>{{joinAnd .}} <small class="hint">· from its package</small></dd>{{end}}
       {{with .Package}}<dt>Version</dt><dd>{{appVersion .Version}}{{if not $.Update}}, up to date{{end}} · {{with $.UpdatePolicy}}<a href="/services/{{$.Service.Name}}/settings#updates">updates {{if eq . "notify"}}when you approve them{{else}}automatically{{end}}</a>{{end}}</dd>{{end}}
     </dl>
     {{if and .IsOwner .MultiServer}}<p><a href="/services/{{.Service.Name}}/move">Move to another server…</a></p>{{end}}

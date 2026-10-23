@@ -9,8 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/usererr"
@@ -151,5 +153,63 @@ func TestPauseDoesntWait(t *testing.T) {
 	}
 	if st := m.Status(); st.Running || len(st.Doing)+len(st.Waiting) != 0 {
 		t.Errorf("after: %+v", st)
+	}
+}
+
+// Built-with names read as the registry's titles where its list has them
+// (PHP for php), else as written: in what's paused, the apply's reason,
+// and what a service is built with.
+func TestBuiltWithTitles(t *testing.T) {
+	m, _ := newManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	m.RegistryIndex = func() (*registry.Index, error) {
+		return &registry.Index{BuiltWith: []registry.BuiltWith{{Name: "rust", Title: "Rust"}}}, nil
+	}
+	if got := strings.Join(m.BuiltWith("vaultwarden"), ", "); got != "Rust, sqlite" {
+		t.Errorf("BuiltWith = %q", got)
+	}
+	if err := m.PausePublic("tom", PauseRequest{BuiltWith: []string{"rust"}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	pp, _ := m.PublicPauses()
+	if pp.Title("rust") != "Rust" || pp.Title("php") != "php" {
+		t.Errorf("titles: %v", pp.Titles)
+	}
+	if st := m.Status(); st.LastErr != nil {
+		t.Fatal(st.LastErr)
+	}
+	if got := PauseWhat(PauseRequest{BuiltWith: []string{"rust", "php"}}, nil, pp.Title); got != "services built with Rust and php" {
+		t.Errorf("PauseWhat = %q", got)
+	}
+}
+
+// The command line changes lab.yaml's pauses and asks the running
+// Roostack to read them (ReloadPauses), which applies them at once.
+func TestReloadPauses(t *testing.T) {
+	m, _ := newManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if err := m.SetPublic(ctx, "vaultwarden", PublicRequest{Route: "web", Public: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	m.ReloadPauses(config.PublicPause{All: &config.Pause{Since: time.Now()}})
+	m.Wait()
+	b, _ := os.ReadFile(filepath.Join(m.Lab.Paths.CaddySitesDir(), "vaultwarden.caddy"))
+	if !strings.Contains(string(b), "error @vaultwarden-web-outside 503") || m.labNow().Public.Pause.All == nil {
+		t.Errorf("not paused:\n%s", b)
+	}
+	m.ReloadPauses(config.PublicPause{})
+	m.Wait()
+	if b, _ := os.ReadFile(filepath.Join(m.Lab.Paths.CaddySitesDir(), "vaultwarden.caddy")); strings.Contains(string(b), "503") {
+		t.Error("still paused")
 	}
 }

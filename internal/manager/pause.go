@@ -9,6 +9,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/usererr"
 	"roostack.cloud/roostack/internal/words"
@@ -45,6 +46,39 @@ type PublicPauses struct {
 	All       *config.Pause
 	BuiltWith map[string]config.Pause
 	Services  []PublicService
+	// Titles are built-with names' titles from the registry's list (PHP
+	// for php), where it has them.
+	Titles map[string]string
+}
+
+// Title is a built-with name as people write it: the registry's title,
+// or the name itself when the registry's list doesn't have it.
+func (a PublicPauses) Title(name string) string {
+	if t := a.Titles[name]; t != "" {
+		return t
+	}
+	return name
+}
+
+// WithTitles adds the titles of the names in a's services and pauses
+// from the registry's index (nil: none yet).
+func (a PublicPauses) WithTitles(ix *registry.Index) PublicPauses {
+	if ix == nil {
+		return a
+	}
+	a.Titles = map[string]string{}
+	add := func(names ...string) {
+		for _, n := range names {
+			if t := ix.BuiltWithTitle(n); t != "" {
+				a.Titles[n] = t
+			}
+		}
+	}
+	add(slices.Collect(maps.Keys(a.BuiltWith))...)
+	for _, s := range a.Services {
+		add(s.BuiltWith...)
+	}
+	return a
 }
 
 // PublicService is a service with a public address or port.
@@ -81,7 +115,40 @@ func (m *Manager) PublicPauses() (PublicPauses, error) {
 	if err != nil && len(services) == 0 {
 		return PublicPauses{}, err
 	}
-	return PublicPausesOf(m.labNow(), services), nil
+	pp := PublicPausesOf(m.labNow(), services)
+	if m.RegistryIndex != nil {
+		if ix, err := m.RegistryIndex(); err == nil {
+			pp = pp.WithTitles(ix)
+		}
+	}
+	return pp, nil
+}
+
+// builtWithTitle is a built-with name as people write it (the registry's
+// title, else the name).
+func (m *Manager) builtWithTitle(name string) string {
+	if m.RegistryIndex != nil {
+		if ix, err := m.RegistryIndex(); err == nil {
+			if t := ix.BuiltWithTitle(name); t != "" {
+				return t
+			}
+		}
+	}
+	return name
+}
+
+// BuiltWith is what a service is built with, as people write it (the
+// registry's titles), for its page.
+func (m *Manager) BuiltWith(name string) []string {
+	p, err := m.ServicePackage(name)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, n := range p.BuiltWithNames() {
+		out = append(out, m.builtWithTitle(n))
+	}
+	return out
 }
 
 // PublicPausesOf is PublicPauses for a lab's settings and services (the
@@ -150,7 +217,7 @@ func (m *Manager) PausePublic(by string, r PauseRequest) error {
 	if err := SaveServicePauses(m.Lab, services, &p); err != nil {
 		return err
 	}
-	m.startApplyNowLocked("Pausing public access to " + PauseWhat(r, services))
+	m.startApplyNowLocked("Pausing public access to " + PauseWhat(r, services, m.builtWithTitle))
 	return nil
 }
 
@@ -236,8 +303,22 @@ func (m *Manager) LiftPause(r PauseRequest) error {
 	if err := SaveServicePauses(m.Lab, services, nil); err != nil {
 		return err
 	}
-	m.startApplyNowLocked("Opening public access again to " + PauseWhat(r, services))
+	m.startApplyNowLocked("Opening public access again to " + PauseWhat(r, services, m.builtWithTitle))
 	return nil
+}
+
+// ReloadPauses takes the lab's pauses as lab.yaml has them now and applies
+// them at once: `roostack public` changed them from the command line and
+// asked this running Roostack to read them (SIGHUP) rather than restart
+// it (SPEC.md §6.16). Services' own pauses are in their instance files,
+// which every apply reads.
+func (m *Manager) ReloadPauses(pause config.PublicPause) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	l := m.labNow()
+	l.Public.Pause = pause
+	m.saved.Store(&l)
+	m.startApplyNowLocked("Pausing or opening public access from the server's command line")
 }
 
 // publicServices are the named services, each of which must have a
@@ -271,14 +352,19 @@ func PublicServicesNamed(lab config.Lab, all []state.Service, names []string) ([
 }
 
 // PauseWhat says what a pause or lift is about ("everything", "services
-// built with php", "Lychee"), for the apply's reason and the audit log.
-func PauseWhat(r PauseRequest, services []state.Service) string {
+// built with PHP", "Lychee"), for the apply's reason and the audit log;
+// title is how a built-with name is written (PublicPauses.Title).
+func PauseWhat(r PauseRequest, services []state.Service, title func(string) string) string {
 	var parts []string
 	if r.All {
 		parts = append(parts, "everything")
 	}
 	if len(r.BuiltWith) > 0 {
-		parts = append(parts, "services built with "+words.And(r.BuiltWith))
+		var bw []string
+		for _, b := range r.BuiltWith {
+			bw = append(bw, title(b))
+		}
+		parts = append(parts, "services built with "+words.And(bw))
 	}
 	for _, s := range services {
 		parts = append(parts, s.Title())

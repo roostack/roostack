@@ -439,6 +439,28 @@ func (c *controller) wireCloud() error {
 // phone, and whether CrowdSec is up (the records wait for it).
 func (c *controller) wirePublic() {
 	srv, st, log := c.srv, c.st, c.log
+	// roostack public changes lab.yaml's pauses from the command line
+	// and asks Roostack to read them with SIGHUP rather than a restart
+	// (SPEC.md §6.16): they apply at once, and nothing running stops.
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	go func() {
+		for {
+			select {
+			case <-c.ctx.Done():
+				signal.Stop(hup)
+				return
+			case <-hup:
+				lab, err := config.Load(c.labPath)
+				if err != nil {
+					log.Error("reading lab.yaml's pauses of public access", "err", err)
+					continue
+				}
+				log.Info("reading lab.yaml's pauses of public access again (roostack public)")
+				c.mgr.ReloadPauses(lab.Public.Pause)
+			}
+		}
+	}()
 	c.crowdSecUp = func(ctx context.Context) bool {
 		return public.CrowdSecUp(ctx, fmt.Sprintf("127.0.0.1:%d", config.CrowdSecPort)) &&
 			public.AppSecUp(ctx, fmt.Sprintf("127.0.0.1:%d", config.AppSecPort))

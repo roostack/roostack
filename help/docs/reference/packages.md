@@ -137,7 +137,10 @@ routes:
     the Owner will be able to pause public access to every service built
     with it at once. Roostack will add the databases it runs for the app
     by itself (`postgres`, `mysql`, `mariadb`, `sqlite`, and `valkey` for
-    a `redis` database on Roostack's own image).
+    a `redis` database on Roostack's own image). In the service registry,
+    each name must be on its list of names (`built-with.yaml`), which
+    gives it the title Roostack shows (PHP for `php`); a name that isn't
+    there yet is added to the list in the same change.
 
 `requires`
 :   `roostack`: the oldest Roostack release the package works with, such as
