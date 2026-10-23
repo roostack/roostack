@@ -32,7 +32,7 @@
 //   - kept.go: the data set aside on the server, one list whatever set it
 //     aside (internal/kept);
 //   - import*.go: bringing data in from the person's own copy (SPEC.md
-//     §8.4);
+//     §8.4), localImports;
 //   - photos.go: running immich-go for photo migration (SPEC.md §8.5),
 //     localPhotos;
 //   - media.go, libraries.go, libwatch.go: drives, shares and media

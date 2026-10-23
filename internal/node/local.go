@@ -40,9 +40,9 @@ import (
 // doesn't answer; its other capabilities are always there, and the server
 // answers "not found" to one it lacks. Photos isn't on the lab API yet,
 // so Remote's is nil. Local's Photos is a type of its own (localPhotos),
-// as Remote's capabilities are; its others return the Local itself, so a
-// type that embeds Local and overrides a capability's methods overrides
-// its capability method too.
+// as Remote's capabilities are, and so is its Imports (localImports); its
+// others return the Local itself, so a type that embeds Local and
+// overrides a capability's methods overrides its capability method too.
 type Node interface {
 	Identity() nodeid.Identity
 	// Apply hands the node its latest assignment; the node works towards
@@ -271,8 +271,8 @@ type Local struct {
 	// libWatch is what the watch of libraries at their own paths saw last
 	// (libwatch.go).
 	libWatch libraryWatch
-	// imp is bringing data into services (import.go).
-	imp imports
+	// imp is what bringing data into services shares (import.go).
+	imp importRuns
 	// pho is what migrating photos into Immich shares (photos.go).
 	pho photoRuns
 }
@@ -282,6 +282,19 @@ func (n *Local) services() []state.Service {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return slices.Clone(n.assignment.Services)
+}
+
+// liveOutput is what runs of a service now: all of it, or only its
+// network and databases while it waits for its data, is stopped by
+// Roostack or is held after a restore that didn't finish (generate.Stop),
+// as the controller's assignment has it. Its app's units don't exist
+// then, so they can't be stopped or started.
+func (n *Local) liveOutput(service string) (*generate.Output, error) {
+	s, ok := n.service(service)
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return state.Output(n.currentLab(), s)
 }
 
 // Identity is this server's identity.
@@ -297,7 +310,7 @@ func (n *Local) Apply(a Assignment) {
 	if !n.imp.resumed && n.State != nil {
 		n.imp.resumed = true
 		defer func() {
-			go n.resumeImports(context.Background())
+			go n.imports().resumeImports(context.Background())
 			go n.photos().resumePhotos(context.Background())
 		}()
 	}
