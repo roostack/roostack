@@ -15,6 +15,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/dnsrecords"
@@ -23,6 +24,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Settings is an overview grid of areas, each with its own page; on
@@ -181,7 +183,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		case dnsrecords.StateUnsupported:
 			set("home-network", where+" · add a DNS record by hand", "warn")
 		default:
-			set("home-network", dnsHeadline[st.State], "problem")
+			set("home-network", attention.DNSHeadline[st.State], "problem")
 		}
 	} else {
 		set("home-network", where+" · set up a domain first", "")
@@ -205,7 +207,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		case rs.Needed:
 			set("updates", fmt.Sprintf("Restarting around %02d:00 to finish updates", s.Maintenance.Hour()), "ok")
 		case last != nil:
-			set("updates", "Up to date · checked "+whenText(last.At), "ok")
+			set("updates", "Up to date · checked "+words.When(last.At), "ok")
 		default:
 			set("updates", "Updates install every night after the backup", "")
 		}
@@ -353,7 +355,7 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 	data["Servers"] = servers
 	locations := map[string]string{}
 	for _, mc := range servers {
-		locations[mc.ID] = s.serverLocation(r.Context(), mc.ID)
+		locations[mc.ID] = s.Manager.ServerLocation(r.Context(), mc.ID)
 	}
 	data["Locations"] = locations
 	links := map[string]string{}
@@ -535,8 +537,8 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 	}
 	if n := s.serverOf(r); n != nil {
 		m := s.serverRefOf(r)
-		s.forgetHostCheck(m.ID) // this page always checks afresh
-		if c, ok := s.hostChanges(r.Context(), m, n); ok && c.Any() {
+		s.hostChecks.Forget(m.ID) // this page always checks afresh
+		if c, ok := s.hostChecks.Get(r.Context(), m.ID, n.Updates()); ok && c.Any() {
 			data["HostChanges"] = c
 		}
 	}

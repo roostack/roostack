@@ -401,7 +401,7 @@
       the three are optional.</p>
   </details>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  {{with .Hint}}{{notice "info" .}}{{end}}
+  {{with .Checks.Hint}}{{notice "info" .}}{{end}}
   {{with .Lost}}{{notice "error" (printf "The main backup was on %s's disk, and %s left the lab on %s, so nothing can reach those backups now. Choose a new place for the main backup: until then, nightly backups fail%s." .HostName .HostName (.Lost.Local.Format "2 January") (or (and $.Plan.Entries ", though the other backups still run") "")) (printf "link=%s?add=%d#plan" $.Plan.Back $.Plan.More) "linkText=Choose a new place"}}{{end}}
   {{if not .BusyIn}}{{with .Busy}}{{activity .}}{{end}}{{end}}
   <ol class="plan-list">

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/manager"
@@ -61,35 +60,6 @@ func (v *heldView) RestoreAgain(service string) string {
 		u += "?backup=" + url.QueryEscape(v.Backup)
 	}
 	return u
-}
-
-// holdAttention is a problem for each held service, and a warning for
-// each move that didn't finish and went back.
-func (s *Server) holdAttention(ctx context.Context, services []ServiceView, l *attentionList) {
-	for _, svc := range services {
-		v := s.heldViewOf(svc)
-		if v == nil {
-			continue
-		}
-		item := attentionItem{Level: levelProblem, Link: "/services/" + svc.Name + "#held", LinkText: "What to do",
-			Key: "held:" + svc.Name + ":" + v.At.Format(time.RFC3339)}
-		if v.MovedFrom != "" {
-			item.Text = svc.Title + " is stopped on " + v.On + ": its database didn't load there, and moving it back to " +
-				v.From + " failed too."
-		} else {
-			item.Text = svc.Title + " is stopped: its files are back from the backup of " + v.TakenText +
-				", but its database couldn't be loaded."
-		}
-		l.add(item)
-	}
-	moves := s.Manager.FailedMoves(ctx)
-	for _, svc := range services {
-		if f, ok := moves[svc.Name]; ok && svc.Held == nil {
-			l.add(attentionItem{Level: levelWarning, Link: "/services/" + svc.Name + "/move", LinkText: "See what went wrong",
-				Key:  "move-failed:" + svc.Name + ":" + f.At.Format(time.RFC3339),
-				Text: svc.Title + " couldn't be moved to " + f.ToName + ". It's running on " + f.FromName + ", as before."})
-		}
-	}
 }
 
 // heldStartSubmit starts a held service anyway, once the Owner has

@@ -5,7 +5,9 @@ import (
 	"sync"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Settings that differ per server (updates and restarts, time zone,
@@ -52,7 +54,7 @@ func summarizeUpdates(r *http.Request, n ServiceNode) (string, string) {
 	case rs.Needed:
 		return "Needs a restart to finish updates", "warn"
 	case last != nil:
-		return "Up to date · checked " + whenText(last.At), "ok"
+		return "Up to date · checked " + words.When(last.At), "ok"
 	}
 	return "Updates install every night after the backup", ""
 }
@@ -119,10 +121,10 @@ func summarizeBackups(r *http.Request, n ServiceNode) (string, string) {
 		return "The last backup didn't finish", "problem"
 	case st.LastOK == nil:
 		return "Not backed up yet", "warn"
-	case isStale(st.LastOK.Finished):
-		return "Last backed up " + whenText(st.LastOK.Finished), "warn"
+	case manager.BackupStale(st.LastOK.Finished):
+		return "Last backed up " + words.When(st.LastOK.Finished), "warn"
 	}
-	return "Backed up " + whenText(st.LastOK.Finished), "ok"
+	return "Backed up " + words.When(st.LastOK.Finished), "ok"
 }
 
 // serverTabs is an area's switcher, asking every server at once. Nil when

@@ -26,6 +26,7 @@ import (
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/trust"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // wizardSteps numbers the setup wizard's pages, by template, for the
@@ -247,7 +248,7 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 	var keyText string
 	var noSudo []string
 	if keyWorks {
-		keyText = fmt.Sprintf("Your SSH key works: %s logged in with one from %s %s.", keyLogin.User, keyLogin.From, whenText(keyLogin.At))
+		keyText = fmt.Sprintf("Your SSH key works: %s logged in with one from %s %s.", keyLogin.User, keyLogin.From, words.When(keyLogin.At))
 	}
 	for _, l := range a.SSHD.KeyLogins {
 		if !l.Sudo {

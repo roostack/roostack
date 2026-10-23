@@ -379,3 +379,19 @@ func TestServiceUpdate(t *testing.T) {
 		t.Errorf("the new version isn't withdrawn: %+v", w)
 	}
 }
+
+// A failed update stays news while its version is on offer; a newer
+// offer replaces it, and with nothing on offer it goes after a week.
+func TestUpdateRecordShown(t *testing.T) {
+	failed := &UpdateRecord{To: "2.1.0-roostack.1", Result: UpdateRolledBack, Finished: time.Now().Add(-30 * 24 * time.Hour)}
+	if !failed.Shown(&Update{To: "2.1.0-roostack.1"}) {
+		t.Error("still on offer: shown")
+	}
+	if failed.Shown(&Update{To: "2.1.1-roostack.1"}) || failed.Shown(nil) {
+		t.Error("replaced, or old with nothing on offer: not shown")
+	}
+	failed.Finished = time.Now()
+	if !failed.Shown(nil) {
+		t.Error("recent with nothing on offer: shown")
+	}
+}

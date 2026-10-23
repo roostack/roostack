@@ -105,6 +105,31 @@ func (m *Manager) NoBuildOn(p *pkgspec.Package) []NoBuild {
 	return out
 }
 
+// InstallServer is where a new service runs unless someone chooses
+// another: on chosen (a server's ID, "" for this one) if the package has
+// a version for its processor, otherwise on the first of the lab's
+// servers it has one for (SPEC.md §8.3.3). noBuild is NoBuildOn's list.
+func InstallServer(servers []Server, noBuild []NoBuild, chosen string) string {
+	can := func(id string) bool {
+		return !slices.ContainsFunc(noBuild, func(nb NoBuild) bool { return nb.ID == id })
+	}
+	id := chosen
+	for _, m := range servers {
+		if id == "" && m.This {
+			id = m.ID
+		}
+	}
+	if can(id) {
+		return chosen
+	}
+	for _, m := range servers {
+		if can(m.ID) {
+			return m.ID
+		}
+	}
+	return chosen
+}
+
 // noBuildFor is the processor of server host when version of a package
 // has no build for it ("" when it has, or either isn't known: then it's
 // allowed, and the server says so if an image is missing when it pulls

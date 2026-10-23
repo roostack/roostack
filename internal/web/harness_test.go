@@ -17,6 +17,7 @@ import (
 
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/store"
@@ -187,6 +188,15 @@ func (h *harness) setSetup(ls LabSetup) {
 
 // node is the fake server.
 func (h *harness) node() *fakeManager { return h.server.Node.(*fakeManager) }
+
+// notify does one run of the notifier, wired as Roostack wires it.
+func (h *harness) notify(ctx context.Context, now time.Time) error {
+	n := &attention.Notifier{Store: h.store, Log: h.server.Log, Lab: h.server.AttentionLab}
+	if h.server.Mail != nil {
+		n.Mail = h.server.Mail
+	}
+	return n.Notify(ctx, now)
+}
 
 // acts is the fake node's activity registry.
 func (h *harness) acts() *activity.Registry {

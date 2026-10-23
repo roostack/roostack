@@ -56,7 +56,7 @@ type keptView struct {
 // ofService says the list is the service's own (on its restore page).
 func newKeptView(c manager.KeptCopy, title string, names map[string]string, ofService bool) keptView {
 	server, host := cmp.Or(names[c.Server], c.Server), cmp.Or(names[c.Host], c.Host)
-	v := keptView{KeptCopy: c, Label: c.Why.Label(), When: words.Capitalise(whenText(c.Time)), Path: c.Paths[0],
+	v := keptView{KeptCopy: c, Label: c.Why.Label(), When: words.Capitalise(words.When(c.Time)), Path: c.Paths[0],
 		ServerName: server, OnServer: " on ",
 		Remove: fmt.Sprintf("Delete this copy of %s's data for good? It can't be undone.", title)}
 	// it is the service in a sentence: its title on its own page, "it"

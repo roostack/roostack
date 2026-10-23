@@ -27,11 +27,13 @@
 //   - servers.go: the lab's servers, building and applying assignments,
 //     and each service's state;
 //   - arch.go: servers' processors and packages without a build for them;
-//   - links.go: direct WireGuard links between servers.
+//   - links.go: direct WireGuard links between servers;
+//   - location.go: where each server is, at home or away.
 //
 // Backups (SPEC.md §6.9, §10.10):
 //   - backups.go: the main backup's destination, S3 providers and pruning;
-//   - copies.go, plan.go: extra backups and the 3-2-1 checks;
+//   - copies.go, plan.go: extra backups, the 3-2-1 checks and what a
+//     plan lacks;
 //   - destination.go, s3check.go, accountkey.go: what a destination's
 //     credentials can do, a bucket's versioning and erase protection, and
 //     a new key for an online storage account;

@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // statsCloud is a linked Cloud whose relay statistics are given.
@@ -56,7 +57,7 @@ func TestRelayStats(t *testing.T) {
 	_, body := h.get("/partials/relay-stats?period=week")
 	for _, want := range []string{"<dd>52</dd>", "<dd>390</dd>", "2.1 GB", "2.0 GB to visitors", "<dd>7</dd>", "Visitors each day",
 		`<span class="rank-name">Australia</span>`, `<span class="rank-count">45</span>`, `<span class="rank-name">Elsewhere</span>`,
-		`title="` + time.Now().Format("Mon 2 Jan") + `: 12 visitors"`, `aria-current="true">7 days</a>`, "As of " + whenText(asOf)} {
+		`title="` + time.Now().Format("Mon 2 Jan") + `: 12 visitors"`, `aria-current="true">7 days</a>`, "As of " + words.When(asOf)} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q in\n%s", want, body)
 		}

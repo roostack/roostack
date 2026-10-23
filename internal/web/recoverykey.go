@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/attention"
 )
 
 // Showing the recovery key again (SPEC.md §6.9): it opens every backup,
@@ -77,7 +78,7 @@ func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, a
 			return false
 		}
 		if res == codeLocked {
-			s.Store.Audit(r.Context(), u, auditLocked, "checking it's you for "+action)
+			s.Store.Audit(r.Context(), u, attention.AuditLocked, "checking it's you for "+action)
 			again(http.StatusTooManyRequests, lockedMessage(until))
 			return false
 		}

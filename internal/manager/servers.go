@@ -65,6 +65,13 @@ type Server struct {
 	UnreachableSince time.Time
 }
 
+// Unreached reports whether the server's last change failed because
+// Roostack couldn't reach it: Needs attention says so once, and what's
+// asked of each server leaves it out.
+func (s Server) Unreached() bool {
+	return s.Status.LastErr != nil && strings.HasPrefix(s.Status.LastErr.Error(), "Roostack can't reach")
+}
+
 // unreachableKey + server ID is when it was first seen not answering.
 const unreachableKey = "server-unreachable-since."
 

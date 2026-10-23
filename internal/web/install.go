@@ -120,7 +120,7 @@ func listText(items []string, lower bool) string {
 	out := slices.Clone(items)
 	for i := range out {
 		if lower || i > 0 {
-			out[i] = lowerFirstWord(out[i])
+			out[i] = words.LowerFirstWord(out[i])
 		}
 	}
 	if len(out) == 1 {
@@ -131,16 +131,6 @@ func listText(items []string, lower bool) string {
 		last = ", and "
 	}
 	return strings.Join(out[:len(out)-1], ", ") + last + out[len(out)-1]
-}
-
-// lowerFirstWord lowers a phrase's first letter, unless its first word
-// looks like a name (another capital in it, such as "PostgreSQL").
-func lowerFirstWord(s string) string {
-	word, _, _ := strings.Cut(s, " ")
-	if len(word) < 2 || strings.ToLower(word[1:]) != word[1:] {
-		return s
-	}
-	return strings.ToLower(s[:1]) + s[1:]
 }
 
 // installSummaryPart is the summary again, for the install form as it
