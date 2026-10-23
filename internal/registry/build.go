@@ -16,6 +16,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/imagecheck"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
 
@@ -57,6 +58,9 @@ type BuildOptions struct {
 	// Platforms returns an image's os/architecture pairs
 	// (imagecheck.Platforms); nil leaves the architectures out.
 	Platforms func(image string) ([]string, error)
+	// Warn is told what's wrong but doesn't fail the build: an older
+	// version's image gone from its registry (nil: nothing is said).
+	Warn func(string)
 	// Now is when it's signed: the index's date and serial.
 	Now time.Time
 }
@@ -109,7 +113,7 @@ func Build(opts BuildOptions) (*Index, error) {
 		if !d.IsDir() {
 			continue
 		}
-		p, pkgFiles, err := buildPackage(filepath.Join(opts.Repo, "packages"), d.Name(), opts.Platforms, platforms, known)
+		p, pkgFiles, err := buildPackage(filepath.Join(opts.Repo, "packages"), d.Name(), opts.Platforms, platforms, known, opts.Warn)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -159,7 +163,7 @@ func Build(opts BuildOptions) (*Index, error) {
 // buildPackage reads one package folder: its registry.yaml, each
 // <version>.yaml and its icon. It returns the index's entry and the files
 // to publish. known are the names built_with: may use (nil: any).
-func buildPackage(root, name string, lookup func(string) ([]string, error), seen map[string][]string, known map[string]bool) (*Package, map[string][]byte, error) {
+func buildPackage(root, name string, lookup func(string) ([]string, error), seen map[string][]string, known map[string]bool, warn func(string)) (*Package, map[string][]byte, error) {
 	dir := filepath.Join(root, name)
 	fail := func(format string, args ...any) (*Package, map[string][]byte, error) {
 		return nil, nil, fmt.Errorf("packages/%s: %s", name, fmt.Sprintf(format, args...))
@@ -188,6 +192,7 @@ func buildPackage(root, name string, lookup func(string) ([]string, error), seen
 	}
 	var newest *pkgspec.Package
 	var errs []string
+	gone := map[string]error{} // version → its image gone from its registry
 	for _, e := range entries {
 		version, ok := strings.CutSuffix(e.Name(), ".yaml")
 		if e.IsDir() || !ok || version == "registry" {
@@ -225,7 +230,10 @@ func buildPackage(root, name string, lookup func(string) ([]string, error), seen
 		v := &Version{File: fileOf(published, data), Schema: pkg.Schema, RequiresRoostack: pkg.Requires.Roostack}
 		if lookup != nil {
 			arch, err := architectures(pkg, lookup, seen)
-			if err != nil {
+			switch {
+			case errors.Is(err, imagecheck.ErrGone):
+				gone[version] = err // a warning unless it's the newest (below)
+			case err != nil:
 				errs = append(errs, fmt.Sprintf("%s: %v", e.Name(), err))
 			}
 			v.Architectures = arch
@@ -234,6 +242,20 @@ func buildPackage(root, name string, lookup func(string) ([]string, error), seen
 		files[published] = data
 		if newest == nil || pkgspec.CompareVersions(version, newest.Version) > 0 {
 			newest = pkg
+		}
+	}
+	// An image gone from its registry: the newest version must be fixed
+	// (it's what labs install), but an older one is only said, so one
+	// project rebuilding a tag can't stop the whole registry publishing.
+	// Labs running it keep their copy; it's never offered (ImageGone).
+	for _, version := range slices.Sorted(maps.Keys(gone)) {
+		if newest != nil && version == newest.Version {
+			errs = append(errs, fmt.Sprintf("%s.yaml: %v", version, gone[version]))
+			continue
+		}
+		p.Versions[version].ImageGone = true
+		if warn != nil {
+			warn(fmt.Sprintf("packages/%s/%s.yaml: %v; labs will keep running it, but won't be offered it", name, version, gone[version]))
 		}
 	}
 	if len(errs) > 0 {
