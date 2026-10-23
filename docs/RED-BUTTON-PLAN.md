@@ -214,19 +214,19 @@ down.
 restore brings it back; that's the safe direction):
 
 ```yaml
-# lab.yaml
+# lab.yaml (as built, 2026-10-23: "pause", not "block", which
+# public.countries already uses; each pause says when and by whom)
 public:
-  block:
-    all: true                # everything public
-    built_with: [php]        # services built with these, now and later
-    since: 2026-10-22T09:14:00+11:00
-    by: tom
+  pause:
+    all: { since: 2026-10-22T22:14:00Z, by: tom }   # everything public
+    built_with:                                      # now and later
+      php: { since: 2026-10-22T22:20:00Z, by: sam }
 ```
 
 ```yaml
 # services/lychee.yaml (the instance)
-public_block:
-  since: 2026-10-22T09:14:00+11:00
+public_pause:
+  since: 2026-10-22T22:14:00Z
   by: tom
 ```
 
@@ -803,7 +803,7 @@ From that:
 
 **First: the button** (no advisories yet; useful on its own):
 
-- `public.block` in `lab.yaml` and `public_block` in the instance:
+- `public.pause` in `lab.yaml` and `public_pause` in the instance:
   - Caddy's page for outside visitors, via `caddy.Route.Blocked`;
   - the new error page in `internal/errpage`;
   - public ports closed at the firewall;

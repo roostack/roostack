@@ -71,20 +71,20 @@
     {{end}}
   </div>
   {{end}}
-  {{with .PublicService}}{{if .Paused}}{{$t := $.Service.Title}}
+  {{with .PublicService}}{{if .Paused}}{{$t := $.Service.Title}}{{$ps := .}}
   {{/* Its public access is paused (SPEC.md §6.16). */}}
   <div id="paused" class="notice notice-warn" role="status">
     <p><strong>Public access to {{$t}} is paused.</strong> Visitors from the internet are seeing a page saying it's closed for a while,
       and it's working at home as usual.</p>
     <p class="hint">{{with .Own}}Paused {{when .Since}}{{with .By}} by {{.}}{{else}} from the server's command line{{end}}.{{end}}
-      {{- if .ByAll}} Public access to everything is paused too.{{end}}
-      {{- with .ByBuiltWith}} Public access to services built with {{joinAnd .}} is paused too.{{end}}</p>
+      {{- if .ByAll}} Everything public is paused{{if .Own}} too{{end}}.{{end}}
+      {{- with .ByBuiltWith}} Services built with {{joinAnd .}} are paused{{if or $ps.Own $ps.ByAll}} too{{end}}.{{end}}</p>
     {{if $.IsOwner}}
     {{if .Own}}<form method="post" action="/pause/lift">
       <input type="hidden" name="service" value="{{$.Service.Name}}"><input type="hidden" name="next" value="/services/{{$.Service.Name}}">
       {{confirmSubmit (printf "Open %s to the internet again? Anyone on the internet will be able to reach it straight away." $t) "Open it again" ""}}
     </form>{{end}}
-    {{if or .ByAll .ByBuiltWith}}<p><a href="/settings/public#paused">Open {{if .Own}}the rest {{end}}in Settings → Public access</a></p>{{end}}
+    {{if or .ByAll .ByBuiltWith}}<p><a href="/settings/public#paused">{{if .Own}}Open the rest again{{else}}Open it again{{end}} in Settings → Public access</a></p>{{end}}
     {{end}}
   </div>
   {{end}}{{end}}
@@ -232,7 +232,7 @@
       {{with .Package}}<dt>Version</dt><dd>{{appVersion .Version}}{{if not $.Update}}, up to date{{end}} · {{with $.UpdatePolicy}}<a href="/services/{{$.Service.Name}}/settings#updates">updates {{if eq . "notify"}}when you approve them{{else}}automatically{{end}}</a>{{end}}</dd>{{end}}
     </dl>
     {{if and .IsOwner .MultiServer}}<p><a href="/services/{{.Service.Name}}/move">Move to another server…</a></p>{{end}}
-    {{with .PublicService}}{{if and $.CanManage (not .Paused)}}<p><a class="button outline-danger small" href="/pause?scope=some&amp;service={{$.Service.Name}}">{{icon "pause"}}Pause public access to {{$.Service.Title}}…</a></p>{{end}}{{end}}
+    {{with .PublicService}}{{if and $.CanManage (not .Paused)}}<p><a class="button outline-danger small" href="/pause?scope=some&amp;service={{$.Service.Name}}&amp;next=/services/{{$.Service.Name}}">{{icon "pause"}}Pause public access to {{$.Service.Title}}…</a></p>{{end}}{{end}}
   </section>
   {{with .SSO}}{{template "sso-card" .}}{{end}}
   <section class="card">

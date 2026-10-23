@@ -76,6 +76,8 @@ func (s *Server) renderPause(w http.ResponseWriter, r *http.Request, msg string)
 	data["Pauses"], data["BuiltWith"], data["Error"] = pp, builtWithChoices(pp), msg
 	data["Scope"] = r.FormValue("scope")
 	data["Chosen"] = r.Form["service"]
+	// Where it was asked from (a service's page), to go back there.
+	data["Next"] = localNext(r.FormValue("next"))
 	s.render(w, "pause", data)
 }
 

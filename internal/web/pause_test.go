@@ -42,7 +42,7 @@ func TestPausePublic(t *testing.T) {
 		!strings.Contains(body, `href="/settings/public#paused"`) {
 		t.Errorf("Home doesn't say it's paused:\n%s", body)
 	}
-	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, `id="paused"`) || !strings.Contains(body, "Public access to everything is paused too.") {
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, `id="paused"`) || !strings.Contains(body, "Everything public is paused.") {
 		t.Errorf("the service's page doesn't say it's paused")
 	}
 	if _, body := h.get("/settings/public"); !strings.Contains(body, "Paused now") || !strings.Contains(body, "Everything public") {
@@ -53,6 +53,13 @@ func TestPausePublic(t *testing.T) {
 		t.Errorf("not lifted: %+v", fm.lifted)
 	}
 
+	if _, body := h.get("/pause?scope=some&service=vaultwarden&next=/services/vaultwarden"); !strings.Contains(body, `name="next" value="/services/vaultwarden"`) ||
+		!strings.Contains(body, `value="some" checked`) || !strings.Contains(body, `name="service" value="vaultwarden" checked`) {
+		t.Errorf("from the service's page:\n%s", body)
+	}
+	if _, body := h.get("/pause?next=https://evil.example/"); !strings.Contains(body, `name="next" value="/"`) {
+		t.Error("only a page of Roostack's own to go back to")
+	}
 	h.post("/pause", url.Values{"scope": {"some"}, "service": {"vaultwarden"}, "next": {"/services/vaultwarden"}}, h.srv.URL)
 	if fm.own["vaultwarden"] == nil {
 		t.Fatal("the service wasn't paused")

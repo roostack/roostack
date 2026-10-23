@@ -14,6 +14,7 @@
 <div class="grid">
 {{if .Pauses.Services}}
 <form class="card span-8 pause-form" method="post" action="/pause">
+  <input type="hidden" name="next" value="{{.Next}}">
   <h2 class="form-section">What to pause</h2>
   <div class="seg-group">
     {{segmented "scope" "What to pause" (or .Scope "all") (choice "all" "Everything public") (choice "built" "By what it's built with") (choice "some" "Chosen services")}}
@@ -47,7 +48,7 @@
     <li>{{icon "check"}}Nothing else will change: the services will keep running, and their addresses, settings, and certificates will stay as they are.</li>
     <li>{{icon "pause"}}It will stay paused until an Owner opens it again, and Roostack will email the Owners now to say who paused it.</li>
   </ul>
-  <div class="actions-row"><button type="submit" class="danger">{{icon "pause"}}Pause now</button><a href="/">Cancel</a></div>
+  <div class="actions-row"><button type="submit" class="danger">{{icon "pause"}}Pause now</button><a href="{{.Next}}">Cancel</a></div>
 </form>
 {{else}}
 <section class="card span-8">
