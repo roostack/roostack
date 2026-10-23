@@ -12,13 +12,15 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // TestMain lets the test binary act as `roostack backup-helper ...`, so the
-// SQLite prepare and restore steps run for real without podman.
+// SQLite prepare and restore steps run for real without podman, and
+// removes restictest's template repository after the tests.
 func TestMain(m *testing.M) {
 	if os.Getenv("ROOSTACK_TEST_HELPER") == "1" {
 		args := os.Args[len(os.Args)-3:]
@@ -35,7 +37,7 @@ func TestMain(m *testing.M) {
 		}
 		os.Exit(0)
 	}
-	os.Exit(m.Run())
+	os.Exit(restictest.Run(m))
 }
 
 // helperLaunch runs "podman unshare <bin> backup-helper op a b" as this test
@@ -89,6 +91,7 @@ func sqliteRows(t *testing.T, path string) int {
 }
 
 func TestRestoreService(t *testing.T) {
+	t.Parallel()
 	repo := testRepo(t)
 	ctx := context.Background()
 	root := t.TempDir()

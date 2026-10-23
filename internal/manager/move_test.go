@@ -371,6 +371,7 @@ func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 }
 
 func TestMoveThroughBackup(t *testing.T) {
+	t.Parallel()
 	m, a, b := setUpBackupMove(t)
 	ctx := context.Background()
 
@@ -403,6 +404,7 @@ func TestMoveThroughBackup(t *testing.T) {
 // is set aside; if going back fails too, it's held stopped on the new
 // server (SPEC.md §6.9, §10.10).
 func TestMoveThroughBackupGoesBack(t *testing.T) {
+	t.Parallel()
 	m, a, b := setUpBackupMove(t)
 	ctx := context.Background()
 	b.failOn = "load dumps"

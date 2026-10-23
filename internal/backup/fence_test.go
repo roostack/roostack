@@ -22,6 +22,7 @@ import (
 // stays down until the Owner keeps it; then the other copy would stand
 // down instead.
 func TestFenceRestored(t *testing.T) {
+	t.Parallel()
 	repo := testRepo(t)
 	ctx := context.Background()
 	root := t.TempDir()
@@ -88,6 +89,7 @@ func TestFenceRestored(t *testing.T) {
 
 // A server the lab removed while it was off finds the mark and stands down.
 func TestFenceRemoved(t *testing.T) {
+	t.Parallel()
 	repo := testRepo(t)
 	ctx := context.Background()
 	root := t.TempDir()

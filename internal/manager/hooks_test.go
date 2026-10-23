@@ -121,6 +121,7 @@ func TestInstallHook(t *testing.T) {
 }
 
 func TestInstallHookFailsThenRetry(t *testing.T) {
+	t.Parallel()
 	m, secrets, _, ex := newHookManager(t)
 	ctx := context.Background()
 	failing := true
@@ -150,6 +151,7 @@ func TestInstallHookFailsThenRetry(t *testing.T) {
 // A hook that failed on what was typed runs again with corrected values:
 // new settings, and a new password replacing the one kept.
 func TestRetryInstallWithNewValues(t *testing.T) {
+	t.Parallel()
 	m, secrets, _, ex := newHookManager(t)
 	ctx := context.Background()
 	ex.fail = func(int) bool { return true }
@@ -431,6 +433,7 @@ func TestSSOHook(t *testing.T) {
 // A failed sso hook says why on the service's page, and Try again runs it
 // once more.
 func TestSSOHookFailsThenRetry(t *testing.T) {
+	t.Parallel()
 	m, _, _, ex := newHookManager(t)
 	ctx := context.Background()
 	failing := false

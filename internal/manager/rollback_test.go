@@ -121,6 +121,7 @@ func TestS3BucketKeepsWhatsDeleted(t *testing.T) {
 // file back as it was, erasing nothing, leaves lock files alone, and can
 // itself be undone (SPEC.md §10.10).
 func TestRollBack(t *testing.T) {
+	t.Parallel()
 	for _, markersFirst := range []bool{false, true} {
 		t.Run(map[bool]string{false: "AWS", true: "Backblaze"}[markersFirst], func(t *testing.T) { testRollBack(t, markersFirst) })
 	}

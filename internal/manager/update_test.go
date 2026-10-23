@@ -164,6 +164,7 @@ func withVersion(t *testing.T, data []byte, version string) []byte {
 // more than before needs the Owner to accept it, and never updates by
 // itself (SPEC.md §7.1).
 func TestLocalPackageUpdate(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
 	ctx := context.Background()
 	updateSetup(t, m)
@@ -226,6 +227,7 @@ func TestLocalPackageUpdate(t *testing.T) {
 // version and checks it; one that doesn't work goes back, isn't offered
 // automatically again, and the previous package file is still there.
 func TestServiceUpdate(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
 	ctx := context.Background()
 	m.Settings = linkKV{}

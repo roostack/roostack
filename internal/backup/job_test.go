@@ -52,6 +52,7 @@ func TestLabPlan(t *testing.T) {
 // and backs up; the excluded home directory stays out but the explicitly
 // listed secrets directory inside it is included.
 func TestBackupJob(t *testing.T) {
+	t.Parallel()
 	repo := testRepo(t)
 	root := t.TempDir()
 	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}
@@ -112,6 +113,7 @@ func TestBackupJob(t *testing.T) {
 // Each service gets its own snapshot, tagged with its name, holding its
 // data and its secrets; the secrets file doesn't stay on the disk.
 func TestServiceSnapshots(t *testing.T) {
+	t.Parallel()
 	repo := testRepo(t)
 	ctx := context.Background()
 	root := t.TempDir()
@@ -178,6 +180,7 @@ func TestBytes(t *testing.T) {
 // Each copy gets its own backup after the main one, even when the main
 // destination fails: that's what copies are for.
 func TestBackupCopies(t *testing.T) {
+	t.Parallel()
 	copyRepo := testRepo(t)
 	root := t.TempDir()
 	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}
@@ -185,9 +188,6 @@ func TestBackupCopies(t *testing.T) {
 	// The main destination refuses the key (fails at once; restic retries
 	// an unreachable one for minutes).
 	main := testRepo(t)
-	if err := main.Init(context.Background()); err != nil {
-		t.Fatal(err)
-	}
 	writeFile(t, main.PasswordFile, "another key")
 	var copied []string
 	var copyErr error
@@ -214,10 +214,8 @@ func TestBackupCopies(t *testing.T) {
 // A copy whose storage never answers (a server that's off) gives up after
 // ReachTimeout instead of holding the backup up while restic retries.
 func TestBackupCopyUnreachable(t *testing.T) {
+	t.Parallel()
 	main := testRepo(t)
-	if err := main.Init(context.Background()); err != nil { // slow the first time (key derivation)
-		t.Fatal(err)
-	}
 	// Accepts connections and never answers.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -233,7 +231,7 @@ func TestBackupCopyUnreachable(t *testing.T) {
 			defer c.Close()
 		}
 	}()
-	silent := testRepo(t)
+	silent := newRepo(t)
 	silent.URL = "rest:http://" + ln.Addr().String() + "/"
 	root := t.TempDir()
 	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}
@@ -262,6 +260,7 @@ func TestBackupCopyUnreachable(t *testing.T) {
 // The main backup's drive isn't plugged in: the copies still run. A
 // retry backs up only to the destinations asked for.
 func TestBackupMainDriveMissing(t *testing.T) {
+	t.Parallel()
 	copyRepo := testRepo(t)
 	root := t.TempDir()
 	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}

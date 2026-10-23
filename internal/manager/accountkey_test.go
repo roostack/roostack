@@ -24,6 +24,7 @@ import (
 // each server one of its own; elsewhere every server gets the new key
 // (SPEC.md §10.10).
 func TestChangeS3Key(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	// A fake Backblaze: the old key came from the website (it can't make
 	// keys), the new one from the command-line tool.

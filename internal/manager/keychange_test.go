@@ -20,6 +20,7 @@ import (
 // repository that can't be reached keeps the change waiting, with the old
 // key still working; at the end only the new key opens anything.
 func TestKeyChange(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	ctx := context.Background()
 	m, _ := newManager(t)

@@ -307,6 +307,7 @@ func TestRemoveAndRenameServer(t *testing.T) {
 // A server that just joined gets the controller's time zone once it
 // answers (it restarts as part of the lab first).
 func TestNewServerGetsTheLabsTimezone(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
 	m.Node.(*node.Local).Host = &node.HostSettings{Zone: func() string { return "Australia/Sydney" },
 		Zones: func() ([]string, error) { return []string{"Australia/Sydney", "Etc/UTC"}, nil }}

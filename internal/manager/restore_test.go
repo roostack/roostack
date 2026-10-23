@@ -99,6 +99,7 @@ func backedUpForgejo(t *testing.T, m *Manager, bin string) *store.Store {
 // home is gone: Forgejo waits to be restored (home stays in the lab, for
 // its backups), then is restored onto vps, and home leaves the lab.
 func TestGoneServer(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	m, home, vps := setUpMove(t)
 	ctx := context.Background()
@@ -163,6 +164,7 @@ func TestGoneServer(t *testing.T) {
 
 // Removing a service that waits deletes its backups everywhere.
 func TestRemoveWaiting(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	m, home, _ := setUpMove(t)
 	ctx := context.Background()
@@ -239,6 +241,7 @@ func waitRestore(t *testing.T, m *Manager) activity.Snapshot {
 // restored onto another server, with its secrets; then again while the
 // server it runs on can't be reached (lost).
 func TestRestoreAcrossTheLab(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	m, home, vps := setUpMove(t)
 	ctx := context.Background()
@@ -359,6 +362,7 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 // version still generates from it when the catalog has moved on to a newer
 // one (SPEC.md §8.3.1).
 func TestRestoreUsesTheLabsPackages(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	ctx := context.Background()

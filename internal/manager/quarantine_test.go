@@ -31,6 +31,7 @@ func (f fakeBackups) RunNow(context.Context) error                  { return nil
 // with the recovery key, removed through the store's admin access, and
 // reported until the Owner dismisses it; the prune then works.
 func TestJunkJob(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"

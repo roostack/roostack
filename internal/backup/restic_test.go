@@ -14,17 +14,28 @@ import (
 	"roostack.cloud/roostack/internal/backup/restictest"
 )
 
-// These tests run the real restic binary when ROOSTACK_RESTIC_BIN is set (or
-// restic is on PATH), against a repository in a temporary directory.
-func testRepo(t *testing.T) *Repo {
+// These tests run the real restic binary (restictest.Bin), against a
+// repository in a temporary directory. newRepo's repository isn't made
+// yet; testRepo's is, as Init makes it.
+func newRepo(t *testing.T) *Repo {
 	t.Helper()
 	bin := restictest.Bin(t)
 	dir := t.TempDir()
 	pw := filepath.Join(dir, "key")
-	if err := os.WriteFile(pw, []byte("test recovery key\n"), 0o600); err != nil {
+	if err := os.WriteFile(pw, []byte(testKey), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return &Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: pw, CacheDir: filepath.Join(dir, "cache")}
+}
+
+// testKey is the test repositories' recovery key.
+const testKey = "test recovery key\n"
+
+func testRepo(t *testing.T) *Repo {
+	t.Helper()
+	r := newRepo(t)
+	restictest.Init(t, r.URL, testKey)
+	return r
 }
 
 func writeFile(t *testing.T, path, content string) {
@@ -38,7 +49,8 @@ func writeFile(t *testing.T, path, content string) {
 }
 
 func TestBackupRestoreRoundTrip(t *testing.T) {
-	r := testRepo(t)
+	t.Parallel()
+	r := newRepo(t)
 	ctx := context.Background()
 
 	if _, err := r.Snapshots(ctx); !errors.Is(err, ErrNoRepository) {
@@ -103,10 +115,8 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 }
 
 func TestBackupCancelled(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
-	if err := r.Init(context.Background()); err != nil {
-		t.Fatal(err)
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := r.Backup(ctx, BackupOptions{Paths: []string{t.TempDir()}}); !errors.Is(err, context.Canceled) {
@@ -133,11 +143,9 @@ warning: not json
 }
 
 func TestAddKey(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	ctx := context.Background()
-	if err := r.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := r.AddKey(ctx, "server key", "n-0000000002"); err != nil {
 		t.Fatal(err)
 	}
@@ -153,11 +161,9 @@ func TestAddKey(t *testing.T) {
 // Replacing a key (a recovery key change, SPEC.md §6.9): add the new one,
 // remove the old one with it; the old one no longer opens the repository.
 func TestReplaceKey(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	ctx := context.Background()
-	if err := r.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
 	old, err := r.CurrentKey(ctx)
 	if err != nil || old == "" {
 		t.Fatalf("current key: %q %v", old, err)
@@ -187,11 +193,9 @@ func TestReplaceKey(t *testing.T) {
 // drive runs outside Roostack's sandbox, which has a private /tmp (found
 // on VM1: "…/tmp/roostack-key-… does not exist").
 func TestAddKeyFileVisibleOutsideSandbox(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	ctx := context.Background()
-	if err := r.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
 	var keyArg string
 	r.Launch = func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd {
 		for i, a := range args {
@@ -233,11 +237,9 @@ func TestCredentials(t *testing.T) {
 // until Unlock clears it; a running restic's lock stays
 // (docs/ASSUMPTIONS.md N1).
 func TestUnlockClearsStaleLocks(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	ctx := context.Background()
-	if err := r.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
 	// A backup reading from stdin holds its lock until stdin closes.
 	cmd := r.command(ctx, "backup", "--stdin", "--stdin-filename", "x")
 	stdin, err := cmd.StdinPipe()
@@ -277,12 +279,10 @@ func TestUnlockClearsStaleLocks(t *testing.T) {
 // A key hint makes restic try only the server's own key, so a key someone
 // added can't stop or slow an open (ASSUMPTIONS O5, O6).
 func TestKeyHint(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	ctx := context.Background()
 	// Made before hints were kept: the first command asks restic once.
-	if err := r.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
 	want, err := r.CurrentKey(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -297,7 +297,7 @@ func TestKeyHint(t *testing.T) {
 	}
 
 	// A new repository and a key added to it are noted as they're made.
-	made := testRepo(t)
+	made := newRepo(t)
 	made.Hints = r.Hints
 	if err := made.Init(ctx); err != nil {
 		t.Fatal(err)
@@ -338,11 +338,9 @@ func TestKeyHint(t *testing.T) {
 // A full-lab restore learns each repository's key once (LearnKey) and
 // keeps it (Add); a hint that's wrong only means restic tries every key.
 func TestLearnKey(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	ctx := context.Background()
-	if err := r.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := r.AddKey(ctx, "a server's key", "n-0000000002"); err != nil {
 		t.Fatal(err)
 	}

@@ -35,6 +35,7 @@ func (hostAgent) ApplyWireGuard(context.Context, agent.WireGuard) (string, error
 // user, made when its backups are set up there, and removed when it
 // leaves the lab (review M21).
 func TestRemoteStorageServerUsers(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	ctx := context.Background()
 	// The friend's lab: its guest API over httptest.

@@ -43,6 +43,7 @@ func read(t *testing.T, path string) string {
 // A lab backed up to a disk is found there with the recovery key and
 // rebuilt on a fresh install, database included.
 func TestFindAndRestoreALab(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	ctx := context.Background()
 	root := t.TempDir()
@@ -280,6 +281,7 @@ func TestFindAndRestoreALab(t *testing.T) {
 // anything else (made to look like the controller's, say) is refused
 // before anything is put back (review M26).
 func TestRestoreOnlyRoostacksPlaces(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	ctx := context.Background()
 	root := t.TempDir()

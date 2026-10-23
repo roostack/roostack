@@ -47,11 +47,9 @@ func random(n int) func() []byte {
 }
 
 func TestCleanJunk(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	ctx := context.Background()
-	if err := r.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
 	src := t.TempDir()
 	writeFile(t, filepath.Join(src, "a.txt"), "hello")
 	if _, err := r.Backup(ctx, BackupOptions{Paths: []string{src}}); err != nil {

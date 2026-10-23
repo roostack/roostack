@@ -29,6 +29,7 @@ import (
 )
 
 func TestBackupDestinationOnAServersDisk(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
@@ -127,6 +128,7 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 }
 
 func TestBackupDestinationB2ScopedKey(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	// A fake Backblaze: the account key can make and delete keys, and the
 	// bucket erases hidden files a day after they're hidden.
@@ -248,6 +250,7 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 // An extra copy of the vps's backups on nuc's disk: its own repository,
 // key and store user, never at the main destination.
 func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
@@ -445,6 +448,7 @@ func (f fakeDriveAgent) PrepareBackupFolder(_ context.Context, dir string) (stri
 // This server backs up to its USB drive (backup 1), then a copy on vps's
 // disk is made backup 1 instead: both repositories stay, swapped.
 func TestBackupOnADriveAndPromote(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
@@ -516,6 +520,7 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 // A repository that's locked (its server still backing up) is tried again
 // later, up to pruneTries in all; the others aren't.
 func TestPruneRetriesLocked(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
 	m.waits.pruneRetry = time.Millisecond
 	m.Activity = activity.New()
@@ -608,6 +613,7 @@ func (f *fakeCloudBackup) StorageUsage(context.Context) (cloudapi.StorageUsage, 
 // Cloud, reached with keys that expire (no credentials of its own kept);
 // the controller creates and prunes it with the lab's prune keys.
 func TestCloudBackupDestination(t *testing.T) {
+	t.Parallel()
 	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"

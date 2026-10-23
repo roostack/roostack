@@ -35,6 +35,7 @@ func TestIsLocal(t *testing.T) {
 }
 
 func TestServiceRecordsRuns(t *testing.T) {
+	t.Parallel()
 	repo, copyRepo := testRepo(t), testRepo(t)
 	root := t.TempDir()
 	st := storetest.Open(t)
