@@ -2,10 +2,9 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"strings"
 
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/manager"
 )
 
@@ -20,45 +19,9 @@ type BackupJunk interface {
 	DismissJunk(ctx context.Context) error
 }
 
-// junkAttention adds one item per backup with junk found.
-func (s *Server) junkAttention(ctx context.Context, l *attentionList) {
-	for _, rep := range s.Manager.JunkReports(ctx) {
-		files, they, them := fmt.Sprintf("%d files", len(rep.Files)), "they", "them"
-		if len(rep.Files) == 1 {
-			files, they, them = "a file", "it", "it"
-		}
-		backups, hold := rep.Server+"'s backups", "hold"
-		if rep.Copy {
-			backups, hold = "the copy of "+rep.Server+"'s backups", "holds"
-		}
-		if rep.Removed() {
-			l.add(attentionItem{Key: "junk-removed:" + rep.ServerID + ":" + rep.Provider, Level: levelWarning,
-				Text: "Roostack removed " + files + " it can't read from " + backups + " on " + rep.Where +
-					": " + they + " stopped those backups working. Only " + orList(rep.Writers) + " could have put " + them + " there.",
-				Link: "/backups/junk", LinkText: "Details"})
-			continue
-		}
-		l.add(attentionItem{Key: "junk:" + rep.ServerID + ":" + rep.Provider, Level: levelProblem,
-			Text: capitalise(backups) + " on " + rep.Where + " " + hold + " " + files + " Roostack can't read, which " +
-				plural(len(rep.Files), "stops", "stop") + " those backups working, and Roostack couldn't remove " + them + ".",
-			Link: "/backups/junk", LinkText: "What to do"})
-	}
-}
-
-// orList joins names as "a, b or c".
-func orList(names []string) string {
-	switch len(names) {
-	case 0:
-		return "nobody"
-	case 1:
-		return names[0]
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
-}
-
 func (s *Server) junkPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "backups-junk", map[string]any{"User": currentUser(r), "Reports": s.Manager.JunkReports(r.Context()),
-		"OrList": orList})
+		"OrList": attention.OrList})
 }
 
 // junkDismissSubmit clears the list: the Owner has seen it.

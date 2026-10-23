@@ -407,7 +407,7 @@ type conflictError struct{ record, current, want string }
 
 func (e *conflictError) Error() string {
 	return fmt.Sprintf("%s already points at %s, and Roostack didn't create that record, so it won't change it. "+
-		"Delete it at your DNS provider, or point it at %s.", e.record, e.current, e.want)
+		"Delete it at your DNS provider or point it at %s.", e.record, e.current, e.want)
 }
 
 // ownerKey is where Roostack remembers a record it created and its value;
@@ -469,7 +469,7 @@ func (m *Manager) ensure(ctx context.Context, p *dns.Provider, values map[string
 
 // ensureRecord is ensure for a record of any type.
 func (m *Manager) ensureRecord(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, typ, value string) error {
-	fqdn := fqdnOf(zone, name)
+	fqdn := dns.FQDN(zone, name)
 	key := ownerKey(fqdn, typ)
 	owned, err := m.Store.Setting(ctx, key)
 	if err != nil {
@@ -517,7 +517,7 @@ func (m *Manager) disown(ctx context.Context, fqdn, typ string) error {
 // or none of Roostack's: nothing to do. Only a delete that failed keeps
 // the record Roostack's, to try again.
 func (m *Manager) removeOwned(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, typ string) error {
-	fqdn := fqdnOf(zone, name)
+	fqdn := dns.FQDN(zone, name)
 	key := ownerKey(fqdn, typ)
 	owned, err := m.Store.Setting(ctx, key)
 	if err != nil || owned == "" {
@@ -582,14 +582,6 @@ func zoneName(host, zone string) (string, bool) {
 	return relName(host, zone)
 }
 
-// fqdnOf joins a zone-relative name and the zone ("" is the zone itself).
-func fqdnOf(zone, name string) string {
-	if name == "" {
-		return zone
-	}
-	return name + "." + zone
-}
-
 // check looks up a random name under the wildcard through a public
 // resolver and through the home network's resolver.
 func (m *Manager) check(ctx context.Context, st Status) Status {
@@ -633,7 +625,7 @@ func (m *Manager) check(ctx context.Context, st Status) Status {
 		st.State = StateOverridden
 		st.Message = fmt.Sprintf("Your home network's DNS answers %s with %s instead of this server (%s). "+
 			"Something on your network overrides this domain, such as a local DNS server (Pi-hole, AdGuard) "+
-			"or a router setting. Point %s at %s there, or remove the override.",
+			"or a router setting. Point %s at %s there or remove the override.",
 			st.Record, strings.Join(local, ", "), st.IP, st.Record, st.IP)
 	case public && st.Internet:
 		// Public DNS has it; this server's resolver doesn't yet (a cache).
@@ -644,10 +636,10 @@ func (m *Manager) check(ctx context.Context, st Status) Status {
 		st.Message = "The record exists, but your home network's DNS won't return it. This is usually " +
 			"the router's \"DNS rebinding protection\", which blocks answers that point at home addresses. " +
 			"Allow " + m.Lab.Domain + " in the router's settings (often called rebind protection or " +
-			"private domain exceptions), or use a local DNS server."
+			"private domain exceptions) or use a local DNS server."
 	default:
 		st.State = StatePending
-		st.Message = "The record isn't visible yet. DNS changes can take a few minutes; Roostack checks again automatically."
+		st.Message = "The record isn't visible yet. DNS changes can take a few minutes, and Roostack will check again automatically."
 	}
 	return st
 }

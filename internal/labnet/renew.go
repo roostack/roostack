@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -181,10 +182,8 @@ func KeepRenewed(ctx context.Context, id Identity, nodeID string, renew func(con
 			log.Error("renewing this server's lab certificate", "err", err)
 			wait = renewRetry
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, wait) {
 			return
-		case <-time.After(wait):
 		}
 	}
 }

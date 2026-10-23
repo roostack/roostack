@@ -11,13 +11,13 @@
     {{else if and .Stale .Status.Serial}}{{notice "warn" (printf "This list is from %s: Roostack can't get a newer one from the service registry, so it doesn't know of fixes or withdrawn versions since." (when .Status.Date)) "link=/settings/updates#registry" "linkText=See why"}}
     {{else if not .Status.Serial}}
       {{if .Status.NoRootKey}}{{notice "warn" "This build of Roostack can't check the service registry's signatures, so it can't install services from it. Services you add yourself still work." "link=/settings/updates#registry" "linkText=Details"}}
-      {{else if .Status.Fetching}}<div hx-get="/catalog/ready" hx-trigger="every 5s" hx-swap="none">{{notice "info" "Roostack is getting the list of services from the service registry. This page shows them as soon as it has them."}}</div>
+      {{else if .Status.Fetching}}<div hx-get="/catalog/ready" hx-trigger="every 5s" hx-swap="none">{{notice "info" "Roostack is getting the list of services from the service registry. This page will show them as soon as it has them."}}</div>
       {{else if .Status.Error}}{{notice "error" (printf "Roostack can't get the list of services from the service registry: %s." (firstLine .Status.Error)) "link=/settings/updates#registry" "linkText=See why"}}
-      {{else}}<div hx-get="/catalog/ready" hx-trigger="every 5s" hx-swap="none">{{notice "info" "Roostack hasn't got the list of services from the service registry yet. This page shows them as soon as it has them."}}</div>{{end}}
+      {{else}}<div hx-get="/catalog/ready" hx-trigger="every 5s" hx-swap="none">{{notice "info" "Roostack hasn't got the list of services from the service registry yet. This page will show them as soon as it has them."}}</div>{{end}}
     {{end}}
   {{end}}
   {{with .Added}}{{notice "ok" (printf "Added %s. It's in the list below, marked Your own." .Title) (printf "link=/install/%s" .Name) "linkText=Install it"}}{{end}}
-  {{with .AddedUpdates}}<div class="notice" role="status"><p>These services run an older version of it, and can update now:</p>
+  {{with .AddedUpdates}}<div class="notice" role="status"><p>These services run an older version of it and can update now:</p>
     <ul>{{range .}}<li><a href="/services/{{.Service}}#update">{{.Title}}</a> ({{.FromApp}} → {{.ToApp}})</li>{{end}}</ul></div>{{end}}
   {{with .Needs}}{{notice "warn" (printf "%s needs a newer Roostack (%s or newer), so it can't be installed yet. It can be once Roostack is updated." .Title .NeedsRoostack)}}{{end}}
   {{if or (not .Registry) .Registry.On .Items}}
@@ -49,7 +49,7 @@
         {{with .CategoryTitles}}<p class="offer-categories">{{.}}</p>{{end}}
       </div>
       <div class="offer-action">
-      {{- if and .Local $.IsOwner}}{{confirm (printf "/catalog/%s/remove" .Name) (printf "Remove %s from the list? Services you've installed from it keep running as they are." .Title) "Remove" "quiet danger"}}{{end}}
+      {{- if and .Local $.IsOwner}}{{confirm (printf "/catalog/%s/remove" .Name) (printf "Remove %s from the list? Services you've installed from it will keep running as they are." .Title) "Remove" "quiet danger"}}{{end}}
       {{- if .NeedsRoostack}}<p class="offer-later">Needs a newer Roostack: {{.NeedsRoostack}} or newer.{{if $.IsOwner}} <a href="/settings/updates#registry">Details</a>{{end}}</p>
       {{- else if .Installed}}<a class="button secondary" href="/install/{{.Name}}">Add another…</a>
       {{- else}}<a class="button" href="/install/{{.Name}}">Install</a>{{end}}
@@ -66,7 +66,7 @@
   {{if .IsOwner}}
   <div class="card">
     <h2>Add your own</h2>
-    <p class="hint">A package file you wrote, or got from someone you trust. Roostack checks it's valid; nobody reviews it.</p>
+    <p class="hint">A package file you wrote, or got from someone you trust. Roostack will check it's valid, but nobody will review it.</p>
     <a class="button secondary" href="/catalog/add">Add a package…</a>
   </div>
   {{end}}

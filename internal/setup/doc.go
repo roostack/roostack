@@ -10,6 +10,6 @@
 //
 // Progress is kept in the store's runtime settings (setup.*); the
 // settings themselves go to lab.yaml and, for secrets, Podman secrets.
-// Mistakes people can fix come back as CheckError, whose message the
+// Mistakes people can fix come back as usererr.Error, whose message the
 // pages show as it is.
 package setup

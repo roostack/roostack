@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"maps"
 	"os"
@@ -30,12 +29,12 @@ import (
 	"roostack.cloud/roostack/internal/s3api"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Types shared with the node that does the work (internal/node), under
 // the names the web layer uses.
 type (
-	FormError     = node.FormError
 	ApplyStatus   = node.ApplyStatus
 	HookStatus    = node.HookStatus
 	SSOHookStatus = node.SSOHookStatus
@@ -50,14 +49,13 @@ var ErrNotFound = node.ErrNotFound
 // hands that to the server as an Assignment. Server work (applying,
 // install hooks, actions) happens in the Node.
 type Manager struct {
+	// The lab and its servers.
 	Lab config.Lab
 	Log *slog.Logger
 	// Version is the running Roostack's (main.version), checked against
 	// the requires.roostack of a package the Owner adds (SPEC.md §8.3.5);
 	// empty is a development build, which runs everything.
 	Version string
-	// Relay is Roostack Cloud's relay, a way in for public visitors.
-	Relay Relay
 	// Node is this server (the controller).
 	Node node.Node
 	// Others lists the lab's other servers (SPEC.md §10); nil if none.
@@ -66,39 +64,6 @@ type Manager struct {
 	Registry ServerRegistry
 	// RenameSelf renames this server (optional).
 	RenameSelf func(name string) error
-	// BackupStore records backup providers and targets, and OpenRepo opens
-	// a repository with the recovery key (backups.go; optional).
-	BackupStore BackupStore
-	// Libraries keeps the servers' media libraries (store.Store; SPEC.md
-	// §8.1, "Media libraries"). Nil: none.
-	Libraries LibraryStore
-	OpenRepo  func(url string, env []string) *backup.Repo
-	// CloudBackup is Roostack Cloud backup, when the lab is linked (nil:
-	// none): its short-lived keys and the lab's usage (SPEC.md §6.9).
-	CloudBackup CloudBackup
-	// HasRecoveryKey reports whether the lab has its recovery key yet;
-	// EnsureRecoveryKey makes it when the first backup is set up (optional).
-	HasRecoveryKey    func() bool
-	EnsureRecoveryKey func() error
-	// Drives are this server's drives, for backups on them (roostack-agent).
-	Drives DriveAgent
-	// Storage for other labs (guests.go; optional): the host's hub and
-	// records, how much a guest stores here, the agent for links between
-	// labs, and a hook when this lab starts storing at another.
-	GuestHub     *labnet.GuestHub
-	GuestRecords GuestRecords
-
-	LinkAgent   LinkAgent
-	RemoteAdded func(RemoteStorage)
-
-	// remoteSeen is each storage at another lab's latest answer (by Ref).
-	remoteMu   sync.Mutex
-	remoteSeen map[string]labnet.GuestUsage
-	// NewB2 makes a Backblaze client (tests; nil uses the real service).
-	NewB2 func(keyID, key string) *b2.Client
-	// NewS3 makes an S3 client for an online storage account (tests; nil
-	// uses the account's endpoint).
-	NewS3 func(s3 S3Provider) *s3api.Client
 	// Activity shows problems building an assignment (optional).
 	Activity *activity.Registry
 	// UpdateLab saves a change to lab.yaml (config.Update), for settings
@@ -112,13 +77,46 @@ type Manager struct {
 	// Audit records what Roostack did by itself in the audit log, such as
 	// a restore that worked ending a hold (hold.go; optional).
 	Audit func(ctx context.Context, action, detail string)
-	// RegistryIndex is the newest index the controller has fetched from
-	// the service registry (registry.Fetcher.Index; nil before the first),
+
+	// Services: the newest index the controller has fetched from the
+	// service registry (registry.Fetcher.Index; nil before the first),
 	// for withdrawals of installed services (withdrawals.go; optional).
 	RegistryIndex func() (*registry.Index, error)
+	// Public access: Roostack Cloud's relay, a way in for public visitors
+	// (edge.go).
+	Relay Relay
+	// Media libraries: the servers' libraries (store.Store; SPEC.md §8.1,
+	// "Media libraries"). Nil: none.
+	Libraries LibraryStore
 
-	// mu guards state changes (install/remove) and what is still to hand
-	// over to the node.
+	// Backups (backups.go; optional). BackupStore records backup
+	// providers and targets, and OpenRepo opens a repository with the
+	// recovery key.
+	BackupStore BackupStore
+	OpenRepo    func(url string, env []string) *backup.Repo
+	// CloudBackup is Roostack Cloud backup, when the lab is linked (nil:
+	// none): its short-lived keys and the lab's usage (SPEC.md §6.9).
+	CloudBackup CloudBackup
+	// HasRecoveryKey reports whether the lab has its recovery key yet;
+	// EnsureRecoveryKey makes it when the first backup is set up (optional).
+	HasRecoveryKey    func() bool
+	EnsureRecoveryKey func() error
+	// Drives are this server's drives, for backups on them (roostack-agent).
+	Drives DriveAgent
+	// NewB2 makes a Backblaze client (tests; nil uses the real service).
+	NewB2 func(keyID, key string) *b2.Client
+	// NewS3 makes an S3 client for an online storage account (tests; nil
+	// uses the account's endpoint).
+	NewS3 func(s3 S3Provider) *s3api.Client
+
+	// Storage at other labs (remotestorage.go; optional): the agent for
+	// links between labs, and a hook when this lab starts storing at
+	// another.
+	LinkAgent   LinkAgent
+	RemoteAdded func(RemoteStorage)
+
+	// Applying (servers.go). mu guards state changes (install, remove)
+	// and what is still to hand over to the servers.
 	mu sync.Mutex
 	// secrets holds values typed into install forms, by service, until
 	// the next assignment hands them to the service's server. Never
@@ -129,47 +127,97 @@ type Manager struct {
 	setUp []string
 	// assignErr is why the last assignment couldn't be built, if it failed.
 	assignErr error
-	// applyReason says why the next apply starts, for the servers' logs
-	// (ApplyBecause); callers hold mu.
-	applyReason string
-	// restoring are the services the controller is restoring (restore.go).
+	// pulls are when each server last fetched its assignment.
+	pulls pullTimes
+	// saved is lab.yaml as last saved while running (saveLab); nil until
+	// the first change, when it's Lab.
+	saved atomic.Pointer[config.Lab]
+
+	// Services: those the controller is restoring (restore.go), those
+	// updating (update.go) and those being switched to their brought data
+	// (import.go).
 	restoring map[string]bool
-	// links are direct links between servers (links.go).
-	links linkState
-	// keyMu makes recovery key changes one at a time (keychange.go).
-	keyMu sync.Mutex
+	upd       updates
+	switching switchingSet
 	// ssoClients are the services the sign-in page knows, as last read
 	// (at ssoAt), guarded by ssoMu (sso.go).
 	ssoMu      sync.Mutex
 	ssoClients []sso.Client
 	ssoAt      time.Time
-	// junk is what the junk checks remember (quarantine.go).
-	junk junkState
-	// statusPage is the public status page's switch as last set (nil:
-	// lab.yaml's at start; monitor.go).
-	statusPage atomic.Pointer[bool]
-	// public is the lab's public access settings as changed at runtime
-	// (public.go); nil until first used, then read from Lab. Kept apart
-	// from Lab, which is read without the lock.
-	public *config.Public
-	// noStops is the Owner's opt-out from registry stops as changed at
-	// runtime (withdrawals.go); nil until first used, then read from Lab.
-	noStops *bool
 	// stopsKey is what the last assignment stopped (markStops), and
-	// awaiting the servers whose last backup a stop waits for.
+	// awaiting the servers whose last backup a stop waits for
+	// (withdrawals.go).
 	stopsKey string
 	awaiting map[string]bool
-	// upd are services updating (update.go).
-	upd updates
-	// relayMu makes updates to Roostack Cloud's relay one at a time, so an
-	// older one can't reach Cloud after a newer one (edge.go). relayGen
-	// counts updates (under mu), so a background one gives way to any
-	// newer; relayWG is the background ones still running.
+
+	// Public access: relayMu makes updates to Roostack Cloud's relay one
+	// at a time, so an older one can't reach Cloud after a newer one
+	// (edge.go). relayGen counts updates (under mu), so a background one
+	// gives way to any newer; relayWG is the background ones still
+	// running.
 	relayMu  sync.Mutex
 	relayGen uint64
 	relayWG  sync.WaitGroup
-	// pulls are when each server last fetched its assignment (servers.go).
-	pulls pullTimes
+
+	// Servers: direct links between them (links.go).
+	links linkState
+
+	// Backups: what the junk checks remember (quarantine.go), Backblaze
+	// buckets' lifecycle rules (destination.go) and the latest rollback
+	// checks (rollback.go).
+	junk      junkState
+	hidden    hiddenCache
+	rollbacks rollbackChecks
+	// Storage at other labs: each one's latest answer, by Ref (remoteMu),
+	// and changes to their records one at a time (servers' users are
+	// added as their backups are set up; remotestorage.go).
+	remoteMu       sync.Mutex
+	remoteSeen     map[string]labnet.GuestUsage
+	remoteConfigMu sync.Mutex
+
+	// feats are the features with types of their own (core.go).
+	feats features
+
+	// waits are how long it waits for some things; tests shorten them.
+	waits waits
+}
+
+// waits are how long the controller waits for some things. Each is zero
+// for the constant of the same name beside its use, and a test sets its
+// own Manager's, so tests that shorten them can run in parallel.
+type waits struct {
+	// applyWait (move.go), restoreWatch (hold.go), lastBackupCheck
+	// (withdrawals.go), linkGrace (links.go), pruneRetry (backups.go) and
+	// pullGap (servers.go).
+	applyWait, restoreWatch, lastBackupCheck, linkGrace, pruneRetry, pullGap time.Duration
+	// Checking an updated service (update.go), and how often a server's
+	// update or switch to brought data is looked at (statusEvery).
+	healthWait, healthStable, healthEvery, failedFor, statusEvery time.Duration
+}
+
+// labNow is lab.yaml as it is now: Lab with the settings changed while
+// running (saveLab). Its public access settings, the status page's switch
+// and the registry's stops are read from here; Lab's other settings change
+// only with a restart.
+func (m *Manager) labNow() config.Lab {
+	if l := m.saved.Load(); l != nil {
+		return *l
+	}
+	return m.Lab
+}
+
+// saveLab saves a change to lab.yaml (UpdateLab, if set) and makes it
+// labNow's. Callers hold mu, so changes don't overlap.
+func (m *Manager) saveLab(change func(*config.Lab)) error {
+	if m.UpdateLab != nil {
+		if err := m.UpdateLab(change); err != nil {
+			return err
+		}
+	}
+	l := m.labNow()
+	change(&l)
+	m.saved.Store(&l)
+	return nil
 }
 
 // CatalogItem is one package in the catalog.
@@ -257,7 +305,7 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 // installed service uses the lab's own copy (ServicePackage, SPEC.md
 // §8.3.1).
 func (m *Manager) Package(name string) (*pkgspec.Package, error) {
-	if !validName(name) {
+	if !pkgspec.ValidName(name) {
 		return nil, ErrNotFound
 	}
 	p, err := state.LoadLocalPackage(m.Lab.Paths, name)
@@ -317,19 +365,15 @@ func clashError(err error) error {
 	var pe *state.PortInUseError
 	switch {
 	case errors.As(err, &he):
-		return formErrorf("That web address is already used by another service, so choose a different one.")
+		return usererr.New("That web address is already used by another service, so choose a different one.")
 	case errors.As(err, &pe) && pe.UsedBy == "":
-		return formErrorf("%s would use port %d, but that's one of the ports Roostack is keeping for its web services (%d-%d), so its package needs a different port.",
+		return usererr.New("%s would use port %d, but that's one of the ports Roostack is keeping for its web services (%d-%d), so its package needs a different port.",
 			pe.Service, pe.Port, config.DefaultRoutePortMin, config.DefaultRoutePortMax)
 	case errors.As(err, &pe):
-		return formErrorf("%s would use port %d, but %s is already using it, so change the port on that service's page and try again.",
+		return usererr.New("%s would use port %d, but %s is already using it, so change the port on that service's page and try again.",
 			pe.Service, pe.Port, pe.UsedBy)
 	}
 	return err
-}
-
-func formErrorf(format string, args ...any) error {
-	return &FormError{Msg: fmt.Sprintf(format, args...)}
 }
 
 // Install adds a service to desired state and starts applying it. It's
@@ -368,13 +412,10 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		}
 		v := req.Secrets[s.Key]
 		if v == "" {
-			return formErrorf("%s is required.", s.Title)
+			return usererr.New("%s is required.", s.Title)
 		}
-		if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
-			return formErrorf("%s must be at least %d characters.", s.Title, s.MinLength)
-		}
-		if strings.ContainsAny(v, "\n\r\x00") {
-			return formErrorf("%s can't contain line breaks.", s.Title)
+		if err := checkSecret(s, v); err != nil {
+			return err
 		}
 		secrets[node.SecretName(id, s.Key)] = []byte(v)
 	}
@@ -388,9 +429,9 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	for _, s := range services {
 		switch {
 		case s.Name() == id && id == p.Name:
-			return formErrorf("%s is already installed. To add another copy, give it a name of its own.", p.Title)
+			return usererr.New("%s is already installed. To add another copy, give it a name of its own.", p.Title)
 		case s.Name() == id:
-			return formErrorf("A service called %s is already installed. Choose another name.", id)
+			return usererr.New("A service called %s is already installed. Choose another name.", id)
 		}
 	}
 	services = append(services, state.Service{Instance: in, Package: p})
@@ -423,8 +464,19 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		m.secrets = map[string]map[string][]byte{}
 	}
 	m.secrets[id] = secrets
-	m.applyReason = "Installing " + id
-	m.startApplyLocked()
+	m.startApplyLocked("Installing " + id)
+	return nil
+}
+
+// checkSecret checks a value typed for a secret setting: long enough, and
+// on one line.
+func checkSecret(s pkgspec.Setting, v string) error {
+	if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
+		return usererr.New("%s must be at least %d characters.", s.Title, s.MinLength)
+	}
+	if strings.ContainsAny(v, "\n\r\x00") {
+		return usererr.New("%s can't contain line breaks.", s.Title)
+	}
 	return nil
 }
 
@@ -437,7 +489,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bool) (*instance.Instance, string, error) {
 	host := cmp.Or(req.Host, m.Lab.NodeID)
 	if m.node(host) == nil {
-		return nil, "", formErrorf("Choose which server runs %s.", p.Title)
+		return nil, "", usererr.New("Choose which server will run %s.", p.Title)
 	}
 	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
 		Settings: map[string]any{}}
@@ -457,7 +509,7 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 	id := p.Name
 	if n := strings.ToLower(strings.TrimSpace(req.Name)); n != "" && n != p.Name {
 		if !strings.HasPrefix(n, p.Name+"-") || !instance.ValidName(n) {
-			return nil, "", formErrorf("Its name is %s, or %s- and then lowercase letters, digits and dashes (up to %d in all), e.g. %s-work.",
+			return nil, "", usererr.New("Its name is %s, or %s- and then lowercase letters, digits, and dashes (up to %d in all), e.g. %s-work.",
 				p.Name, p.Name, instance.MaxName, p.Name)
 		}
 		id, in.Name = n, n
@@ -479,7 +531,7 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 	if sub := strings.ToLower(strings.TrimSpace(req.Subdomain)); sub != "" {
 		route := MainRoute(p)
 		if route == "" {
-			return nil, "", formErrorf("%s has no web address to choose.", p.Title)
+			return nil, "", usererr.New("%s has no web address to choose.", p.Title)
 		}
 		in.Routes = map[string]instance.RouteOverride{route: {Subdomain: sub}}
 	}
@@ -497,7 +549,7 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 		}
 	}
 	if err := in.Validate(p); err != nil {
-		return nil, "", formErrorf("%s", err)
+		return nil, "", usererr.New("%s", err)
 	}
 	return in, id, nil
 }
@@ -615,7 +667,7 @@ func (m *Manager) PackageIcon(name string) ([]byte, error) {
 	path := filepath.Join(m.Lab.Paths.CatalogPackageDir(name), "icon.png")
 	p, err := m.Package(name)
 	switch {
-	case errors.Is(err, ErrNotFound) && validName(name):
+	case errors.Is(err, ErrNotFound) && pkgspec.ValidName(name):
 	case err != nil:
 		return nil, err
 	case m.IsLocal(name):
@@ -676,7 +728,7 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 		return ErrNotFound
 	}
 	if hostPort < pkgspec.MinHostPort || hostPort > 65535 {
-		return formErrorf("Choose a port number from %d to 65535.", pkgspec.MinHostPort)
+		return usererr.New("Choose a port number from %d to 65535.", pkgspec.MinHostPort)
 	}
 	if in.Ports == nil {
 		in.Ports = map[string]instance.PortOverride{}
@@ -691,18 +743,17 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 		var pe *state.PortInUseError
 		switch {
 		case errors.As(err, &pe) && pe.UsedBy == "":
-			return formErrorf("Roostack keeps ports %d-%d for its web services. Choose another port.",
+			return usererr.New("Roostack keeps ports %d-%d for its web services. Choose another port.",
 				config.DefaultRoutePortMin, config.DefaultRoutePortMax)
 		case errors.As(err, &pe):
-			return formErrorf("Port %d is already used by %s. Choose another port.", pe.Port, pe.UsedBy)
+			return usererr.New("Port %d is already used by %s. Choose another port.", pe.Port, pe.UsedBy)
 		}
 		return clashError(err)
 	}
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
-	m.applyReason = "Changing " + name + "'s connections"
-	m.startApplyLocked()
+	m.startApplyLocked("Changing " + name + "'s connections")
 	return nil
 }
 
@@ -711,7 +762,7 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 func checkTitle(title string, p *pkgspec.Package) (string, error) {
 	title = strings.TrimSpace(title)
 	if len([]rune(title)) > 60 || strings.ContainsAny(title, "\n\r\x00") {
-		return "", formErrorf("Choose a shorter title, on one line.")
+		return "", usererr.New("Choose a shorter title, on one line.")
 	}
 	if title == p.Title {
 		return "", nil
@@ -723,7 +774,7 @@ func checkTitle(title string, p *pkgspec.Package) (string, error) {
 // SPEC.md §8.2). Empty goes back to its package's title. Only the pages
 // change: nothing is applied.
 func (m *Manager) SetTitle(ctx context.Context, name, title string) error {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return ErrNotFound
 	}
 	m.mu.Lock()
@@ -756,7 +807,7 @@ func (m *Manager) ServicePackage(name string) (*pkgspec.Package, error) {
 // package's for a first copy) and its package. The package's Title is
 // the service's own, if it has one, for the messages that use it.
 func (m *Manager) installedService(name string) (*pkgspec.Package, *instance.Instance, error) {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return nil, nil, ErrNotFound
 	}
 	in, err := instance.Load(state.InstanceFile(m.Lab, name))
@@ -788,16 +839,16 @@ func parseSetting(s pkgspec.Setting, raw string, given bool) (any, error) {
 	case pkgspec.SettingInt:
 		n, err := strconv.Atoi(strings.TrimSpace(raw))
 		if err != nil {
-			return nil, formErrorf("%s must be a whole number.", title)
+			return nil, usererr.New("%s must be a whole number.", title)
 		}
 		return n, nil
 	}
 	v := strings.TrimSpace(raw)
 	if s.Required && v == "" {
-		return nil, formErrorf("%s is required.", title)
+		return nil, usererr.New("%s is required.", title)
 	}
 	if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
-		return nil, formErrorf("%s must be at least %d characters.", title, s.MinLength)
+		return nil, usererr.New("%s must be at least %d characters.", title, s.MinLength)
 	}
 	return v, nil
 }
@@ -867,7 +918,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 		}
 	}
 	if err := in.Validate(p); err != nil {
-		return formErrorf("%s", err)
+		return usererr.New("%s", err)
 	}
 	if _, err := state.Desired(m.Lab, state.OnNode(services, in.Host)); err != nil {
 		return clashError(err)
@@ -875,15 +926,14 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
-	m.applyReason = "Changing " + name + "'s settings"
-	m.startApplyLocked()
+	m.startApplyLocked("Changing " + name + "'s settings")
 	return nil
 }
 
 // Remove takes a service out of desired state and applies the change. Its
 // data stays on disk (SPEC.md: the reconciler never deletes data).
 func (m *Manager) Remove(ctx context.Context, name string) error {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return ErrNotFound
 	}
 	m.mu.Lock()
@@ -895,18 +945,14 @@ func (m *Manager) Remove(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	m.applyReason = "Removing " + name
-	m.startApplyLocked()
+	m.startApplyLocked("Removing " + name)
 	return nil
 }
 
 // DataDirs lists where a service keeps data, to tell the user what
 // removing it leaves behind.
 func (m *Manager) DataDirs(name string) []string {
-	return []string{
-		filepath.Join(m.Lab.Paths.ServicesDir, name),
-		filepath.Join(m.Lab.Paths.MediaDir, name),
-	}
+	return m.Lab.Paths.ServiceDataDirs(name)
 }
 
 // leftData lists a service's data folders from before on a server (it was
@@ -986,15 +1032,16 @@ func MainRoute(p *pkgspec.Package) string {
 	return names[0]
 }
 
-// validName guards against path tricks in names taken from URLs.
-func validName(name string) bool {
-	if name == "" || len(name) > instance.MaxName {
-		return false
+// NewServiceNames are what a new service from p is called until someone
+// changes them: its title and main address are the package's, or for
+// another copy of one that's installed, "(2)" and "-2" are added, and
+// suffix "2" to its name (SPEC.md §8.2).
+func NewServiceNames(p *pkgspec.Package, another bool) (subdomain, title, suffix string) {
+	if route := MainRoute(p); route != "" {
+		subdomain = p.Routes[route].Subdomain
 	}
-	for _, c := range name {
-		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
-			return false
-		}
+	if another {
+		return subdomain + "-2", p.Title + " (2)", "2"
 	}
-	return true
+	return subdomain, p.Title, ""
 }

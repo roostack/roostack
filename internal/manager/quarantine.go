@@ -2,7 +2,6 @@ package manager
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -11,9 +10,10 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/units"
 )
 
 // Junk in backups (SPEC.md §10.10, "Junk in a repository"): a server
@@ -91,7 +91,7 @@ func (m *Manager) JunkJob(only map[string]bool) maintenance.Job {
 			}
 			var act *activity.Log
 			for i, t := range append(targets, copies...) {
-				if strings.HasPrefix(t.Provider, "setup") || (only != nil && !only[pruneKey(t)]) {
+				if destination.Parse(t.Provider).Kind == destination.Setup || (only != nil && !only[pruneKey(t)]) {
 					continue // that server prunes it itself; or not asked for
 				}
 				if act == nil && m.Activity != nil {
@@ -192,7 +192,7 @@ func inSentence(title string) string {
 
 // junkWriters are who could have written to a server's repository: the
 // server itself, and whoever has the files.
-func (m *Manager) junkWriters(t store.BackupTarget, d destination) []string {
+func (m *Manager) junkWriters(t store.BackupTarget, d resolvedDest) []string {
 	out := []string{m.serverName(t.ServerID)}
 	switch d.kind {
 	case destServer:
@@ -223,12 +223,8 @@ func (m *Manager) JunkReports(ctx context.Context) []JunkReport {
 	if m.Settings == nil {
 		return nil
 	}
-	v, err := m.Settings.Setting(ctx, junkKey)
-	if err != nil || v == "" {
-		return nil
-	}
-	var out []JunkReport
-	if err := json.Unmarshal([]byte(v), &out); err != nil {
+	out, err := store.GetJSON[[]JunkReport](ctx, m.Settings, junkKey)
+	if err != nil {
 		m.Log.Warn("reading junk reports", "err", err)
 	}
 	return out
@@ -247,11 +243,7 @@ func (m *Manager) addJunkReport(ctx context.Context, r JunkReport) error {
 	if len(reports) > maxJunkReports {
 		reports = reports[len(reports)-maxJunkReports:]
 	}
-	data, err := json.Marshal(reports)
-	if err != nil {
-		return err
-	}
-	return m.Settings.SetSetting(ctx, junkKey, string(data))
+	return store.PutJSON(ctx, m.Settings, junkKey, reports)
 }
 
 // DismissJunk forgets the reports: the Owner has seen them.

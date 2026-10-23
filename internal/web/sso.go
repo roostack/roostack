@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A service's Single sign-on card (SPEC.md §5.2; docs/mockups/sso): the
@@ -202,9 +203,8 @@ func (s *Server) ssoSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	err := s.SSO.SetSSO(r.Context(), name, on)
-	var fe *manager.FormError
-	if errors.As(err, &fe) {
-		s.renderServiceWith(w, r, map[string]any{"SSOError": fe.Msg}, true)
+	if msg, ok := usererr.Message(err); ok {
+		s.renderServiceWith(w, r, map[string]any{"SSOError": msg}, true)
 		return
 	}
 	if errors.Is(err, manager.ErrNotFound) {

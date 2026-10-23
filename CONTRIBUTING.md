@@ -2,7 +2,7 @@
 
 Thanks for wanting to help. Roostack lets people self-host services (photos, passwords, git, media) on their own hardware from a simple web UI, and the person running it is often not technical. A technical person must never find anything magical, though, so every page says what Roostack is doing, where its files live, and shows the log. Changes are judged against both of those people.
 
-This guide covers building, testing and running Roostack on Linux and on a Mac, the dev VM, the generated files, the conventions, and which documents to update. AI agents working on the project also read [CLAUDE.md](CLAUDE.md), which adds what's specific to them.
+This guide covers building, testing, and running Roostack on Linux and on a Mac, the dev VM, the generated files, the conventions, and which documents to update. AI agents working on the project also read [CLAUDE.md](CLAUDE.md), which adds what's specific to them.
 
 Roostack is in early development: nothing is released, and only fresh installs are supported.
 
@@ -11,28 +11,28 @@ Roostack is in early development: nothing is released, and only fresh installs a
 The documents are large, so read them in this order and stop when you have what you need:
 
 1. [README.md](README.md): what Roostack is, where things live on a server, and the commands.
-2. [ARCHITECTURE.md](ARCHITECTURE.md): the two processes, how desired state becomes running services, and the packages by layer. "Life of an install" and "Life of a backup run" follow one action through the code, file by file, and are the quickest way into it.
+2. [ARCHITECTURE.md](ARCHITECTURE.md): the two processes, how desired state becomes running services, and the packages by layer. "Life of an install" and "Life of a backup run" follow one action through the code file by file and are the quickest way into it.
 3. This guide's [conventions](#conventions).
 4. The package you're changing: every package has a doc comment, and `internal/manager`'s maps its files to features.
 5. [SPEC.md](SPEC.md), for the area you're working on: its contents list at the top takes you there. It records every decision, why it was made, and what was considered instead.
-6. [docs/DESIGN.md](docs/DESIGN.md), before changing a page: the design system's tokens, components and rules.
+6. [docs/DESIGN.md](docs/DESIGN.md), before changing a page: the design system's tokens, components, and rules.
 7. [TASKS.md](TASKS.md): what's next ([TASKS-DONE.md](TASKS-DONE.md) has what's finished).
 
-[docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) lists what the code assumes about real hosts, and which of those have been checked on a VM. [PLAN.md](PLAN.md) is the original brief.
+[docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) lists what the code assumes about real hosts and which of those have been checked on a VM. [PLAN.md](PLAN.md) is the original brief.
 
 ## Before you start
 
-For anything bigger than a small fix, please [open an issue](https://github.com/roostack/roostack/issues/new/choose) first, so we can agree the approach before you spend time on it. Roostack's behaviour, its wording and its security trade-offs are decided with the maintainer and recorded in SPEC.md, and some of what looks missing has been decided against for a reason that's written there.
+For anything bigger than a small fix, please [open an issue](https://github.com/roostack/roostack/issues/new/choose) first so that we can agree the approach before you spend time on it. Roostack's behaviour, its wording, and its security trade-offs are decided with the maintainer and recorded in SPEC.md, and some of what looks missing has been decided against for a reason that's written there.
 
-New dependencies are chosen together too: please ask before adding a Go module, vendored JavaScript or a system package. The UI uses only what's vendored in `internal/web/static` (htmx and Alpine.js), and icons are drawn in `internal/web/icons.go`.
+New dependencies are chosen together too: please ask before adding a Go module, vendored JavaScript, or a system package. The UI uses only what's vendored in `internal/web/static` (htmx and Alpine.js), and icons are drawn in `internal/web/icons.go`.
 
 Security problems go to [SECURITY.md](SECURITY.md), not to an issue. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## What you need
 
-- **Go** 1.26 or newer, the module's minimum. CI and releases build with Go 1.27.2.
-- **Node** 20 or newer, for the package editor's JavaScript tests (`make test` runs them). They need no packages installed.
-- **restic**, so the backup tests run rather than skip: `brew install restic` on a Mac, `apt install restic` on Debian. CI uses restic 0.18.0, Debian 13's.
+- **Go** 1.26 or newer, the module's minimum. CI and releases build with Go 1.27.3.
+- **Node** 20 or newer, for the package editor's JavaScript tests and the public help's password gate's (`make test` runs both). They need no packages installed.
+- **restic** so that the backup tests run rather than skip: `brew install restic` on a Mac, `apt install restic` on Debian. CI uses restic 0.18.0, Debian 13's.
 - **[uv](https://docs.astral.sh/uv/)**, to build the help site. Without it, Roostack builds without its help pages and says so at `/help/`.
 - **QEMU**, for the dev VM: `brew install qemu` on a Mac; on Debian, `qemu-system-x86` (or `qemu-system-arm` with `qemu-efi-aarch64`); on Arch, `qemu-system-x86_64` (or `qemu-system-aarch64` with `edk2-aarch64`).
 
@@ -44,7 +44,7 @@ make vet     # go vet and the gofmt check
 make test    # the editor's tests, then go test ./...
 ```
 
-`make build` always writes **Linux** binaries, because Roostack runs on Debian 13: for your machine's processor, or another with `GOARCH=arm64` or `GOARCH=amd64`. The build is reproducible (`-trimpath`, no build ID), so the same commit and Go version give the same bytes anywhere. `make release` builds a release from a checkout of its tag, and `make verify-release VERSION=x.y.z` checks a published one against its source ([docs/RELEASING.md](docs/RELEASING.md)).
+`make build` always writes **Linux** binaries because Roostack runs on Debian 13: for your machine's processor, or another with `GOARCH=arm64` or `GOARCH=amd64`. The build is reproducible (`-trimpath`, no build ID), so the same commit and Go version give the same bytes anywhere. `make release` builds a release from a checkout of its tag, and `make verify-release VERSION=x.y.z` checks a published one against its source ([docs/RELEASING.md](docs/RELEASING.md)).
 
 **On Linux**, the binaries in `bin/` run as they are. A few commands are useful without a Roostack host:
 
@@ -60,13 +60,15 @@ bin/roostack render -package internal/testdata/packages/immich/2.1.0-roostack.1.
 bin/roostack serve -lab <file> -listen 127.0.0.1:8480
 ```
 
-**On a Mac**, Roostack builds, vets and tests natively: `make vet` and `make test` work as they do on Linux, and the tests that need Linux (peer credentials, `/proc`, ICMP and the like) skip and say why. The binaries in `bin/` are Linux ones, so run commands with `go run ./cmd/roostack validate …` instead. Anything that touches Podman, systemd, networking, drives or Roostack's sandbox needs a Debian 13 host, which is what the dev VM is for.
+**On a Mac**, Roostack builds, vets and tests natively: `make vet` and `make test` work as they do on Linux, and the tests that need Linux (peer credentials, `/proc`, ICMP, and the like) skip and say why. The binaries in `bin/` are Linux ones, so run commands with `go run ./cmd/roostack validate …` instead. Anything that touches Podman, systemd, networking, drives, or Roostack's sandbox needs a Debian 13 host, which is what the dev VM is for.
 
 ## Testing
 
-- `go test ./...` runs every Go test, and `make editor-test` the editor's JavaScript tests, including its checks against `pkgspec`'s on every package of the corpus.
-- **The backup tests use the real restic** and skip without it, silently unless you run `go test -v`. With restic on your `PATH` they run; `ROOSTACK_RESTIC_BIN=/path/to/restic` picks a particular binary. A skipped test has hidden a breakage before, so make sure they ran.
-- **Web tests** drive the real handlers through `httptest`, with fakes for the layers underneath (`fakeManager`, `fakeSetup`, `fakeBackups` and the rest in `internal/web/fakes_test.go`, where `fakeManager` is one embedded fake per area), and the harness in `harness_test.go`, where `loggedIn(t, role)` signs in. The harness fails a page that shows `<no value>` or a printf's `%!`, which is what a template shows for data it wasn't given. Add to the fakes rather than going around them.
+- `go test ./...` runs every Go test, `make editor-test` the editor's JavaScript tests, including its checks against `pkgspec`'s on every package of the corpus, and `make gate-test` the public help's password gate's (`help/worker`).
+- **The backup tests use the real restic** and skip without it, silently unless you run `go test -v`. With restic on your `PATH` they run; `ROOSTACK_RESTIC_BIN=/path/to/restic` picks a particular binary, and if that binary won't run, as CI sets it, they fail rather than skip. A skipped test has hidden a breakage before, so make sure they ran. A test finds restic with `restictest.Bin(t)`, and `backup`'s tests copy each new repository from one made once (`restictest.Init`), since `restic init` takes seconds.
+- **Slow tests run in parallel** (`t.Parallel()`), restic's above all. A test that changes a package-level variable can't, so a timing a test shortens is a field on the struct that uses it, zero for the usual value (`manager.Manager`'s `waits`, `backup.JobDeps.ReachTimeout`, `backup.Repo.JunkRecheck`).
+- **Shared helpers and fakes:** `storetest.Open(t)` opens a new store, `testwait.For` waits for what another goroutine does and fails on its deadline, `b2test` is a fake Backblaze, `nodetest.Base` a fake server to embed, `dnstest` every DNS provider, `s3fake` a versioned bucket, `cloudtest` Roostack Cloud, and `pkgtest` finds the package fixtures. Use them rather than write another.
+- **Web tests** drive the real handlers through `httptest`, with fakes for the layers underneath (`fakeManager`, `fakeSetup`, `fakeBackups`, and the rest in `internal/web/fakes_test.go`, where `fakeManager` is one embedded fake per area), and the harness in `harness_test.go`, where `loggedIn(t, role)` signs in. The harness fails a page that shows `<no value>` or a printf's `%!`, which is what a template shows for data it wasn't given. Add to the fakes rather than going around them.
 - **Manager and backup tests** use a real SQLite store and real restic.
 - **The generator** is tested against golden files ([regenerating them](#regenerating-files) is below).
 - **The whole suite on Linux**, in the dev VM: `scripts/dev-vm.sh test` builds the test binaries on your machine, runs them in the VM with its restic, and takes the test binaries' flags, such as `-test.run TestApply`.
@@ -100,7 +102,7 @@ Things worth knowing:
 - **Networking:** QEMU puts every connection through NAT, so inside a VM all clients seem to come from 10.0.2.2. Another VM reaches VM n's WireGuard at `10.0.2.2:<its UDP port>`.
 - **Commands as the roostack user** need its systemd session: run them from its home with `XDG_RUNTIME_DIR=/run/user/<its uid>` and `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<its uid>/bus`.
 - **The service registry** can't be fetched until the release keys exist ([docs/REGISTRY-KEYS.md](docs/REGISTRY-KEYS.md)). To test fetching, make test keys with `roostack registry keygen`, build an index from a checkout of [roostack/services](https://github.com/roostack/services) with `roostack registry index`, serve it in the VM (`python3 -m http.server`), build with `REGISTRY_DEV_KEY=<the test root public key>` (`sync` and `install` pass it through), and set `registry.url` in the VM's `lab.yaml`.
-- **Test on a VM, not by reasoning,** anything about Podman, systemd, networking, drives or the sandbox, and use the unit's full sandbox options when you do: a partial test once missed that `ProtectHome=yes` hides `/run/user`.
+- **Test on a VM, not by reasoning,** anything about Podman, systemd, networking, drives, or the sandbox, and use the unit's full sandbox options when you do: a partial test once missed that `ProtectHome=yes` hides `/run/user`.
 - **Never restore a backup of a lab with a real domain onto another VM:** it would change that domain's real DNS records and certificates.
 
 ## Regenerating files
@@ -110,7 +112,7 @@ Some files are generated and checked into the repository. A test fails when one 
 | What | When | How |
 |---|---|---|
 | The generator's golden files | You changed what Roostack generates | `make golden` |
-| The package editor's `schema.js`, `examples.js` and corpus | You changed the package format or the package policy | `go test ./internal/editor -update-editor`, then `make editor-test` |
+| The package editor's `schema.js`, `examples.js`, and corpus | You changed the package format or the package policy | `go test ./internal/editor -update-editor`, then `make editor-test` |
 | The design system's gallery, `docs/design/gallery.html` | You changed a component or a token | `go test ./internal/web -run TestGalleryFile -update-gallery` |
 | `THIRD_PARTY.md` | You added or updated a dependency | `go test ./internal/web -run TestThirdPartyFile -update-credits` |
 | The help site, embedded at `/help/` | You changed `help/` | `make build` (needs uv); `cd help && uv run zensical serve` previews it while you write |
@@ -126,10 +128,11 @@ Two checks ask the outside world, so they don't run with the tests: `make check-
 - `gofmt`, and imports in three groups: the standard library, third party, then `roostack.cloud/roostack/...`.
 - Small packages and plain functions, with interfaces where a test needs a fake (`node.Node`, `web.ServiceManager`, `web.LabSetup`, `manager.BackupStore`).
 - A doc comment on every exported name and most unexported ones, saying *why*, and citing the SPEC section it follows: `// ... (SPEC.md §6.9)`. No commented-out code.
-- **Errors people can fix** are `FormError` (`manager.formErrorf`, `setup.CheckError`), with a sentence saying what to do; the web layer shows them through `userMessage`. Anything else is a server error, which is logged.
-- **Long work** runs in the background with an `activity` log (`Step` for the status line, `Printf` for the details), shown with the `activity` component, so people can watch what's happening.
+- **Errors people can fix** are `usererr.Error`, made with `usererr.New`, with a sentence saying what to do; the web layer shows them through `usererr.Message`. Anything else is a server error, which is logged.
+- **Long work** runs in the background with an `activity` log (`Step` for the status line, `Printf` for the details), shown with the `activity` component so that people can watch what's happening.
 - **Paths** come from `config.Paths`: never write `/srv/roostack` or `/var/lib/roostack` outside `internal/config`.
-- **Sizes** go through `units.Bytes` in Go and `size` or `bytes` in templates (decimal units: 1 GB is 1000³ bytes); never format bytes by hand.
+- **Sizes** go through `units.Bytes` in Go and `size` or `bytes` in templates (decimal units: 1 GB is 1000³ bytes); never format bytes by hand. `units.AsSold` ("128 GB", "under 1 MB") is Roostack Cloud's style, for sizes beside an allowance or a price; Roostack doesn't use it.
+- **Small pieces of sentences** come from `internal/words`: `Capitalise`, lists with `And` and `Or` ("a, b and c"), `Count` ("1 photo", "1,284 photos") and `Plural`, an error's `FirstLine`, and lengths of time in two styles, `RoughDuration` ("25 minutes") and `ExactDuration` ("1 h 5 min"). Templates call the same functions (`capitalise`, `joinAnd`, `firstLine`, `roughDuration`, `took`).
 - **Secrets** are never printed or logged (setup codes, join codes, recovery keys, passwords, two-factor secrets, API tokens): say where they are instead. The one exception is the first-run setup code, which the installer and the log show on purpose (docs/ASSUMPTIONS.md K5). Secrets on disk are written 0600 with `fsutil.WritePrivate`. The agent checks every path and argument it's given, since each of its calls crosses into root.
 - **The package editor's checks** (`internal/editor/static/check.js`) must say what `pkgspec`'s say: a change to the package format or the package policy changes `check.js` too, and the corpus test checks they agree.
 - **Scripted edits** (sed, Python replacements) must check that each replacement matched exactly once: a silent miss once left a feature unwired and crashed the UI.
@@ -137,7 +140,7 @@ Two checks ask the outside world, so they don't run with the tests: `make check-
 ### The web UI
 
 - Pages use only the design system ([docs/DESIGN.md](docs/DESIGN.md)): purpose tokens, never raw colours, and the components in `components.go` (`notice`, `status`, `badge`, `back`, `confirm`, `activity`, `icon`). A new component goes into the gallery (`gallery.go`) in the same change.
-- Handlers are thin, and business logic stays in the packages under them. Each POST redirects (post, redirect, get) or shows the form again with a `FormError`. Routes that change something use `requireOwner` or the right `require(auth.…)`.
+- Handlers are thin, and business logic stays in the packages under them. Each POST redirects (post, redirect, get) or shows the form again with a `usererr.Error`'s sentence. Routes that change something use `requireOwner` or the right `require(auth.…)`.
 - htmx attributes are inherited: a container with `hx-select` or `hx-swap` needs `hx-disinherit="*"`, or its children's requests break.
 
 ### Writing
@@ -146,7 +149,7 @@ This covers the UI, the help, the docs and comments.
 
 - British English (colour, licence), in short, plain sentences. No jargon for people running Roostack, but the exact detail one click away ("Details", "Manage", "Tell me more").
 - Say what happened and what to do next, and name things the same way everywhere (the backup plan: "main backup", "backup 3", "extra backup").
-- For what Roostack does, use the future for what will happen ("Roostack will keep the service stopped until you choose") and the present continuous for what's happening now ("Immich is starting again on server-1"), not the present simple ("Immich starts again"). States, past results and instructions are fine as they are ("Immich is stopped", "its restore didn't finish", "Choose what to do"). Join short statements where a person would, rather than stringing them together. CLAUDE.md's "Writing" section has more examples.
+- For what Roostack does, use the future for what will happen ("Roostack will keep the service stopped until you choose") and the present continuous for what's happening now ("Immich is starting again on server-1"), not the present simple ("Immich starts again"). States, past results, and instructions are fine as they are ("Immich is stopped", "its restore didn't finish", "Choose what to do"). Habits and standing facts stay in the present simple ("Every minute, Roostack checks…"). Join short statements where a person would, rather than stringing them together, and use commas where grammar needs them, not for a pause, with the Oxford comma in a list of three or more. CLAUDE.md's "Writing" section has more examples, and [docs/wording-examples.md](docs/wording-examples.md) has all the approved ones.
 - In the project's own documents, "the maintainer" is the person who runs the project; "the Owner" is the top role in a lab.
 
 ## Which documents to update
@@ -155,8 +158,8 @@ Docs are part of the change, in the same commit. Write them for someone new to t
 
 | File | Holds | Update when |
 |---|---|---|
-| [SPEC.md](SPEC.md) | Every decision, with its reasons and what was rejected. Sections say **Locked**, **Open** or **as built (date)** | You make or change a decision, or build something a section describes |
-| [TASKS.md](TASKS.md) | What's next, by phase; [TASKS-DONE.md](TASKS-DONE.md) has what's finished | You finish something (move it to TASKS-DONE.md), or find follow-up work (add it, so it isn't lost) |
+| [SPEC.md](SPEC.md) | Every decision, with its reasons and what was rejected. Sections say **Locked**, **Open**, or **as built (date)** | You make or change a decision, or build something a section describes |
+| [TASKS.md](TASKS.md) | What's next, by phase; [TASKS-DONE.md](TASKS-DONE.md) has what's finished | You finish something (move it to TASKS-DONE.md) or find follow-up work (add it so that it isn't lost) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Processes, data flow, packages, generated names | Packages or processes change |
 | [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) | What the code assumes about real hosts, ✅ once checked on a VM | You rely on or check how a host behaves |
 | [docs/DESIGN.md](docs/DESIGN.md) | The design system: tokens, components, rules | The UI gains a component or a token |
@@ -165,8 +168,8 @@ Docs are part of the change, in the same commit. Write them for someone new to t
 
 ## Commits and pull requests
 
-- Commit a finished, tested piece of work, with a message that says what changed and why: a subject of 72 characters at most, then a wrapped body. Don't commit half-done work.
-- A pull request says what changed, how you checked it, and anything you couldn't check. CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `make vet`, staticcheck, the whole suite with restic, the help site's strict build, a check that the files Python generates are up to date, shellcheck, actionlint and govulncheck on every pull request.
+- Commit a finished, tested piece of work with a message that says what changed and why: a subject of 72 characters at most, then a wrapped body. Don't commit half-done work.
+- A pull request says what changed, how you checked it, and anything you couldn't check. CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `make vet`, staticcheck, the whole suite with restic, the help site's strict build, a check that the files Python generates are up to date, shellcheck, actionlint, and govulncheck on every pull request.
 
 ## Licence
 

@@ -10,8 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +17,8 @@ import (
 
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/state"
 )
 
@@ -44,8 +44,9 @@ type Mover interface {
 	// deleted on the old server since the first copy).
 	PruneData(ctx context.Context, service string, dir int, keep []string) error
 	// CommitData moves the staging folders into place; data already there
-	// is kept aside. It returns where.
-	CommitData(ctx context.Context, service string) ([]string, error)
+	// is kept aside, for why (kept.BeforeMove or kept.BeforeRestore). It
+	// returns where.
+	CommitData(ctx context.Context, service string, why kept.Why) ([]string, error)
 	// SetAsideData renames the service's folders after it moved away
 	// (.moved-<note>-<time>), or, with the note FailedMove, what a move
 	// that didn't finish copied here (.failed-move-<time>).
@@ -64,11 +65,12 @@ type Mover interface {
 	// its data (after a restore or a move through a backup), and starts
 	// what of it runs now again.
 	LoadDumps(ctx context.Context, service string) error
-	// KeptData lists folders moves left behind; RemoveKeptData deletes
-	// one, PutBackKeptData puts one back in place of its service's data.
-	KeptData(ctx context.Context) ([]KeptFolder, error)
-	RemoveKeptData(ctx context.Context, path string) error
-	PutBackKeptData(ctx context.Context, path string) error
+	// KeptCopies lists the data set aside on this server (kept.go);
+	// PutBackKept puts the copy a folder belongs to back in place of its
+	// service's data, and RemoveKept deletes that copy for good.
+	KeptCopies(ctx context.Context) ([]kept.Copy, error)
+	PutBackKept(ctx context.Context, path string) error
+	RemoveKept(ctx context.Context, path string) error
 }
 
 // Mover is this server, which moves its own services' data.
@@ -80,22 +82,16 @@ type Launcher func(ctx context.Context, env []string, name string, args ...strin
 
 const (
 	staging     = ".incoming"
-	keptAside   = ".before-move-"
-	movedAway   = ".moved-"
-	failedMove  = ".failed-move-"
-	timeLayout  = "20060102-150405"
+	timeLayout  = kept.TimeLayout
 	safeService = "abcdefghijklmnopqrstuvwxyz0123456789-"
 )
 
 func (n *Local) DataDirs(service string) []string {
-	return []string{
-		filepath.Join(n.Lab.Paths.ServicesDir, service),
-		filepath.Join(n.Lab.Paths.MediaDir, service),
-	}
+	return n.Lab.Paths.ServiceDataDirs(service)
 }
 
 func (n *Local) dataDir(service string, dir int) (string, error) {
-	if service == "" || strings.Trim(service, safeService) != "" {
+	if !instance.ValidName(service) {
 		return "", ErrNotFound
 	}
 	dirs := n.DataDirs(service)
@@ -380,12 +376,15 @@ func (n *Local) PruneData(ctx context.Context, service string, dir int, keep []s
 	return nil
 }
 
-func (n *Local) CommitData(ctx context.Context, service string) ([]string, error) {
+func (n *Local) CommitData(ctx context.Context, service string, why kept.Why) ([]string, error) {
 	if _, err := n.dataDir(service, 0); err != nil {
 		return nil, err
 	}
-	var kept []string
-	suffix := keptAside + time.Now().Format(timeLayout)
+	if why != kept.BeforeRestore {
+		why = kept.BeforeMove
+	}
+	var aside []string
+	suffix := kept.Suffix(why, "", time.Now())
 	for _, d := range n.DataDirs(service) {
 		in := d + staging
 		if _, err := os.Stat(in); err != nil {
@@ -393,24 +392,20 @@ func (n *Local) CommitData(ctx context.Context, service string) ([]string, error
 		}
 		if _, err := os.Stat(d); err == nil {
 			if err := os.Rename(d, d+suffix); err != nil {
-				return kept, err
+				return aside, err
 			}
-			kept = append(kept, d+suffix)
+			aside = append(aside, d+suffix)
 		}
 		if err := os.Rename(in, d); err != nil {
-			return kept, err
+			return aside, err
 		}
 	}
-	return kept, nil
+	return aside, nil
 }
 
 // FailedMove is SetAsideData's note for what a move that didn't finish
-// copied to its new server (SPEC.md §10.10), which then has
-// FailedMoveSuffix and a time after the service's name.
-const (
-	FailedMove       = "failed-move"
-	FailedMoveSuffix = failedMove
-)
+// copied to its new server (SPEC.md §10.10, kept.FailedMove).
+const FailedMove = string(kept.FailedMove)
 
 func (n *Local) SetAsideData(ctx context.Context, service, note string) ([]string, error) {
 	if _, err := n.dataDir(service, 0); err != nil {
@@ -423,9 +418,9 @@ func (n *Local) SetAsideData(ctx context.Context, service, note string) ([]strin
 		return '-'
 	}, strings.ToLower(note))
 	var aside []string
-	suffix := movedAway + note + "-" + time.Now().Format(timeLayout)
+	suffix := kept.Suffix(kept.MovedAway, note, time.Now())
 	if note == FailedMove {
-		suffix = failedMove + time.Now().Format(timeLayout)
+		suffix = kept.Suffix(kept.FailedMove, "", time.Now())
 	}
 	for _, d := range n.DataDirs(service) {
 		if _, err := os.Stat(d); err != nil {
@@ -565,131 +560,6 @@ func (n *Local) LoadDumps(ctx context.Context, service string) error {
 		return err
 	}
 	return n.Reconciler.Systemd.Start(ctx, live.Units...)
-}
-
-// KeptFolder is a service's data folder a move, or bringing data in,
-// left behind.
-type KeptFolder struct {
-	Path    string
-	Service string
-	// MovedAway: the old copy of a service that moved to another server
-	// (otherwise, data that was here before a service moved in).
-	MovedAway bool
-	// Imported: its data from before data was brought in (SPEC.md §8.4);
-	// FailedImport: what was brought, set aside when that failed;
-	// Replaced: what a put back replaced; FailedMove: what a move that
-	// didn't finish copied here.
-	Imported, FailedImport, Replaced, FailedMove bool
-	Time                                         time.Time
-	Size                                         int64 // bytes, -1 if unknown
-}
-
-// keptName matches kept folders' names: <service>.before-move-<time>,
-// <service>.moved-<note>-<time>, what a move that didn't finish copied,
-// <service>.failed-move-<time>, bringing data in's
-// <service>.before-import-<time> and .failed-import-<time>, and what a put
-// back replaced, <service>.before-put-back-<time>.
-var keptName = regexp.MustCompile(`^([a-z0-9-]+)\.(before-move-|before-import-|failed-import-|failed-move-|before-put-back-|moved-[a-z0-9-]*-)(\d{8}-\d{6})$`)
-
-// KeptData lists folders moves left on this server, newest first.
-func (n *Local) KeptData(ctx context.Context) ([]KeptFolder, error) {
-	var kept []KeptFolder
-	for _, base := range []string{n.Lab.Paths.ServicesDir, n.Lab.Paths.MediaDir} {
-		entries, err := os.ReadDir(base)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range entries {
-			m := keptName.FindStringSubmatch(e.Name())
-			if m == nil || !e.IsDir() {
-				continue
-			}
-			t, _ := time.ParseInLocation(timeLayout, m[3], time.Local)
-			k := KeptFolder{Path: filepath.Join(base, e.Name()), Service: m[1], MovedAway: strings.HasPrefix(m[2], "moved-"),
-				Imported: m[2] == "before-import-", FailedImport: m[2] == "failed-import-", Replaced: m[2] == "before-put-back-",
-				FailedMove: m[2] == "failed-move-", Time: t, Size: -1}
-			if out, err := n.unshare(ctx, "du", "-sb", k.Path).Output(); err == nil {
-				if f := strings.Fields(string(out)); len(f) > 0 {
-					k.Size, _ = strconv.ParseInt(f[0], 10, 64)
-				}
-			}
-			kept = append(kept, k)
-		}
-	}
-	slices.SortFunc(kept, func(a, b KeptFolder) int { return b.Time.Compare(a.Time) })
-	return kept, nil
-}
-
-// PutBackKeptData puts a kept folder (with its sibling in the other data
-// folder, of the same moment) back in place of its service's data, which
-// is kept in turn as .before-put-back-<time> (SPEC.md §8.4). Its service
-// must run here; it's stopped meanwhile. The databases come back with the
-// folder: it holds their own files, not dumps. An old copy left by a move
-// away (.moved-) can't be put back: the service runs elsewhere.
-func (n *Local) PutBackKeptData(ctx context.Context, path string) error {
-	dir, name := filepath.Split(filepath.Clean(path))
-	dir = filepath.Clean(dir)
-	m := keptName.FindStringSubmatch(name)
-	if (dir != filepath.Clean(n.Lab.Paths.ServicesDir) && dir != filepath.Clean(n.Lab.Paths.MediaDir)) || m == nil ||
-		strings.HasPrefix(m[2], "moved-") {
-		return ErrNotFound
-	}
-	service, suffix := m[1], "."+m[2]+m[3]
-	s, ok := n.service(service)
-	if !ok {
-		return formErrorf("%s doesn't run on this server, so its data can't be put back here.", service)
-	}
-	live, err := stateOutput(n, s)
-	if err != nil {
-		return err
-	}
-	if err := n.Reconciler.Systemd.Stop(ctx, live.Units...); err != nil {
-		return err
-	}
-	now := ".before-put-back-" + time.Now().Format(timeLayout)
-	for _, d := range n.DataDirs(service) {
-		if _, err := os.Stat(d + suffix); err != nil {
-			continue
-		}
-		if _, err := os.Stat(d); err == nil {
-			if err := os.Rename(d, d+now); err != nil {
-				return err
-			}
-		}
-		if err := os.Rename(d+suffix, d); err != nil {
-			return err
-		}
-	}
-	out, err := generate.Service(n.currentLab(), s.Package, s.Instance)
-	if err != nil {
-		return err
-	}
-	for _, d := range out.Dirs {
-		if err := os.MkdirAll(d, 0o750); err != nil {
-			return err
-		}
-	}
-	return n.Reconciler.Systemd.Start(ctx, live.Units...)
-}
-
-// RemoveKeptData deletes a kept folder for good. Only folders KeptData
-// lists can be removed.
-func (n *Local) RemoveKeptData(ctx context.Context, path string) error {
-	dir, name := filepath.Split(filepath.Clean(path))
-	dir = filepath.Clean(dir)
-	if (dir != filepath.Clean(n.Lab.Paths.ServicesDir) && dir != filepath.Clean(n.Lab.Paths.MediaDir)) || !keptName.MatchString(name) {
-		return ErrNotFound
-	}
-	if _, err := os.Stat(path); err != nil {
-		return ErrNotFound
-	}
-	if out, err := n.unshare(ctx, "rm", "-rf", "--", path).CombinedOutput(); err != nil {
-		return fmt.Errorf("deleting %s: %w: %s", path, err, out)
-	}
-	return nil
 }
 
 // stateOutput is what runs of a service now (state.Output).

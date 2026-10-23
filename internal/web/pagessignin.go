@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -95,7 +97,7 @@ type pagesHandoff struct {
 // own login page is the way in.
 func (s *Server) pagesSignIn(r *http.Request) bool {
 	if s.SignIn == nil || s.SSO == nil || s.SignInHost == "" || s.UIHost == "" || fromSetupListener(r) ||
-		!isHTTPS(r) || !strings.EqualFold(hostOnly(r.Host), s.UIHost) {
+		!isHTTPS(r) || !strings.EqualFold(public.HostOnly(r.Host), s.UIHost) {
 		return false
 	}
 	return len(s.SSO.SSOClients()) > 0 && s.signInServed(r.Context())
@@ -238,8 +240,8 @@ func (s *Server) pagesCallback(w http.ResponseWriter, r *http.Request) {
 		s.Log.Warn("refused a sign-in from the sign-in page", "remote", r.RemoteAddr)
 		s.Store.Audit(ctx, nil, "failed login", "a link from the sign-in page that didn't work, from "+r.RemoteAddr)
 		w.WriteHeader(http.StatusBadRequest)
-		s.renderLogin(w, r, map[string]any{"Error": "Signing in through the sign-in page didn't work: the link was too old, " +
-			"or opened in another browser. Try again, or log in here."})
+		s.renderLogin(w, r, map[string]any{"Error": "Signing in through the sign-in page didn't work: the link was too old " +
+			"or opened in another browser. Try again or log in here."})
 		return
 	}
 	u, err := s.Store.UserByID(ctx, h.userID)
@@ -377,7 +379,7 @@ func (s *Server) signInConfirm(w http.ResponseWriter, r *http.Request) {
 			s.Log.Warn("failed 2FA code", "user", u.Username, "remote", r.RemoteAddr)
 			time.Sleep(failedLoginDelay)
 			if res == codeLocked {
-				s.Store.Audit(ctx, u, auditLocked, "opening Roostack's pages from the sign-in page")
+				s.Store.Audit(ctx, u, attention.AuditLocked, "opening Roostack's pages from the sign-in page")
 				s.renderSignIn(w, r, http.StatusTooManyRequests, s.confirmView(r, sess, trip, lockedMessage(until)))
 				return
 			}

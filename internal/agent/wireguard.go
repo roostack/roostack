@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/trust"
 )
 
@@ -413,4 +415,145 @@ func parseEndpoints(out string) map[string]string {
 		}
 	}
 	return eps
+}
+
+// WireGuardKeys reads Roostack's interfaces' private keys.
+func (h LinuxHost) WireGuardKeys() (map[string]string, error) { return WireGuardKeys() }
+
+// ApplyWireGuard writes an interface's wg-quick file and brings it up. A
+// running interface takes new peers without dropping connections (wg
+// syncconf); a new address or key restarts it.
+func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
+	iface := wg.Iface()
+	file := wireGuardConf(iface)
+	old, _ := os.ReadFile(file)
+	key := confKey(string(old))
+	switch {
+	case wg.JoinKey != "":
+		key = wg.JoinKey
+	case key == "" && wg.SavedKey != "" && !wg.NewKey:
+		key = wg.SavedKey
+	case key == "" || wg.NewKey:
+		var err error
+		if key, err = NewWireGuardKey(); err != nil {
+			return "", err
+		}
+	}
+	pub, err := WireGuardPublicKey(key)
+	if err != nil {
+		return "", err
+	}
+	conf := wg.Config(key)
+	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+		return "", err
+	}
+	if err := fsutil.WritePrivate(file, []byte(conf)); err != nil {
+		return "", err
+	}
+	unit := "wg-quick@" + iface
+	if out, err := exec.Command("systemctl", "enable", unit).CombinedOutput(); err != nil {
+		return "", fmt.Errorf("enabling %s: %w: %s", unit, err, out)
+	}
+	_, statErr := os.Stat("/sys/class/net/" + iface)
+	sameIface := statErr == nil && confKey(string(old)) == key && confAddress(string(old)) == wg.Address
+	if sameIface {
+		if err := syncConf(iface); err != nil {
+			return "", err
+		}
+		return pub, setForwarding(iface, wg.Forward)
+	}
+	if out, err := exec.Command("systemctl", "restart", unit).CombinedOutput(); err != nil {
+		return "", fmt.Errorf("starting %s: %w: %s", unit, err, out)
+	}
+	return pub, setForwarding(iface, wg.Forward)
+}
+
+// syncConf applies an interface's file to the running interface, without
+// taking it down.
+func syncConf(iface string) error {
+	// wg syncconf takes the file without wg-quick's extra keys.
+	strip, err := exec.Command("wg-quick", "strip", iface).Output()
+	if err != nil {
+		return fmt.Errorf("wg-quick strip: %w", err)
+	}
+	cmd := exec.Command("wg", "syncconf", iface, "/dev/stdin")
+	cmd.Stdin = strings.NewReader(string(strip))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("wg syncconf: %w: %s", err, out)
+	}
+	return nil
+}
+
+// ApplyLinks sets this server's direct links to other servers (Links),
+// keeping its link to the controller.
+func (h LinuxHost) ApplyLinks(l Links) error {
+	file := wireGuardConf(WireGuardInterface)
+	old, err := os.ReadFile(file)
+	if errors.Is(err, os.ErrNotExist) {
+		return errors.New("this server isn't in a lab")
+	}
+	if err != nil {
+		return err
+	}
+	conf, err := l.apply(string(old))
+	if err != nil {
+		return err
+	}
+	if conf == string(old) {
+		return nil
+	}
+	if err := fsutil.WritePrivate(file, []byte(conf)); err != nil {
+		return err
+	}
+	if _, err := os.Stat("/sys/class/net/" + WireGuardInterface); err != nil {
+		return nil // it comes up with them
+	}
+	return syncConf(WireGuardInterface)
+}
+
+// setForwarding turns forwarding of packets arriving on an interface on
+// or off now (wg-quick's PostUp does it at boot).
+func setForwarding(iface string, on bool) error {
+	v := "0\n"
+	if on {
+		v = "1\n"
+	}
+	return os.WriteFile("/proc/sys/net/ipv4/conf/"+iface+"/forwarding", []byte(v), 0o644)
+}
+
+// RemoveWireGuard stops and disables an interface and deletes its file.
+func (h LinuxHost) RemoveWireGuard(iface string) error {
+	unit := "wg-quick@" + iface
+	if out, err := exec.Command("systemctl", "disable", "--now", unit).CombinedOutput(); err != nil {
+		return fmt.Errorf("stopping %s: %w: %s", unit, err, out)
+	}
+	if err := os.Remove(wireGuardConf(iface)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// WireGuardStatus reads an interface's wg-quick file and when each peer
+// last connected.
+func (h LinuxHost) WireGuardStatus(iface string) (WireGuardStatus, error) {
+	file := wireGuardConf(iface)
+	conf, err := os.ReadFile(file)
+	if errors.Is(err, os.ErrNotExist) {
+		return WireGuardStatus{}, nil
+	}
+	if err != nil {
+		return WireGuardStatus{}, err
+	}
+	pub, err := WireGuardPublicKey(confKey(string(conf)))
+	if err != nil {
+		return WireGuardStatus{}, fmt.Errorf("%s: %w", file, err)
+	}
+	st := WireGuardStatus{Configured: true, PublicKey: pub, Address: confAddress(string(conf)), Handshakes: map[string]int64{}}
+	if out, err := exec.Command("wg", "show", iface, "latest-handshakes").Output(); err == nil {
+		st.Handshakes = parseHandshakes(string(out))
+	}
+	if out, err := exec.Command("wg", "show", iface, "endpoints").Output(); err == nil {
+		st.Endpoints = parseEndpoints(string(out))
+	}
+	return st, nil
 }

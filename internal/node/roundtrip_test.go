@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"reflect"
@@ -18,9 +19,11 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/importer"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // The lab API, end to end: every Remote method against a Server wrapping
@@ -72,7 +75,6 @@ var (
 
 	rtBackupStatus = backup.Status{Configured: true, Running: true, Progress: 40, Step: "Copying", Repository: "/srv/backup", Next: rtAt}
 	rtSnapshots    = []backup.Snapshot{{ID: "abc123", Short: "abc", Time: rtAt, Paths: []string{"/srv/immich"}, Hostname: "nuc"}}
-	rtKept         = []backup.KeptCopy{{Path: "/srv/immich.kept", Of: "/srv/immich", Failed: true, Time: rtAt}}
 	rtOutcome      = backup.RestoreOutcome{Finished: true, Err: "dump failed", DumpsFailed: true, Taken: rtAt, Kept: "/srv/x"}
 
 	rtResult  = &osupdate.Result{At: rtAt, OK: true, Summary: "3 updates", Output: "done"}
@@ -84,15 +86,18 @@ var (
 	rtSSH      = SSHAccess{Choice: "lan", Login: "keys", SSHDError: "none"}
 	rtSSHFresh = SSHAccess{Choice: "everywhere", Login: "keys"}
 
-	rtKeptFolders = []KeptFolder{{Path: "/srv/a.moved", Service: "immich", MovedAway: true, Time: rtAt, Size: 99}}
-	rtSecrets     = map[string][]byte{"roostack-immich-db": []byte("pw")}
-	rtTar         = "a tar stream"
-	rtUpdate      = UpdateStatus{Stage: "holding", Error: "slow", Backup: rtAt}
-	rtHealth      = Health{Healthy: true, Problem: "none", Restarts: 2}
-	rtDisks       = []DiskSpace{{Kind: "system", Mount: "/", Total: 100, Used: 40, Free: 60, Services: 10, Counted: rtAt}}
-	rtEvents      = []store.Event{{ID: 7, Started: rtAt, Finished: rtAt, Kind: "backup", Title: "Backed up", Status: "ok"}}
-	rtMemory      = MemoryInfo{Total: 8_000_000_000, Available: 3_000_000_000}
-	rtWGStatus    = agent.WireGuardStatus{Configured: true, PublicKey: "pk", Address: "100.103.66.1/24", Handshakes: map[string]int64{"a": 1}}
+	rtKeptCopies = []kept.Copy{{Service: "immich", Why: kept.MovedAway, Note: "to-nuc", Time: rtKeptAt, Whole: true, Size: 99,
+		Paths: []string{"/srv/media/immich.moved-to-nuc-20261022-093000", "/srv/services/immich.moved-to-nuc-20261022-093000"}},
+		{Service: "immich", Why: kept.BeforeRestore, Time: rtKeptAt, Size: 12, Paths: []string{"/srv/services/immich/library.before-restore-20261022-093000"}}}
+	rtKeptAt   = time.Date(2026, 10, 22, 9, 30, 0, 0, time.Local) // as a kept folder's name has it
+	rtSecrets  = map[string][]byte{"roostack-immich-db": []byte("pw")}
+	rtTar      = "a tar stream"
+	rtUpdate   = UpdateStatus{Stage: "holding", Error: "slow", Backup: rtAt}
+	rtHealth   = Health{Healthy: true, Problem: "none", Restarts: 2}
+	rtDisks    = []DiskSpace{{Kind: "system", Mount: "/", Total: 100, Used: 40, Free: 60, Services: 10, Counted: rtAt}}
+	rtEvents   = []store.Event{{ID: 7, Started: rtAt, Finished: rtAt, Kind: "backup", Title: "Backed up", Status: "ok"}}
+	rtMemory   = MemoryInfo{Total: 8_000_000_000, Available: 3_000_000_000}
+	rtWGStatus = agent.WireGuardStatus{Configured: true, PublicKey: "pk", Address: "100.103.66.1/24", Handshakes: map[string]int64{"a": 1}}
 
 	rtDrives   = []agent.Drive{{ID: "uuid:1", Kind: "usb", Name: "T7", Size: 1000, Free: 500, Usable: true}}
 	rtFolders  = agent.FolderList{Path: "/media", Files: 3}
@@ -189,8 +194,8 @@ func (f rtNode) PruneData(_ context.Context, s string, dir int, keep []string) e
 	f.rec("PruneData", s, dir, keep)
 	return nil
 }
-func (f rtNode) CommitData(_ context.Context, s string) ([]string, error) {
-	f.rec("CommitData", s)
+func (f rtNode) CommitData(_ context.Context, s string, why kept.Why) ([]string, error) {
+	f.rec("CommitData", s, why)
 	return []string{"/srv/immich.old"}, nil
 }
 func (f rtNode) SetAsideData(_ context.Context, s, note string) ([]string, error) {
@@ -212,16 +217,16 @@ func (f rtNode) DataSize(_ context.Context, s string) (int64, error) {
 	return 4096, nil
 }
 func (f rtNode) LoadDumps(_ context.Context, s string) error { f.rec("LoadDumps", s); return nil }
-func (f rtNode) KeptData(context.Context) ([]KeptFolder, error) {
-	f.rec("KeptData")
-	return rtKeptFolders, nil
+func (f rtNode) KeptCopies(context.Context) ([]kept.Copy, error) {
+	f.rec("KeptCopies")
+	return rtKeptCopies, nil
 }
-func (f rtNode) RemoveKeptData(_ context.Context, p string) error {
-	f.rec("RemoveKeptData", p)
+func (f rtNode) RemoveKept(_ context.Context, p string) error {
+	f.rec("RemoveKept", p)
 	return nil
 }
-func (f rtNode) PutBackKeptData(_ context.Context, p string) error {
-	f.rec("PutBackKeptData", p)
+func (f rtNode) PutBackKept(_ context.Context, p string) error {
+	f.rec("PutBackKept", p)
 	return nil
 }
 
@@ -318,17 +323,9 @@ func (f rtRestores) Pending(context.Context) (bool, error) {
 	f.rec("Restores.Pending")
 	return true, nil
 }
-func (f rtRestores) Kept(_ context.Context, s string) ([]backup.KeptCopy, error) {
-	f.rec("Restores.Kept", s)
-	return rtKept, nil
-}
 func (f rtRestores) Outcome(_ context.Context, s string) (backup.RestoreOutcome, error) {
 	f.rec("Restores.Outcome", s)
 	return rtOutcome, nil
-}
-func (f rtRestores) RemoveKept(_ context.Context, s, p string) error {
-	f.rec("Restores.RemoveKept", s, p)
-	return nil
 }
 func (f rtRestores) PutBack(_ context.Context, s, p string) error {
 	f.rec("Restores.PutBack", s, p)
@@ -527,6 +524,18 @@ func TestRoundTrip(t *testing.T) {
 		r.statusAt = time.Time{}
 		r.mu.Unlock()
 	}
+	// oldServer makes the server seem to be from before the kept-copies
+	// routes, until the function it returns is called.
+	oldServer := func() func() {
+		r.mu.Lock()
+		r.status.Kept = false
+		r.mu.Unlock()
+		return func() {
+			r.mu.Lock()
+			r.status.Kept = true
+			r.mu.Unlock()
+		}
+	}
 	// The status read: its apply status, processor and links.
 	status := []rtCall{call("Status"), call("Arch"), call("LinkStatus")}
 	// The settings read: time zone, SSH and restart policy at once.
@@ -553,14 +562,11 @@ func TestRoundTrip(t *testing.T) {
 		}, status, []any{rtAddrs, rtLinks}},
 		{"Apply", func() (any, error) {
 			r.Apply(Assignment{Lab: LabContext{Domain: "lab.example.com"}, Reason: "Testing"})
-			for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+			testwait.For(t, 5*time.Second, func() bool {
 				r.mu.Lock()
-				pushing := r.pushing
-				r.mu.Unlock()
-				if !pushing {
-					break
-				}
-			}
+				defer r.mu.Unlock()
+				return !r.pushing
+			})
 			return nil, nil
 		}, []rtCall{call("Apply", "lab.example.com", "Testing")}, nil},
 		{"Leave", func() (any, error) { return nil, r.Leave(ctx) }, []rtCall{call("Leave")}, nil},
@@ -589,14 +595,10 @@ func TestRoundTrip(t *testing.T) {
 		{"Restores.Restore", func() (any, error) { return nil, restores.Restore(ctx, "immich", "abc123") },
 			[]rtCall{call("Restores.Restore", "immich", "abc123")}, nil},
 		{"Restores.Pending", func() (any, error) { return restores.Pending(ctx) }, []rtCall{call("Restores.Pending")}, true},
-		{"Restores.Kept", func() (any, error) { return restores.Kept(ctx, "immich") },
-			[]rtCall{call("Restores.Kept", "immich")}, rtKept},
 		{"Restores.Outcome", func() (any, error) { return restores.Outcome(ctx, "immich") },
 			[]rtCall{call("Restores.Outcome", "immich")}, rtOutcome},
 		{"Restores.PutBack", func() (any, error) { return nil, restores.PutBack(ctx, "immich", "/srv/k") },
 			[]rtCall{call("Restores.PutBack", "immich", "/srv/k")}, nil},
-		{"Restores.RemoveKept", func() (any, error) { return nil, restores.RemoveKept(ctx, "immich", "/srv/k") },
-			[]rtCall{call("Restores.RemoveKept", "immich", "/srv/k")}, nil},
 
 		{"Updates.Last", func() (any, error) { return updates.Last(ctx) }, updatesRead, rtResult},
 		{"Updates.Pending", func() (any, error) { return updates.Pending(ctx) }, updatesRead, true},
@@ -650,8 +652,13 @@ func TestRoundTrip(t *testing.T) {
 			[]rtCall{call("ListData", "immich", 1)}, []string{"a", "b/c"}},
 		{"PruneData", func() (any, error) { return nil, r.PruneData(ctx, "immich", 1, []string{"a"}) },
 			[]rtCall{call("PruneData", "immich", 1, []string{"a"})}, nil},
-		{"CommitData", func() (any, error) { return r.CommitData(ctx, "immich") },
-			[]rtCall{call("CommitData", "immich")}, []string{"/srv/immich.old"}},
+		{"CommitData", func() (any, error) { return r.CommitData(ctx, "immich", kept.BeforeRestore) },
+			[]rtCall{call("CommitData", "immich", kept.BeforeRestore)}, []string{"/srv/immich.old"}},
+		{"CommitData from an old controller", func() (any, error) {
+			var out []string
+			err := r.call(ctx, http.MethodPost, servicePath("immich", "/data/commit"), struct{}{}, &out)
+			return out, err
+		}, []rtCall{call("CommitData", "immich", kept.Why(""))}, []string{"/srv/immich.old"}},
 		{"SetAsideData", func() (any, error) { return r.SetAsideData(ctx, "immich", FailedMove) },
 			[]rtCall{call("SetAsideData", "immich", FailedMove)}, []string{"/srv/immich.moved"}},
 		{"DataSize", func() (any, error) { return r.DataSize(ctx, "immich") }, []rtCall{call("DataSize", "immich")}, int64(4096)},
@@ -662,11 +669,31 @@ func TestRoundTrip(t *testing.T) {
 		{"ImportSecrets", func() (any, error) { return nil, r.ImportSecrets(ctx, rtSecrets) },
 			[]rtCall{call("ImportSecrets", rtSecrets)}, nil},
 		{"LoadDumps", func() (any, error) { return nil, r.LoadDumps(ctx, "immich") }, []rtCall{call("LoadDumps", "immich")}, nil},
-		{"KeptData", func() (any, error) { return r.KeptData(ctx) }, []rtCall{call("KeptData")}, rtKeptFolders},
-		{"PutBackKeptData", func() (any, error) { return nil, r.PutBackKeptData(ctx, "/srv/a.moved") },
-			[]rtCall{call("PutBackKeptData", "/srv/a.moved")}, nil},
-		{"RemoveKeptData", func() (any, error) { return nil, r.RemoveKeptData(ctx, "/srv/a.moved") },
-			[]rtCall{call("RemoveKeptData", "/srv/a.moved")}, nil},
+		{"KeptCopies", func() (any, error) { return r.KeptCopies(ctx) }, []rtCall{call("KeptCopies")}, rtKeptCopies},
+		{"PutBackKept", func() (any, error) { return nil, r.PutBackKept(ctx, "/srv/a.moved") },
+			[]rtCall{call("PutBackKept", "/srv/a.moved")}, nil},
+		{"RemoveKept", func() (any, error) { return nil, r.RemoveKept(ctx, "/srv/a.moved") },
+			[]rtCall{call("RemoveKept", "/srv/a.moved")}, nil},
+		// A server from before 2026-10-23 (keptwire.go): its old routes,
+		// whole folders only, without sizes.
+		{"KeptCopies of an old server", func() (any, error) { defer oldServer()(); return r.KeptCopies(ctx) },
+			[]rtCall{call("KeptCopies")}, []kept.Copy{{Service: "immich", Why: kept.MovedAway, Note: "to-nuc", Time: rtKeptAt,
+				Whole: true, Size: -1, Paths: rtKeptCopies[0].Paths}}},
+		{"PutBackKept on an old server", func() (any, error) { defer oldServer()(); return nil, r.PutBackKept(ctx, "/srv/a.moved") },
+			[]rtCall{call("PutBackKept", "/srv/a.moved")}, nil},
+		{"RemoveKept on an old server", func() (any, error) {
+			defer oldServer()()
+			return nil, r.RemoveKept(ctx, rtKeptCopies[0].Paths[1])
+		}, []rtCall{call("KeptCopies"), call("RemoveKept", rtKeptCopies[0].Paths[0]), call("RemoveKept", rtKeptCopies[0].Paths[1])}, nil},
+		// A controller from before then: the old routes.
+		{"KeptCopies for an old controller's restore page", func() (any, error) {
+			var out []oldRestoreCopy
+			err := r.call(ctx, http.MethodGet, restorePath("immich", "/kept"), nil, &out)
+			return out, err
+		}, []rtCall{call("KeptCopies")}, []oldRestoreCopy{{Path: rtKeptCopies[1].Paths[0], Of: "/srv/services/immich/library", Time: rtKeptAt}}},
+		{"RemoveKept for an old controller's restore page", func() (any, error) {
+			return nil, r.call(ctx, http.MethodPost, restorePath("immich", "/kept/remove"), pathRequest{Path: "/srv/k"}, nil)
+		}, []rtCall{call("RemoveKept", "/srv/k")}, nil},
 
 		{"StartUpdate", func() (any, error) {
 			return r.StartUpdate(ctx, UpdateRequest{Title: "Updating Immich", Images: []string{"img:2"}, Backup: true})
@@ -775,7 +802,8 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-// bareNode is a node with no capabilities.
+// bareNode is a node with no capabilities; fakes embed it for those they
+// lack (nodetest.Base, which other packages use, imports node).
 type bareNode struct{ Node }
 
 func (bareNode) Backups() Backups     { return nil }
@@ -824,17 +852,13 @@ func TestRoundTripWithout(t *testing.T) {
 		"Leave":  func() error { return r.Leave(ctx) },
 		"Rename": func() error { return r.Rename(ctx, "attic") },
 
-		"Backups.Status":     func() error { _, err := backups.Status(ctx); return err },
-		"Backups.RunNow":     func() error { return backups.RunNow(ctx) },
-		"Restores.Snapshots": func() error { _, err := restores.Snapshots(ctx, "immich"); return err },
-		"Restores.Restore":   func() error { return restores.Restore(ctx, "immich", "abc") },
-		"Restores.Pending":   func() error { _, err := restores.Pending(ctx); return err },
-		"Restores.Kept":      func() error { _, err := restores.Kept(ctx, "immich"); return err },
-		"Restores.Outcome":   func() error { _, err := restores.Outcome(ctx, "immich"); return err },
-		"Restores.PutBack":   func() error { return restores.PutBack(ctx, "immich", "/k") },
-		"Restores.RemoveKept": func() error {
-			return restores.RemoveKept(ctx, "immich", "/k")
-		},
+		"Backups.Status":                 func() error { _, err := backups.Status(ctx); return err },
+		"Backups.RunNow":                 func() error { return backups.RunNow(ctx) },
+		"Restores.Snapshots":             func() error { _, err := restores.Snapshots(ctx, "immich"); return err },
+		"Restores.Restore":               func() error { return restores.Restore(ctx, "immich", "abc") },
+		"Restores.Pending":               func() error { _, err := restores.Pending(ctx); return err },
+		"Restores.Outcome":               func() error { _, err := restores.Outcome(ctx, "immich"); return err },
+		"Restores.PutBack":               func() error { return restores.PutBack(ctx, "immich", "/k") },
 		"Updates.Last":                   func() error { _, err := updates.Last(ctx); return err },
 		"Updates.Submit":                 func() error { return updates.Submit(ctx) },
 		"Updates.RestartNow":             func() error { return updates.RestartNow(ctx) },
@@ -851,31 +875,31 @@ func TestRoundTripWithout(t *testing.T) {
 		"Settings.SetBackupDestination":  func() error { return settings.SetBackupDestination(ctx, BackupDestination{}) },
 		"Settings.SetRestartPolicy":      func() error { return settings.SetRestartPolicy(ctx, "window", 4) },
 
-		"ExportData":      func() error { return r.ExportData(ctx, "immich", 0, time.Time{}, io.Discard) },
-		"ImportData":      func() error { return r.ImportData(ctx, "immich", 0, strings.NewReader(""), 0) },
-		"ListData":        func() error { _, err := r.ListData(ctx, "immich", 0); return err },
-		"PruneData":       func() error { return r.PruneData(ctx, "immich", 0, nil) },
-		"CommitData":      func() error { _, err := r.CommitData(ctx, "immich"); return err },
-		"SetAsideData":    func() error { _, err := r.SetAsideData(ctx, "immich", "x"); return err },
-		"DataSize":        func() error { _, err := r.DataSize(ctx, "immich"); return err },
-		"LoadDumps":       func() error { return r.LoadDumps(ctx, "immich") },
-		"StopService":     func() error { return r.StopService(ctx, "immich") },
-		"StartService":    func() error { return r.StartService(ctx, "immich") },
-		"ExportSecrets":   func() error { _, err := r.ExportSecrets(ctx, "immich"); return err },
-		"ImportSecrets":   func() error { return r.ImportSecrets(ctx, nil) },
-		"KeptData":        func() error { _, err := r.KeptData(ctx); return err },
-		"PutBackKeptData": func() error { return r.PutBackKeptData(ctx, "/k") },
-		"RemoveKeptData":  func() error { return r.RemoveKeptData(ctx, "/k") },
-		"StartUpdate":     func() error { _, err := r.StartUpdate(ctx, UpdateRequest{}); return err },
-		"UpdateStatus":    func() error { _, err := r.UpdateStatus(ctx, "u-1"); return err },
-		"FinishUpdate":    func() error { return r.FinishUpdate(ctx, "u-1") },
-		"CheckHealth":     func() error { _, err := r.CheckHealth(ctx, "immich"); return err },
-		"DiskSpaces":      func() error { _, err := r.DiskSpaces(ctx); return err },
-		"MemoryInfo":      func() error { _, err := r.MemoryInfo(ctx); return err },
-		"LeftDataDirs":    func() error { _, err := r.LeftDataDirs(ctx, "immich"); return err },
-		"HistoryPage":     func() error { _, err := r.HistoryPage(ctx, time.Time{}, "", 10); return err },
-		"HistoryEvent":    func() error { _, err := r.HistoryEvent(ctx, 1); return err },
-		"CullHistory":     func() error { _, err := r.CullHistory(ctx, rtSince); return err },
+		"ExportData":    func() error { return r.ExportData(ctx, "immich", 0, time.Time{}, io.Discard) },
+		"ImportData":    func() error { return r.ImportData(ctx, "immich", 0, strings.NewReader(""), 0) },
+		"ListData":      func() error { _, err := r.ListData(ctx, "immich", 0); return err },
+		"PruneData":     func() error { return r.PruneData(ctx, "immich", 0, nil) },
+		"CommitData":    func() error { _, err := r.CommitData(ctx, "immich", kept.BeforeMove); return err },
+		"SetAsideData":  func() error { _, err := r.SetAsideData(ctx, "immich", "x"); return err },
+		"DataSize":      func() error { _, err := r.DataSize(ctx, "immich"); return err },
+		"LoadDumps":     func() error { return r.LoadDumps(ctx, "immich") },
+		"StopService":   func() error { return r.StopService(ctx, "immich") },
+		"StartService":  func() error { return r.StartService(ctx, "immich") },
+		"ExportSecrets": func() error { _, err := r.ExportSecrets(ctx, "immich"); return err },
+		"ImportSecrets": func() error { return r.ImportSecrets(ctx, nil) },
+		"KeptCopies":    func() error { _, err := r.KeptCopies(ctx); return err },
+		"PutBackKept":   func() error { return r.PutBackKept(ctx, "/k") },
+		"RemoveKept":    func() error { return r.RemoveKept(ctx, "/k") },
+		"StartUpdate":   func() error { _, err := r.StartUpdate(ctx, UpdateRequest{}); return err },
+		"UpdateStatus":  func() error { _, err := r.UpdateStatus(ctx, "u-1"); return err },
+		"FinishUpdate":  func() error { return r.FinishUpdate(ctx, "u-1") },
+		"CheckHealth":   func() error { _, err := r.CheckHealth(ctx, "immich"); return err },
+		"DiskSpaces":    func() error { _, err := r.DiskSpaces(ctx); return err },
+		"MemoryInfo":    func() error { _, err := r.MemoryInfo(ctx); return err },
+		"LeftDataDirs":  func() error { _, err := r.LeftDataDirs(ctx, "immich"); return err },
+		"HistoryPage":   func() error { _, err := r.HistoryPage(ctx, time.Time{}, "", 10); return err },
+		"HistoryEvent":  func() error { _, err := r.HistoryEvent(ctx, 1); return err },
+		"CullHistory":   func() error { _, err := r.CullHistory(ctx, rtSince); return err },
 
 		"Media.Drives":           func() error { _, err := media.Drives(ctx); return err },
 		"Media.Libraries":        func() error { _, err := media.Libraries(ctx); return err },

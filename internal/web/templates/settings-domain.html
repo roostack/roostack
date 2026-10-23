@@ -16,37 +16,37 @@
   <p><a class="button secondary" href="/setup/domain">Change the address…</a></p>
   {{with .Old}}
   <h2 class="section-title" id="old-address">The old address, {{.Domain}}</h2>
-  <p>Your lab's address changed. Until <strong>{{date .Until}}</strong>, the old addresses keep working too, so you have time to
-    update bookmarks, and the server address in apps on phones and computers (such as Bitwarden's or Immich's). Then they stop.</p>
+  <p>Your lab's address changed. Until <strong>{{date .Until}}</strong>, the old addresses will keep working too, so you have time to
+    update bookmarks and the server address in apps on phones and computers (such as Bitwarden's or Immich's). Then they'll stop.</p>
   <table class="records">
     <tr><th>For</th><th>Old address</th><th>New address</th></tr>
     {{range $.OldRows}}<tr><td>{{.Title}}</td><td><code>{{.Old}}</code></td><td><a href="{{.New}}" target="_blank" rel="noopener"><code>{{.New}}</code>{{template "new-window"}}</a></td></tr>{{end}}
   </table>
   <p class="hint">Passkeys and security keys made for an old address don't work at the new one: add new ones in each app.
     Apps' own settings that include the address (such as Vaultwarden's) already use the new one.</p>
-  {{with $.OldProblem}}{{notice "warn" (printf "%s. Until that works, old addresses may stop working early if your home's address changes. Roostack tries again in a few minutes." .)}}{{end}}
+  {{with $.OldProblem}}{{notice "warn" (printf "%s. Until that works, old addresses may stop working early if your home's address changes. Roostack will try again in a few minutes." .)}}{{end}}
   <details class="technical" id="old-address-details"><summary>Details</summary>
-    <p>Caddy serves both addresses, each with its own certificate: the old one's still renews through
-      {{with $.OldProvider}}{{.}}{{else}}its DNS provider{{end}}, whose login Roostack keeps until then (Podman secrets
-      <code>roostack-caddy-dns-old-…</code>). Until then, the DNS records Roostack set for the old address follow your home's
-      address, as the new ones do. When the old address stops, Roostack deletes them with that login, then deletes the login.
-      It deletes only its own records, and leaves any you've changed since.</p>
+    <p>Caddy is serving both addresses, each with its own certificate, and the old one's is still renewing through
+      {{with $.OldProvider}}{{.}}{{else}}its DNS provider{{end}}. Until the old address stops, Roostack will keep that provider's login (Podman secrets
+      <code>roostack-caddy-dns-old-…</code>), and the DNS records it set for the old address will follow your home's
+      address as the new ones do. Then Roostack will delete its own records with that login, leaving any you've changed since,
+      and delete the login after them.</p>
   </details>
-  {{confirm "/settings/domain/old/end" (printf "Stop the old addresses (%s) now? Bookmarks and apps still using them stop working." .Domain) "Stop the old addresses now" "secondary"}}
+  {{confirm "/settings/domain/old/end" (printf "Stop the old addresses (%s) now? Bookmarks and apps still using them will stop working." .Domain) "Stop the old addresses now" "secondary"}}
   {{end}}
   {{else}}
   {{notice "error" "Your lab has no address yet, so its services can't be reached on the web."}}
   <p><a class="button" href="/setup/domain">Give your lab an address</a></p>
   {{end}}
 </section>
-{{if .Forgot}}<p class="notice notice-ok" role="status">Done. Roostack no longer looks after those records.</p>{{end}}
+{{if .Forgot}}<p class="notice notice-ok" role="status">Done. Roostack is no longer looking after those records.</p>{{end}}
 {{if or .OldRecords .LeftRecords}}
 <section class="card section" id="old-records">
   <h2>DNS records left under an old address</h2>
   {{with .OldRecords}}
   {{with .Message}}{{notice "warn" .}}{{end}}
   <p>Your lab's old address, {{.Domain}}, has stopped working, but these records Roostack set for it are still there.
-    Roostack tries again every hour with that address's login at {{with .Provider}}{{.}}{{else}}its DNS provider{{end}}.
+    Roostack will try again every hour with that address's login at {{with .Provider}}{{.}}{{else}}its DNS provider{{end}}.
     If that login no longer works (for example, you deleted its API key), delete them there yourself, then tell Roostack.</p>
   <table class="records">
     <thead><tr><th>Name</th><th>Type</th><th>Points to</th></tr></thead>
@@ -67,7 +67,7 @@
     <tbody>{{range .Records}}<tr><td><code>{{.Name}}</code></td><td>{{.Type}}</td><td><code>{{.Value}}</code></td></tr>{{end}}</tbody>
   </table>
   {{end}}
-  {{confirm "/settings/domain/old/forget" "Have you deleted these records? Roostack stops trying to delete them, and deletes the old address's login if it still has it." "I've deleted them" "secondary"}}
+  {{confirm "/settings/domain/old/forget" "Have you deleted these records? Roostack will stop trying to delete them and delete the old address's login if it still has it." "I've deleted them" "secondary"}}
 </section>
 {{end}}
 {{end}}

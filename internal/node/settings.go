@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/fsutil"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Settings are a server's own settings: its clock, who may reach it over
@@ -180,13 +181,13 @@ func (h *HostSettings) SetTimezone(ctx context.Context, name string) (bool, erro
 		return false, err
 	}
 	if !slices.Contains(zones, name) {
-		return false, formErrorf("Choose a time zone from the list, such as Europe/London.")
+		return false, usererr.New("Choose a time zone from the list, such as Europe/London.")
 	}
 	if name == h.Zone() {
 		return false, nil
 	}
 	if err := h.SetZone(ctx, name); err != nil {
-		return false, formErrorf("Roostack couldn't change the time zone: %v", err)
+		return false, usererr.New("Roostack couldn't change the time zone: %v", err)
 	}
 	// Pages show the new zone at once; schedules and containers follow at
 	// the restart (postponed to the end of the setup wizard).
@@ -233,7 +234,7 @@ func (h *HostSettings) SetSSH(ctx context.Context, c SSHChange) error {
 	switch c.Choice {
 	case config.SSHFromLAN, config.SSHFromAny, config.SSHOff:
 	default:
-		return formErrorf("Choose who can connect.")
+		return usererr.New("Choose who can connect.")
 	}
 	sshd, err := h.sshStatus(ctx, true)
 	switch {
@@ -243,7 +244,7 @@ func (h *HostSettings) SetSSH(ctx context.Context, c SSHChange) error {
 		// Nobody can reach SSH, so keys only can't lock anyone out.
 		c.Login = config.SSHLoginKey
 	case c.Login != config.SSHLoginKey && c.Login != config.SSHLoginPassword:
-		return formErrorf("Choose how people log in over SSH.")
+		return usererr.New("Choose how people log in over SSH.")
 	}
 	clients, err := h.SSHClients()
 	if err != nil {
@@ -253,14 +254,14 @@ func (h *HostSettings) SetSSH(ctx context.Context, c SSHChange) error {
 	controller := firewall.Controller(h.Lab)
 	h.mu.Unlock()
 	if cut := firewall.CutsOff(c.Choice, clients, controller); len(cut) > 0 && !c.Confirmed {
-		return formErrorf("That would disconnect the SSH connection from %s. "+
+		return usererr.New("That would disconnect the SSH connection from %s. "+
 			"Tick the box if that's what you want.", cut[0])
 	}
 	if keys := c.Login == config.SSHLoginKey; c.Login != "" && keys != sshd.KeysOnly {
 		// Turning passwords and root logins off needs proof that someone
 		// can still log in and use sudo (SPEC.md §6.10 item 3).
 		if _, ok := sshd.SudoKeyLogin(); keys && c.Choice != config.SSHOff && !ok {
-			return formErrorf("Roostack hasn't seen anyone log in with an SSH key and an account that can use sudo, " +
+			return usererr.New("Roostack hasn't seen anyone log in with an SSH key and an account that can use sudo, " +
 				"so turning passwords off could lock you out. Log in once with your key, then try again, " +
 				"or choose \"With a key or a password\".")
 		}
@@ -269,7 +270,7 @@ func (h *HostSettings) SetSSH(ctx context.Context, c SSHChange) error {
 		h.sshAt = time.Time{} // read it again next time
 		h.mu.Unlock()
 		if err != nil {
-			return formErrorf("Roostack couldn't change SSH's settings, so they're as they were: %v", err)
+			return usererr.New("Roostack couldn't change SSH's settings, so they're as they were: %v", err)
 		}
 	}
 	if err := config.Update(h.LabPath, func(l *config.Lab) { l.Firewall.SSH, l.Firewall.SSHLogin = c.Choice, c.Login }); err != nil {
@@ -294,10 +295,10 @@ func (h *HostSettings) RestartPolicy(_ context.Context) (string, int, error) {
 
 func (h *HostSettings) SetRestartPolicy(ctx context.Context, mode string, hour int) error {
 	if mode != config.RestartAuto && mode != config.RestartNotify {
-		return formErrorf("Choose whether to restart automatically.")
+		return usererr.New("Choose whether to restart automatically.")
 	}
 	if hour < 0 || hour > 23 {
-		return formErrorf("Choose an hour between 0 and 23.")
+		return usererr.New("Choose an hour between 0 and 23.")
 	}
 	if err := config.Update(h.LabPath, func(l *config.Lab) {
 		l.Maintenance.Restart, l.Maintenance.RestartHour = mode, &hour
@@ -310,7 +311,7 @@ func (h *HostSettings) SetRestartPolicy(ctx context.Context, mode string, hour i
 
 func (h *HostSettings) SetBackupDestination(ctx context.Context, d BackupDestination) error {
 	if d.Repository == "" {
-		return formErrorf("No backup repository.")
+		return usererr.New("No backup repository.")
 	}
 	if d.Key != "" {
 		if err := fsutil.WritePrivate(backup.KeyFile(h.Lab.Paths), []byte(d.Key+"\n")); err != nil {
@@ -342,7 +343,7 @@ func (h *HostSettings) SetBackupCopies(ctx context.Context, copies []BackupCopy)
 	var out []config.BackupCopy
 	for _, c := range copies {
 		if c.Repository == "" || c.Name == "" {
-			return formErrorf("A backup copy needs a name and a repository.")
+			return usererr.New("A backup copy needs a name and a repository.")
 		}
 		old, known := have[c.Name]
 		keyFile := old.KeyFile
@@ -399,7 +400,7 @@ func (h *HostSettings) PromoteBackupCopy(ctx context.Context, name string, old B
 	}
 	i := slices.IndexFunc(lab.Backup.Copies, func(c config.BackupCopy) bool { return c.Name == name })
 	if i < 0 || old.Name == "" {
-		return formErrorf("That backup isn't one of this server's copies.")
+		return usererr.New("That backup isn't one of this server's copies.")
 	}
 	c := lab.Backup.Copies[i]
 	mainKey := backup.KeyFile(h.Lab.Paths)

@@ -19,6 +19,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/testwait"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // TestPublicEdge: at home, the Owner chooses how visitors come in: port
@@ -41,7 +42,7 @@ func TestPublicEdge(t *testing.T) {
 		t.Errorf("a server that can't be the edge: %d", code)
 	}
 	_, body = h.post("/settings/public/edge", url.Values{"edge": {"n-0000000002"}}, h.srv.URL)
-	if fm.edge != "n-0000000002" || !strings.Contains(body, `value="n-0000000002" checked`) || !strings.Contains(body, "Saved. Public addresses follow") {
+	if fm.edge != "n-0000000002" || !strings.Contains(body, `value="n-0000000002" checked`) || !strings.Contains(body, "Saved. Public addresses will follow") {
 		t.Errorf("choosing the edge: edge %q", fm.edge)
 	}
 	// The edge gone from the lab's network: said so.
@@ -250,7 +251,7 @@ func TestPublicRelay(t *testing.T) {
 	if !strings.Contains(body, "Through Roostack Cloud's relay") || !strings.Contains(body, `value="cloud"`) {
 		t.Fatal("the relay isn't offered to a linked lab with its roost.ac name")
 	}
-	fm.relayErr = &manager.FormError{Msg: "Roostack Cloud's relay isn't open for this account yet."}
+	fm.relayErr = &usererr.Error{Msg: "Roostack Cloud's relay isn't open for this account yet."}
 	if _, body := h.post("/settings/public/edge", url.Values{"edge": {"cloud"}}, h.srv.URL); !strings.Contains(body, "isn&#39;t open for this account") || fm.relay {
 		t.Error("Cloud's refusal isn't shown")
 	}
@@ -286,7 +287,7 @@ func TestPublicCountries(t *testing.T) {
 	}
 	_, body = h.post("/settings/public/countries/open", url.Values{"action": {"open"}, "days": {"14"}}, h.srv.URL)
 	if until := time.Until(fm.countries.OpenUntil); until < 13*24*time.Hour || !strings.Contains(body, "Everyone can visit until") ||
-		!strings.Contains(body, "only visitors from\n      Australia and New Zealand again") {
+		!strings.Contains(body, "only visitors from\n      Australia and New Zealand will be able to visit again") {
 		t.Errorf("opening: %v\n%s", fm.countries.OpenUntil, body)
 	}
 	if code, _ := h.post("/settings/public/countries/open", url.Values{"action": {"open"}, "days": {"400"}}, h.srv.URL); code != 400 {
@@ -370,17 +371,5 @@ func TestKnownExploits(t *testing.T) {
 	fa.Access("vaultwarden")
 	if code, _ := ha.post("/services/vaultwarden/public/web/waf", url.Values{"waf": {"off"}}, ha.srv.URL); code != http.StatusForbidden || !fa.access[0].WAF {
 		t.Errorf("an Admin turned it off: %d", code)
-	}
-}
-
-// The weekly summary's line, by service, most first.
-func TestWAFSummary(t *testing.T) {
-	blocks := []public.Block{{Host: "vault.example.com"}, {Host: "photos.example.com"}, {Host: "photos.example.com"}, {Host: "old.example.com"}}
-	got := wafSummary(blocks, map[string]string{"vault.example.com": "Vaultwarden", "photos.example.com": "Immich"})
-	if want := "refused 4 requests that tried a known exploit (Immich 2, Vaultwarden 1, old.example.com 1)."; got != want {
-		t.Errorf("got %q", got)
-	}
-	if wafSummary(nil, nil) != "" {
-		t.Error("none")
 	}
 }

@@ -18,7 +18,7 @@ func ownedFolder(parent *os.File, name string, uid, gid int) error {
 	}
 	fd, err := syscall.Openat(pfd, name, syscall.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0)
 	if errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENOTDIR) {
-		return errors.New("it exists and isn't a folder")
+		return refuse("it exists and isn't a folder")
 	}
 	if err != nil {
 		return err
@@ -33,7 +33,7 @@ func ownedFolder(parent *os.File, name string, uid, gid int) error {
 		return nil
 	}
 	if _, err := f.Readdirnames(1); !errors.Is(err, io.EOF) {
-		return errors.New("it already exists and belongs to someone else")
+		return refuse("it already exists and belongs to someone else")
 	}
 	return f.Chown(uid, gid)
 }

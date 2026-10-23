@@ -17,8 +17,8 @@ func restorePath(service, rest string) string {
 // restoreRequest is the backup to restore a service from.
 type restoreRequest struct{ Snapshot string }
 
-// pathRequest names a kept copy of a service's data, or a folder a move
-// left behind.
+// pathRequest names a kept copy of a service's data by one of its folders
+// (kept.Copy).
 type pathRequest struct{ Path string }
 
 // Backups and the other capabilities are offered if the server has them
@@ -67,12 +67,6 @@ func (x remoteRestores) Pending(ctx context.Context) (bool, error) {
 	return out, err
 }
 
-func (x remoteRestores) Kept(ctx context.Context, service string) ([]backup.KeptCopy, error) {
-	var out []backup.KeptCopy
-	err := x.r.call(ctx, http.MethodGet, restorePath(service, "/kept"), nil, &out)
-	return out, err
-}
-
 func (x remoteRestores) Outcome(ctx context.Context, service string) (backup.RestoreOutcome, error) {
 	var out backup.RestoreOutcome
 	err := x.r.call(ctx, http.MethodGet, restorePath(service, "/outcome"), nil, &out)
@@ -81,10 +75,6 @@ func (x remoteRestores) Outcome(ctx context.Context, service string) (backup.Res
 
 func (x remoteRestores) PutBack(ctx context.Context, service, path string) error {
 	return x.r.call(ctx, http.MethodPost, restorePath(service, "/kept/put-back"), pathRequest{Path: path}, nil)
-}
-
-func (x remoteRestores) RemoveKept(ctx context.Context, service, path string) error {
-	return x.r.call(ctx, http.MethodPost, restorePath(service, "/kept/remove"), pathRequest{Path: path}, nil)
 }
 
 // backupRoutes serves Backups and Restores on the lab API.
@@ -108,21 +98,11 @@ func (s *Server) backupRoutes(handle handleFunc) {
 	restores("GET /v1/restores/{service}/outcome", func(x Restores, r *http.Request) (any, error) {
 		return x.Outcome(r.Context(), svcOf(r))
 	})
-	restores("GET /v1/restores/{service}/kept", func(x Restores, r *http.Request) (any, error) {
-		return x.Kept(r.Context(), svcOf(r))
-	})
 	restores("POST /v1/restores/{service}/kept/put-back", func(x Restores, r *http.Request) (any, error) {
 		req, err := body[pathRequest](r)
 		if err != nil {
 			return nil, err
 		}
 		return nil, x.PutBack(r.Context(), svcOf(r), req.Path)
-	})
-	restores("POST /v1/restores/{service}/kept/remove", func(x Restores, r *http.Request) (any, error) {
-		req, err := body[pathRequest](r)
-		if err != nil {
-			return nil, err
-		}
-		return nil, x.RemoveKept(r.Context(), svcOf(r), req.Path)
 	})
 }

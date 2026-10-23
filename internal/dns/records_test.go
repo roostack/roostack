@@ -18,6 +18,15 @@ func apis() map[*string]string {
 	}
 }
 
+// testValues are each provider's credentials in tests (Namecheap's with
+// this lab's IP, which it would otherwise look up).
+var testValues = map[string]map[string]string{
+	"cloudflare": {"api_token": "t"}, "route53": {"access_key_id": "a", "secret_access_key": "s"},
+	"porkbun": {"api_key": "k", "api_secret_key": "s"}, "gandi": {"bearer_token": "t"},
+	"godaddy": {"api_key": "k", "api_secret": "s"}, "spaceship": {"api_key": "k", "api_secret": "s"},
+	"namecheap": {"user": "u", "api_key": "k", "client_ip": "203.0.113.7"},
+}
+
 // startRecordAPIs runs the fake APIs (dnstest) and points this package
 // at them until the test ends.
 func startRecordAPIs(t *testing.T) *dnstest.Fake {
@@ -48,17 +57,11 @@ func TestFakeAddresses(t *testing.T) {
 }
 
 func TestRecordsCreateAndUpdate(t *testing.T) {
-	values := map[string]map[string]string{
-		"cloudflare": {"api_token": "t"}, "route53": {"access_key_id": "a", "secret_access_key": "s"},
-		"porkbun": {"api_key": "k", "api_secret_key": "s"}, "gandi": {"bearer_token": "t"},
-		"godaddy": {"api_key": "k", "api_secret": "s"}, "spaceship": {"api_key": "k", "api_secret": "s"},
-		"namecheap": {"user": "u", "api_key": "k"},
-	}
 	ctx := context.Background()
 	for _, p := range Providers() {
 		t.Run(p.ID, func(t *testing.T) {
 			st := startRecordAPIs(t)
-			v := values[p.ID]
+			v := testValues[p.ID]
 			hc := http.DefaultClient
 			if got, err := p.GetRecord(ctx, hc, v, "example.com", "*.lab", "A"); err != nil || len(got) != 0 {
 				t.Fatalf("before: %v %v", got, err)
@@ -96,12 +99,6 @@ func TestRecordsCreateAndUpdate(t *testing.T) {
 // form (its quotes and final dots, Spaceship's field per type), read back
 // plain, and deleted; deleting what isn't there is no error.
 func TestRecordTypes(t *testing.T) {
-	values := map[string]map[string]string{
-		"cloudflare": {"api_token": "t"}, "route53": {"access_key_id": "a", "secret_access_key": "s"},
-		"porkbun": {"api_key": "k", "api_secret_key": "s"}, "gandi": {"bearer_token": "t"},
-		"godaddy": {"api_key": "k", "api_secret": "s"}, "spaceship": {"api_key": "k", "api_secret": "s"},
-		"namecheap": {"user": "u", "api_key": "k"},
-	}
 	// How each API holds them: the CNAME, then the TXT.
 	wire := map[string][2]string{
 		"cloudflare": {"r-abc.relay.roost.ac", `"roostack-proof=t0k"`},
@@ -116,7 +113,7 @@ func TestRecordTypes(t *testing.T) {
 	for _, p := range Providers() {
 		t.Run(p.ID, func(t *testing.T) {
 			st := startRecordAPIs(t)
-			v, hc := values[p.ID], http.DefaultClient
+			v, hc := testValues[p.ID], http.DefaultClient
 			stored := func(name, typ string) string {
 				if p.ID == "namecheap" {
 					for _, h := range st.NCHosts {

@@ -16,10 +16,10 @@
     <form method="post" action="/settings/cloud/dismiss"><button type="submit" class="quiet">Dismiss</button></form>
   </div>
   {{end}}
-  {{if and .Linked .Refused}}{{notice "warn" (printf "Roostack Cloud refuses this lab's requests: %s The lab stays linked; Roostack asks again every hour." .Refused)}}{{end}}
+  {{if and .Linked .Refused}}{{notice "warn" (printf "Roostack Cloud is refusing this lab's requests: %s The lab will stay linked, and Roostack will ask again every hour." .Refused)}}{{end}}
   {{if and .Linked .Suspended}}<p class="notice notice-error" role="alert"><strong>Roostack Cloud has suspended this lab's account:</strong> {{.Suspended}}.
-    While it's suspended, the lab's {{$.Cloud.Suffix}} names don't work, nothing comes through the relay, and Cloud refuses most of the lab's
-    requests. The lab itself carries on, and stays linked. Roostack Cloud emailed the account's Owner why, and how to appeal; Roostack checks
+    While it's suspended, the lab's {{$.Cloud.Suffix}} names won't work, nothing will come through the relay, and Cloud will refuse most of the lab's
+    requests. The lab itself is still working and will stay linked. Roostack Cloud emailed the account's Owner why and how to appeal, and Roostack will check
     every hour whether it's lifted.</p>{{end}}
   {{if and .Linked .Names}}
   <h2 class="section-title" id="names">Names on hold</h2>

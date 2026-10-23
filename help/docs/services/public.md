@@ -23,27 +23,28 @@ password and two-factor code. See [On a cloud server](#on-a-cloud-server).
 ## Making it public
 
 On the service's page, next to **Reachable from**, choose **Make
-public…**. Roostack explains what changes and asks you to confirm, then:
+public…**. Roostack will explain what will change and ask you to confirm,
+then:
 
-1. **Protection.** Roostack starts **CrowdSec**, which spots attacks in
-   the web log and blocks the addresses they come from, refuses requests
-   that try [known exploits](#blocking-known-exploits), and it limits how
-   fast anyone can try passwords. The first time, you choose whether
+1. **Protection.** Roostack will start **CrowdSec**, which spots attacks in
+   the web log, blocks the addresses they come from, and refuses requests
+   that try [known exploits](#blocking-known-exploits), and it will limit
+   how fast anyone can try passwords. The first time, you'll choose whether
    CrowdSec shares attack reports with its community (only attackers'
    addresses and what they tried). Sharing gets you the community's list
    of known attackers in return. You can change this in **Settings →
    Public access**.
-2. **DNS record.** Once CrowdSec is running, Roostack points the service's
-   address at your home's public address. If Roostack doesn't manage your
-   DNS records, the page shows the record to add yourself.
+2. **DNS record.** Once CrowdSec is running, Roostack will point the
+   service's address at your home's public address. If Roostack doesn't
+   manage your DNS records, the page will show the record to add yourself.
 3. **Your router.** Forward TCP ports 80 and 443, and UDP port 443, to this
    server's home address (the page shows it). Look for "port forwarding",
-   "virtual server" or "NAT" in your router's settings. If the server is a
+   "virtual server", or "NAT" in your router's settings. If the server is a
    cloud server rather than at home, skip this. So can a lab whose visitors
    come in through a cloud server (below).
 4. **Check from your phone.** Choose **Make a check link**, turn Wi-Fi off
-   so your phone uses mobile data, and scan the code. The step ticks itself
-   when your phone gets through.
+   so your phone uses mobile data, and scan the code. The step will tick
+   itself when your phone gets through.
 
 ## Through a cloud server, without touching your router
 
@@ -52,13 +53,13 @@ public visitors can come in through it instead of your router. Choose it
 in **Settings → Public access**, under **How people reach your public
 services**. Then:
 
-- public addresses point at the cloud server, so your home's address stays
-  hidden;
-- the cloud server passes each visitor's connection on to your lab over
+- public addresses will point at the cloud server, so your home's address
+  will stay hidden;
+- the cloud server will pass each visitor's connection on to your lab over
   the servers' own private network, **still encrypted**: it can't read
   what's sent, and the certificate stays at home;
-- your lab still sees who each visitor is, so CrowdSec, password limits
-  and the private parts of each service work as before;
+- your lab will still see who each visitor is, so CrowdSec, password
+  limits, and the private parts of each service will work as before;
 - if its provider has a firewall, it has to allow TCP ports 80 and 443.
 
 ??? note "For technical users"
@@ -82,21 +83,23 @@ have visitors come in through Roostack Cloud instead: no router changes
 and no server of your own. Choose it in **Settings → Public access**. Like
 a cloud server of your own, the relay passes connections on **still
 encrypted**: Roostack Cloud can't read them, and the certificate stays in
-your lab. It's part of a paid plan (by invitation while it's tried out).
+your lab. It's part of a paid plan (by invitation while it's being tried
+out).
 
 ### With your own domain
 
 If your lab's address is your own domain (such as `lab.example.com`) rather
 than a roost.ac name, Roostack Cloud first needs to know the domain is yours,
-so nobody else can send your names through the relay. Roostack adds a record
-for that at your DNS provider, `_roostack.lab.example.com` (TXT), and points
-each public address at Roostack Cloud with a CNAME record. If Roostack doesn't
-manage your DNS records, **Settings → Public access** shows the records to
-add yourself, with a **Check now** button.
+so that nobody else can send your names through the relay. Roostack will add
+a record for that at your DNS provider, `_roostack.lab.example.com` (TXT),
+and point each public address at Roostack Cloud with a CNAME record. If
+Roostack doesn't manage your DNS records, **Settings → Public access** will
+show the records to add yourself, with a **Check now** button.
 
-Until Roostack Cloud finds the record, public addresses don't come through
-the relay; Home says so. If the record is ever deleted, they stop a day later,
-and Home shows it as a problem, so you have time to put it back.
+Until Roostack Cloud finds the record, public addresses won't come through
+the relay, and Home will say so. If the record is ever deleted, they'll stop
+a day later, and Home will show it as a problem so that you have time to put
+it back.
 
 ### Visitors by country
 
@@ -106,13 +109,14 @@ reach your lab:
 
 - **Anyone, from any country**: the default.
 - **Only visitors from some countries**: for a family lab, often just your
-  own. The strongest choice, but your own phone abroad is turned away too.
+  own. The strongest choice, but your own phone abroad will be turned away
+  too.
 - **Everyone except visitors from some countries.**
 
 It's a rough filter: an address's country isn't always known or right, and
 someone turned away gets no message; the site just won't load. Before you
-travel, use **Let everyone in** for a day, a week, two weeks or a month: the
-limit comes back by itself afterwards.
+travel, use **Let everyone in** for a day, a week, two weeks, or a month:
+the limit will come back by itself afterwards.
 
 Addresses your lab's CrowdSec bans are turned away by the relay too, for
 your lab only, so an attacker it caught doesn't keep using your bandwidth.
@@ -120,17 +124,18 @@ your lab only, so an attacker it caught doesn't keep using your bandwidth.
 ### Turned off in Roostack Cloud
 
 Your Roostack Cloud account's page can turn the relay off, even while your
-lab is off (to stop what you pay for, say). Your lab then hears it from
-Roostack Cloud within a few minutes: **Settings → Public access** says when
-it was turned off, and Home says public services don't come through the
-relay. Their addresses point at your home's own address again meanwhile.
+lab is off (to stop what you pay for, say). Your lab will then hear it from
+Roostack Cloud within a few minutes: **Settings → Public access** will say
+when it was turned off, and Home will say public services aren't coming
+through the relay. Their addresses will point at your home's own address
+again meanwhile.
 
 Your lab never turns it back on by itself. When you want it again, choose
 **Turn the relay on** in **Settings → Public access**.
 
 If Roostack Cloud has **suspended** the relay (after an abuse report),
-the page says why, and there's no button: Roostack Cloud emailed the
-account's Owner how to appeal.
+the page will say why, and there'll be no button: Roostack Cloud emailed
+the account's Owner how to appeal.
 
 ### Visitors through the relay
 
@@ -220,20 +225,19 @@ home aren't checked).
 2. If it's yours, turn the blocking off for that service: choose
    **Manage** on the card (or open **Public access** from **Reachable
    from**), then under **Blocking known exploits**, **It refused something
-   … needs**, choose **Stop blocking**. Only that service changes, on all
-   its public addresses. CrowdSec still blocks addresses that attack it,
-   and password tries are still limited. The page warns while it's off,
-   with **Block known exploits** to turn it back on.
-3. Tell CrowdSec, so the rule is fixed for everyone: their rules are at
+   … needs**, choose **Stop blocking**. Only that service will change, on
+   all its public addresses. CrowdSec will still block addresses that
+   attack it, and password tries will still be limited. The page will warn
+   while it's off, with **Block known exploits** to turn it back on.
+3. Tell CrowdSec so that the rule is fixed for everyone: their rules are at
    [github.com/crowdsecurity/hub](https://github.com/crowdsecurity/hub).
    Give the rule's name and what the service was doing, not your
    address. Once a fixed rule reaches Roostack (with an update), turn the
    blocking back on.
 
 If you were blocked altogether (every page of every public service says
-*Shooed out of the henhouse* from outside), the block ends after four
-hours. A technical
-user can end it now (below).
+*Shooed out of the henhouse* from outside), the block will end after four
+hours. A technical user can end it now (below).
 
 ??? note "For technical users"
 
@@ -252,7 +256,7 @@ user can end it now (below).
       with Roostack's updates. The lists some of CrowdSec's attack
       scenarios use (from `hub-data.crowdsec.net`) can't be pinned that
       way: CrowdSec fetches the latest of them when it starts.
-    - The bouncer sends AppSec the request's address, path, headers and
+    - The bouncer sends AppSec the request's address, path, headers, and
       the first 1 MiB of its body, over the server's loopback. If AppSec
       doesn't answer within 2 seconds (CrowdSec restarting, say), the
       request goes through, and **Settings → Public access** says
@@ -282,8 +286,8 @@ service public, after reading why it's marked, or later under **Parts kept
 private** on the same page. The service's page says when one of its links
 leads to a private part.
 
-A few services are marked as not safe to make public at all. Roostack says
-why, and you have to confirm before it goes ahead.
+A few services are marked as not safe to make public at all. Roostack will
+say why, and you'll have to confirm before it goes ahead.
 
 ## On a cloud server
 
@@ -302,7 +306,7 @@ Where it is and DNS**; the setup wizard asks too. Then:
   put one in front of your server. Allow TCP ports 80 and 443, and UDP
   port 443, from anywhere. Check from any browser that isn't the server
   itself.
-- **DNS:** one record, `*.<your domain>`, points at the server, and covers
+- **DNS:** one record, `*.<your domain>`, points at the server and covers
   every service.
 
 ### Private on a cloud server
@@ -334,15 +338,15 @@ rarely need, such as an admin page.
 
 ## Making it private again
 
-On the same page, choose **Make private**. The service is reachable from
-home only again (on a cloud server, through an SSH tunnel only). At home,
-Roostack deletes the DNS record it made for the address, and the record
-for all your services (`*.<your domain>`) covers it again. It deletes only
-the record it made, and only if nobody has changed it since: one you've
-changed is yours, and Roostack leaves it alone. If your DNS provider
-doesn't answer, **Settings → Public access** says so and Roostack tries
-again every few minutes. Once nothing is public, and Roostack's own pages
-aren't either, CrowdSec stops.
+On the same page, choose **Make private**. The service will be reachable
+from home only again (on a cloud server, through an SSH tunnel only). At
+home, Roostack will delete the DNS record it made for the address, and the
+record for all your services (`*.<your domain>`) will cover it again. It
+will delete only the record it made, and only if nobody has changed it
+since: one you've changed is yours, and Roostack will leave it alone. If
+your DNS provider doesn't answer, **Settings → Public access** will say so,
+and Roostack will try again every few minutes. Once nothing is public, and
+Roostack's own pages aren't either, CrowdSec will stop.
 
 ??? note "For technical users"
 

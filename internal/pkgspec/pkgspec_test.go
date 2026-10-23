@@ -83,7 +83,7 @@ version: "1"
 databases:
   cache: { type: redis }
 containers:
-  web: { image: x, secrets: { P: databases.cache.password } }`, "only databases.<postgres, mysql or mariadb db>.password"},
+  web: { image: x, secrets: { P: databases.cache.password } }`, "only databases.<postgres, mysql, or mariadb db>.password"},
 		{"a mount of storage and libraries", `
 schema: roostack/v1alpha1
 name: app
@@ -250,7 +250,7 @@ storage:
 containers:
   web: { image: x }
 databases:
-  main: { type: sqlite, path: data/db.sqlite, memory: 10 MB }`, "image, memory and quadlet are not allowed"},
+  main: { type: sqlite, path: data/db.sqlite, memory: 10 MB }`, "image, memory, and quadlet are not allowed"},
 		{"database memory", `
 schema: roostack/v1alpha1
 name: app

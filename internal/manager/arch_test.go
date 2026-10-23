@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/registry"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // TestMixedProcessors: in a lab with an amd64 and an arm64 server, a
@@ -52,7 +53,7 @@ func TestMixedProcessors(t *testing.T) {
 	}
 	refused := "Vaultwarden has no version for vps's kind of processor (" + other + "), so it can't run there. It can run on nuc."
 	onVPS := InstallRequest{Host: "n-0000000002", Settings: map[string]string{}}
-	var fe *FormError
+	var fe *usererr.Error
 	if _, err := m.InstallSummary("vaultwarden", onVPS); !errors.As(err, &fe) || fe.Msg != refused {
 		t.Errorf("summary on vps: %v", err)
 	}

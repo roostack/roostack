@@ -21,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/web"
 )
 
@@ -33,7 +34,9 @@ const (
 
 // serveNode runs a server that another server (the controller) manages
 // (SPEC.md §10.3): it serves the lab API over Roostack's network, and no UI.
-func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent.Client, restart func(), log *slog.Logger) error {
+// Its backups' Roostack Cloud keys come through the controller (cloudKeys).
+func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent.Client, restart func(),
+	cloudKeys *cloudBackupKeys, log *slog.Logger) error {
 	m, _, err := labnet.LoadMembership(lab.Paths.StateDir)
 	if err != nil {
 		return err
@@ -79,7 +82,7 @@ func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent
 	go labnet.KeepRenewed(ctx, labID, local.ID.ID, labnet.RenewFromController(labnet.ControllerURL(m), m.ControllerID, labID), log)
 	// Roostack Cloud backup's keys, for this server's folder only, through
 	// the controller (which asks Cloud).
-	setCloudBackupKeys(labnet.StorageKeysFromController(labnet.ControllerURL(m), m.ControllerID, labID))
+	cloudKeys.set(labnet.StorageKeysFromController(labnet.ControllerURL(m), m.ControllerID, labID))
 
 	// Its own web address says which lab it's part of, and where to manage
 	// it (SPEC.md §10.2).
@@ -122,10 +125,8 @@ func pullAssignments(ctx context.Context, lab config.Lab, m labnet.Membership, a
 			log.Warn("fetching this server's assignment", "err", err)
 			wait = pullRetry
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, wait) {
 			return
-		case <-time.After(wait):
 		}
 	}
 }
@@ -177,10 +178,8 @@ func serveGuestAPI(ctx context.Context, local *node.Local, m labnet.Membership, 
 				serveWhile(ctx, ln, mux, func() bool { return local.GuestAddr() == addr }, log)
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 10*time.Second) {
 			return
-		case <-time.After(10 * time.Second):
 		}
 	}
 }

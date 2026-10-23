@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"os"
 	"slices"
 	"strings"
 
@@ -43,8 +42,7 @@ func Exec(ctx context.Context, run RunFunc, container string, env map[string]str
 // stdin, keeping its standard error apart from its output. Errors never
 // include stdin.
 func RunSplit(ctx context.Context, stdin []byte, args ...string) (stdout, stderr []byte, err error) {
-	unit := fmt.Sprintf("roostack-podman-%d-%d", os.Getpid(), seq.Add(1))
-	cmd := systemd.UserCommand(ctx, unit, nil, "podman", args...)
+	cmd := systemd.UserCommand(ctx, systemd.TransientUnit("podman", args...), nil, "podman", args...)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/fsutil"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // The sign-in page's look (SPEC.md §5.2, "The look of the sign-in page"):
@@ -179,14 +180,14 @@ func (s *Server) lookApp(w http.ResponseWriter, r *http.Request) {
 // logo, up to four times as wide as it is tall.
 func checkLogo(data []byte, wide bool) (string, error) {
 	if len(data) > maxLogo {
-		return "", errors.New("That file is too big: a logo can be at most 200 KB.")
+		return "", usererr.New("That file is too big: a logo can be at most 200 KB.")
 	}
 	if cfg, err := png.DecodeConfig(bytes.NewReader(data)); err == nil {
 		if wide && (cfg.Width > 4*cfg.Height || cfg.Width <= cfg.Height) {
-			return "", errors.New("A wide logo must be wider than it is tall, and at most four times as wide.")
+			return "", usererr.New("A wide logo must be wider than it is tall, and at most four times as wide.")
 		}
 		if !wide && (cfg.Width > cfg.Height*11/10 || cfg.Height > cfg.Width*11/10) {
-			return "", errors.New("A mark must be square (or nearly).")
+			return "", usererr.New("A mark must be square (or nearly).")
 		}
 		return "png", nil
 	}
@@ -194,15 +195,15 @@ func checkLogo(data []byte, wide bool) (string, error) {
 	if (strings.HasPrefix(text, "<svg") || strings.HasPrefix(text, "<?xml")) && strings.Contains(text, "<svg") {
 		for _, bad := range []string{"<script", "javascript:", "<foreignobject", "<iframe", "<!entity"} {
 			if strings.Contains(text, bad) {
-				return "", errors.New("That SVG has scripts or embedded pages in it. Save it again without them, or use a PNG.")
+				return "", usererr.New("That SVG has scripts or embedded pages in it. Save it again without them or use a PNG.")
 			}
 		}
 		if onAttr(text) {
-			return "", errors.New("That SVG has scripts in it. Save it again without them, or use a PNG.")
+			return "", usererr.New("That SVG has scripts in it. Save it again without them or use a PNG.")
 		}
 		return "svg", nil
 	}
-	return "", errors.New("A logo must be a PNG or SVG file.")
+	return "", usererr.New("A logo must be a PNG or SVG file.")
 }
 
 // onAttr finds an event handler attribute (onload=, onclick=, …).
@@ -233,7 +234,7 @@ func (s *Server) saveLook(r *http.Request) error {
 	ctx := r.Context()
 	palette, accent := r.FormValue("palette"), r.FormValue("accent")
 	if !validPalette(palette) {
-		return errors.New("Choose one of the themes.")
+		return usererr.New("Choose one of the themes.")
 	}
 	if !validAccent(palette, accent) {
 		accent = ""
@@ -284,10 +285,10 @@ func (s *Server) saveLook(r *http.Request) error {
 		}
 	}
 	if kind == logoMark && files["mark"] == "" {
-		return errors.New("Choose a file for the mark, or another kind of logo.")
+		return usererr.New("Choose a file for the mark, or another kind of logo.")
 	}
 	if kind == logoWide && files["wide"] == "" {
-		return errors.New("Choose a file for the wide logo, or another kind of logo.")
+		return usererr.New("Choose a file for the wide logo, or another kind of logo.")
 	}
 	for k, v := range map[string]string{settingSignInPalette: palette, settingSignInAccent: accent, settingSignInLogo: kind} {
 		if err := s.Store.SetSetting(ctx, k, v); err != nil {

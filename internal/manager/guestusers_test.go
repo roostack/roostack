@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,9 +17,11 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 // hostAgent is the host lab's WireGuard, for its guest hub.
@@ -34,20 +35,11 @@ func (hostAgent) ApplyWireGuard(context.Context, agent.WireGuard) (string, error
 // user, made when its backups are set up there, and removed when it
 // leaves the lab (review M21).
 func TestRemoteStorageServerUsers(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	t.Parallel()
+	bin := restictest.Bin(t)
 	ctx := context.Background()
 	// The friend's lab: its guest API over httptest.
-	hst, err := store.Open(filepath.Join(t.TempDir(), "host.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer hst.Close()
+	hst := storetest.Open(t)
 	hub := &labnet.GuestHub{LabName: func() string { return "Mum's lab" }, Store: hst, Agent: hostAgent{},
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now}
 	inv, err := hub.NewInvite(ctx, "Sam's lab", 10<<30, "203.0.113.7:51821")
@@ -73,11 +65,7 @@ func TestRemoteStorageServerUsers(t *testing.T) {
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
 	m.LinkAgent = fakeLinks{}
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore, m.Settings = st, st
 	dir := t.TempDir()
 	recovery := filepath.Join(dir, "recovery")
@@ -112,8 +100,9 @@ func TestRemoteStorageServerUsers(t *testing.T) {
 		t.Errorf("the host's user for the vps doesn't match: %v", hostUsers())
 	}
 	// The host runs the guest's store with that user.
-	hm := &Manager{GuestHub: hub, GuestRecords: hst, Log: m.Log}
-	if stores, _ := hm.guestStores(ctx); len(stores) != 1 || stores[0].Users["n-0000000002"] == "" || stores[0].StoreHash != "" {
+	hm := &Manager{Log: m.Log}
+	hm.Guests().Hub, hm.Guests().Records = hub, hst
+	if stores, _ := hm.Guests().guestStores(ctx); len(stores) != 1 || stores[0].Users["n-0000000002"] == "" || stores[0].StoreHash != "" {
 		t.Errorf("host's stores: %+v", stores)
 	}
 	// The controller creates and prunes it with the lab's admin access.

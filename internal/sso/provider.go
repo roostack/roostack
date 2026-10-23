@@ -443,7 +443,7 @@ func (p *Provider) codeGrant(w http.ResponseWriter, r *http.Request, c Client) {
 	}
 	switch {
 	case ac == nil || ac.client != c.ID:
-		tokenError(w, http.StatusBadRequest, "invalid_grant", "the code is wrong, used or too old")
+		tokenError(w, http.StatusBadRequest, "invalid_grant", "the code is wrong, used, or too old")
 		return
 	case ac.redirectURI != r.PostForm.Get("redirect_uri"):
 		tokenError(w, http.StatusBadRequest, "invalid_grant", "redirect_uri isn't the one the code was given for")
@@ -480,7 +480,7 @@ func (p *Provider) refreshGrant(w http.ResponseWriter, r *http.Request, c Client
 		// Used already (or two requests raced): a retry within the grace.
 		rot = p.retry(hash, c.ID)
 		if rot == nil {
-			tokenError(w, http.StatusBadRequest, "invalid_grant", "the refresh token is wrong, used or ended")
+			tokenError(w, http.StatusBadRequest, "invalid_grant", "the refresh token is wrong, used, or ended")
 			return
 		}
 		p.revoke(ctx, rot, "a refresh token used again")

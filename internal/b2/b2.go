@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
@@ -69,7 +70,7 @@ func (c *Client) CreateKey(ctx context.Context, name, bucket, prefix string) (Ke
 	if err != nil {
 		return Key{}, err
 	}
-	if !contains(s.capabilities, "writeKeys") {
+	if !slices.Contains(s.capabilities, "writeKeys") {
 		return Key{}, ErrCantCreateKeys
 	}
 	b, err := c.bucket(ctx, s, bucket)
@@ -101,7 +102,7 @@ func (c *Client) CanMakeKeys(ctx context.Context, bucket string) (bool, error) {
 	if _, err := c.bucket(ctx, s, bucket); err != nil {
 		return false, err
 	}
-	return contains(s.capabilities, "writeKeys"), nil
+	return slices.Contains(s.capabilities, "writeKeys"), nil
 }
 
 // KeepsHidden says how many days Backblaze keeps hidden files under prefix
@@ -235,13 +236,4 @@ func (c *Client) do(req *http.Request, out any) error {
 		return nil
 	}
 	return json.Unmarshal(data, out)
-}
-
-func contains(list []string, s string) bool {
-	for _, x := range list {
-		if x == s {
-			return true
-		}
-	}
-	return false
 }

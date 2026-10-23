@@ -10,6 +10,8 @@ import (
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +54,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/setup") // the setup code first (again, if it's been a while)
 		return
 	case !auth.ValidUsername(username):
-		fail("Choose a username of letters and digits (dots, dashes and underscores are fine too), up to 32 characters.")
+		fail("Choose a username of letters and digits (dots, dashes, and underscores are fine too), up to 32 characters.")
 		return
 	case emailProblem(email) != "":
 		// Every Owner has one (ownerNeedsEmail).
@@ -63,7 +65,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := authkit.CheckPasswordPolicy(password); err != nil {
-		fail(capitalize(err.Error()) + ".")
+		fail(words.Capitalise(err.Error()) + ".")
 		return
 	}
 	hash, err := authkit.HashPassword(password)
@@ -73,7 +75,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if labName != "" {
 		err := s.Setup.SetLabName(r.Context(), labName, false)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			fail(msg)
 			return
 		}

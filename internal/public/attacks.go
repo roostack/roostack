@@ -1,6 +1,7 @@
 package public
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -60,7 +61,7 @@ func parseAlerts(out []byte) (Attacks, error) {
 			continue // a request AppSec refused (CrowdSecBlocks)
 		}
 		a.Alerts++
-		addrs[cmpOr(al.Source.IP, al.Source.Value)] = true
+		addrs[cmp.Or(al.Source.IP, al.Source.Value)] = true
 		if len(al.Decisions) > 0 {
 			a.Blocked++
 		}
@@ -84,13 +85,6 @@ func parseAlerts(out []byte) (Attacks, error) {
 		a.Kinds = a.Kinds[:3]
 	}
 	return a, nil
-}
-
-func cmpOr(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
 }
 
 // CrowdSecBans are the addresses and ranges CrowdSec bans now, newest

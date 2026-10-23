@@ -9,8 +9,8 @@
   {{/* Asks every few seconds; the page reloads once the server answers. */}}
   <div hx-get="/settings/servers/{{.Server.ID}}/reachable" hx-trigger="every 5s [document.visibilityState === 'visible']" hx-swap="none">
     <p><span class="spinner" aria-hidden="true"></span> Can't reach {{.Server.Name}} right now.</p>
-    <p class="hint">If you just changed one of its settings, it's restarting to apply it: that takes a minute or so, and this page
-      carries on by itself when it's back. If it's switched off or its network is down, its settings show once it's back.</p>
+    <p class="hint">If you just changed one of its settings, it's restarting to apply it: that will take a minute or so, and this page
+      will carry on by itself when it's back. If it's switched off or its network is down, its settings will show once it's back.</p>
   </div>
 </section>
 {{end}}

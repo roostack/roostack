@@ -12,10 +12,10 @@
     {{notice "info" "Its services are being restored, one after another. This page shows how it's going."}}
   {{else if .Services}}
   {{$name := .Plan.Server.Name}}
-  <p>{{$name}} can't be reached. If it's still there (switched off, or its network is down), it reconnects by itself when it's back,
+  <p>{{$name}} can't be reached. If it's still there (switched off, or its network is down), it will reconnect by itself when it's back,
     with its services: you don't need this page.</p>
-  <p>If it isn't coming back, choose which of its services to restore now, from their backups. The others wait until you restore
-    them, onto any server. Nothing is deleted.</p>
+  <p>If it isn't coming back, choose which of its services to restore now, from their backups. The others will wait until you restore
+    them onto any server. Nothing will be deleted.</p>
   <form method="post" action="/settings/servers/{{.Plan.Server.ID}}/gone"
     x-data="{ total: 0, free: -1, calc() {
       this.total = [...$el.querySelectorAll('input[name=service]:checked')].reduce((t, c) => t + Math.max(0, Number(c.dataset.size)), 0);
@@ -38,13 +38,13 @@
         <span x-text="roostackSize(free)"></span> is free there</span>.</small>
     </label>
     <p class="notice notice-warn" x-show="free >= 0 && total > free * 0.9" x-cloak>That's more than there's room for.
-      Choose fewer services, or another server.</p>
+      Choose fewer services or another server.</p>
     {{else}}
     {{notice "warn" "No other server is connected to restore onto. Its services can still wait to be restored."}}
     {{end}}
     <label class="check"><input type="checkbox" name="confirm" required>
       <span>{{$name}} isn't coming back<small>Its services won't run there any more, even if it does come back.
-        Once none of them are waiting, it leaves the lab; its backups stay.</small></span></label>
+        Once none of them are waiting, it will leave the lab, and its backups will stay.</small></span></label>
     <button type="submit">Continue</button>
   </form>
   {{else}}

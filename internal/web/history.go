@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // History (SPEC.md §6.14): what Roostack did on each server (each finished
@@ -193,10 +194,8 @@ func (s *Server) cullHistory(ctx context.Context, before time.Time) int64 {
 func (s *Server) RunHistoryCull(ctx context.Context) {
 	wait := time.Minute
 	for {
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, wait) {
 			return
-		case <-time.After(wait):
 		}
 		if n := s.cullHistory(ctx, time.Now().AddDate(0, 0, -s.historyKeepDays(ctx))); n > 0 {
 			s.Log.Info("deleted old history", "entries", n)

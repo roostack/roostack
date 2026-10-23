@@ -90,8 +90,8 @@ func TestLibraryFolder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func(roots []string) { LibraryFolderRoots = roots }(LibraryFolderRoots)
-	LibraryFolderRoots = []string{dir}
+	defer func(roots []string) { FolderRoots = roots }(FolderRoots)
+	FolderRoots = []string{dir}
 	os.Mkdir(filepath.Join(dir, "music"), 0o755)
 	os.Symlink(filepath.Join(dir, "music"), filepath.Join(dir, "link"))
 	if got, err := libraryFolder(filepath.Join(dir, "music")); err != nil || got != filepath.Join(dir, "music") {
@@ -102,7 +102,7 @@ func TestLibraryFolder(t *testing.T) {
 			t.Errorf("%q must be refused", bad)
 		}
 	}
-	LibraryFolderRoots = []string{"/srv", "/mnt"}
+	FolderRoots = []string{"/srv", "/mnt"}
 	if !ownFolder("/srv/roostack") || !ownFolder("/mnt/roostack-media-data") || ownFolder("/srv/media") || ownFolder("/mnt/nas") {
 		t.Error("ownFolder")
 	}
@@ -246,11 +246,11 @@ func TestLibraryAPI(t *testing.T) {
 // account name that isn't one is refused before anything is touched.
 func TestPhotoNames(t *testing.T) {
 	for _, c := range []struct{ service, who string }{{"immich", "../etc"}, {"Immich", "anna"}, {"immich", ""}, {"immich/x", "anna"}, {"immich", ".anna"}} {
-		if err := checkPhotoNames(c.service, c.who); err == nil {
+		if err := (PhotosRequest{Service: c.service, Who: c.who}).Validate(); err == nil {
 			t.Errorf("%q %q should be refused", c.service, c.who)
 		}
 	}
-	if err := checkPhotoNames("immich", "anna.s_1-x"); err != nil {
+	if err := (PhotosRequest{Service: "immich", Who: "anna.s_1-x"}).Validate(); err != nil {
 		t.Error(err)
 	}
 	if got := photoSpot("immich", "anna").target; got != "/mnt/roostack-import/immich.photos.anna" {

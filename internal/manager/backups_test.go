@@ -4,35 +4,33 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/b2"
+	"roostack.cloud/roostack/internal/b2/b2test"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 func TestBackupDestinationOnAServersDisk(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
@@ -41,11 +39,7 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	// The repository really lives in a folder; the URLs are checked below.
 	dir := t.TempDir()
@@ -134,39 +128,13 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 }
 
 func TestBackupDestinationB2ScopedKey(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
-	// A fake Backblaze: authorises the account key, makes and deletes keys.
-	var created map[string]any
-	var deleted []string
-	mux := http.NewServeMux()
-	var api *httptest.Server
-	mux.HandleFunc("GET /b2api/v2/b2_authorize_account", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"accountId": "acct", "apiUrl": api.URL, "authorizationToken": "tok",
-			"allowed": map[string]any{"capabilities": []string{"writeKeys", "deleteKeys", "listBuckets"}}})
-	})
-	// The bucket erases hidden files a day after they're hidden.
-	mux.HandleFunc("POST /b2api/v2/b2_list_buckets", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]any{"bucketId": "bkt1",
-			"lifecycleRules": []any{map[string]any{"fileNamePrefix": "", "daysFromHidingToDeleting": 1}}}}})
-	})
-	mux.HandleFunc("POST /b2api/v2/b2_create_key", func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&created)
-		json.NewEncoder(w).Encode(map[string]string{"applicationKeyId": "scoped-id", "applicationKey": "scoped-secret"})
-	})
-	mux.HandleFunc("POST /b2api/v2/b2_delete_key", func(w http.ResponseWriter, r *http.Request) {
-		var in map[string]string
-		json.NewDecoder(r.Body).Decode(&in)
-		deleted = append(deleted, in["applicationKeyId"])
-		w.Write([]byte("{}"))
-	})
-	api = httptest.NewServer(mux)
-	defer api.Close()
+	t.Parallel()
+	bin := restictest.Bin(t)
+	// A fake Backblaze: the account key can make and delete keys, and the
+	// bucket erases hidden files a day after they're hidden.
+	api := b2test.New(t)
+	api.Keys["master-id master-key"] = []string{"writeKeys", "deleteKeys", "listBuckets"}
+	api.Buckets["backups"] = b2test.Bucket{ID: "bkt1", Rules: []map[string]any{{"fileNamePrefix": "", "daysFromHidingToDeleting": 1}}}
 
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
@@ -174,11 +142,7 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	dir := t.TempDir()
 	recovery := filepath.Join(dir, "recovery")
@@ -200,10 +164,11 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	}
 	d := vps.settings.dest
 	env := strings.Join(d.Env, " ")
-	if d == nil || !strings.Contains(env, "AWS_ACCESS_KEY_ID=scoped-id") || strings.Contains(env, "master") {
+	if d == nil || !strings.Contains(env, "AWS_ACCESS_KEY_ID=scoped-1") || strings.Contains(env, "master") {
 		t.Fatalf("the vps must get only its scoped key: %+v", d)
 	}
 	labID, _ := st.LabID(ctx)
+	created := api.Created()[0]
 	if created["namePrefix"] != "roostack/"+labID+"/n-0000000002/" || created["bucketId"] != "bkt1" {
 		t.Errorf("key made with %v", created)
 	}
@@ -253,7 +218,7 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil {
 		t.Fatal(err)
 	}
-	if len(deleted) != 1 || deleted[0] != "scoped-id" {
+	if deleted := api.Deleted(); len(deleted) != 1 || deleted[0] != "scoped-1" {
 		t.Errorf("deleted = %v", deleted)
 	}
 	removal, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002"))
@@ -285,13 +250,8 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 // An extra copy of the vps's backups on nuc's disk: its own repository,
 // key and store user, never at the main destination.
 func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
@@ -300,11 +260,7 @@ func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	dir := t.TempDir()
 	recovery := filepath.Join(dir, "recovery")
@@ -313,7 +269,7 @@ func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
 		return &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache")}
 	}
 	ctx := context.Background()
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.AddBackupCopy(ctx, "n-0000000002", "server:n-0000000001"); !errors.As(err, &fe) {
 		t.Errorf("a copy needs a main destination first: %v", err)
 	}
@@ -366,11 +322,7 @@ func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
 
 func TestRemoteStorageFollowsRename(t *testing.T) {
 	m, _ := newManager(t)
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	ctx := context.Background()
 	cfg, _ := json.Marshal(RemoteStorage{HostName: "lab.example.com", Quota: 5 << 30})
@@ -388,28 +340,25 @@ func TestRemoteStorageFollowsRename(t *testing.T) {
 // about it) and its data for the grace period, then both go.
 func TestRemovedGuestGrace(t *testing.T) {
 	m, _ := newManager(t)
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.Lab.NodeID = "n-0000000001"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
 	local(m).Links = fakeLinks{}
 	vps := &fakeRemote{settings: &fakeServerSettings{}}
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
-	m.GuestRecords = st
-	m.GuestHub = &labnet.GuestHub{LabName: func() string { return "nuc's lab" }, Store: st, Agent: m.GuestLinkAgent(), Log: m.Log, Now: time.Now}
+	host := m.Guests()
+	host.Records = st
+	host.Hub = &labnet.GuestHub{LabName: func() string { return "nuc's lab" }, Store: st, Agent: host.GuestLinkAgent(), Log: m.Log, Now: time.Now}
 	ctx := context.Background()
 	// The vps offers the storage.
-	if err := m.SetGuestServer(ctx, "n-0000000002"); err != nil || m.HostsGuests(ctx) {
+	if err := host.SetGuestServer(ctx, "n-0000000002"); err != nil || host.HostsGuests(ctx) {
 		t.Fatal(err)
 	}
-	inv, err := m.GuestHub.NewInvite(ctx, "Sam's lab", 10<<30, "203.0.113.7:51821")
+	inv, err := host.Hub.NewInvite(ctx, "Sam's lab", 10<<30, "203.0.113.7:51821")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.JoinGuest(ctx, labnet.HashToken(inv.Token), "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", time.Now()); err != nil {
+	if _, err := st.JoinGuest(ctx, authkit.HashToken(inv.Token), "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	guests, _ := st.Guests(ctx, time.Now())
@@ -417,16 +366,16 @@ func TestRemovedGuestGrace(t *testing.T) {
 	// The vps's disk: 500 of 1000 GB free, 1 GB used by Sam, 10 GB
 	// promised, 100 GB kept free: 391 GB more to offer. A quota change
 	// doesn't count the guest's own quota.
-	if sp, ok := m.GuestSpaceLeft(ctx); !ok || sp.Left != 391<<30 || sp.Promised != 9<<30 || sp.Free != 500<<30 {
+	if sp, ok := host.GuestSpaceLeft(ctx); !ok || sp.Left != 391<<30 || sp.Promised != 9<<30 || sp.Free != 500<<30 {
 		t.Errorf("space %+v, %v", sp, ok)
 	}
-	if err := m.SetGuestQuota(ctx, g.ID, 402<<30); err == nil || !strings.Contains(err.Error(), "doesn't fit") {
+	if err := host.SetGuestQuota(ctx, g.ID, 402<<30); err == nil || !strings.Contains(err.Error(), "doesn't fit") {
 		t.Errorf("a quota that doesn't fit: %v", err)
 	}
-	if err := m.SetGuestQuota(ctx, g.ID, 401<<30); err != nil {
+	if err := host.SetGuestQuota(ctx, g.ID, 401<<30); err != nil {
 		t.Errorf("one that does: %v", err)
 	}
-	if stores, _ := m.guestStores(ctx); len(stores) != 1 {
+	if stores, _ := host.guestStores(ctx); len(stores) != 1 {
 		t.Fatal("a guest's store runs")
 	}
 	m.Apply()
@@ -436,14 +385,14 @@ func TestRemovedGuestGrace(t *testing.T) {
 		t.Errorf("the vps runs the guest's store and link: %+v %d", vps.last.Guests, len(vps.guestLink))
 	}
 	vps.mu.Unlock()
-	if err := m.SetGuestServer(ctx, "n-0000000001"); err == nil {
+	if err := host.SetGuestServer(ctx, "n-0000000001"); err == nil {
 		t.Error("storage can't move while a lab stores there")
 	}
-	if err := m.RemoveGuest(ctx, g.ID); err != nil {
+	if err := host.RemoveGuest(ctx, g.ID); err != nil {
 		t.Fatal(err)
 	}
 	m.Wait()
-	if stores, _ := m.guestStores(ctx); len(stores) != 0 {
+	if stores, _ := host.guestStores(ctx); len(stores) != 0 {
 		t.Error("a removed guest's store stops")
 	}
 	peers := func() int {
@@ -451,23 +400,23 @@ func TestRemovedGuestGrace(t *testing.T) {
 		defer vps.mu.Unlock()
 		return len(vps.guestLink[len(vps.guestLink)-1].Peers)
 	}
-	m.GuestHub.SyncPeers(ctx)
+	host.Hub.SyncPeers(ctx)
 	if peers() != 1 {
 		t.Error("its link stays, so it can be told")
 	}
-	if err := m.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace-time.Hour)); err != nil || len(vps.deleted) != 0 {
+	if err := host.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace-time.Hour)); err != nil || len(vps.deleted) != 0 {
 		t.Fatalf("within the grace period: %v %v", err, vps.deleted)
 	}
-	if err := m.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace+time.Hour)); err != nil || !slices.Equal(vps.deleted, []string{g.User()}) {
+	if err := host.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace+time.Hour)); err != nil || !slices.Equal(vps.deleted, []string{g.User()}) {
 		t.Fatalf("after it: %v %v", err, vps.deleted)
 	}
 	if guests, _ := st.Guests(ctx, time.Now()); len(guests) != 0 || peers() != 0 {
 		t.Errorf("gone: %+v peers %d", guests, peers())
 	}
-	if err := m.SetGuestServer(ctx, "n-0000000001"); err != nil || !m.HostsGuests(ctx) {
+	if err := host.SetGuestServer(ctx, "n-0000000001"); err != nil || !host.HostsGuests(ctx) {
 		t.Errorf("with nobody storing, storage can move back: %v", err)
 	}
-	if err := m.DeleteRemovedGuest(ctx, g.ID); !errors.Is(err, ErrNotFound) {
+	if err := host.DeleteRemovedGuest(ctx, g.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("already deleted: %v", err)
 	}
 }
@@ -499,13 +448,8 @@ func (f fakeDriveAgent) PrepareBackupFolder(_ context.Context, dir string) (stri
 // This server backs up to its USB drive (backup 1), then a copy on vps's
 // disk is made backup 1 instead: both repositories stay, swapped.
 func TestBackupOnADriveAndPromote(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
@@ -516,11 +460,7 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	mount := t.TempDir()
 	m.Drives = fakeDriveAgent{dir: mount}
@@ -542,7 +482,7 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 			t.Fatalf("setup: %s\n%s", log.Err, strings.Join(log.Lines, "\n"))
 		}
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.SetBackupDestination(ctx, "n-0000000002", "drive:uuid:64B1"); !errors.As(err, &fe) {
 		t.Errorf("another server can't use this server's drive: %v", err)
 	}
@@ -580,14 +520,12 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 // A repository that's locked (its server still backing up) is tried again
 // later, up to pruneTries in all; the others aren't.
 func TestPruneRetriesLocked(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
+	m.waits.pruneRetry = time.Millisecond
 	m.Activity = activity.New()
 	ctx := context.Background()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	dir := t.TempDir()
 	// restic exits 11 when it can't lock the repository.
@@ -608,8 +546,6 @@ func TestPruneRetriesLocked(t *testing.T) {
 		st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-000000000" + map[string]string{"busy": "2", "idle": "3"}[id],
 			Provider: "local:" + filepath.Join(dir, id), Repository: filepath.Join(dir, id), Created: time.Now()})
 	}
-	pruneRetry = time.Millisecond
-	defer func() { pruneRetry = time.Hour }()
 	submitted := make(chan maintenance.Job, 5)
 	m.Submit = func(j maintenance.Job) { submitted <- j }
 
@@ -677,13 +613,8 @@ func (f *fakeCloudBackup) StorageUsage(context.Context) (cloudapi.StorageUsage, 
 // Cloud, reached with keys that expire (no credentials of its own kept);
 // the controller creates and prunes it with the lab's prune keys.
 func TestCloudBackupDestination(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	t.Parallel()
+	bin := restictest.Bin(t)
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
 	m.Lab.Paths.StateDir = t.TempDir()
@@ -691,11 +622,7 @@ func TestCloudBackupDestination(t *testing.T) {
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	dir := t.TempDir()
 	recovery := filepath.Join(dir, "recovery")
@@ -709,23 +636,23 @@ func TestCloudBackupDestination(t *testing.T) {
 	cloud := &fakeCloudBackup{}
 	m.CloudBackup = cloud
 	choices, _ := m.BackupChoices(ctx)
-	if slices.ContainsFunc(choices, func(c BackupChoice) bool { return c.Ref == CloudChoice }) {
+	if slices.ContainsFunc(choices, func(c BackupChoice) bool { return c.Ref == destination.Cloud }) {
 		t.Error("offered without a quota")
 	}
 	cloud.quota = 500_000_000_000
 	choices, _ = m.BackupChoices(ctx)
-	i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == CloudChoice })
+	i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == destination.Cloud })
 	if i < 0 || !strings.Contains(choices[i].Note, "120.0 GB of 500.0 GB") || !strings.Contains(choices[i].Note, "can't read it") {
 		t.Fatalf("choices: %+v", choices)
 	}
 	// With the account's other labs: their total, and this lab's share.
 	cloud.accountUsed = 300_000_000_000
 	choices, _ = m.BackupChoices(ctx)
-	if i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == CloudChoice }); i < 0 ||
+	if i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == destination.Cloud }); i < 0 ||
 		!strings.Contains(choices[i].Note, "Your account's labs use 300.0 GB of 500.0 GB; this lab 120.0 GB.") {
 		t.Fatalf("choices with the account's labs: %+v", choices)
 	}
-	if err := m.SetBackupDestination(ctx, "n-0000000002", CloudChoice); err != nil {
+	if err := m.SetBackupDestination(ctx, "n-0000000002", destination.Cloud); err != nil {
 		t.Fatal(err)
 	}
 	if l := waitDone(t, m, activity.BackupSetupFor("n-0000000002")); l.Err != "" {
@@ -747,7 +674,7 @@ func TestCloudBackupDestination(t *testing.T) {
 	if len(cloud.asked) != n {
 		t.Errorf("prune keys asked again while fresh: %+v", cloud.asked[n:])
 	}
-	if t2, _, ok := m.BackupTargetOf(ctx, "n-0000000002"); !ok || t2.Provider != CloudChoice {
+	if t2, _, ok := m.BackupTargetOf(ctx, "n-0000000002"); !ok || t2.Provider != destination.Cloud {
 		t.Errorf("target: %+v", t2)
 	}
 }

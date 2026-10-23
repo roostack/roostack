@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Backup folders: the setup wizard offers "a disk or folder on this
@@ -26,7 +28,9 @@ import (
 // Checking a path first isn't enough: a symlink can appear between the
 // check and the change.
 
-// FolderRoots are where backup folders may be prepared.
+// FolderRoots are where a backup folder may be prepared, and where a
+// library can be a folder already on the server (the agent can't see
+// /home: its sandbox hides it).
 var FolderRoots = []string{"/mnt", "/media", "/srv"}
 
 // BackupFolderName is the folder Roostack keeps its backups in.
@@ -38,11 +42,11 @@ const BackupFolderName = "roostack"
 func prepareFolder(dir string, roots []string, uid, gid int) (string, error) {
 	dir = filepath.Clean(dir)
 	if !filepath.IsAbs(dir) {
-		return "", errors.New("the folder must be a full path")
+		return "", refuse("the folder must be a full path")
 	}
 	top := rootOf(dir, roots)
 	if top == "" {
-		return "", fmt.Errorf("choose a folder under %s", strings.Join(roots, ", "))
+		return "", refuse("choose a folder under %s", strings.Join(roots, ", "))
 	}
 	// Symlinks are resolved first: that gives a clear message for one
 	// leading elsewhere, and lets os.Root use one that stays inside (it
@@ -50,13 +54,13 @@ func prepareFolder(dir string, roots []string, uid, gid int) (string, error) {
 	// kept inside by the os.Root.
 	real, err := filepath.EvalSymlinks(dir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return "", fmt.Errorf("%s doesn't exist: make it first (sudo mkdir -p %s)", dir, dir)
+		return "", refuse("%s doesn't exist: make it first (sudo mkdir -p %s)", dir, dir)
 	}
 	if err != nil {
 		return "", err
 	}
 	if rootOf(real, []string{top}) == "" {
-		return "", fmt.Errorf("%s leads outside %s", dir, top)
+		return "", refuse("%s leads outside %s", dir, top)
 	}
 	rel, err := filepath.Rel(top, real)
 	if err != nil {
@@ -75,7 +79,7 @@ func prepareFolder(dir string, roots []string, uid, gid int) (string, error) {
 	if fi, err := parent.Stat(); err != nil {
 		return "", err
 	} else if !fi.IsDir() {
-		return "", fmt.Errorf("%s isn't a folder", dir)
+		return "", refuse("%s isn't a folder", dir)
 	}
 	if err := ownedFolder(parent, BackupFolderName, uid, gid); err != nil {
 		return "", fmt.Errorf("%s: %w", filepath.Join(dir, BackupFolderName), err)
@@ -86,7 +90,7 @@ func prepareFolder(dir string, roots []string, uid, gid int) (string, error) {
 // rootOf returns the root in roots that p is in (or is), or "".
 func rootOf(p string, roots []string) string {
 	for _, r := range roots {
-		if p == r || strings.HasPrefix(p, r+"/") {
+		if fsutil.Within(p, r) {
 			return r
 		}
 	}

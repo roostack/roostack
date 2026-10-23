@@ -3,7 +3,6 @@ package web
 import (
 	"cmp"
 	"errors"
-	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -11,6 +10,8 @@ import (
 
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Installing a service, step by step (SPEC.md §6.3.3): the service's page,
@@ -21,7 +22,7 @@ import (
 const longStep = 5 * time.Minute
 
 // tookText is how long something took, or has taken so far (to is zero):
-// "14 s", "3 min", "1 h 5 min".
+// "14 s", "3 min", "1 h 5 min" (words.ExactDuration).
 func tookText(from, to time.Time) string {
 	if from.IsZero() {
 		return ""
@@ -29,14 +30,7 @@ func tookText(from, to time.Time) string {
 	if to.IsZero() {
 		to = time.Now()
 	}
-	d := to.Sub(from).Round(time.Second)
-	switch {
-	case d < time.Minute:
-		return fmt.Sprintf("%d s", int(d.Seconds()))
-	case d < time.Hour:
-		return fmt.Sprintf("%d min", int(d.Minutes()))
-	}
-	return fmt.Sprintf("%d h %d min", int(d.Hours()), int(d.Minutes())%60)
+	return words.ExactDuration(to.Sub(from))
 }
 
 // installSummaryView is what installing a service would set up, shown
@@ -77,7 +71,7 @@ func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) 
 		v.Params = "not " + strings.Join(secrets, ",")
 	}
 	sum, err := s.Manager.InstallSummary(p.Name, req)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		v.Err = msg
 		return v
 	}
@@ -126,7 +120,7 @@ func listText(items []string, lower bool) string {
 	out := slices.Clone(items)
 	for i := range out {
 		if lower || i > 0 {
-			out[i] = lowerFirstWord(out[i])
+			out[i] = words.LowerFirstWord(out[i])
 		}
 	}
 	if len(out) == 1 {
@@ -137,16 +131,6 @@ func listText(items []string, lower bool) string {
 		last = ", and "
 	}
 	return strings.Join(out[:len(out)-1], ", ") + last + out[len(out)-1]
-}
-
-// lowerFirstWord lowers a phrase's first letter, unless its first word
-// looks like a name (another capital in it, such as "PostgreSQL").
-func lowerFirstWord(s string) string {
-	word, _, _ := strings.Cut(s, " ")
-	if len(word) < 2 || strings.ToLower(word[1:]) != word[1:] {
-		return s
-	}
-	return strings.ToLower(s[:1]) + s[1:]
 }
 
 // installSummaryPart is the summary again, for the install form as it

@@ -1,19 +1,20 @@
 # Remove a service
 
 On the service's page, choose **Remove *service*…** at the bottom. Roostack
-shows where the service's data is before you confirm.
+will show where the service's data is before you confirm.
 
 When you remove a service:
 
-- it's **stopped and removed** from your lab, and its web address stops
-  working;
-- **its data is kept**, in the folders shown. Nothing is deleted;
+- it will be **stopped and removed** from your lab, and its web address
+  will stop working;
+- **its data will be kept** in the folders shown, and nothing will be
+  deleted;
 - if you **install it again** later, under the same name on the same
-  server, it uses that data, and carries on where it left off. The install
-  page says so. Its first-time settings (such as Forgejo's administrator)
-  can then be left empty: the service keeps the accounts it has. Fill them
-  in only to set it up again with them, for example to add another
-  administrator.
+  server, it will use that data and carry on where it left off, and the
+  install page will say so. Its first-time settings (such as Forgejo's
+  administrator) can then be left empty: the service will keep the accounts
+  it has. Fill them in only to set it up again with them, for example to
+  add another administrator.
 
 Only Owners and Admins can remove services.
 

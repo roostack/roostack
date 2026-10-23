@@ -48,7 +48,7 @@ func TestRestoreALabFromSetupPages(t *testing.T) {
 	}
 	data, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if body := string(data); !strings.Contains(body, "This setup page closes as Roostack restarts as your lab.") ||
+	if body := string(data); !strings.Contains(body, "This setup page will close as Roostack restarts as your lab.") ||
 		!strings.Contains(body, `open your lab at <a href="https://roost.lab.example.com">`) || strings.Contains(body, `x-show="lost"`) ||
 		!strings.Contains(body, "ssh -L 8480:127.0.0.1:8480 you@127.0.0.1") {
 		t.Errorf("done:\n%s", body)

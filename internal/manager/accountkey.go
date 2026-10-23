@@ -11,6 +11,8 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // A new key for an online storage account (SPEC.md §10.10): after a
@@ -42,7 +44,7 @@ func (m *Manager) ChangeS3Key(ctx context.Context, ref, accessKey, secretKey str
 	s3.AccessKey, s3.SecretKey = accessKey, secretKey
 	s3 = s3.Clean()
 	if s3.AccessKey == "" || s3.SecretKey == "" {
-		return formErrorf("Enter the new key's ID and the key itself.")
+		return usererr.New("Enter the new key's ID and the key itself.")
 	}
 	using, err := m.accountUses(ctx, ref)
 	if err != nil {
@@ -53,12 +55,12 @@ func (m *Manager) ChangeS3Key(ctx context.Context, ref, accessKey, secretKey str
 	scoped := false
 	if d.isB2() {
 		if scoped, err = m.b2(s3).CanMakeKeys(cctx, s3.Bucket); err != nil {
-			return formErrorf("Backblaze didn't accept this key: %s", firstLine(err.Error()))
+			return usererr.New("Backblaze didn't accept this key: %s", words.FirstLine(strings.TrimSpace(err.Error())))
 		}
 	}
 	if len(using) > 0 {
 		if _, err := m.OpenRepo(using[0].Repository, s3.Env()).Keys(cctx); err != nil {
-			return formErrorf("Roostack couldn't reach the backups in %s with this key: %s", s3.Bucket, firstLine(err.Error()))
+			return usererr.New("Roostack couldn't reach the backups in %s with this key: %s", s3.Bucket, words.FirstLine(strings.TrimSpace(err.Error())))
 		}
 	}
 	p := d.provider
@@ -132,7 +134,7 @@ func (m *Manager) handOutS3Key(ctx context.Context, act *activity.Log, name stri
 	for _, u := range using {
 		server := m.serverName(u.ServerID)
 		if u.ScopedKey != "" {
-			act.Printf("%s keeps the key of its own it has.", capital(server))
+			act.Printf("%s will keep the key of its own it has.", capital(server))
 			continue
 		}
 		n := m.node(u.ServerID)
@@ -146,7 +148,7 @@ func (m *Manager) handOutS3Key(ctx context.Context, act *activity.Log, name stri
 		if scoped {
 			m.scopedB2Key(ctx, act, u.ServerID, labID, s3, &t, &dest)
 		}
-		act.Step("Giving %s its new key (it restarts Roostack)", server)
+		act.Step("Giving %s its new key (it will restart Roostack)", server)
 		if u.Main {
 			err = n.Settings().SetBackupDestination(ctx, dest)
 		} else {
@@ -154,7 +156,7 @@ func (m *Manager) handOutS3Key(ctx context.Context, act *activity.Log, name stri
 			err = n.Settings().SetBackupCopies(ctx, m.copiesFor(ctx, u.ServerID, &c))
 		}
 		if err != nil {
-			act.Printf("Roostack couldn't reach %s (%s): it still has the old key.", server, firstLine(err.Error()))
+			act.Printf("Roostack couldn't reach %s (%s): it still has the old key.", server, words.FirstLine(strings.TrimSpace(err.Error())))
 			missed = append(missed, server)
 			if t.ScopedKey != "" {
 				if err := m.b2(s3).DeleteKey(ctx, t.ScopedKey); err != nil {
@@ -180,19 +182,11 @@ func (m *Manager) handOutS3Key(ctx context.Context, act *activity.Log, name stri
 		return fmt.Errorf("Roostack couldn't reach %s, which still has the old key: give the key again once it's back, before you delete the old one", missed[0])
 	case len(missed) > 1:
 		return fmt.Errorf("Roostack couldn't reach %s, which still have the old key: give the key again once they're back, before you delete the old one",
-			joinNames(missed))
+			words.And(missed))
 	case len(using) == 0:
-		act.Step("No server backs up to %s yet. You can delete the old key at %s now.", name, name)
+		act.Step("No server is backing up to %s yet. You can delete the old key at %s now.", name, name)
 	default:
 		act.Step("Every server backing up to %s has the new key. You can delete the old one at %s now.", name, name)
 	}
 	return nil
-}
-
-// joinNames lists names for a sentence: "a, b and c".
-func joinNames(names []string) string {
-	if len(names) < 2 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }

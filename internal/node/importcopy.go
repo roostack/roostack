@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -16,10 +15,13 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // The copy and the switch (SPEC.md §8.4, docs/MIGRATION-PLAN.md §3.7):
@@ -37,24 +39,24 @@ const keptImport = ".before-import-"
 // knows how far it got.
 const importSaveEvery = 10 * time.Second
 
-func (n *Local) CopyImport(ctx context.Context, service string) error {
-	s, err := n.importService(service)
+func (x localImports) CopyImport(ctx context.Context, service string) error {
+	s, err := x.importService(service)
 	if err != nil {
 		return err
 	}
-	if st := n.loadImport(ctx, service); !st.Check.Ready() {
-		return formErrorf("Check your files first: the copy starts once the check finds nothing in the way.")
+	if st := x.loadImport(ctx, service); !st.Check.Ready() {
+		return usererr.New("Check your files first: the copy will start once the check finds nothing in the way.")
 	}
-	return n.startImportRun(service, func(ctx context.Context) { n.runImportCopy(ctx, s) })
+	return x.startImportRun(service, func(ctx context.Context) { x.runImportCopy(ctx, s) })
 }
 
 // runImportCopy copies what's brought into the staging folders.
-func (n *Local) runImportCopy(ctx context.Context, s state.Service) error {
+func (x localImports) runImportCopy(ctx context.Context, s state.Service) error {
 	service, title := s.Name(), s.Title()
-	st := n.loadImport(ctx, service)
+	st := x.loadImport(ctx, service)
 	var act *activity.Log
-	if n.Activity != nil {
-		act = n.Activity.Start(activity.ImportRunFor(service), "Copying "+title+"'s data")
+	if x.n.Activity != nil {
+		act = x.n.Activity.Start(activity.ImportRunFor(service), "Copying "+title+"'s data")
 	}
 	total := st.Check.Bytes
 	cp := &ImportCopy{Running: true, Started: time.Now(), Files: st.Check.Files, Bytes: total}
@@ -63,13 +65,13 @@ func (n *Local) runImportCopy(ctx context.Context, s state.Service) error {
 	}
 	save := func() {
 		c := *cp
-		n.updateImport(context.WithoutCancel(ctx), service, func(st *ImportState) error {
+		x.updateImport(context.WithoutCancel(ctx), service, func(st *ImportState) error {
 			st.Copy = &c
 			return nil
 		})
 	}
 	save()
-	err := n.copyImport(ctx, s, st, act, func(p importer.Progress) {
+	err := x.copyImport(ctx, s, st, act, func(p importer.Progress) {
 		cp.Progress = p
 		if time.Since(cp.Started) > importSaveEvery {
 			save()
@@ -95,7 +97,7 @@ func (n *Local) runImportCopy(ctx context.Context, s state.Service) error {
 
 // copyImport copies each storage and dump brought; progress hears how far
 // it got overall, and at is left where it ended.
-func (n *Local) copyImport(ctx context.Context, s state.Service, st ImportState, act *activity.Log,
+func (x localImports) copyImport(ctx context.Context, s state.Service, st ImportState, act *activity.Log,
 	progress func(importer.Progress), at *importer.Progress) error {
 	service, p := s.Name(), s.Package
 	files := importFiles(service, st)
@@ -103,10 +105,10 @@ func (n *Local) copyImport(ctx context.Context, s state.Service, st ImportState,
 		return fmt.Errorf("your files aren't mounted at %s", filepath.Join(importRoot, service))
 	}
 	base := filepath.Join(importRoot, service)
-	plan := importer.Match(p, st.Setup, st.Prefixes, st.Choices, files, n.libraryFinder(s, files))
+	plan := importer.Match(p, st.Setup, st.Prefixes, st.Choices, files, x.libraryFinder(s, files))
 	var done importer.Progress
 	for _, sp := range plan.Storage {
-		dst := n.stagingDir(service, sp)
+		dst := x.stagingDir(service, sp)
 		if sp.From == "" {
 			continue
 		}
@@ -127,8 +129,8 @@ func (n *Local) copyImport(ctx context.Context, s state.Service, st ImportState,
 		if err != nil {
 			return err
 		}
-		act.Printf("%s: %d files looked at, %s copied, %d removed", sp.Title, got.Files, gbText(got.Copied), got.Removed)
-		if err := n.chownStorage(ctx, p, sp.Name, dst); err != nil {
+		act.Printf("%s: %d files looked at, %s copied, %d removed", sp.Title, got.Files, units.Bytes(got.Copied), got.Removed)
+		if err := x.chownStorage(ctx, p, sp.Name, dst); err != nil {
 			return err
 		}
 	}
@@ -137,7 +139,7 @@ func (n *Local) copyImport(ctx context.Context, s state.Service, st ImportState,
 			continue
 		}
 		act.Step("Copying the dump of database %s", db.Name)
-		dst := filepath.Join(n.Lab.Paths.ServicesDir, service+staging, "db-dump", db.Name+".sql")
+		dst := filepath.Join(x.n.Lab.Paths.ServicesDir, service+staging, "db-dump", db.Name+".sql")
 		if err := copyOne(importer.Rel(base, db.From), dst); err != nil {
 			return err
 		}
@@ -146,10 +148,10 @@ func (n *Local) copyImport(ctx context.Context, s state.Service, st ImportState,
 }
 
 // stagingDir is where a storage's copy goes before the switch.
-func (n *Local) stagingDir(service string, sp importer.Storage) string {
-	dir := n.Lab.Paths.ServicesDir
+func (x localImports) stagingDir(service string, sp importer.Storage) string {
+	dir := x.n.Lab.Paths.ServicesDir
 	if sp.Media {
-		dir = n.Lab.Paths.MediaDir
+		dir = x.n.Lab.Paths.MediaDir
 	}
 	return filepath.Join(dir, service+staging, sp.Name)
 }
@@ -163,7 +165,7 @@ func excludedText(ex []string) string {
 }
 
 // copyOne copies a file (a dump), unless one of the same size and time
-// is there already: through a temporary name, then with its time.
+// is there already: atomically, then with its time.
 func copyOne(src, dst string) error {
 	si, err := os.Stat(src)
 	if err != nil {
@@ -175,27 +177,10 @@ func copyOne(src, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
 		return err
 	}
-	in, err := os.Open(src)
-	if err != nil {
+	if err := fsutil.CopyFile(src, dst, 0o600); err != nil {
 		return err
 	}
-	defer in.Close()
-	tmp := dst + ".partial"
-	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	if err := out.Close(); err != nil {
-		return err
-	}
-	if err := os.Chtimes(tmp, si.ModTime(), si.ModTime()); err != nil {
-		return err
-	}
-	return os.Rename(tmp, dst)
+	return os.Chtimes(dst, si.ModTime(), si.ModTime())
 }
 
 // userRe is a container's numeric user in its Quadlet lines (User=1000 or
@@ -206,7 +191,7 @@ var userRe = regexp.MustCompile(`^(\d+)(?::(\d+))?$`)
 // inside, if they run as a numeric user without keep-id (their files must
 // be that user's mapped ID); otherwise everything stays Roostack's, the
 // containers' root, as in folders Roostack makes.
-func (n *Local) chownStorage(ctx context.Context, p *pkgspec.Package, storage, dir string) error {
+func (x localImports) chownStorage(ctx context.Context, p *pkgspec.Package, storage, dir string) error {
 	for _, cn := range slices.Sorted(maps.Keys(p.Containers)) {
 		c := p.Containers[cn]
 		if !slices.ContainsFunc(c.Mounts, func(m pkgspec.Mount) bool { return m.Storage == storage }) {
@@ -222,7 +207,7 @@ func (n *Local) chownStorage(ctx context.Context, p *pkgspec.Package, storage, d
 			continue
 		}
 		owner := m[1] + ":" + firstNonEmpty(m[2], m[1])
-		if out, err := n.unshare(ctx, "chown", "-R", owner, dir).CombinedOutput(); err != nil {
+		if out, err := x.n.unshare(ctx, "chown", "-R", owner, dir).CombinedOutput(); err != nil {
 			return fmt.Errorf("giving %s to user %s: %w: %s", dir, owner, err, strings.TrimSpace(string(out)))
 		}
 		return nil
@@ -237,8 +222,8 @@ func firstNonEmpty(a, b string) string {
 	return b
 }
 
-func (n *Local) SwitchImport(ctx context.Context, service, step string) error {
-	s, err := n.importService(service)
+func (x localImports) SwitchImport(ctx context.Context, service, step string) error {
+	s, err := x.importService(service)
 	if err != nil {
 		return err
 	}
@@ -246,14 +231,14 @@ func (n *Local) SwitchImport(ctx context.Context, service, step string) error {
 		return fmt.Errorf("no such step %q", step)
 	}
 	set := func(st SwitchStep) {
-		n.updateImport(context.Background(), service, func(is *ImportState) error {
+		x.updateImport(context.Background(), service, func(is *ImportState) error {
 			is.Step = &st
 			return nil
 		})
 	}
 	set(SwitchStep{Name: step, Running: true})
-	err = n.startImportRun(service, func(ctx context.Context) {
-		err := n.switchStep(ctx, s, step)
+	err = x.startImportRun(service, func(ctx context.Context) {
+		err := x.switchStep(ctx, s, step)
 		st := SwitchStep{Name: step}
 		if err != nil {
 			st.Err = err.Error()
@@ -267,22 +252,22 @@ func (n *Local) SwitchImport(ctx context.Context, service, step string) error {
 }
 
 // switchStep does one step of the switch.
-func (n *Local) switchStep(ctx context.Context, s state.Service, step string) error {
+func (x localImports) switchStep(ctx context.Context, s state.Service, step string) error {
 	service := s.Name()
 	switch step {
 	case SwitchStop:
-		live, err := state.Output(n.currentLab(), s)
+		live, err := state.Output(x.n.currentLab(), s)
 		if err != nil {
 			return err
 		}
-		return n.Reconciler.Systemd.Stop(ctx, live.Units...)
+		return x.n.Reconciler.Systemd.Stop(ctx, live.Units...)
 	case SwitchCopy:
 		var at importer.Progress
-		return n.copyImport(ctx, s, n.loadImport(ctx, service), nil, func(importer.Progress) {}, &at)
+		return x.copyImport(ctx, s, x.loadImport(ctx, service), nil, func(importer.Progress) {}, &at)
 	case SwitchCommit:
-		st := n.loadImport(ctx, service)
+		st := x.loadImport(ctx, service)
 		files := importFiles(service, st)
-		plan := importer.Match(s.Package, st.Setup, st.Prefixes, st.Choices, files, n.libraryFinder(s, files))
+		plan := importer.Match(s.Package, st.Setup, st.Prefixes, st.Choices, files, x.libraryFinder(s, files))
 		var brought []string
 		for _, sp := range plan.Storage {
 			if sp.From != "" {
@@ -300,15 +285,15 @@ func (n *Local) switchStep(ctx context.Context, s state.Service, step string) er
 				libs = append(libs, l)
 			}
 		}
-		kept, err := n.commitStaged(service, keptImport)
-		n.updateImport(ctx, service, func(st *ImportState) error {
+		kept, err := x.commitStaged(service, keptImport)
+		x.updateImport(ctx, service, func(st *ImportState) error {
 			st.Kept, st.Brought, st.BroughtLibraries = kept, brought, libs
 			return nil
 		})
 		if err != nil {
 			return err
 		}
-		out, err := generate.Service(n.currentLab(), s.Package, s.Instance)
+		out, err := generate.Service(x.n.currentLab(), s.Package, s.Instance)
 		if err != nil {
 			return err
 		}
@@ -321,21 +306,21 @@ func (n *Local) switchStep(ctx context.Context, s state.Service, step string) er
 		}
 		return nil
 	case SwitchLoad:
-		return n.loadImported(ctx, s)
+		return x.loadImported(ctx, s)
 	case SwitchStart:
-		live, err := state.Output(n.currentLab(), s)
+		live, err := state.Output(x.n.currentLab(), s)
 		if err != nil {
 			return err
 		}
-		return n.Reconciler.Systemd.Start(ctx, live.Units...)
+		return x.n.Reconciler.Systemd.Start(ctx, live.Units...)
 	case SwitchUndo:
-		return n.undoImport(ctx, s, n.loadImport(ctx, service).Kept)
+		return x.undoImport(ctx, s, x.loadImport(ctx, service).Kept)
 	case SwitchFinish:
-		if err := n.ImportAgent.UnmountImport(ctx, service); err != nil {
-			n.Log.Warn("unmounting the copy data was brought in from", "service", service, "err", err)
+		if err := x.n.ImportAgent.UnmountImport(ctx, service); err != nil {
+			x.n.Log.Warn("unmounting the copy data was brought in from", "service", service, "err", err)
 		}
-		n.forgetSamples(service)
-		return n.updateImport(ctx, service, func(st *ImportState) error {
+		x.forgetSamples(service)
+		return x.updateImport(ctx, service, func(st *ImportState) error {
 			st.Switched = time.Now()
 			return nil
 		})
@@ -345,13 +330,13 @@ func (n *Local) switchStep(ctx context.Context, s state.Service, step string) er
 
 // commitStaged puts a service's staging folders in place, setting aside
 // what's there under suffix and the time; it returns where.
-func (n *Local) commitStaged(service, suffix string) ([]string, error) {
-	if _, err := n.dataDir(service, 0); err != nil {
+func (x localImports) commitStaged(service, suffix string) ([]string, error) {
+	if _, err := x.n.dataDir(service, 0); err != nil {
 		return nil, err
 	}
 	var kept []string
 	at := suffix + time.Now().Format(timeLayout)
-	for _, d := range n.DataDirs(service) {
+	for _, d := range x.n.DataDirs(service) {
 		in := d + staging
 		if _, err := os.Stat(in); err != nil {
 			continue
@@ -390,8 +375,8 @@ func onlyFolders(dir string) bool {
 
 // loadImported loads the dumps brought (SQLite came with its folder),
 // starting only the databases; the service's units must be stopped.
-func (n *Local) loadImported(ctx context.Context, s state.Service) error {
-	out, err := generate.Service(n.currentLab(), s.Package, s.Instance)
+func (x localImports) loadImported(ctx context.Context, s state.Service) error {
+	out, err := generate.Service(x.n.currentLab(), s.Package, s.Instance)
 	if err != nil {
 		return err
 	}
@@ -404,24 +389,24 @@ func (n *Local) loadImported(ctx context.Context, s state.Service) error {
 	if err != nil {
 		return err
 	}
-	r := &backup.Restorer{Units: n.Reconciler.Systemd, Launch: n.Launch, RoostackBin: exe}
+	r := &backup.Restorer{Units: x.n.Reconciler.Systemd, Launch: x.n.Launch, RoostackBin: exe}
 	return r.LoadDumps(ctx, &loading)
 }
 
 // undoImport puts a service's data from before the switch back: what the
 // switch brought is set aside in turn (as .failed-import-<time>), its
 // units stopped first.
-func (n *Local) undoImport(ctx context.Context, s state.Service, kept []string) error {
-	live, err := state.Output(n.currentLab(), s)
+func (x localImports) undoImport(ctx context.Context, s state.Service, kept []string) error {
+	live, err := state.Output(x.n.currentLab(), s)
 	if err != nil {
 		return err
 	}
-	if err := n.Reconciler.Systemd.Stop(ctx, live.Units...); err != nil {
+	if err := x.n.Reconciler.Systemd.Stop(ctx, live.Units...); err != nil {
 		return err
 	}
 	at := ".failed-import-" + time.Now().Format(timeLayout)
 	var errs []error
-	for _, d := range n.DataDirs(s.Name()) {
+	for _, d := range x.n.DataDirs(s.Name()) {
 		var from string
 		for _, k := range kept {
 			if strings.HasPrefix(k, d+keptImport) {
@@ -444,18 +429,18 @@ func (n *Local) undoImport(ctx context.Context, s state.Service, kept []string) 
 }
 
 // resumeImports carries on copies a restart interrupted.
-func (n *Local) resumeImports(ctx context.Context) {
-	n.mu.Lock()
-	services := slices.Clone(n.assignment.Services)
-	n.mu.Unlock()
+func (x localImports) resumeImports(ctx context.Context) {
+	x.n.mu.Lock()
+	services := slices.Clone(x.n.assignment.Services)
+	x.n.mu.Unlock()
 	for _, s := range services {
-		st := n.loadImport(ctx, s.Name())
+		st := x.loadImport(ctx, s.Name())
 		if st.Copy != nil && st.Copy.Running {
-			n.Log.Info("carrying on bringing data in", "service", s.Name())
-			n.startImportRun(s.Name(), func(ctx context.Context) { n.runImportCopy(ctx, s) })
+			x.n.Log.Info("carrying on bringing data in", "service", s.Name())
+			x.startImportRun(s.Name(), func(ctx context.Context) { x.runImportCopy(ctx, s) })
 		}
 		if st.Checking {
-			n.updateImport(ctx, s.Name(), func(st *ImportState) error {
+			x.updateImport(ctx, s.Name(), func(st *ImportState) error {
 				st.Checking, st.CheckErr = false, "Roostack restarted during the check: check again."
 				return nil
 			})

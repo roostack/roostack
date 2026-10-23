@@ -11,6 +11,8 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/testwait"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // ownRestores is a server's own restores (node.Restores): each queued job
@@ -35,13 +37,11 @@ func (r *ownRestores) Pending(context.Context) (bool, error) {
 	defer r.mu.Unlock()
 	return r.pending, nil
 }
-func (r *ownRestores) Kept(context.Context, string) ([]backup.KeptCopy, error) { return nil, nil }
 func (r *ownRestores) Outcome(context.Context, string) (backup.RestoreOutcome, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.outcome, nil
 }
-func (r *ownRestores) RemoveKept(context.Context, string, string) error { return nil }
 func (r *ownRestores) PutBack(_ context.Context, _, path string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -67,13 +67,13 @@ func (s *restoringServer) Restores() node.Restores { return s.restores }
 // waitHeld waits until the service's hold is (or isn't) there.
 func waitHeld(t *testing.T, m *Manager, held bool) *instance.Instance {
 	t.Helper()
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
-		if in, err := instance.Load(state.InstanceFile(m.Lab, "forgejo")); err == nil && (in.Held != nil) == held {
-			return in
-		}
-	}
-	t.Fatalf("held should be %v", held)
-	return nil
+	var in *instance.Instance
+	testwait.For(t, 5*time.Second, func() bool {
+		var err error
+		in, err = instance.Load(state.InstanceFile(m.Lab, "forgejo"))
+		return err == nil && (in.Held != nil) == held
+	})
+	return in
 }
 
 // A server's own restore whose databases don't load holds the service
@@ -82,8 +82,7 @@ func waitHeld(t *testing.T, m *Manager, held bool) *instance.Instance {
 func TestOwnRestoreHeld(t *testing.T) {
 	m, a, b := setUpMove(t)
 	ctx := context.Background()
-	restoreWatch = 5 * time.Millisecond
-	defer func() { restoreWatch = 2 * time.Second }()
+	m.waits.restoreWatch = 5 * time.Millisecond
 	home := &restoringServer{movingServer: a, restores: &ownRestores{}}
 	m.Others = func() []RemoteServer { return []RemoteServer{home, b} }
 	var mu sync.Mutex
@@ -127,7 +126,7 @@ func TestOwnRestoreHeld(t *testing.T) {
 	m.RestoreService(ctx, "forgejo", "backup:n-0000000002@9a6817f7aaaa", "")
 	home.restores.end(backup.RestoreOutcome{Finished: true, DumpsFailed: true, Err: "pg_restore: disk full", Taken: taken})
 	waitHeld(t, m, true)
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.PutBackHeld(ctx, "forgejo"); !errors.As(err, &fe) {
 		t.Errorf("nothing kept to put back: %v", err)
 	}
@@ -137,14 +136,11 @@ func TestOwnRestoreHeld(t *testing.T) {
 	home.restores.end(backup.RestoreOutcome{Finished: true})
 	waitHeld(t, m, false)
 	// Recorded just after the hold ends.
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+	testwait.For(t, 5*time.Second, func() bool {
 		mu.Lock()
-		n := len(audited)
-		mu.Unlock()
-		if n > 0 {
-			break
-		}
-	}
+		defer mu.Unlock()
+		return len(audited) > 0
+	})
 	mu.Lock()
 	defer mu.Unlock()
 	if len(audited) != 1 || audited[0] != "Restored Forgejo, so it's no longer stopped" {

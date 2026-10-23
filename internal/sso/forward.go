@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -19,10 +20,6 @@ import (
 // another. Considered: one cookie for the lab's whole domain, as most
 // walls do (every app would receive it, and a compromised one could act
 // as that person in every other).
-
-// Headers a walled service is told who someone is by. Caddy removes any a
-// visitor sends, on every route.
-var Headers = []string{"Remote-User", "Remote-Email", "Remote-Name", "Remote-Groups"}
 
 // wallClient is the walled service a check or callback is for: by its ID,
 // and only at its own address.
@@ -54,12 +51,12 @@ func (p *Provider) Check(w http.ResponseWriter, r *http.Request) {
 					p.serverError(w, err)
 					return
 				}
-				w.Header().Set("Remote-User", u.Username)
+				w.Header().Set(caddy.RemoteUser, u.Username)
 				if email, _ := claims["email"].(string); email != "" {
-					w.Header().Set("Remote-Email", email)
+					w.Header().Set(caddy.RemoteEmail, email)
 				}
-				w.Header().Set("Remote-Name", headerSafe(claims["name"].(string)))
-				w.Header().Set("Remote-Groups", strings.Join(claims["groups"].([]string), ","))
+				w.Header().Set(caddy.RemoteName, headerSafe(claims["name"].(string)))
+				w.Header().Set(caddy.RemoteGroups, strings.Join(claims["groups"].([]string), ","))
 				w.WriteHeader(http.StatusOK)
 				return
 			}

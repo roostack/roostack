@@ -1,9 +1,9 @@
 # Package format
 
 A **package** describes a service for Roostack: its containers, where its
-data lives, its databases, its web address and its settings. Roostack
+data lives, its databases, its web address, and its settings. Roostack
 generates everything else from it (the containers' units, the web server
-config, secrets, folders and the backup plan). To write one, start with
+config, secrets, folders, and the backup plan). To write one, start with
 [Write a package](../packages/write.md); this page is the reference.
 
 Packages are kept in Roostack's public registry,
@@ -12,10 +12,9 @@ folder per package with a file per version. Roostack fetches the registry's
 signed list of packages and keeps the version of each it would install in
 `/var/lib/roostack/catalog/<name>/<version>.yaml`, checked against the list
 ([Services you can install](../settings/updates.md#services-you-can-install)).
-When you install one,
-Roostack copies its file into the lab, as
-`/var/lib/roostack/packages/<name>/<version>.yaml`, and the service runs
-from that copy: a newer Roostack with a newer package doesn't change it
+When you install one, Roostack will copy its file into the lab, as
+`/var/lib/roostack/packages/<name>/<version>.yaml`, and the service will
+run from that copy: a newer Roostack with a newer package won't change it
 behind your back, and it's in the lab's backups, so a restore needs nothing
 else. The format is still settling (`schema: roostack/v1alpha1`).
 
@@ -96,7 +95,7 @@ routes:
 `version`
 :   The app's own version and the package's revision, such as
     `1.34.3-roostack.1`. It names the lab's copy of the file, so it's
-    letters, digits, dots, dashes, underscores and plus signs.
+    letters, digits, dots, dashes, underscores, and plus signs.
 
 `about`
 :   Facts about the project the package runs, shown in the catalog and on
@@ -122,22 +121,22 @@ routes:
       (Films, TV and music), `documents` (Documents and notes),
       `productivity` (Tasks and planning), `home` (Smart home and
       cameras), `passwords` (Passwords and security), `development`
-      (Developer tools), `publishing` (Websites and blogs) and `network`
+      (Developer tools), `publishing` (Websites and blogs), and `network`
       (Network).
     - `keywords`: up to ten words or short phrases people might search
       for.
 
 `requires`
 :   `roostack`: the oldest Roostack release the package works with, such as
-    `"0.6"` or `"0.6.1"`. A lab running an older one doesn't offer it, and
-    says it needs a newer Roostack. Releases are compared number by number
-    (`0.10` is newer than `0.9`).
+    `"0.6"` or `"0.6.1"`. A lab running an older one won't offer it and
+    will say it needs a newer Roostack. Releases are compared number by
+    number (`0.10` is newer than `0.9`).
 
 `upgrade_notes`
 :   What to know before updating, shown before a service updates. Each
     note has the package `version` it arrived in and the `note` itself; a
     package keeps the notes it still needs from earlier versions, so
-    someone updating past several versions at once sees all of them:
+    someone updating past several versions at once will see all of them:
 
     ```yaml
     upgrade_notes:
@@ -147,16 +146,16 @@ routes:
 
 `settings`
 :   What people choose, at install and later. `type` is `bool`, `string`,
-    `int` or `secret`. A secret can be `generate`d by Roostack, `reveal`ed
+    `int`, or `secret`. A secret can be `generate`d by Roostack, `reveal`ed
     to Admins, or `install_only` (deleted once setup has run). Secrets are
     Podman secrets, never in files. A setting that isn't a secret can have
     an `install_value`, used until the install hooks succeed (or while
-    they've failed and wait for Try again); the package needs an install
-    hook for it. A secret with `from_hook: true` is made by the app itself
-    and handed to Roostack by a hook that `saves` it (below): a key Immich
-    makes for its own settings, say. It's never shown, only hooks may use
-    it, and the package needs an action that saves it too, for services
-    installed before it or whose key was lost.
+    they've failed and are waiting for Try again); the package needs an
+    install hook for it. A secret with `from_hook: true` is made by the app
+    itself and handed to Roostack by a hook that `saves` it (below): a key
+    Immich makes for its own settings, say. It's never shown, only hooks
+    may use it, and the package needs an action that saves it too, for
+    services installed before it or whose key was lost.
 
 `containers`
 :   Each container: an `image` (pinned by tag and digest), `command`,
@@ -164,7 +163,7 @@ routes:
     storage or, with `{ libraries: true, path: /media }`, of the media
     libraries the Owner chose for the service (each in a folder of its
     name under the path, read-only, never backed up), `devices` (such as a GPU), a `health` check, `depends_on`,
-    and `when` (a template: the container is left out unless it renders
+    and `when` (a template: the container will be left out unless it renders
     `true`). `memory` is what it typically uses, such as `300 MB` or
     `1.5 GB` (1 GB is 1000 MB): an estimate for the summary shown before
     installing, which adds up the containers that would run with the
@@ -182,32 +181,32 @@ routes:
 
 `databases`
 :   Databases Roostack runs and backs up consistently: `sqlite` (a file in
-    the service's storage), `postgres`, `mysql`, `mariadb` or `redis` (a
-    container of their own). Roostack makes their passwords. A container's
-    `secrets` can point at a Postgres, MySQL or MariaDB database's
-    `databases.<name>.password`, or at a Postgres database's
+    the service's storage), `postgres`, `mysql`, `mariadb`, or `redis` (a
+    container of their own). Roostack will make their passwords. A
+    container's `secrets` can point at a Postgres, MySQL, or MariaDB
+    database's `databases.<name>.password`, or at a Postgres database's
     `databases.<name>.url`: the whole URL, password included, which
-    Roostack makes from the password. Roostack's images are Postgres 17,
-    MySQL 8.4 and MariaDB 11.8 (their long-term-support lines), and Valkey
-    for `redis`; `image` picks another. The containers take a `memory` like
-    a container's; otherwise Roostack expects 200 MB for Postgres, 500 MB
-    for MySQL, 150 MB for MariaDB and 50 MB for Redis.
+    Roostack will make from the password. Roostack's images are Postgres
+    17, MySQL 8.4, and MariaDB 11.8 (their long-term-support lines), and
+    Valkey for `redis`; `image` picks another. The containers take a
+    `memory` like a container's; otherwise Roostack expects 200 MB for
+    Postgres, 500 MB for MySQL, 150 MB for MariaDB, and 50 MB for Redis.
 
 `routes`
 :   Web addresses: which container and port, the default `subdomain`,
     `exposure` (`private` or `public`), `max_body_size`, and
     `client_ip_header`: Roostack's proxy sends the visitor's address in
     `X-Forwarded-For`; an app that reads another header (Vaultwarden reads
-    `X-Real-IP`) names it here, and the proxy sets it too, replacing any
-    the visitor sent. It must be an `X-` header other than `X-Forwarded-*`. `public` says
-    what's safe once the Owner makes the address public: `unsafe` (why the
-    whole address shouldn't be), `private_paths` (paths, and everything
-    under them, that stay home-only, each with its reason) and
-    `login_paths` (where people sign in, which get a strict rate limit for
-    outside visitors). The Owner can still open an unsafe address or path,
-    after a warning that gives the package's reason. Paths are plain: they
-    start with `/` and have letters, digits and `- _ . :` between the
-    slashes, with no `*` or trailing `/`.
+    `X-Real-IP`) names it here, and the proxy will set it too, replacing any
+    the visitor sent. It must be an `X-` header other than `X-Forwarded-*`.
+    `public` says what's safe once the Owner makes the address public:
+    `unsafe` (why the whole address shouldn't be), `private_paths` (paths,
+    and everything under them, that will stay home-only, each with its
+    reason), and `login_paths` (where people sign in, which get a strict
+    rate limit for outside visitors). The Owner can still open an unsafe
+    address or path, after a warning that gives the package's reason. Paths
+    are plain: they start with `/` and have letters, digits, and `- _ . :`
+    between the slashes, with no `*` or trailing `/`.
     [Monitoring](../servers/monitoring.md) asks each route every minute: the
     container's `health.http` path when the route leads to that port, or
     `/`, and any answer below 500 is up. `monitor` changes that for an app
@@ -224,7 +223,7 @@ routes:
 :   Commands run inside a container: `on: install` once after the first
     start (such as creating an admin account), `on: action`, a button on
     the service page with `inputs`, or `on: sso`, run when single sign-on
-    is turned on, changed (the lab's address or name) or off, for an app
+    is turned on, changed (the lab's address or name), or off, for an app
     set by a command or its own API (below). Values people type reach the
     command only as environment variables, and any secret it's given is
     replaced by `[secret]` in what it prints before that's shown.
@@ -257,11 +256,11 @@ routes:
       `preferred_username`, `email` for `email`, `groups` for `groups`. If
       it maps groups to its admins, check it asks for `groups` (Mealie does
       once `OIDC_ADMIN_GROUP` is set).
-    - `forward_auth`: the app goes behind the wall on `route`: everyone
-      signs in on the lab's sign-in page before a request reaches it.
-      `bypass_paths` stay outside it, each with the `reason` it's safe. Its
-      containers may read who someone is from the `Remote-User`,
-      `Remote-Email`, `Remote-Name` and `Remote-Groups` headers; Roostack
+    - `forward_auth`: the app will go behind the wall on `route`: everyone
+      will sign in on the lab's sign-in page before a request reaches it.
+      `bypass_paths` will stay outside it, each with the `reason` it's
+      safe. Its containers may read who someone is from the `Remote-User`,
+      `Remote-Email`, `Remote-Name`, and `Remote-Groups` headers; Roostack
       removes any a visitor sends.
 
     `env` (container, then variable) is added to containers only while
@@ -270,9 +269,9 @@ routes:
     client secret: `OIDC_CLIENT_SECRET: sso.client_secret`. `secret_env`
     is for an app that takes the secret inside a bigger value, such as
     Paperless-ngx's JSON list of providers: a template using
-    `{{ json .SSO.ClientSecret }}`, which Roostack makes as a Podman secret
-    and passes as that variable, never written into a file. `note` says
-    what still uses the app's own sign-in, shown beside the switch.
+    `{{ json .SSO.ClientSecret }}`, which Roostack will make as a Podman
+    secret and pass as that variable, never written into a file. `note`
+    says what still uses the app's own sign-in, shown beside the switch.
 
     A redirect path may use `.SSO` (Forgejo's names its sign-in source:
     `/user/oauth2/{{ pathescape .SSO.ProviderName }}/callback`).
@@ -317,9 +316,9 @@ validate` reports each problem with what to use instead.
 | Not allowed | Use instead |
 |---|---|
 | An image without a digest (`app:1.2`) | `app:1.2@sha256:…`, so every lab runs the image that was reviewed |
-| A route or port with `exposure: public` | `private`: only the Owner makes things public |
+| A route or port with `exposure: public` | `private`: only the Owner can make things public |
 | A route with neither `public.login_paths` nor `public.unsafe` | The pages where people sign in, or why the address shouldn't be public |
-| No `about.maker`, `about.licence`, `about.icon` or `about.categories`; no `about.source` (or, for `licence: closed`, no `about.website`) | The facts, so the project is credited and reviewers can check them |
+| No `about.maker`, `about.licence`, `about.icon`, or `about.categories`; no `about.source` (or, for `licence: closed`, no `about.website`) | The facts, so the project is credited and reviewers can check them |
 | A licence such as `GPL-3.0` that doesn't say `-only` or `-or-later` | The identifier the project's licence notice gives |
 | No `requires.roostack` | The oldest Roostack release the package works with |
 | A container without `memory` | What it typically uses, for the summary shown before installing |
@@ -340,11 +339,11 @@ else could add a line of its own to the file Roostack writes. These lines
 | `Network=`, `Pod=` | Nothing: each service has its own network |
 | `PublishPort=` | `routes:` for web addresses, `ports:` for other connections |
 | `AddDevice=`, `GroupAdd=keep-groups` | `devices:` (`gpu: intel`) |
-| `User=` or `Group=` as root (`root`, `0`, `00`), `UIDMap=`, `GIDMap=`, `SubUIDMap=`, `SubGIDMap=`, `UserNS=` other than `keep-id…`, `auto`, `nomap` or `private` | The image's own user, and `UserNS=keep-id:uid=…,gid=…` if its files need that owner |
+| `User=` or `Group=` as root (`root`, `0`, `00`), `UIDMap=`, `GIDMap=`, `SubUIDMap=`, `SubGIDMap=`, `UserNS=` other than `keep-id…`, `auto`, `nomap`, or `private` | The image's own user, and `UserNS=keep-id:uid=…,gid=…` if its files need that owner |
 | `ContainerName=`, `ServiceName=`, `Label=io.roostack.…` | Nothing: Roostack names and labels its containers |
 | `ExecStart…`, `ExecStop…` or any other `Exec…` in `[Service]` or `[Unit]` | `command:` or `hooks:`, which run inside the container |
-| In `[Service]`: `Environment…`, `PassEnvironment`, `UnsetEnvironment`, `Standard…`, `TTY…`, `User`, `Group`, `SupplementaryGroups`, `DynamicUser`, `Root…`, `PIDFile`, `TemporaryFileSystem`, any key naming a `Path`, `Directory`, `Credential` or `Image`, and `Type`, `NotifyAccess`, `Delegate`, `Slice`, `Sockets`, `BusName`, `LogNamespace`, `PAMName`, `KeyringMode` and security contexts | `env:` for the container's environment; the rest is how the server runs Podman, which Roostack sets |
-| In `[Unit]`: dependencies and relationships (`Requires`, `Wants`, `BindsTo`, `PartOf`, `Upholds`, `Conflicts`, `Before`, `After`, `OnFailure`, `OnSuccess` and the like), `SourcePath`, and the `…Action` keys | `depends_on:` |
+| In `[Service]`: `Environment…`, `PassEnvironment`, `UnsetEnvironment`, `Standard…`, `TTY…`, `User`, `Group`, `SupplementaryGroups`, `DynamicUser`, `Root…`, `PIDFile`, `TemporaryFileSystem`, any key naming a `Path`, `Directory`, `Credential`, or `Image`, and `Type`, `NotifyAccess`, `Delegate`, `Slice`, `Sockets`, `BusName`, `LogNamespace`, `PAMName`, `KeyringMode`, and security contexts | `env:` for the container's environment; the rest is how the server runs Podman, which Roostack sets |
+| In `[Unit]`: dependencies and relationships (`Requires`, `Wants`, `BindsTo`, `PartOf`, `Upholds`, `Conflicts`, `Before`, `After`, `OnFailure`, `OnSuccess`, and the like), `SourcePath`, and the `…Action` keys | `depends_on:` |
 | Anything in `[Install]` | Nothing: Roostack starts every service with the server |
 
 Quadlet reads a `Label=` or `Mount=` line as several values, so each one
@@ -368,7 +367,7 @@ may break the policy: check it with `roostack validate -local`, and see
 
 ## Templates
 
-Values in `env`, `when` and hooks are Go templates:
+Values in `env`, `when`, and hooks are Go templates:
 
 | Value | Example |
 |---|---|

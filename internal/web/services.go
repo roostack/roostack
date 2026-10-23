@@ -16,6 +16,8 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/registry"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // formField is one input on the install form.
@@ -243,7 +245,7 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := s.Manager.Install(r.Context(), p.Name, req)
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	switch {
 	case isForm:
 		w.WriteHeader(http.StatusBadRequest)
@@ -381,10 +383,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		base = p.Routes[route].Subdomain
 	}
 	if submitted == nil {
-		sub, title = base, p.Title
-		if another {
-			sub, title, suffix = base+"-2", p.Title+" (2)", "2"
-		}
+		sub, title, suffix = manager.NewServiceNames(p, another)
 	}
 	// Where to run it, once the lab has more than one server (SPEC.md §10.4).
 	var servers []manager.Server
@@ -398,7 +397,8 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 	noBuild, noBuildText := map[string]string{}, ""
 	if len(servers) > 0 {
 		var names, arches []string
-		for _, nb := range s.Manager.NoBuildOn(p) {
+		nbs := s.Manager.NoBuildOn(p)
+		for _, nb := range nbs {
 			noBuild[nb.ID] = nb.Arch
 			names = append(names, nb.Name)
 			if !slices.Contains(arches, nb.Arch) {
@@ -411,21 +411,10 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 				its = "their"
 			}
 			noBuildText = fmt.Sprintf("%s can't run on %s: it has no version for %s kind of processor (%s).",
-				p.Title, joinOr(names), its, joinAnd(arches))
+				p.Title, words.Or(names), its, words.And(arches))
 		}
-		chosen := host
-		for _, m := range servers {
-			if chosen == "" && m.This {
-				chosen = m.ID // "" is this server
-			}
-		}
-		if _, no := noBuild[chosen]; no && submitted == nil {
-			for _, m := range servers {
-				if _, no := noBuild[m.ID]; !no {
-					host = m.ID
-					break
-				}
-			}
+		if submitted == nil {
+			host = manager.InstallServer(servers, nbs, host)
 		}
 	}
 	// On a lab on the internet: public from the start, unless the package
@@ -534,11 +523,11 @@ func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
 	enabled := r.FormValue("enabled") == "on"
 	hostPort, err := strconv.Atoi(strings.TrimSpace(r.FormValue("host_port")))
 	if err != nil {
-		err = &manager.FormError{Msg: "Enter a port number, such as 2222."}
+		err = &usererr.Error{Msg: "Enter a port number, such as 2222."}
 	} else {
 		err = s.Manager.SetPort(r.Context(), name, port, enabled, hostPort)
 	}
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	switch {
 	case errors.Is(err, manager.ErrNotFound):
 		http.NotFound(w, r)
@@ -625,7 +614,7 @@ func (s *Server) retryWithSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	err := s.Manager.RetryInstallWith(r.Context(), name, settings, secrets)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"RetryError": msg}, true)
 		return
 	}
@@ -659,7 +648,7 @@ func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out, err := n.RunAction(r.Context(), name, action, inputs)
-	msg, isForm := userMessage(err)
+	msg, isForm := usererr.Message(err)
 	var ae *manager.ActionError
 	result := map[string]string{"action": action}
 	switch {
@@ -739,7 +728,7 @@ func (s *Server) titleSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"TitleError": msg, "EditSettings": true}, true)
 		return
 	}

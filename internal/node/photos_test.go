@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // fakePhotoAgent mounts nothing: the test puts the export there itself.
@@ -121,14 +122,12 @@ func writeTakeout(t *testing.T, dir, name string, files map[string]string) {
 
 func waitPhotos(t *testing.T, n *Local, done func(*PhotoState) bool) *PhotoState {
 	t.Helper()
-	for range 500 {
-		if st := n.loadPhotos(t.Context(), "immich").People["anna"]; st != nil && done(st) {
-			return st
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("waited too long: %+v", n.loadPhotos(t.Context(), "immich").People["anna"])
-	return nil
+	var st *PhotoState
+	testwait.For(t, 5*time.Second, func() bool {
+		st = n.photos().loadPhotos(t.Context(), "immich").People["anna"]
+		return st != nil && done(st)
+	})
+	return st
 }
 
 // Migrating a Takeout into Immich (SPEC.md §8.5): the export mounted and
@@ -198,7 +197,7 @@ func TestPhotoMigration(t *testing.T) {
 	if err := x.SetPhotoKey(ctx, "immich", "anna", "narrow-key"); err != nil {
 		t.Fatal(err)
 	}
-	st = n.loadPhotos(ctx, "immich").People["anna"]
+	st = n.photos().loadPhotos(ctx, "immich").People["anna"]
 	if st.Account == nil || len(st.Account.Missing) != len(photoimport.Permissions)-2 || st.Account.Name != "Anna Smith" {
 		t.Errorf("account %+v", st.Account)
 	}
@@ -241,8 +240,8 @@ func TestPhotoMigration(t *testing.T) {
 		t.Errorf("run %+v", r)
 	}
 	// Following it again (as after Roostack restarts) counts its log once.
-	n.readPhotoLog(ctx, "immich", "anna")
-	if r := n.loadPhotos(ctx, "immich").People["anna"].Run; r.Tally.Sent != 2 || r.Tally.Found != 3 {
+	n.photos().readPhotoLog(ctx, "immich", "anna")
+	if r := n.photos().loadPhotos(ctx, "immich").People["anna"].Run; r.Tally.Sent != 2 || r.Tally.Found != 3 {
 		t.Errorf("the log was counted twice: %+v", r.Tally)
 	}
 	args := strings.Join(units.args, " ")
@@ -287,7 +286,7 @@ func TestPhotoMigration(t *testing.T) {
 
 	// Carrying on is another pass of the same migration: what the first
 	// sent is added up, and isn't counted as what Immich had before.
-	n.updatePhotos(ctx, "immich", "anna", func(st *PhotoState) error {
+	n.photos().updatePhotos(ctx, "immich", "anna", func(st *PhotoState) error {
 		st.Run.Tally.Sent = 2
 		return nil
 	})
@@ -329,7 +328,7 @@ func TestPhotoMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	st = waitPhotos(t, n, func(s *PhotoState) bool { return s.Run != nil && !s.Run.Running })
-	limit, total := n.PhotoMemory(ctx, "immich")
+	limit, total := n.photos().PhotoMemory(ctx, "immich")
 	if r := st.Run; !r.OutOfMemory || !strings.Contains(r.Err, "ran out of memory") || r.Memory != limit || limit != max(1<<30, total/2) {
 		t.Errorf("out of memory: %+v (limit %d of %d)", r, limit, total)
 	}
@@ -340,7 +339,7 @@ func TestPhotoMigration(t *testing.T) {
 	if err := x.SetPhotoMemory(ctx, "immich", "most"); err != nil {
 		t.Fatal(err)
 	}
-	if l, total := n.PhotoMemory(ctx, "immich"); l != max(1<<30, total*3/4) {
+	if l, total := n.photos().PhotoMemory(ctx, "immich"); l != max(1<<30, total*3/4) {
 		t.Errorf("three quarters: %d of %d", l, total)
 	}
 	if err := x.SetPhotoMemory(ctx, "immich", "all"); err == nil {
@@ -351,7 +350,7 @@ func TestPhotoMigration(t *testing.T) {
 	if err := x.ForgetPhotos(ctx, "immich", "anna"); err != nil {
 		t.Fatal(err)
 	}
-	if n.loadPhotos(ctx, "immich").People["anna"] != nil {
+	if n.photos().loadPhotos(ctx, "immich").People["anna"] != nil {
 		t.Error("forgotten migration still there")
 	}
 }
@@ -363,16 +362,16 @@ func TestPhotoOneAtATime(t *testing.T) {
 	p := immichPackage(t)
 	n.assignment = Assignment{Services: []state.Service{{Package: p, Instance: &instance.Instance{Package: "immich", Version: p.Version}}}}
 	ctx := t.Context()
-	n.updatePhotos(ctx, "immich", "ben", func(st *PhotoState) error {
+	n.photos().updatePhotos(ctx, "immich", "ben", func(st *PhotoState) error {
 		st.Run = &PhotoRun{Running: true, Started: time.Now()}
 		return nil
 	})
 	n.pho.resumed = true // nothing to follow
-	v, err := n.PhotoMigration(ctx, "immich", "anna")
+	v, err := n.photos().PhotoMigration(ctx, "immich", "anna")
 	if err != nil || v.Busy == nil || v.Busy.Who != "ben" {
 		t.Errorf("busy %+v %v", v.Busy, err)
 	}
-	if err := n.StartPhotos(ctx, "immich", "anna"); err == nil || !strings.Contains(err.Error(), "ben is migrating photos now") {
+	if err := n.photos().StartPhotos(ctx, "immich", "anna"); err == nil || !strings.Contains(err.Error(), "ben is migrating photos now") {
 		t.Errorf("a second migration: %v", err)
 	}
 }

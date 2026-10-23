@@ -7,7 +7,7 @@
       reached at <code>{{.Endpoint}}</code>.</li>
     <li><span class="dot dot-ok" aria-hidden="true"></span><strong>Connected to the lab</strong> over its encrypted network.
       This server is <code>{{.Addr}}</code> on it.</li>
-    <li><span class="dot dot-warn" aria-hidden="true"></span><strong>Restarting as part of the lab.</strong> This takes a few seconds.</li>
+    <li><span class="dot dot-warn" aria-hidden="true"></span><strong>Restarting as part of the lab.</strong> This will take a few seconds.</li>
   </ol>
   <p><strong>{{.Name}}</strong> is now part of {{or .Lab "your lab"}}. Everything about it is managed from the lab{{with .UI}}:
     <a href="{{.}}">{{.}}</a>{{end}} → <strong>Settings → Servers</strong>.</p>

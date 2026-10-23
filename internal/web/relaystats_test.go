@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // statsCloud is a linked Cloud whose relay statistics are given.
@@ -56,7 +57,7 @@ func TestRelayStats(t *testing.T) {
 	_, body := h.get("/partials/relay-stats?period=week")
 	for _, want := range []string{"<dd>52</dd>", "<dd>390</dd>", "2.1 GB", "2.0 GB to visitors", "<dd>7</dd>", "Visitors each day",
 		`<span class="rank-name">Australia</span>`, `<span class="rank-count">45</span>`, `<span class="rank-name">Elsewhere</span>`,
-		`title="` + time.Now().Format("Mon 2 Jan") + `: 12 visitors"`, `aria-current="true">7 days</a>`, "As of " + whenText(asOf)} {
+		`title="` + time.Now().Format("Mon 2 Jan") + `: 12 visitors"`, `aria-current="true">7 days</a>`, "As of " + words.When(asOf)} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q in\n%s", want, body)
 		}
@@ -131,7 +132,7 @@ func TestRelayOwnDomain(t *testing.T) {
 		Public: []dnsrecords.PublicRecord{{Host: "vault.lab.example.com", Type: "CNAME", IP: "r-abc.relay.roost.test", State: dnsrecords.PublicOK}},
 		Proof:  &dnsrecords.PublicRecord{Host: "_roostack.lab.example.com", Type: "TXT", IP: "roostack-proof=t0k", State: dnsrecords.PublicOK}}}
 	_, body := h.get("/settings/public")
-	for _, want := range []string{"Waiting for the record proving lab.example.com", "roostack-proof=t0k", "Roostack adds it at your DNS provider by itself",
+	for _, want := range []string{"Waiting for the record proving lab.example.com", "roostack-proof=t0k", "Roostack will add it at your DNS provider by itself",
 		"There&#39;s no TXT record", "Check now", "(CNAME r-abc.relay.roost.test)", "Proves the domain is this lab's"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q", want)

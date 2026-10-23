@@ -7,8 +7,11 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Extra copies of a server's backups (SPEC.md §6.9, 3-2-1): somewhere
@@ -54,11 +57,11 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	main, _, ok := m.BackupTargetOf(ctx, serverID)
 	if !ok {
-		return formErrorf("Choose where %s backups go first; a copy goes somewhere else.", m.backupsOf(serverID))
+		return usererr.New("Choose where %s backups go first; a copy goes somewhere else.", m.backupsOf(serverID))
 	}
 	choice, err := m.choiceFor(ctx, serverID, ref)
 	if err != nil {
@@ -66,15 +69,15 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 	}
 	switch {
 	case choice == nil:
-		return formErrorf("Choose where the copy goes.")
+		return usererr.New("Choose where the copy goes.")
 	case ref == main.Provider:
-		return formErrorf("That's where %s backups already go. A copy protects you only somewhere else.", m.backupsOf(serverID))
-	case strings.HasPrefix(ref, "server:") && strings.TrimPrefix(ref, "server:") == main.StoreHost:
-		return formErrorf("That's where %s backups already go.", m.backupsOf(serverID))
+		return usererr.New("That's where %s backups already go. A copy protects you only somewhere else.", m.backupsOf(serverID))
+	case destination.Parse(ref) == destination.Ref{Kind: destination.Server, ID: main.StoreHost}:
+		return usererr.New("That's where %s backups already go.", m.backupsOf(serverID))
 	}
 	for _, c := range m.BackupCopiesOf(ctx, serverID) {
 		if c.Ref == ref {
-			return formErrorf("%s backups are already copied there.", capital(m.backupsOf(serverID)))
+			return usererr.New("%s backups are already copied there.", capital(m.backupsOf(serverID)))
 		}
 	}
 	name := n.Identity().Name
@@ -108,15 +111,15 @@ func (m *Manager) setUpCopy(ctx context.Context, act *activity.Log, serverID str
 		return err
 	}
 	if m.alone() {
-		act.Step("Saving the copy (Roostack restarts to use it)")
+		act.Step("Saving the copy (Roostack will restart to use it)")
 	} else {
-		act.Step("Telling %s about the copy (it restarts Roostack)", m.nameOf(serverID))
+		act.Step("Telling %s about the copy (it will restart Roostack)", m.nameOf(serverID))
 	}
 	c := node.BackupCopy{Name: choice.Ref, Title: choice.Title, Repository: dest.Repository, Env: dest.Env, Cloud: dest.Cloud, Key: dest.Key, KeyHint: dest.KeyHint, Drive: dest.Drive}
 	if err := n.Settings().SetBackupCopies(ctx, m.copiesFor(ctx, serverID, &c)); err != nil {
 		return err
 	}
-	act.Step("%s backups are also copied to %s from the next backup", capital(m.backupsOf(serverID)), inSentence(choice.Title))
+	act.Step("%s backups will also be copied to %s from the next backup", capital(m.backupsOf(serverID)), inSentence(choice.Title))
 	return nil
 }
 
@@ -133,7 +136,7 @@ func (m *Manager) backupsOf(serverID string) string {
 // capital, a server's own name stays as it is ("nas", not "Nas").
 func capital(s string) string {
 	if s == "the" || strings.HasPrefix(s, "the ") || strings.HasPrefix(s, "this ") {
-		return strings.ToUpper(s[:1]) + s[1:]
+		return words.Capitalise(s)
 	}
 	return s
 }
@@ -180,7 +183,7 @@ func (m *Manager) PromoteBackupCopy(ctx context.Context, serverID, ref string) e
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	c, ok := m.copyTarget(ctx, serverID, ref)
 	if !ok {
@@ -215,7 +218,7 @@ func (m *Manager) RemoveBackupCopy(ctx context.Context, serverID, ref string) er
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
+		return usererr.New("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	t, ok := m.copyTarget(ctx, serverID, ref)
 	if !ok {
@@ -225,7 +228,7 @@ func (m *Manager) RemoveBackupCopy(ctx context.Context, serverID, ref string) er
 		return err
 	}
 	if t.ScopedKey != "" {
-		if _, id, _ := strings.Cut(ref, ":"); id != "" {
+		if id := destination.Parse(ref).ID; id != "" {
 			if p, err := m.provider(ctx, id); err == nil {
 				var s3 S3Provider
 				if json.Unmarshal([]byte(p.Config), &s3) == nil {

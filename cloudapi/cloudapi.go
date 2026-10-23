@@ -5,7 +5,10 @@
 // logic, only the contract (SPEC.md §6.6).
 package cloudapi
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // The API labs talk to. Paths are relative to Cloud's address
 // (Roostack's config.Cloud.Address). Bodies are JSON. Errors are
@@ -36,6 +39,9 @@ const (
 	PathLabRelayStats = "/v1/lab/relay/stats"
 	// POST StorageRequest → StorageKeys (mutual TLS): Roostack Cloud
 	// backup's short-lived keys. GET PathLabStorage → StorageUsage.
+	// While the account is suspended, keys are given as far as its
+	// suspension allows (all of them, only for restores, or none), and
+	// the rest answered 423.
 	PathLabStorageKeys = "/v1/lab/storage/keys"
 	PathLabStorage     = "/v1/lab/storage"
 	// PUT RecoveryIdentity (mutual TLS): the lab's recovery identity,
@@ -50,11 +56,81 @@ const (
 	// (no certificate): POST RestoreChallengeRequest → RestoreChallenge,
 	// then one of POST RestoreProof → RestoreAccess (keys to read the
 	// backups of every lab with the key) or POST RelinkRequest → Relinked
-	// (a new certificate for the linked one).
+	// (a new certificate for the linked one). While the lab's account is
+	// suspended, access follows its suspension as PathLabStorageKeys's
+	// restore keys do, and relinking is answered 423.
 	PathRestoreChallenge = "/v1/restore/challenge"
 	PathRestoreAccess    = "/v1/restore/access"
 	PathRestoreRelink    = "/v1/restore/relink"
 )
+
+// Route is one of the API's routes: Method and Path as http.ServeMux
+// takes them (Pattern), PathNames's with its {name}. Lab says it's one
+// of the lab's own (mutual TLS: the lab's certificate is needed, and 401
+// means Cloud doesn't accept it). Only a lab's own route has the other
+// two: WhileSuspended, a suspended account's labs may still use it
+// (otherwise 423 Locked); Writes, it changes something, so it counts
+// against the lab's limit on changes (429 past it, checked before the
+// suspension).
+type Route struct {
+	Method, Path   string
+	Lab            bool
+	WhileSuspended bool
+	Writes         bool
+}
+
+// Pattern is the route as http.ServeMux takes it ("GET /v1/lab").
+func (r Route) Pattern() string { return r.Method + " " + r.Path }
+
+// Routes are every route of the API, as Cloud serves them; Roostack's
+// fake Cloud (internal/cloud/cloudtest) follows them, and Cloud's own
+// tests check its routes against them. The acme-dns and records APIs
+// (HeaderUser) are at the addresses a NameClaim gives, not here.
+var Routes = []Route{
+	{Method: "POST", Path: PathLinks},
+	{Method: "POST", Path: PathLinkStatus},
+	{Method: "POST", Path: PathLinkCancel},
+	{Method: "GET", Path: PathNames + "{name}"},
+	{Method: "GET", Path: PathInfo},
+	// A suspended account's lab may still check in, unlink, renew its
+	// certificate (so a suspension never makes it forget the link), report,
+	// and use its backups as far as the suspension allows.
+	{Method: "GET", Path: PathLab, Lab: true, WhileSuspended: true},
+	{Method: "DELETE", Path: PathLab, Lab: true, WhileSuspended: true},
+	{Method: "POST", Path: PathLabRenew, Lab: true, WhileSuspended: true, Writes: true},
+	{Method: "POST", Path: PathLabName, Lab: true, Writes: true},
+	{Method: "POST", Path: PathLabNameRelease, Lab: true, Writes: true},
+	{Method: "PUT", Path: PathLabRelay, Lab: true, Writes: true},
+	{Method: "GET", Path: PathLabRelay, Lab: true},
+	{Method: "DELETE", Path: PathLabRelay, Lab: true, Writes: true},
+	{Method: "PUT", Path: PathLabRelayBans, Lab: true, Writes: true},
+	{Method: "GET", Path: PathLabRelayStats, Lab: true},
+	{Method: "POST", Path: PathLabStorageKeys, Lab: true, WhileSuspended: true, Writes: true},
+	{Method: "GET", Path: PathLabStorage, Lab: true, WhileSuspended: true},
+	{Method: "PUT", Path: PathLabRecoveryIdentity, Lab: true, Writes: true},
+	{Method: "PUT", Path: PathLabReport, Lab: true, WhileSuspended: true, Writes: true},
+	{Method: "POST", Path: PathRestoreChallenge},
+	{Method: "POST", Path: PathRestoreAccess},
+	{Method: "POST", Path: PathRestoreRelink},
+}
+
+// RouteOf is the route a request's method and path (no query) take, if
+// any.
+func RouteOf(method, path string) (Route, bool) {
+	for _, r := range Routes {
+		if r.Method != method {
+			continue
+		}
+		if prefix, ok := strings.CutSuffix(r.Path, "{name}"); ok {
+			if name, ok := strings.CutPrefix(path, prefix); ok && name != "" && !strings.Contains(name, "/") {
+				return r, true
+			}
+		} else if r.Path == path {
+			return r, true
+		}
+	}
+	return Route{}, false
+}
 
 // A claimed name's records, at the addresses in its NameClaim's
 // credentials, authenticated with its acme-dns account (the headers
@@ -343,8 +419,11 @@ const (
 	StorageRestore = "restore"
 )
 
-// StorageRequest asks for keys: for a server's backups (Server, its name
-// in the lab), or the lab's prune.
+// StorageRequest asks for keys: for a server's backups, or the lab's
+// prune. Server is the server's ID in the lab (e.g. n-3f9c2a7b1d, never
+// its name, which people can change), and names its folder in Cloud's
+// bucket: Cloud takes lowercase letters, digits and hyphens, at most 40,
+// starting and ending with a letter or digit.
 type StorageRequest struct {
 	Purpose string `json:"purpose"`
 	Server  string `json:"server,omitempty"`

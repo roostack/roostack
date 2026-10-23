@@ -1,43 +1,43 @@
 # Add a service
 
 1. On **Services**, choose **Add a service**. You'll see everything you can
-   install, each with its logo, what it does and its categories; ones you
+   install, each with its logo, what it does, and its categories; ones you
    already have are marked **Installed**. Type in the search box, or choose
    a category such as **Photos and videos**, to narrow the list.
 2. Choose **Install** next to the one you want.
 3. Fill in the form:
 
     Run it on
-    :   Which of your servers runs it, if you have more than one. Its data
-        stays on that server, and is backed up there. If your servers have
-        different kinds of processor (a PC and a Raspberry Pi, say), a
-        service with no version for one of them can't run on that server:
-        the form says so and offers only the others.
+    :   Which of your servers will run it, if you have more than one. Its
+        data will stay on that server and be backed up there. If your
+        servers have different kinds of processor (a PC and a Raspberry Pi,
+        say), a service with no version for one of them can't run on that
+        server: the form will say so and offer only the others.
 
     Web address
     :   The first part of its address, such as `passwords` for
-        `passwords.smith.family`. Letters, digits and dashes.
+        `passwords.smith.family`. Letters, digits, and dashes.
 
     Settings
     :   Anything the service needs to know from the start, such as a name
-        for its first administrator account. Passwords you type here are
-        kept locked away on the server, never in a file anyone can read;
-        ones only needed for setup (such as the first administrator's) are
-        deleted once setup has finished.
+        for its first administrator account. Passwords you type here will
+        be kept locked away on the server, never in a file anyone can read;
+        ones only needed for setup (such as the first administrator's) will
+        be deleted once setup has finished.
 
 4. Check **What it sets up**, just above the button (see below), then
    choose **Install**.
 
-Roostack downloads the service, starts it and gives it its web address.
-This usually takes a few minutes. While it does, the service shows
-**installing**, and its page lists each step: done, in progress (with how
-long so far) or still to come, with the full log under **Details**. The
-home page and **Services** show which step it's on. Its address becomes a
-link once it's running.
+Roostack will download the service, start it, and give it its web address,
+which usually takes a few minutes. While it does, the service will show
+**installing**, and its page will list each step: done, in progress (with
+how long so far), or still to come, with the full log under **Details**.
+The home page and **Services** will show which step it's on, and its
+address will become a link once it's running.
 
 On a brand-new server, the first install may also wait for Roostack's web
 proxy to finish building (once only, a few minutes). If a step takes much
-longer than usual, the page says so, and whether it's still moving.
+longer than usual, the page will say so and whether it's still moving.
 
 ## Official and community services
 
@@ -69,20 +69,20 @@ most 100 KB), and **Add**.
 
 Nobody has reviewed a package you add. Roostack checks that it's a valid
 package it can set up, but not what it runs: the package decides which
-app runs and what it's given. Only add one you wrote, or got from someone
+app runs and what it's given. Only add one you wrote or got from someone
 you trust.
 
-It's then listed with the others, marked **Your own**, and anyone who can
-add services can install it. If it asks for something packages from the
+It will then be listed with the others, marked **Your own**, and anyone who
+can add services can install it. If it asks for something packages from the
 service registry can't have (an image that isn't pinned, a folder from
-the server, extra container options), installing it lists those, and only
-the Owner can install it, by ticking **I've read what it asks for, and
+the server, extra container options), installing it will list those, and
+only the Owner can install it, by ticking **I've read what it asks for, and
 want to install it anyway**.
 
-- **A new version:** add the new file. It replaces the one you added
-  before; services installed from it keep running as they are.
-- **Removing it:** **Remove** beside it. Services installed from it keep
-  running; remove those from their own pages.
+- **A new version:** add the new file. It will replace the one you added
+  before; services installed from it will keep running as they are.
+- **Removing it:** **Remove** beside it. Services installed from it will
+  keep running; remove those from their own pages.
 - **Names:** yours can't have the name of a package in the service
   registry. Pick another, such as `myapp-test`.
 - **Where it's kept:** `/var/lib/roostack/local-packages/<name>/`, which
@@ -98,8 +98,8 @@ file, or one of the registry's, helps with each field, and checks it as
 you go (see [The package editor](../packages/write.md#the-package-editor)).
 Everything happens in your browser until you choose **Check with this
 Roostack**, which runs your lab's own checks without adding anything, or
-**Add to this lab…**, which adds it as above. The page you land on then
-says it was added, with **Install it**.
+**Add to this lab…**, which adds it as above. The page you land on will
+then say it was added, with **Install it**.
 
 ## Needs a newer Roostack
 
@@ -136,11 +136,11 @@ Memory
     that would run with your choices. It's the package's estimate, not a
     limit: a service can use more while it's busy. Below it, how much
     memory the server it would run on has, and how much is free right
-    now. If the service needs more than is free, a warning says so: it may
-    be slow, or stop working. You can still install it.
+    now. If the service needs more than is free, a warning will say so: it
+    may be slow or stop working. You can still install it.
 
 Under the description, the page also says who makes the app, its licence,
-and links to its website, its source code and a way to support it.
+and links to its website, its source code, and a way to support it.
 
 ??? note "For technical users"
 
@@ -161,47 +161,50 @@ and links to its website, its source code and a way to support it.
 
 You can install a service more than once: two Forgejos, say, one for
 work and one for home. Each copy is completely separate: its own data,
-settings, backups and web address.
+settings, backups, and web address.
 
 On **Add a service**, choose **Add another…** next to one you already
-have. As well as the usual form, it asks for:
+have. As well as the usual form, it will ask for:
 
 Title
 :   What it's called on your pages, such as "Forgejo (work)".
 
 Name
-:   Its short name, used for its folders, containers and backups. It always
-    starts with the service's own (`forgejo-`), and you choose the rest:
-    lowercase letters, digits and dashes, such as `work`. It's filled in
-    from the title as you type. It can't change later.
+:   Its short name, used for its folders, containers, and backups. It
+    always starts with the service's own (`forgejo-`), and you choose the
+    rest: lowercase letters, digits, and dashes, such as `work`. It will be
+    filled in from the title as you type. It can't change later.
 
-It also needs a web address of its own, which follows the name (such as
+It also needs a web address of its own, which will follow the name (such as
 `git-work`) unless you change it.
 
 Every install asks for a title, and has a name under **Its name for folders
 and backups** (open for another copy): leave them as they are for the usual
 name (`forgejo`). To change a service's
-title later, open its page, choose **Edit settings**, and change its **Name**; its name in folders and backups stays.
+title later, open its page, choose **Edit settings**, and change its
+**Name**; its name in folders and backups will stay.
 
 ??? note "For technical users"
 
     The name is the service's ID: its instance file is
     `/var/lib/roostack/services/<name>.yaml` (with `name:` and `package:`),
     its containers `roostack-<name>-…`, its data
-    `/srv/roostack/services/<name>`, its secrets `roostack-<name>-…` and
+    `/srv/roostack/services/<name>`, its secrets `roostack-<name>-…`, and
     its backups tagged `service=<name>`. The first copy of a package is
     named after it.
 
 ## Finishing setup
 
 Some services need a step after they start, such as creating their first
-administrator account. The service's page says **Finishing setup** while
-Roostack does this, which can take a few minutes after installing.
+administrator account. The service's page will say **Finishing setup**
+while Roostack is doing this, which can take a few minutes after
+installing.
 
-If a setup step fails, the page shows what went wrong, with **Try again**.
-If it was something you typed (an invalid username, say), open **Change
-what you entered, then try again**, correct it, and choose **Try again with
-these**. Passwords you leave empty stay as you typed them before.
+If a setup step fails, the page will show what went wrong, with
+**Try again**. If it was something you typed (an invalid username, say),
+open **Change what you entered, then try
+again**, correct it, and choose **Try again with these**. Passwords you
+leave empty will stay as you typed them before.
 
 ## Opening it
 
@@ -222,7 +225,7 @@ is ready.
     Roostack then applies the change on the service's server: it generates
     the Quadlet files in `~roostack/.config/containers/systemd/`
     and a Caddy snippet in `/var/lib/roostack/caddy/sites/<name>.caddy`,
-    reloads systemd and starts the units. Each new container's image is
+    reloads systemd, and starts the units. Each new container's image is
     downloaded first (`podman pull`, run as the `roostack` user), then its
     unit started, one at a time; a new Caddy starts last. The apply's log
     shows on the home page and under the service's **Details** while it

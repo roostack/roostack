@@ -38,7 +38,7 @@ holds most of the keys. Other servers in your lab hold their own.
 | **Roostack Cloud storage keys** | Let a server add its backups to its own folder in Roostack Cloud's storage | On each server that backs up there | They come *from* Roostack Cloud, last 12 hours, and are left out of backups (SPEC §6.9) |
 
 Your services' own passwords (made when they were installed), the login
-for your domain's DNS, the password for sending email and the keys of any
+for your domain's DNS, the password for sending email, and the keys of any
 online storage you use are on the server too, in files only Roostack can
 read. People's passwords are kept only as a one-way hash.
 
@@ -49,7 +49,7 @@ read. People's passwords are kept only as a one-way hash.
 
     | File | Holds |
     |---|---|
-    | `backup-key` | On the controller, the recovery key; on any other server, that server's own key for its main backup. While the key is being changed, also `backup-key.new`, `backup-key.old` and `backup-key.change.json`. None of these is ever backed up |
+    | `backup-key` | On the controller, the recovery key; on any other server, that server's own key for its main backup. While the key is being changed, also `backup-key.new`, `backup-key.old`, and `backup-key.change.json`. None of these is ever backed up |
     | `backup-copies/<name>.key` | On a server other than the controller, its key for each extra backup |
     | `backup-key-hints.json` | Which of a backup's key files each key opens (hashes and key IDs, no keys), so restic doesn't try others first (SPEC §10.10) |
     | `labca/ca.key`, `ca.crt` | The lab's certificate authority, on the controller: ECDSA P-256, 20 years |
@@ -81,7 +81,7 @@ read. People's passwords are kept only as a one-way hash.
 | **Your services and Roostack's pages** | HTTPS with Let's Encrypt certificates, made and renewed by Caddy on your server |
 | **Visitors through Roostack Cloud's relay** | Their HTTPS connection ends in Caddy on your server: the relay passes it on still encrypted, and never has your certificates |
 | **Email Roostack sends** | TLS to your email provider (Roostack refuses a provider that doesn't offer it). After that it's ordinary email, which email providers can read |
-| **On the server itself** | Nothing extra: files, the database and saved passwords are protected by who may read them, not encrypted. Disk encryption, if you want it, is Debian's, set up when you install it |
+| **On the server itself** | Nothing extra: files, the database, and saved passwords are protected by who may read them, not encrypted. Disk encryption, if you want it, is Debian's, set up when you install it |
 
 ??? note "For technical users"
 
@@ -99,7 +99,7 @@ read. People's passwords are kept only as a one-way hash.
 
 Everything below is something you turned on, or something Roostack needs
 to keep itself and your services up to date. Roostack sends no usage
-statistics, crash reports or tracking of any kind, and sets no identifying
+statistics, crash reports, or tracking of any kind, and sets no identifying
 browser name in its requests.
 
 ### Roostack Cloud
@@ -116,14 +116,14 @@ what Caddy and restic send is below.
 |---|---|---|
 | **Linking** | Your lab's name, the roost.ac name you'd like, Roostack's version, a certificate request (a public key), and the address of the page to come back to (the address your browser used for your lab, such as `https://192.168.1.20:8443/…`). Then, every 3 seconds until you confirm (10 minutes at most), the link's secret | So Roostack Cloud can show you which lab you're confirming, and give it a certificate |
 | **Choosing a name** | The name you're typing, to check it's free; then the name you chose, and whether to keep your lab's roost.ac name until now working beside it. Later, that the old name can go (once your old addresses stop), or that the new one can, if your lab couldn't use it | Your roost.ac address |
-| **Once a day**, and when Roostack starts | A check-in, with nothing in it: Cloud answers with the account, your names and anything held back. Every hour instead while something waits on Cloud | To show you how the link stands |
-| **After each check-in** | The lab's name; the email addresses of the people here who get the lab's problems by email; and, for each server backing up to Roostack Cloud, its ID, its name and when its last backup there finished | Cloud's emails about your lab go to those people too, once each agrees; your lab's page there shows the backups |
+| **Once a day**, and when Roostack starts | A check-in, with nothing in it: Cloud answers with the account, your names, and anything held back. Every hour instead while something is waiting on Cloud | To show you how the link stands |
+| **After each check-in** | The lab's name; the email addresses of the people here who get the lab's problems by email; and, for each server backing up to Roostack Cloud, its ID, its name, and when its last backup there finished | Cloud's emails about your lab go to those people too, once each agrees; your lab's page there shows the backups |
 | **Every two months or so** | A new certificate request (a new key) | The certificate renews itself before it ends |
 | **After linking, and when the recovery key changes** | A public key worked out from the recovery key, and a signature that proves the lab has the key | [Restoring without the old server](#restoring-without-the-old-server) |
 | **Backups to Roostack Cloud** | Before backing up, and before the weekly clean-up: which server, and what for (backing up, or cleaning up). After each check-in, and when you choose where backups go: a question, with nothing in it, about how much space the lab uses | Cloud answers with storage keys for 12 hours, for that server's folder only. The space is shown on the backup, and on Home from 80% full |
 | **Your roost.ac name's DNS records**, when they change | Your server's address on your home network (`*.smiths.roost.ac` and `smiths.roost.ac` point there), and, for services you make public, your home's internet address. Every few minutes Roostack also reads them back, which sends only their names; those reads aren't in the request log | Your services' addresses |
 | **Restoring on a fresh install** | A public key worked out from the recovery key, then a signature that proves you have the key | Cloud answers with keys to read your backups there. The restored lab's request log keeps these requests |
-| **The relay**, if public visitors come in through it | When it's set up or changed: your public services' names, the relay's WireGuard public key, which countries may visit, your time zone and your own domain (if relayed). Every 5 minutes: a check on it, and the addresses your lab's attack protection (CrowdSec) has banned, so the relay turns them away too | To bring visitors to your lab, and keep attackers out before they reach it |
+| **The relay**, if public visitors come in through it | When it's set up or changed: your public services' names, the relay's WireGuard public key, which countries may visit, your time zone, and your own domain (if relayed). Every 5 minutes: a check on it, and the addresses your lab's attack protection (CrowdSec) has banned, so the relay turns them away too | To bring visitors to your lab, and keep attackers out before they reach it |
 | **Unlinking** | That the lab is leaving | |
 
 Also sent to Roostack Cloud, but not through the request log:
@@ -144,7 +144,7 @@ Also sent to Roostack Cloud, but not through the request log:
 | **Roostack's updates** (`apt.roostack.cloud`) and **Debian's** (your server's Debian mirror) | Downloads, each night after the backup; the list of Roostack's releases every 6 hours | Updates, checked against Roostack's and Debian's signing keys |
 | **Container registries** (such as `docker.io`, `ghcr.io`) | Downloads of each service's images, exactly the versions its package names; Caddy's, which is built on your server with its plugins from Go's module mirror | To run your services |
 | **Let's Encrypt** (or ZeroSSL, if it can't) | The lab's email address (from setup) and the names on the certificate | HTTPS certificates |
-| **Your domain's DNS provider** (Cloudflare, Route 53, Porkbun, Gandi, GoDaddy, Namecheap or Spaceship), if you use your own domain | DNS records: your server's home-network address for `*.yourdomain`, your home's internet address for public services, and certificate checks | Your services' addresses |
+| **Your domain's DNS provider** (Cloudflare, Route 53, Porkbun, Gandi, GoDaddy, Namecheap, or Spaceship), if you use your own domain | DNS records: your server's home-network address for `*.yourdomain`, your home's internet address for public services, and certificate checks | Your services' addresses |
 | **DNS servers** | While something is public, every 5 minutes, two DNS questions to OpenDNS and Google that answer with your home's internet address (Namecheap's API also needs `icanhazip.com`); DNS checks through Cloudflare (`1.1.1.1`) and Quad9 (`9.9.9.9`) | To keep your public addresses right when your internet address changes |
 | **CrowdSec**, while anything is public | Its rules, and, unless you turned sharing off, the addresses of attackers it saw and what they tried | Protection for public services ([Public access](services/public.md)) |
 | **Where your backups go** | restic's encrypted files only | Your backups |
@@ -152,8 +152,8 @@ Also sent to Roostack Cloud, but not through the request log:
 
 With Roostack Cloud turned off (`cloud: { disabled: true }`, see
 [Roostack Cloud](settings/cloud.md#turning-roostack-cloud-off)), none of
-the Roostack Cloud list happens. The registry and Roostack's updates are
-separate services and carry on.
+the Roostack Cloud list will happen. The registry and Roostack's updates
+are separate services and will carry on.
 
 ## What Roostack Cloud can and can't see { #what-roostack-cloud-can-and-cant-see }
 
@@ -191,9 +191,9 @@ domain's DNS.
 If your controller is lost, a fresh install can restore the lab from
 Roostack Cloud with only your recovery key. For that, your lab gives
 Roostack Cloud a public key worked out from the recovery key, and proves
-it has the key by signing with it. Roostack Cloud checks those signatures,
-but can't work out your recovery key from them, or open a backup with
-them (SPEC §6.9, "Restoring from Roostack Cloud").
+it has the key by signing with it. Roostack Cloud checks those signatures
+but can't work out your recovery key from them or open a backup with them
+(SPEC §6.9, "Restoring from Roostack Cloud").
 
 ## Watching it yourself
 
@@ -201,7 +201,7 @@ them (SPEC §6.9, "Restoring from Roostack Cloud").
 
 Every request your lab makes to Roostack Cloud is in **Settings → Roostack
 Cloud → Details → Recent requests to Roostack Cloud**: when, what, what it
-sent and the answer. Secrets (the link's secret, signatures) show as "(not
+sent, and the answer. Secrets (the link's secret, signatures) show as "(not
 recorded)", and anything Roostack doesn't know to be safe is left out the
 same way. Long values, such as a certificate request, are shortened.
 
@@ -281,7 +281,7 @@ backups, can do it, as can a look at the files themselves.
     sudo -u roostack restic --no-cache --no-lock -r $repo --password-file $key snapshots
     ```
 
-    With another key, restic says "wrong password or no key found".
+    With another key, restic will say "wrong password or no key found".
 
 ??? note "For technical users: other places"
 
@@ -291,9 +291,10 @@ backups, can do it, as can a look at the files themselves.
       them), and `-r s3:…` as **Where it is** shows it.
     - **Roostack Cloud:** the storage keys are in
       `/var/lib/roostack/cloud-backup-keys.json` (`access_key_id`,
-      `secret_access_key`, `session_token`, `region` and `repository`),
-      for 12 hours at most: export them as `AWS_ACCESS_KEY_ID`,
-      `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` and `AWS_DEFAULT_REGION`.
+      `secret_access_key`, `session_token`, `region`, and `repository`), for
+      12 hours at most: export them as `AWS_ACCESS_KEY_ID`,
+      `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, and
+      `AWS_DEFAULT_REGION`.
     - **Another server's backups** open with the recovery key too (each has
       the recovery key and the server's own). On that server,
       `/var/lib/roostack/backup-key` is its own key, which opens only its
@@ -310,21 +311,21 @@ The program checking all of this is Roostack, so it's checkable too:
   your server checks each update against it before installing it.
 - **Reproducible:** building a release's published source gives exactly
     the same files, byte for byte. Anyone with the source can rebuild a
-    release and compare it with the one published, in one command (it
-    needs Podman or Docker, and takes about ten minutes):
+    release and compare it with the one published, in one command (it needs
+    Podman or Docker and takes about ten minutes):
 
     ```bash
     make verify-release VERSION=0.1.0
     ```
 
     It checks the release's signature, builds it from its source in the
-    same environment the release was built in, compares every file and
-    says plainly whether they match. The source isn't public yet: until
-    it is, only people with access to it can.
+    same environment the release was built in, compares every file, and
+    says plainly whether they match. The source isn't public yet: until it
+    is, only people with access to it can.
 
 ??? note "For technical users"
 
     The release key's fingerprint is published on roostack.cloud; the
     command shows the fingerprint of the key it checked with, to compare.
-    How a release is built, signed and checked, and the key's ceremony,
+    How a release is built, signed, and checked, and the key's ceremony,
     are in `docs/RELEASING.md` in Roostack's source (SPEC §6.2.1).

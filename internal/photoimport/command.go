@@ -44,8 +44,6 @@ type Run struct {
 	Parts  []string
 	// Log is immich-go's JSON log, inside the container.
 	Log string
-	// DryRun checks without sending anything (step 6).
-	DryRun bool
 	// Tasks is how many it sends at once: a few, so a small server
 	// keeps up and immich-go's memory stays bounded (#1395).
 	Tasks int
@@ -78,9 +76,6 @@ func Command(r Run) ([]string, error) {
 		"--manage-burst=" + pick(r.Choices.Stacks, "Stack", "NoStack"),
 		"--manage-raw-jpeg=" + pick(r.Choices.Stacks, "StackCoverRaw", "NoStack"),
 		"--manage-heic-jpeg=" + pick(r.Choices.Stacks, "StackCoverHeic", "NoStack"),
-	}
-	if r.DryRun {
-		args = append(args, "--dry-run")
 	}
 	switch r.Kind {
 	case KindGoogle:

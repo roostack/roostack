@@ -2,7 +2,6 @@ package dns
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strings"
 
@@ -37,16 +36,16 @@ var cloudProvider = &Provider{
 			"\tserver_url \"" + v[cloudapi.CredServerURL] + "\"\n}"
 	},
 	records: &recordsAPI{
-		get: func(ctx context.Context, hc *http.Client, v map[string]string, _, name, typ string) ([]string, error) {
+		get: func(ctx context.Context, c conn, name, typ string) ([]string, error) {
 			var out cloudapi.RecordValues
-			err := call(ctx, hc, "GET", cloudRecordURL(v, name, typ), cloudAuth(v), nil, &out)
+			err := c.call(ctx, "GET", cloudRecordURL(c.v, name, typ), cloudAuth(c.v), nil, &out)
 			if isNotFound(err) {
 				return nil, nil
 			}
 			return out.Values, err
 		},
-		upsert: func(ctx context.Context, hc *http.Client, v map[string]string, _, name, typ, value string) error {
-			return call(ctx, hc, "PUT", cloudRecordURL(v, name, typ), cloudAuth(v), cloudapi.RecordValue{Value: value}, nil)
+		upsert: func(ctx context.Context, c conn, name, typ, value string) error {
+			return c.call(ctx, "PUT", cloudRecordURL(c.v, name, typ), cloudAuth(c.v), cloudapi.RecordValue{Value: value}, nil)
 		},
 	},
 }
@@ -63,5 +62,3 @@ func cloudRecordURL(v map[string]string, name, typ string) string {
 	}
 	return strings.TrimRight(v[cloudapi.CredRecordsURL], "/") + "/" + url.PathEscape(name) + "/" + url.PathEscape(typ)
 }
-
-func init() { providers = append(providers, cloudProvider) }

@@ -47,7 +47,7 @@ func (p *Package) Risks() []string {
 		c := p.Containers[name]
 		at := "containers." + name
 		if !pinnedRe.MatchString(c.Image) {
-			add("%s.image: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.", at)
+			add("%s.image: pin the image by digest (name:tag@sha256:…) so that every lab runs exactly the image that was reviewed.", at)
 		}
 		for _, msg := range quadletPolicy(c.Quadlet) {
 			add("%s.quadlet: %s", at, msg)
@@ -58,7 +58,7 @@ func (p *Package) Risks() []string {
 		at := "databases." + name
 		// No image means Roostack's own, which Roostack pins.
 		if d.Image != "" && !pinnedRe.MatchString(d.Image) {
-			add("%s.image: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.", at)
+			add("%s.image: pin the image by digest (name:tag@sha256:…) so that every lab runs exactly the image that was reviewed.", at)
 		}
 		for _, msg := range quadletPolicy(d.Quadlet) {
 			add("%s.quadlet: %s", at, msg)
@@ -71,7 +71,7 @@ func (p *Package) Risks() []string {
 		r := p.Routes[name]
 		at := "routes." + name
 		if r.Exposure != ExposurePrivate {
-			add("%s.exposure: must be private; only the Owner makes an address public.", at)
+			add("%s.exposure: must be private; only the Owner can make an address public.", at)
 		}
 		if r.Public.Unsafe == "" && len(r.Public.LoginPaths) == 0 {
 			add("%s.public: name the pages where people sign in (login_paths), or say why the address shouldn't be public at all (unsafe).", at)
@@ -79,7 +79,7 @@ func (p *Package) Risks() []string {
 	}
 	for _, name := range slices.Sorted(maps.Keys(p.Ports)) {
 		if p.Ports[name].DefaultExposure() != ExposurePrivate {
-			add("ports.%s.exposure: must be private; only the Owner opens a connection to the internet.", name)
+			add("ports.%s.exposure: must be private; only the Owner can open a connection to the internet.", name)
 		}
 	}
 	return problems
@@ -94,14 +94,14 @@ func (p *Package) Risks() []string {
 func (p *Package) aboutPolicy(add func(string, ...any)) {
 	a := p.About
 	if a.Maker == "" {
-		add("about.maker: say who makes the app, in a few words, so the catalog credits them.")
+		add("about.maker: say who makes the app, in a few words, so that the catalog credits them.")
 	}
 	switch {
 	case a.Licence == "":
 		add("about.licence: give the app's licence as an SPDX identifier (e.g. AGPL-3.0-only), or %q if its code isn't published.", LicenceClosed)
 	case a.Licence == LicenceClosed:
 		if a.Website == "" {
-			add("about.website: an app whose code isn't published needs its website, so people can see who makes it.")
+			add("about.website: an app whose code isn't published needs its website so that people can see who makes it.")
 		}
 	default:
 		for _, id := range ambiguousLicences(a.Licence) {
@@ -168,7 +168,7 @@ func (r quadletRule) matches(key string) bool {
 const (
 	podmanAnything = "it can pass anything to Podman; something the package format can't say needs a new field"
 	serverCommand  = "it runs a command on the server; commands run inside the container (command: or hooks:)"
-	serverFiles    = "it reads or writes files on the server, outside the service; use storage:, env: and secrets:"
+	serverFiles    = "it reads or writes files on the server, outside the service; use storage:, env:, and secrets:"
 	roostackWrites = "Roostack writes it itself, from what the package declares"
 	runtimeChange  = "it changes how Podman or systemd runs the container, beyond the service; something the package format can't say needs a new field"
 )
@@ -215,7 +215,7 @@ var quadletRules = []quadletRule{
 	{section: "Container", keys: []string{"UIDMap", "GIDMap", "SubUIDMap", "SubGIDMap"},
 		instead: "use UserNS=keep-id:uid=…,gid=… if the service's files need a particular owner"},
 	{section: "Container", keys: []string{"UserNS"}, denies: "sharedUserNS",
-		instead: "only keep-id, auto, nomap or private: the others share a user namespace beyond the service; use UserNS=keep-id:uid=…,gid=… if the service's files need a particular owner"},
+		instead: "only keep-id, auto, nomap, or private: the others share a user namespace beyond the service; use UserNS=keep-id:uid=…,gid=… if the service's files need a particular owner"},
 
 	// [Container]: what Roostack writes itself.
 	{section: "Container", keys: []string{"Image", "AutoUpdate"},
@@ -247,7 +247,7 @@ var quadletRules = []quadletRule{
 	{section: "Unit", keys: []string{"*Action*", "RebootArgument"},
 		instead: "it acts beyond the service, such as stopping every service of the roostack user"},
 	{section: "Install", keys: []string{"*"},
-		instead: "it ties the service to other units, or names it after one; " + roostackWrites},
+		instead: "it ties the service to other units or names it after one; " + roostackWrites},
 }
 
 // valueTests are the tests a quadletRule refuses a value by, named so
@@ -344,7 +344,7 @@ func notAllowed(section, key string) string {
 			return fmt.Sprintf("write it as %s, as systemd and Quadlet only read it that way", k)
 		}
 	}
-	return "it isn't one of the keys Roostack has checked stay inside the service; a package that needs it asks for it to be added to the package policy"
+	return "it isn't one of the keys Roostack has checked stay inside the service; a package that needs it can ask for it to be added to the package policy"
 }
 
 func findQuadletRule(section, key string) *quadletRule {

@@ -15,12 +15,10 @@ const recoveryKeyGroups = 16
 // down and type it back. Every key, the first and any that replaces it,
 // is made here (until 2026-10-19 a changed key was 24 bytes in plain hex,
 // the first 32 in base64).
-func NewRecoveryKey() (string, error) {
+func NewRecoveryKey() string {
 	b := make([]byte, recoveryKeyGroups*2)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return groupHex(hex.EncodeToString(b)), nil
+	rand.Read(b) // never fails (Go 1.24)
+	return groupHex(hex.EncodeToString(b))
 }
 
 // TypedRecoveryKey is a recovery key as someone typed it, in the form it

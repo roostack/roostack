@@ -65,7 +65,7 @@ test("each part of a package gets what it's missing", () => {
   assert.ok(labels("routes.web.public.login_paths").includes("Add /login (Audiobookshelf, HedgeDoc, Miniflux, Wiki.js)"));
   assert.deepEqual(labels("storage.cache.class"), ["Mark it replaceable"]);
   assert.deepEqual(labels("storage.uploads.class"), ["Mark it critical"]);
-  assert.deepEqual(labels("containers.app.env.SECRET_KEY"), ["Make it a secret Roostack generates"]);
+  assert.deepEqual(labels("containers.app.env.SECRET_KEY"), ["Make it a secret Roostack will generate"]);
   assert.deepEqual(labels("containers.app.env.TZ"), ["Take it out"]);
   assert.deepEqual(labels("containers.app.env.APP_URL"), ["Use {{ .Routes.web.URL }}"]);
   assert.deepEqual(labels("containers.app.health"), ["Use /health on port 3000", "Use / on port 3000"]);

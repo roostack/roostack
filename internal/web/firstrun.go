@@ -15,7 +15,6 @@ import (
 	"io"
 	"log"
 	"log/slog"
-	"math/big"
 	"net"
 	"net/http"
 	"net/netip"
@@ -84,6 +83,9 @@ type FirstRun struct {
 	// databases are still being put back (optional).
 	LabRestore     LabRestorer
 	RestorePending func() bool
+	// SetupTokenFile is where the setup code is kept, which the setup
+	// pages name (config.Paths.SetupTokenFile).
+	SetupTokenFile string
 
 	// setupMu guards setupToken and restore. setupToken must be entered
 	// to create the first Owner, so whoever reaches the UI first on the
@@ -115,18 +117,14 @@ func SetupCert(paths config.Paths, addrs []netip.Addr, now time.Time) (tls.Certi
 	if err != nil {
 		return tls.Certificate{}, "", err
 	}
-	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 127))
-	if err != nil {
-		return tls.Certificate{}, "", err
-	}
 	name, _ := os.Hostname()
+	// No SerialNumber: x509.CreateCertificate makes a random one.
 	tmpl := &x509.Certificate{
-		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "Roostack setup (" + name + ")"},
-		NotBefore:    now.Add(-time.Hour),
-		NotAfter:     now.Add(setupCertLife),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		Subject:     pkix.Name{CommonName: "Roostack setup (" + name + ")"},
+		NotBefore:   now.Add(-time.Hour),
+		NotAfter:    now.Add(setupCertLife),
+		KeyUsage:    x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
 	for _, a := range addrs {
 		tmpl.IPAddresses = append(tmpl.IPAddresses, a.AsSlice())

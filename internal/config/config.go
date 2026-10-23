@@ -97,6 +97,20 @@ func (p Paths) QuadletDir() string {
 // LabFile is the lab-wide config file.
 func (p Paths) LabFile() string { return filepath.Join(p.StateDir, "lab.yaml") }
 
+// DatabaseFile is Roostack's SQLite database.
+func (p Paths) DatabaseFile() string { return filepath.Join(p.StateDir, "roostack.db") }
+
+// SetupTokenFile holds the first-run setup code (0600), deleted once the
+// Owner exists (docs/ASSUMPTIONS.md K5).
+func (p Paths) SetupTokenFile() string { return filepath.Join(p.StateDir, "setup-token") }
+
+// ServiceDataDirs are where a service keeps its data: its folder in
+// ServicesDir, then its folder in MediaDir. The order matters: the lab API
+// names a folder by its place in this list.
+func (p Paths) ServiceDataDirs(name string) []string {
+	return []string{filepath.Join(p.ServicesDir, name), filepath.Join(p.MediaDir, name)}
+}
+
 // CatalogPackageDir is a package's folder in the catalog, laid out as in
 // the registry: <version>.yaml and icon.png (SPEC.md §8.3.3). The catalog is only what can be installed; installed services
 // use the lab's own copy (LabPackageFile).
@@ -679,7 +693,7 @@ func (l Lab) Validate() error {
 	switch l.Firewall.SSH {
 	case "", SSHFromLAN, SSHFromAny, SSHOff:
 	default:
-		errs = append(errs, fmt.Errorf("firewall.ssh must be %q, %q or %q", SSHFromLAN, SSHFromAny, SSHOff))
+		errs = append(errs, fmt.Errorf("firewall.ssh must be %q, %q, or %q", SSHFromLAN, SSHFromAny, SSHOff))
 	}
 	switch l.Firewall.SSHLogin {
 	case "", SSHLoginKey, SSHLoginPassword:

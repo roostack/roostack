@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A server that's gone (SPEC.md §10.10, "Restoring across the lab"): the
@@ -43,7 +44,7 @@ func (s *Server) renderServerGone(w http.ResponseWriter, r *http.Request, errMsg
 		redirect(w, r, "/servers")
 		return
 	}
-	if msg, ok := userMessage(err); ok && act == nil {
+	if msg, ok := usererr.Message(err); ok && act == nil {
 		// Connected after all: nothing to do here.
 		errMsg = msg
 	} else if err != nil && !errors.Is(err, manager.ErrNotFound) && act == nil {
@@ -117,7 +118,7 @@ func (s *Server) serverGoneSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderServerGone(w, r, "One of these services is already being restored. Wait until that's finished.", http.StatusConflict)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServerGone(w, r, msg, http.StatusBadRequest)
 		return
 	}
@@ -146,7 +147,7 @@ func (s *Server) removeWaitingSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServiceWith(w, r, map[string]any{"Error": msg}, true)
 		return
 	}

@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 
 	_ "modernc.org/sqlite" // pure Go driver, keeps the binary static
+
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // ErrNotFound is returned when a row doesn't exist.
@@ -410,7 +412,7 @@ func Open(path string) (*Store, error) {
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
 		db.Close()
-		var fe *FormError
+		var fe *usererr.Error
 		if errors.As(err, &fe) {
 			return nil, err // a sentence for people, as it is
 		}
@@ -445,13 +447,6 @@ func checkFiles(path string) error {
 // Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
 
-// FormError is a problem a person can fix, with a sentence saying how
-// (CLAUDE.md's convention; review D3 will make it one type with the
-// others).
-type FormError struct{ Msg string }
-
-func (e *FormError) Error() string { return e.Msg }
-
 // migrate creates a new database's schema, or brings one at schemaVersion
 // or later up to date. Each step is a transaction with its version.
 func (s *Store) migrate() error {
@@ -460,7 +455,7 @@ func (s *Store) migrate() error {
 		return err
 	}
 	if version > 0 && version < schemaVersion {
-		return &FormError{fmt.Sprintf("Roostack's database is from a development version of Roostack before the first release "+
+		return &usererr.Error{Msg: fmt.Sprintf("Roostack's database is from a development version of Roostack before the first release "+
 			"(database version %d), which this version can't open. This server needs a fresh install of Roostack.", version)}
 	}
 	if version == 0 {

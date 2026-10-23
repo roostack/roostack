@@ -829,7 +829,7 @@
       } else state.doc.setIn(at, nv.value);
       written(true);
     } }, "Add")));
-    box.append(h("p", { class: "pe-hint" }, "Only the keys the package policy allows: they're offered as you type."));
+    box.append(h("p", { class: "pe-hint" }, "Only the keys the package policy allows: they'll be offered as you type."));
     return box;
   }
 

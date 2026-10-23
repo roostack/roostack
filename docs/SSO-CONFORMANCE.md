@@ -6,7 +6,7 @@ What it takes, about an hour the first time:
 
 - a dev VM with a lab on a test address, two OIDC services with single sign-on on, and a Member to sign in as;
 - a test-only build of Roostack that also accepts the suite's redirect address;
-- the suite itself, in Docker (it isn't vendored here: clone it each time, from the tag you mean to test with).
+- the suite itself, in Docker (it isn't vendored here: clone it each time from the tag you mean to test with).
 
 ## 1. The lab
 
@@ -40,7 +40,7 @@ The suite signs in from its own address, which no package lists. A build with th
 GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags ssoconformance -o roostack-conf ./cmd/roostack
 ```
 
-Copy it to the VM's `/usr/bin/roostack` (after `dev-vm.sh install`, which builds without the tag), and add a drop-in, `/etc/systemd/system/roostack.service.d/conformance.conf`:
+Copy it to the VM's `/usr/bin/roostack` (after `dev-vm.sh install`, which builds without the tag) and add a drop-in, `/etc/systemd/system/roostack.service.d/conformance.conf`:
 
 ```ini
 [Service]
@@ -98,4 +98,4 @@ docker run --rm --network oidfconf_default -v "$PWD/scripts:/suite:ro" -v "$CONF
   oidcc-config-certification-test-plan /run/config.json
 ```
 
-Expect 0 failures, five warnings (SPEC §5.2 says why each is deliberate) and four tests to review: open each and check the page it recorded, which should be the sign-in form a second time, or the unknown-address page with no redirect. Afterwards, `docker compose -p oidfconf down`, remove the images, and destroy the VM.
+Expect 0 failures, five warnings (SPEC §5.2 says why each is deliberate), and four tests to review: open each and check the page it recorded, which should be the sign-in form a second time or the unknown-address page with no redirect. Afterwards, `docker compose -p oidfconf down`, remove the images, and destroy the VM.

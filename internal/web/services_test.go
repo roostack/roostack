@@ -17,14 +17,17 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 func TestInstallFlow(t *testing.T) {
@@ -75,7 +78,7 @@ func TestInstallFlow(t *testing.T) {
 	}
 
 	// A form error re-renders the form with the user's values.
-	fm.failWith = &manager.FormError{Msg: "That web address is already used"}
+	fm.failWith = &usererr.Error{Msg: "That web address is already used"}
 	code, body = h.post("/install/immich", url.Values{"subdomain": {"pics"}}, h.srv.URL)
 	if code != http.StatusBadRequest || !strings.Contains(body, "already used") || !strings.Contains(body, `value="pics"`) {
 		t.Errorf("form error: %d", code)
@@ -96,7 +99,7 @@ func TestInstallFlow(t *testing.T) {
 	}
 
 	_, body = h.get("/services/vaultwarden/remove")
-	if !strings.Contains(body, "Your data is kept") || !strings.Contains(body, "/srv/roostack/services/vaultwarden") {
+	if !strings.Contains(body, "Your data will be kept") || !strings.Contains(body, "/srv/roostack/services/vaultwarden") {
 		t.Error("remove page should explain that data is kept, and where")
 	}
 	h.post("/services/vaultwarden/remove", nil, h.srv.URL)
@@ -107,7 +110,7 @@ func TestInstallFlow(t *testing.T) {
 
 func TestSecretFieldsAreNotEchoed(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
-	fm.failWith = &manager.FormError{Msg: "nope"}
+	fm.failWith = &usererr.Error{Msg: "nope"}
 	// Vaultwarden's only secret is generated, so it must not be on the form.
 	if _, body := h.get("/install/vaultwarden"); strings.Contains(body, `name="setting.admin_token"`) {
 		t.Error("generated secrets must not appear on the form")
@@ -196,7 +199,7 @@ func TestServicePorts(t *testing.T) {
 		!strings.Contains(body, "Enter a port number") {
 		t.Errorf("bad number: %d", code)
 	}
-	fm.portErr = &manager.FormError{Msg: "Port 8480 is already used by the Roostack admin UI."}
+	fm.portErr = &usererr.Error{Msg: "Port 8480 is already used by the Roostack admin UI."}
 	if code, body := h.post("/services/vaultwarden/ports/ssh", url.Values{"enabled": {"on"}, "host_port": {"8480"}}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "already used by the Roostack admin UI") {
 		t.Errorf("clash: %d", code)
@@ -517,7 +520,7 @@ func TestServers(t *testing.T) {
 
 	// Renaming and removing.
 	if code, body := h.post("/settings/servers/n-9876543210/remove", nil, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "vps still runs Forgejo") {
+		!strings.Contains(body, "vps is still running Forgejo") {
 		t.Errorf("removing a server with services: %d", code)
 	}
 	h.post("/settings/servers/n-9876543210/rename", url.Values{"name": {"cloud"}}, h.srv.URL)
@@ -532,13 +535,28 @@ func TestServers(t *testing.T) {
 	fm.serverOps = nil
 	_, body = h.get("/servers")
 	if !strings.Contains(body, "forgejo.moved-to-nuc-20260928-002806") || !strings.Contains(body, "70.0 MB") ||
-		!strings.Contains(body, "forgejo before it moved away") {
+		!strings.Contains(body, "From before a move") || !strings.Contains(body, "Its old copy, from before it moved to nuc") ||
+		!strings.Contains(body, "forgejo is running on nuc now, so this copy can&#39;t be put back on vps") || strings.Contains(body, "Put back…") {
 		t.Errorf("servers page should list kept copies:\n%s", body)
 	}
 	h.post("/settings/servers/n-9876543210/kept/remove", url.Values{"path": {"/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806"}}, h.srv.URL)
 	if len(fm.serverOps) != 1 || fm.serverOps[0] != "delete /srv/roostack/services/forgejo.moved-to-nuc-20260928-002806 on n-9876543210" {
 		t.Errorf("ops = %v", fm.serverOps)
 	}
+	// A copy that can go back has Put back here too; one a restore kept
+	// goes back in the background, so its restore page follows.
+	fm.kept = []manager.KeptCopy{{Copy: kept.Copy{Service: "vaultwarden", Why: kept.BeforeRestore, Time: time.Now(), Size: -1,
+		Paths: []string{"/srv/roostack/services/vaultwarden/data.before-restore-20260926-130602"}},
+		Server: "n-0123456789", Host: "n-0123456789", CanPutBack: true}}
+	if _, body = h.get("/servers"); !strings.Contains(body, "Put back…") || !strings.Contains(body, `name="restore" value="vaultwarden"`) {
+		t.Error("no Put back on the Servers page")
+	}
+	fm.serverOps = nil
+	h.post("/settings/servers/n-0123456789/kept/put-back", url.Values{"path": {fm.kept[0].Paths[0]}, "restore": {"vaultwarden"}}, h.srv.URL)
+	if len(fm.serverOps) != 1 || fm.serverOps[0] != "put back "+fm.kept[0].Paths[0]+" on n-0123456789" {
+		t.Errorf("ops = %v", fm.serverOps)
+	}
+	fm.kept = nil
 
 	// A server's own pages; an unknown server is not found.
 	fm.updates = &fakeUpdates{}
@@ -590,7 +608,7 @@ func TestBackupPlan(t *testing.T) {
 		t.Error("Roostack Cloud not offered")
 	}
 	h.post("/backups/plan", url.Values{"add": {"2"}, "choice": {"cloud"}}, h.srv.URL)
-	if fm.destination != manager.CloudChoice {
+	if fm.destination != destination.Cloud {
 		t.Fatalf("backup 1 to Roostack Cloud = %q", fm.destination)
 	}
 	fm.cloudBackup, fm.destination = false, ""
@@ -703,7 +721,7 @@ func TestStorageForOthers(t *testing.T) {
 	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821",
 		"Space on nuc", "<strong>180.0 GB free</strong> of 250.0 GB", "Backups of other labs",
 		"can be given up to <strong>16.3 GB</strong> more", `value="16"`,
-		"leaves about\n            <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
+		"will leave about\n            <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
 		// Nothing known yet: they type it.
 		`value="other" x-model="choice" checked`, `name="address_other"`,
 		// The invite is a form in a dialog, closed until asked for.
@@ -882,7 +900,7 @@ func TestCertificateExpiry(t *testing.T) {
 		t.Error("Servers should show each certificate")
 	}
 	_, body := h.get("/")
-	if !strings.Contains(body, "vps&#39;s certificate on Roostack&#39;s network expires") || strings.Contains(body, "nuc&#39;s certificate") {
+	if !strings.Contains(body, "vps&#39;s certificate on Roostack&#39;s network will expire") || strings.Contains(body, "nuc&#39;s certificate") {
 		t.Errorf("a certificate that isn't renewing should need attention")
 	}
 	fm.servers[1].CertExpires = time.Now().Add(-time.Hour)
@@ -1006,12 +1024,12 @@ func TestStorageOfferedByAnotherServer(t *testing.T) {
 func TestHomeShowsWhatAnApplyDoes(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	log := h.acts().Start(activity.Apply, "Applying changes")
-	log.Step("Starting roostack-caddy: builds its image the first time (compiling: several minutes)")
-	if _, body := h.get("/"); !strings.Contains(body, "builds its image the first time") {
+	log.Step("Starting roostack-caddy: building its image the first time (compiling: several minutes)")
+	if _, body := h.get("/"); !strings.Contains(body, "building its image the first time") {
 		t.Error("the home page shows what the apply is doing")
 	}
 	log.Finish(nil)
-	if _, body := h.get("/"); strings.Contains(body, "builds its image the first time") {
+	if _, body := h.get("/"); strings.Contains(body, "building its image the first time") {
 		t.Error("a finished apply isn't shown")
 	}
 }
@@ -1054,7 +1072,7 @@ func TestBackupOnTheSameDiskWarns(t *testing.T) {
 		t.Error("online storage isn't on the same disk")
 	}
 	fm.destination = "drive:system"
-	if _, body := h.get("/backups"); !strings.Contains(body, "if the disk fails, or ransomware gets onto the server") {
+	if _, body := h.get("/backups"); !strings.Contains(body, "if the disk fails or ransomware gets onto the server") {
 		t.Error("a backup on this server's disk should warn")
 	}
 }
@@ -1074,31 +1092,8 @@ func TestBackupPlanSpace(t *testing.T) {
 	// Nearly full: the card says so, starting with a capital whatever
 	// the place is called.
 	fs.drives = []agent.Drive{{ID: "system", Kind: "system", Name: "This server's own disk", Usable: true, Size: 100 * units.GB, Free: units.GB}}
-	if _, body := h.get("/backups"); !strings.Contains(body, "Nearly full: 1.0 GB free on this server&#39;s disk. When it&#39;s full, backups here fail.") {
+	if _, body := h.get("/backups"); !strings.Contains(body, "Nearly full: 1.0 GB free on this server&#39;s disk. When it&#39;s full, backups here will fail.") {
 		t.Errorf("a nearly full disk on the plan:\n%s", body[strings.Index(body, `id="plan"`):])
-	}
-}
-
-func TestLowSpace(t *testing.T) {
-	for _, c := range []struct {
-		free, total int64
-		want        string
-	}{
-		{100 * units.GB, 200 * units.GB, ""},
-		{15 * units.GB, 200 * units.GB, levelWarning},  // under 10%
-		{4 * units.GB, 20 * units.GB, levelWarning},    // under 5 GB
-		{8 * units.GB, 200 * units.GB, levelProblem},   // under 5%
-		{1500 * units.MB, 25 * units.GB, levelProblem}, // under 2 GB
-		// A disk under 20 GB: the floors are a quarter and a tenth of it.
-		{1900 * units.MB, 2100 * units.MB, ""},
-		{400 * units.MB, 2000 * units.MB, levelWarning},
-		{150 * units.MB, 2000 * units.MB, levelProblem},
-		{3 * units.GB, 10 * units.GB, ""},
-		{-1, 10 * units.GB, ""},
-	} {
-		if got := lowSpace(c.free, c.total); got != c.want {
-			t.Errorf("lowSpace(%d, %d) = %q, want %q", c.free, c.total, got, c.want)
-		}
 	}
 }
 
@@ -1364,7 +1359,7 @@ func TestInstallSummary(t *testing.T) {
 	fm.serverMemory = manager.ServerMemory{Name: "pi", Servers: 2, Total: 4_000_000_000, Available: 1_900_000_000}
 	_, body = h.get("/install/immich")
 	if !strings.Contains(body, "pi has 4.0 GB, and 1.9 GB is free right now.") ||
-		!strings.Contains(body, "Immich needs about 2.8 GB, but only 1.9 GB is free on pi right now. It may be slow, or stop working. Run it on another server, or free some memory first.") ||
+		!strings.Contains(body, "Immich needs about 2.8 GB, but only 1.9 GB is free on pi right now. It may be slow or stop working. Run it on another server or free some memory first.") ||
 		!strings.Contains(body, `<button type="submit">Install</button>`) {
 		t.Error("install page: the warning when it won't fit is missing")
 	}
@@ -1386,7 +1381,7 @@ func TestInstallSummary(t *testing.T) {
 	// Forgejo's administrator may then be left empty (it keeps its own).
 	_, body = h.get("/install/forgejo")
 	field, _, _ := strings.Cut(body[strings.Index(body, `name="setting.admin_username"`):], ">")
-	if !strings.Contains(body, "With its data from before, leave these empty: Forgejo keeps what it has") || strings.Contains(field, "required") {
+	if !strings.Contains(body, "With its data from before, leave these empty: Forgejo will keep what it has") || strings.Contains(field, "required") {
 		t.Errorf("install page over data from before: the administrator is still asked for (%s)", field)
 	}
 	fm.leftData = nil

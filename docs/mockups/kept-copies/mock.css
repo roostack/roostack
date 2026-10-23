@@ -1,0 +1,12 @@
+/* Kept copies mock-ups (2026-10-23): only what the real stylesheet lacks. */
+ul.kept > li > span:first-child { line-height: 1.6; }
+ul.kept .badge { margin-bottom: var(--space-1); }
+.kept-where { margin-top: var(--space-1); font-size: var(--text-sm); }
+.kept-where > summary { color: var(--muted); cursor: pointer; }
+.kept-where code { overflow-wrap: anywhere; }
+.mock-elided { font-style: italic; }
+/* The mock-ups' own switch, bottom right. */
+.mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 6px; flex-wrap: wrap; padding: 6px;
+  border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 13px; }
+.mock-bar a, .mock-bar button { color: inherit; background: none; border: 0; padding: 2px 6px; font: inherit; cursor: pointer; text-decoration: none; }
+.mock-bar [aria-current] { text-decoration: underline; }

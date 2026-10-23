@@ -21,7 +21,7 @@ technical users**.
 
     ---
 
-    Install it, set it up and add your first service.
+    Install it, set it up, and add your first service.
 
     [Getting started](start/index.md)
 
@@ -55,7 +55,7 @@ technical users**.
 
     ---
 
-    Where every file lives, the command line, network ports and the
+    Where every file lives, the command line, network ports, and the
     package format.
 
     [Technical reference](reference/index.md)

@@ -11,14 +11,15 @@ them. The **recovery key** is what unscrambles them.
 
 ## When you get it
 
-Roostack makes your recovery key when you set up your first backup (in the
-setup wizard, or later on the **Backups** page), and shows it straight
-away. It asks you to confirm you've saved it before carrying on. Adding more backups, or changing where they go, doesn't change
-the key: it opens all of them.
+Roostack will make your recovery key when you set up your first backup (in
+the setup wizard, or later on the **Backups** page) and show it straight
+away. It will ask you to confirm you've saved it before carrying on. Adding
+more backups or changing where they go doesn't change the key: it opens all
+of them.
 
 It's 64 letters and digits in groups of four, like
 `3f9a-07c2-11aa-…-eeff`. They're only the digits 0 to 9 and the letters a
-to f, so there's no `O` to mistake for a `0`, or `l` for a `1`. When you
+to f, so there's no `O` to mistake for a `0` or `l` for a `1`. When you
 type it back in, the dashes and capitals don't matter: `3F9A 07C2 …` works
 too.
 
@@ -41,12 +42,12 @@ too.
 ## Seeing it again
 
 Lost your copy? On the **Backups** page, under **Recovery key**, the Owner
-can choose **Show recovery key…**. Roostack asks for your password and a
-code from your authenticator app first, even though you're logged in, so
+can choose **Show recovery key…**. Roostack will ask for your password and
+a code from your authenticator app first, even though you're logged in, so
 that someone who finds your computer logged in can't read it. Each time
 it's shown is recorded in the audit log.
 
-After five wrong passwords or codes, Roostack logs you out. Wrong codes
+After five wrong passwords or codes, Roostack will log you out. Wrong codes
 here also count towards the limit on your account (see
 [Locked out](../trouble/locked-out.md#too-many-wrong-two-factor-codes)).
 
@@ -54,21 +55,22 @@ here also count towards the limit on your account (see
 
 If someone else may have seen your recovery key, change it: on the
 **Backups** page, choose **Change recovery key…**. After your password and a
-code, Roostack makes a new key and shows it. Save it, and tick the box to
-confirm. Roostack then:
+code, Roostack will make a new key and show it. Save it, and tick the box to
+confirm. Roostack will then:
 
-1. adds the new key to every backup your lab has;
-2. once every backup has it, makes it your lab's key;
-3. removes the old key from every backup, so it no longer opens anything.
+1. add the new key to every backup your lab has;
+2. once every backup has it, make it your lab's key;
+3. remove the old key from every backup so that it no longer opens
+   anything.
 
 The Backups page shows how far it's got. A backup that can't be reached
-right now (a drive that's unplugged, a friend's lab that's offline) is tried
-again every hour, and the old key keeps working there until it's done. Until
-you confirm, you can cancel and keep the old key.
+right now (a drive that's unplugged, a friend's lab that's offline) will be
+tried again every hour, and the old key will keep working there until it's
+done. Until you confirm, you can cancel and keep the old key.
 
 !!! warning "If your backups may have been copied too"
 
-    A new key stops the old one opening your backups from now on. If
+    A new key will stop the old one opening your backups from now on. If
     someone had your old key *and* a copy of your backups, they can still
     read that copy, and a new key doesn't change that: the encryption
     inside each backup stays the same.

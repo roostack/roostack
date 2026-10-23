@@ -14,7 +14,9 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Bringing your own data into a service (SPEC.md §8.4): the service's
@@ -34,31 +36,31 @@ func (m *Manager) ImportsOf(service string) (node.Imports, error) {
 	if err != nil {
 		return nil, err
 	}
-	n := m.node(cmp.Or(in.Host, m.Lab.NodeID))
+	n := m.node(in.HostOr(m.Lab.NodeID))
 	if n == nil {
-		return nil, formErrorf("Roostack can't reach the server it runs on.")
+		return nil, usererr.New("Roostack can't reach the server it runs on.")
 	}
 	if r, ok := n.(RemoteServer); ok && r.Settings() == nil {
-		return nil, formErrorf("Roostack can't reach %s right now.", r.Identity().Name)
+		return nil, usererr.New("Roostack can't reach %s right now.", r.Identity().Name)
 	}
 	x := n.Imports()
 	if x == nil {
-		return nil, formErrorf("Data can't be brought into services on that server.")
+		return nil, usererr.New("Data can't be brought into services on that server.")
 	}
 	return x, nil
 }
 
 // switching are the services being switched to brought data.
-var switching = struct {
+type switchingSet struct {
 	sync.Mutex
 	m map[string]bool
-}{m: map[string]bool{}}
+}
 
 // Switching says whether a service is being switched to its data.
 func (m *Manager) Switching(service string) bool {
-	switching.Lock()
-	defer switching.Unlock()
-	return switching.m[service]
+	m.switching.Lock()
+	defer m.switching.Unlock()
+	return m.switching.m[service]
 }
 
 // SwitchImport starts switching a service to the data brought, in the
@@ -77,23 +79,26 @@ func (m *Manager) SwitchImport(ctx context.Context, service string) error {
 		return err
 	}
 	if v.Copy == nil || v.Copy.Running || v.Copy.Passes == 0 {
-		return formErrorf("Copy your files first; switching copies only what changed since.")
+		return usererr.New("Copy your files first: when you switch, Roostack will copy only what's changed since.")
 	}
 	if !v.Check.Ready() {
-		return formErrorf("Check your files again first.")
+		return usererr.New("Check your files again first.")
 	}
-	host := cmp.Or(in.Host, m.Lab.NodeID)
+	host := in.HostOr(m.Lab.NodeID)
 	up := node.Capability(m.node(host), node.Node.Updater)
 	if up == nil {
-		return formErrorf("Roostack can't reach %s's server.", p.Title)
+		return usererr.New("Roostack can't reach %s's server.", p.Title)
 	}
-	switching.Lock()
-	if switching.m[service] {
-		switching.Unlock()
-		return formErrorf("%s is being switched already.", p.Title)
+	m.switching.Lock()
+	if m.switching.m[service] {
+		m.switching.Unlock()
+		return usererr.New("%s is being switched already.", p.Title)
 	}
-	switching.m[service] = true
-	switching.Unlock()
+	if m.switching.m == nil {
+		m.switching.m = map[string]bool{}
+	}
+	m.switching.m[service] = true
+	m.switching.Unlock()
 	title := cmp.Or(in.Title, p.Title)
 	act := m.Activity.Start(activity.ImportFor(service), "Switching "+title+" to your data")
 	go func() {
@@ -102,9 +107,9 @@ func (m *Manager) SwitchImport(ctx context.Context, service string) error {
 		if err != nil {
 			m.Log.Error("switching a service to its data", "service", service, "err", err)
 		}
-		switching.Lock()
-		delete(switching.m, service)
-		switching.Unlock()
+		m.switching.Lock()
+		delete(m.switching.m, service)
+		m.switching.Unlock()
 		act.Finish(err)
 	}()
 	return nil
@@ -151,7 +156,7 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 
 	step := func(name, say string, args ...any) ([]string, error) {
 		act.Step(say, args...)
-		kept, err := runSwitchStep(ctx, x, service, name)
+		kept, err := m.runSwitchStep(ctx, x, service, name)
 		if err != nil {
 			act.Printf("%v", err)
 		}
@@ -168,7 +173,7 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 		// Back to how it was: the data from before, and the instance.
 		if committed {
 			act.Step("Putting %s's data from before back", title)
-			if _, uerr := runSwitchStep(context.WithoutCancel(ctx), x, service, node.SwitchUndo); uerr != nil {
+			if _, uerr := m.runSwitchStep(context.WithoutCancel(ctx), x, service, node.SwitchUndo); uerr != nil {
 				err = fmt.Errorf("%w; putting its data from before back failed too: %v", err, uerr)
 				return
 			}
@@ -178,10 +183,10 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 				err = fmt.Errorf("%w; going back failed too: %v", err, serr)
 				return
 			}
-			waitApplied(context.WithoutCancel(ctx), m.node(host), time.Now().Add(-time.Second))
+			m.waitApplied(context.WithoutCancel(ctx), m.node(host), time.Now().Add(-time.Second))
 		}
 		if !before.AwaitingData {
-			runSwitchStep(context.WithoutCancel(ctx), x, service, node.SwitchStart)
+			m.runSwitchStep(context.WithoutCancel(ctx), x, service, node.SwitchStart)
 		}
 		err = fmt.Errorf("%w; %s has its data from before again", err, title)
 	}()
@@ -191,7 +196,7 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 	kept, err := step(node.SwitchCommit, "Putting your data in place")
 	committed = err == nil || len(kept) > 0
 	for _, k := range kept {
-		act.Printf("Its data from before is kept at %s, until you delete it", k)
+		act.Printf("Its data from before is kept at %s until you delete it", k)
 	}
 	if err != nil {
 		return err
@@ -205,7 +210,7 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 		if err := m.saveInstance(after, "Bringing data into "+title); err != nil {
 			return err
 		}
-		if err := waitApplied(ctx, m.node(host), time.Now().Add(-time.Second)); err != nil {
+		if err := m.waitApplied(ctx, m.node(host), time.Now().Add(-time.Second)); err != nil {
 			return err
 		}
 	} else if _, err := step(node.SwitchStart, "Starting %s", title); err != nil {
@@ -215,7 +220,7 @@ func (m *Manager) switchImport(ctx context.Context, act *activity.Log, service, 
 	if err := m.checkHealth(ctx, act, up, service); err != nil {
 		return err
 	}
-	if _, err := runSwitchStep(ctx, x, service, node.SwitchFinish); err != nil {
+	if _, err := m.runSwitchStep(ctx, x, service, node.SwitchFinish); err != nil {
 		act.Printf("%v", err)
 	}
 	act.Step("%s is running with your data", title)
@@ -228,7 +233,7 @@ var switchStepWait = 2 * time.Hour
 
 // runSwitchStep does a step of the switch on the service's server and
 // waits for it, returning what it set aside.
-func runSwitchStep(ctx context.Context, x node.Imports, service, name string) ([]string, error) {
+func (m *Manager) runSwitchStep(ctx context.Context, x node.Imports, service, name string) ([]string, error) {
 	if err := x.SwitchImport(ctx, service, name); err != nil {
 		return nil, err
 	}
@@ -245,10 +250,8 @@ func runSwitchStep(ctx context.Context, x node.Imports, service, name string) ([
 			}
 			return v.Kept, nil
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, cmp.Or(m.waits.statusEvery, statusEvery)) {
 			return nil, ctx.Err()
-		case <-time.After(statusEvery):
 		}
 	}
 	return nil, fmt.Errorf("%s took too long (%v)", name, lastErr)
@@ -290,7 +293,6 @@ func (m *Manager) saveInstance(in *instance.Instance, reason string) error {
 	if err := in.Save(state.InstanceFile(m.Lab, in.ID())); err != nil {
 		return err
 	}
-	m.applyReason = reason
-	m.startApplyLocked()
+	m.startApplyLocked(reason)
 	return nil
 }

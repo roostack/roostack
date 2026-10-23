@@ -14,8 +14,8 @@ nothing can use it.
 
 ## What Roostack does
 
-Where Roostack has its own access, it removes the files at once, and the
-home page says so under **Needs attention**:
+Where Roostack has its own access, it will remove the files at once, and
+the home page will say so under **Needs attention**:
 
 - another server's disk in your lab;
 - storage at a friend's lab;
@@ -25,8 +25,8 @@ home page says so under **Needs attention**:
 Choose **Got it, clear this list** once you've read it.
 
 On online storage and Roostack Cloud, Roostack can't remove them: the
-home page shows a problem, and **What to do** lists the files to delete
-with the storage's own tools.
+home page will show a problem, and **What to do** will list the files to
+delete with the storage's own tools.
 
 ## What you should do
 
@@ -36,10 +36,10 @@ if in doubt, reinstall it and add it to your lab again.
 
 ??? note "For technical users"
 
-    Roostack checks the repository's `keys/`, `locks/`, `snapshots/` and
-    `index/` folders (junk in `data/` does no harm: the next prune deletes
-    it). A key file is junk if it isn't a restic key restic can try. Other
-    files are junk when `restic cat` fails with
+    Roostack checks the repository's `keys/`, `locks/`, `snapshots/`, and
+    `index/` folders (junk in `data/` does no harm: the next prune will
+    delete it). A key file is junk if it isn't a restic key restic can try.
+    Other files are junk when `restic cat` fails with
     `ciphertext verification failed` twice; a network error or a file
     still being written fails differently. Files are removed through the
     controller's admin access to the store (`DELETE` on rest-server), or

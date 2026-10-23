@@ -14,6 +14,8 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/s3api"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Rolling a server's backups back (SPEC.md §10.10). A server that's taken
@@ -73,17 +75,16 @@ func (p *RollbackPlan) lines() []string {
 	}
 	var out []string
 	for _, k := range []struct{ kind, since, then string }{
-		{rollUnhide, "hidden since then", "come back"},
-		{rollPutBack, "overwritten since then", "are put back as they were"},
-		{rollHide, "added since then", "are hidden"},
+		{rollUnhide, "hidden since then", "will come back"},
+		{rollPutBack, "overwritten since then", "will be put back as they were"},
+		{rollHide, "added since then", "will be hidden"},
 	} {
 		if what, n := p.describe(k.kind); n > 0 {
 			then := k.then
-			if n == 1 {
-				then = map[string]string{"come back": "comes back", "are put back as they were": "is put back as it was",
-					"are hidden": "is hidden"}[then]
+			if n == 1 && k.kind == rollPutBack {
+				then = "will be put back as it was"
 			}
-			out = append(out, fmt.Sprintf("%s %s %s.", upperFirst(what), k.since, then))
+			out = append(out, fmt.Sprintf("%s %s %s.", words.Capitalise(what), k.since, then))
 		}
 	}
 	return out
@@ -129,23 +130,16 @@ func (p *RollbackPlan) describe(kind string) (string, int) {
 	if config {
 		n++
 	}
-	return joinNames(parts), n
-}
-
-func upperFirst(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
+	return words.And(parts), n
 }
 
 // rollbackChecks are the latest checks, by activity.BackupRollbackFor: a
 // rollback runs only after one for the same time (the Owner saw what it
 // changes).
-var rollbackChecks = struct {
+type rollbackChecks struct {
 	sync.Mutex
 	plans map[string]*RollbackPlan
-}{plans: map[string]*RollbackPlan{}}
+}
 
 // rollbackCheckAge is how long a check lets a rollback run.
 const rollbackCheckAge = time.Hour
@@ -165,15 +159,15 @@ func (m *Manager) rollbackTarget(ctx context.Context, serverID, ref string, befo
 		return S3Provider{}, "", ErrNotFound
 	}
 	if !m.access(ctx, serverID, d, t).Versioned {
-		return S3Provider{}, "", formErrorf("%s doesn't keep old versions, so there's nothing to roll back to.", d.provider.Name)
+		return S3Provider{}, "", usererr.New("%s doesn't keep old versions, so there's nothing to roll back to.", d.provider.Name)
 	}
 	switch {
 	case before.IsZero():
-		return S3Provider{}, "", formErrorf("Choose the date and time to go back to.")
+		return S3Provider{}, "", usererr.New("Choose the date and time to go back to.")
 	case before.After(time.Now()):
-		return S3Provider{}, "", formErrorf("Choose a time that has passed.")
+		return S3Provider{}, "", usererr.New("Choose a time that has passed.")
 	case !t.Created.IsZero() && before.Before(t.Created):
-		return S3Provider{}, "", formErrorf("Backups here started on %s: choose a time after that.", t.Created.Local().Format("2 January 2006 15:04"))
+		return S3Provider{}, "", usererr.New("Backups here started on %s: choose a time after that.", t.Created.Local().Format("2 January 2006 15:04"))
 	}
 	labID, err := m.labID(ctx)
 	if err != nil {
@@ -202,9 +196,12 @@ func (m *Manager) CheckRollback(ctx context.Context, serverID, ref string, befor
 			for _, l := range plan.Summary {
 				act.Printf("%s", l)
 			}
-			rollbackChecks.Lock()
-			rollbackChecks.plans[kind] = plan
-			rollbackChecks.Unlock()
+			m.rollbacks.Lock()
+			if m.rollbacks.plans == nil {
+				m.rollbacks.plans = map[string]*RollbackPlan{}
+			}
+			m.rollbacks.plans[kind] = plan
+			m.rollbacks.Unlock()
 			act.Step("Checked %d files", plan.Files)
 		}
 		act.Finish(err)
@@ -215,9 +212,9 @@ func (m *Manager) CheckRollback(ctx context.Context, serverID, ref string, befor
 // RollbackChecked is the latest check of rolling a server's backups at
 // ref back, while it can still be acted on (nil if none).
 func (m *Manager) RollbackChecked(serverID, ref string) *RollbackPlan {
-	rollbackChecks.Lock()
-	defer rollbackChecks.Unlock()
-	p := rollbackChecks.plans[activity.BackupRollbackFor(serverID, ref)]
+	m.rollbacks.Lock()
+	defer m.rollbacks.Unlock()
+	p := m.rollbacks.plans[activity.BackupRollbackFor(serverID, ref)]
 	if p == nil || time.Since(p.Checked) > rollbackCheckAge {
 		return nil
 	}
@@ -233,14 +230,14 @@ func (m *Manager) RollBack(ctx context.Context, serverID, ref string, before tim
 	}
 	checked := m.RollbackChecked(serverID, ref)
 	if checked == nil || !checked.Before.Equal(before) {
-		return formErrorf("Check what going back to that time changes first.")
+		return usererr.New("Check what going back to that time changes first.")
 	}
 	if m.Submit == nil {
 		return errors.New("no maintenance coordinator")
 	}
-	rollbackChecks.Lock()
-	delete(rollbackChecks.plans, activity.BackupRollbackFor(serverID, ref))
-	rollbackChecks.Unlock()
+	m.rollbacks.Lock()
+	delete(m.rollbacks.plans, activity.BackupRollbackFor(serverID, ref))
+	m.rollbacks.Unlock()
 	m.Submit(m.rollbackJob(serverID, ref, before))
 	return nil
 }
@@ -299,7 +296,7 @@ func (m *Manager) rollbackJob(serverID, ref string, before time.Time) maintenanc
 		}
 		act.Step("Checking the backups there")
 		if n, err := repo.Unlock(ctx); err != nil {
-			act.Printf("Couldn't clear old locks: %s", firstLine(err.Error()))
+			act.Printf("Couldn't clear old locks: %s", words.FirstLine(strings.TrimSpace(err.Error())))
 		} else if n > 0 {
 			act.Printf("Cleared %d old %s", n, map[bool]string{true: "lock", false: "locks"}[n == 1])
 		}

@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
@@ -15,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Monitoring (SPEC.md §6.15): the Monitoring page, a check's Details,
@@ -72,7 +72,7 @@ func (s *Server) MonitorChecks(ctx context.Context) []monitor.Check {
 		if st := s.DNS.Status(); st.Record != "" {
 			out = append(out, monitor.Check{Key: "domain", Kind: monitor.KindDomain, Name: "The lab's address",
 				Address: st.Record + " points at your home", Given: s.domainResult,
-				// "Needs attention" has the address's own items (attention.go).
+				// "Needs attention" has the address's own items (internal/attention).
 				Alert: false})
 		}
 	}
@@ -110,7 +110,7 @@ func (s *Server) domainResult() store.MonitorResult {
 	}
 	why := st.Message
 	if why == "" {
-		why = "devices at home don't find this server at it"
+		why = "devices at home aren't finding this server at it"
 	}
 	return store.MonitorResult{Err: why}
 }
@@ -148,45 +148,15 @@ func checkLine(st monitor.Status, now time.Time) string {
 		}
 	}
 	if st.CertWarning && st.State != monitor.StateDown {
-		parts = append(parts, certWarningText(st, now))
+		parts = append(parts, st.CertWarningText(now))
 	}
 	return strings.Join(parts, " · ")
 }
 
-// downText says what's wrong with a check that's down, in a sentence.
-func downText(st monitor.Status) string {
-	switch st.Kind {
-	case monitor.KindService:
-		return st.Name + " isn't answering at its address: " + st.Last.Err + "."
-	case monitor.KindDomain:
-		return "Devices at home don't find this server at the lab's address: " + st.Last.Err
-	}
-	return st.Name + " isn't answering: " + st.Last.Err + "."
-}
-
-// certWarningText says a certificate isn't being renewed.
-func certWarningText(st monitor.Status, now time.Time) string {
-	d := st.CertDaysLeft(now)
-	if d < 0 {
-		return "its certificate has expired"
-	}
-	return "its certificate expires in " + daysText(d) + ": renewing it is failing"
-}
-
-// daysText is a number of whole days left: "less than a day", "1 day",
-// "12 days".
-func daysText(d int) string {
-	switch d {
-	case 0:
-		return "less than a day"
-	case 1:
-		return "1 day"
-	}
-	return strconv.Itoa(d) + " days"
-}
-
 // durationText is a length of time for people: "6 minutes", "3 hours",
-// "2 days".
+// "2 days". It rounds down and counts days, where words.RoughDuration
+// rounds to the nearest and stops at hours, so it stays until the
+// wording pass (quality review wave 4) chooses one.
 func durationText(d time.Duration) string {
 	plural := func(n int, unit string) string {
 		if n == 1 {
@@ -214,7 +184,7 @@ func (s *Server) checkRows(ctx context.Context, statuses []monitor.Status) []che
 	for _, st := range statuses {
 		row := checkRow{Status: st, Line: checkLine(st, now), Href: checkHref(st.Key), Month: -1}
 		if st.State == monitor.StateDown {
-			row.Down = downText(st)
+			row.Down = st.DownText()
 		}
 		if h, err := s.Monitor.History(ctx, st.Key, 30, false); err == nil {
 			row.Days, row.Month = h.Days, h.Month
@@ -235,10 +205,7 @@ type statusChoice struct {
 // statusShown is which checks the status page shows: what the Owner chose,
 // otherwise services open to the internet (SPEC.md §6.15).
 func (s *Server) statusShown(ctx context.Context, statuses []monitor.Status) map[string]bool {
-	chosen := map[string]bool{}
-	if v, _ := s.Store.Setting(ctx, statusShownKey); v != "" {
-		json.Unmarshal([]byte(v), &chosen)
-	}
+	chosen, _ := store.GetJSON[map[string]bool](ctx, s.Store, statusShownKey)
 	out := map[string]bool{}
 	for _, st := range statuses {
 		if v, ok := chosen[st.Key]; ok {
@@ -261,7 +228,7 @@ func (s *Server) statusChoices(ctx context.Context, statuses []monitor.Status) [
 		case st.Kind == monitor.KindService && st.Public:
 			c.Hint = "open to the internet"
 		case st.Kind == monitor.KindService:
-			c.Hint = "only on your home network: showing it tells everyone you run it"
+			c.Hint = "only on your home network: showing it will tell everyone you run it"
 		case st.Kind == monitor.KindOwn:
 			c.Hint = "your own check"
 		default:
@@ -505,15 +472,14 @@ func (s *Server) statusPageSubmit(w http.ResponseWriter, r *http.Request) {
 		for _, c := range s.statusChoices(ctx, s.Monitor.Statuses()) {
 			shown[c.Key] = slices.Contains(r.Form["show"], c.Key)
 		}
-		b, _ := json.Marshal(shown)
-		if err := s.Store.SetSetting(ctx, statusShownKey, string(b)); err != nil {
+		if err := store.PutJSON(ctx, s.Store, statusShownKey, shown); err != nil {
 			s.serverError(w, err)
 			return
 		}
 	}
 	if s.StatusPage != nil && on != s.StatusPage.StatusPageOn() {
 		err := s.StatusPage.SetStatusPage(on)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			s.renderMonitoring(w, r, msg, nil)
 			return
 		}
@@ -525,29 +491,6 @@ func (s *Server) statusPageSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Store.Audit(ctx, currentUser(r), "monitoring", map[bool]string{true: "saved the public status page (on)", false: "saved the public status page (off)"}[on])
 	s.WriteStatusPage(ctx)
 	redirect(w, r, "/monitoring#status-page")
-}
-
-// monitorAttention adds what monitoring found down to "needs attention"
-// (SPEC.md §6.15): a check down after three failures, a certificate not
-// being renewed. Servers aren't repeated: "can't reach" says so already.
-func (s *Server) monitorAttention(l *attentionList) {
-	if s.Monitor == nil {
-		return
-	}
-	now := time.Now()
-	for _, st := range s.Monitor.Statuses() {
-		if !st.Alert {
-			continue
-		}
-		switch {
-		case st.State == monitor.StateDown:
-			l.add(attentionItem{Level: levelProblem, Key: "monitor:" + st.Key,
-				Text: downText(st), Link: checkHref(st.Key), LinkText: "See what's wrong"})
-		case st.CertWarning && st.State == monitor.StateUp:
-			l.add(attentionItem{Level: levelWarning, Key: "monitor-cert:" + st.Key,
-				Text: capitalise(st.Name + "'s address: " + certWarningText(st, now) + "."), Link: checkHref(st.Key), LinkText: "Details"})
-		}
-	}
 }
 
 // serviceUptime is a service's Uptime card, or nil without a check.

@@ -8,12 +8,16 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/errpage"
 	"roostack.cloud/roostack/internal/labrestore"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/photoimport"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // templateFuncs are the functions every template can call. It's a
@@ -48,17 +52,17 @@ func templateFuncs() template.FuncMap {
 		"errorScene": func(name, id string) template.HTML { return template.HTML(errpage.Scene(name, id)) },
 
 		// Words, times and sizes, and how pages look.
-		"when": whenText,
+		"when": words.When,
 		// daysText and certWarning are monitoring's (monitor.go).
-		"daysText":    daysText,
-		"certWarning": func(st monitor.Status) string { return certWarningText(st, time.Now()) },
+		"daysText":    monitor.DaysText,
+		"certWarning": func(st monitor.Status) string { return st.CertWarningText(time.Now()) },
 		// retryText says when a failed backup is tried again (" Roostack tries
 		// again today 14:00."), or nothing.
-		"retryText": retryText,
-		"stale":     isStale,
+		"retryText": attention.RetryText,
+		"stale":     manager.BackupStale,
 		// firstLine and otherLines split an error: restic's own first line,
 		// then what follows (a stack trace, at worst), shown under Details.
-		"firstLine":  firstLine,
+		"firstLine":  words.FirstLine,
 		"otherLines": otherLines,
 		// shownRepo is a backup's address without its password.
 		"shownRepo": labrestore.Shown,
@@ -67,10 +71,10 @@ func templateFuncs() template.FuncMap {
 		// has says whether a list has an item.
 		"has": func(list []string, item string) bool { return slices.Contains(list, item) },
 		// joinAnd lists names for people: "Films, TV and Music".
-		"joinAnd": joinAnd,
+		"joinAnd": words.And,
 		// list makes a slice, e.g. {{range list "light" "dark"}}.
 		"list": func(items ...string) []string { return items },
-		"size": sizeText,
+		"size": units.Bytes,
 		"gb":   func(b int64) int64 { return b / units.GB },
 		// image is a container image without its digest (shown in full on
 		// hover): docker.io/vaultwarden/server:1.34.3.
@@ -106,13 +110,13 @@ func templateFuncs() template.FuncMap {
 			return "?"
 		},
 		// roleName shows a role as people say it ("Owner").
-		"roleName": capitalise,
+		"roleName": words.Capitalise,
 		// capitalise starts a word with a capital ("running" → "Running").
-		"capitalise": capitalise,
+		"capitalise": words.Capitalise,
 		// whenParts is a time as when shows it, split into its day and its
 		// clock time ("today", "02:00"), for a big figure.
 		"whenParts": func(t time.Time) [2]string {
-			w := whenText(t)
+			w := words.When(t)
 			if i := strings.LastIndex(w, " "); i > 0 {
 				return [2]string{w[:i], w[i+1:]}
 			}
@@ -162,7 +166,8 @@ func templateFuncs() template.FuncMap {
 		"immichMore": func(before, after node.PhotoAccount) int64 {
 			return after.Photos + after.Videos - before.Photos - before.Videos
 		},
-		"durationText":     func(from, to time.Time) string { return roughDuration(to.Sub(from)) },
+		// roughDuration is how long a run took, roughly ("25 minutes").
+		"roughDuration":    func(from, to time.Time) string { return words.RoughDuration(to.Sub(from)) },
 		"add":              func(a, b int64) int64 { return a + b },
 		"sub":              func(a, b int64) int64 { return max(0, a-b) },
 		"runPercent":       func(r *node.PhotoRun) int { return photoProgressOf(r).Percent },
@@ -174,10 +179,10 @@ func templateFuncs() template.FuncMap {
 		"publicState": func(state string) string { return publicState[state] },
 
 		// Service updates (serviceupdates.go, SPEC.md §7).
-		"appVersion": appVersion,
+		"appVersion": manager.AppVersion,
 		// sentence ends an error's text with a full stop.
 		"sentence":         func(s string) string { return strings.TrimRight(strings.TrimSpace(s), ".") + "." },
-		"revision":         func(v string) string { return strings.TrimPrefix(v[len(upstream(v)):], "-roostack.") },
+		"revision":         func(v string) string { return strings.TrimPrefix(v[len(pkgspec.Upstream(v)):], "-roostack.") },
 		"updateKind":       updateKindText,
 		"updatePolicyText": updatePolicyText,
 
@@ -185,9 +190,9 @@ func templateFuncs() template.FuncMap {
 		// offText says what turning single sign-on off does, for its confirm.
 		"offText": func(c *ssoCard) string {
 			if c.Wall {
-				return "Anyone who can reach " + c.Title + " can use it again, without signing in."
+				return "Anyone who can reach " + c.Title + " will be able to use it again without signing in."
 			}
-			return "People sign in with " + c.Title + "'s own passwords again; accounts it made at single sign-on have none, so they'd need one set in " + c.Title + "."
+			return "People will sign in with " + c.Title + "'s own passwords again; accounts it made at single sign-on have none, so they'd need one set in " + c.Title + "."
 		},
 	}
 }
@@ -203,7 +208,7 @@ func firstSentence(text string) [2]string {
 	return [2]string{text, ""}
 }
 
-// otherLines is what follows text's first line (notify.go's firstLine),
+// otherLines is what follows text's first line (words.FirstLine),
 // or "": restic's stack trace after its error, at worst, which has no
 // break points and widens a phone's page, so it's shown under Details.
 func otherLines(text string) string {

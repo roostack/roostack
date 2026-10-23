@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 func newSettings(t *testing.T) (*HostSettings, *string, *int) {
@@ -34,9 +35,9 @@ func newSettings(t *testing.T) (*HostSettings, *string, *int) {
 func TestTimezone(t *testing.T) {
 	h, zone, restarts := newSettings(t)
 	ctx := context.Background()
-	var fe *FormError
+	var fe *usererr.Error
 	if _, err := h.SetTimezone(ctx, "Mars/Olympus_Mons"); !errors.As(err, &fe) {
-		t.Errorf("unknown zone: want a FormError, got %v", err)
+		t.Errorf("unknown zone: want a usererr.Error, got %v", err)
 	}
 	if changed, err := h.SetTimezone(ctx, "Etc/UTC"); changed || err != nil || *restarts != 0 {
 		t.Errorf("same zone: changed=%v err=%v restarts=%d", changed, err, *restarts)
@@ -50,7 +51,7 @@ func TestTimezone(t *testing.T) {
 func TestSSH(t *testing.T) {
 	h, _, restarts := newSettings(t)
 	ctx := context.Background()
-	var fe *FormError
+	var fe *usererr.Error
 	if err := h.SetSSH(ctx, SSHChange{Choice: "sometimes"}); !errors.As(err, &fe) {
 		t.Errorf("bad choice: %v", err)
 	}
@@ -114,7 +115,7 @@ func TestSSHKeysOnly(t *testing.T) {
 		KeyLogins: []agent.KeyLogin{{User: "root", From: "203.0.113.9"}}}}
 	h.SSHServer = sshd
 	ctx := context.Background()
-	var fe *FormError
+	var fe *usererr.Error
 	if err := h.SetSSH(ctx, SSHChange{Choice: config.SSHFromAny}); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "how people log in") {
 		t.Errorf("no login choice: %v", err)
 	}
@@ -169,7 +170,7 @@ func TestSSHKeysOnly(t *testing.T) {
 func TestRestartPolicy(t *testing.T) {
 	h, _, restarts := newSettings(t)
 	ctx := context.Background()
-	var fe *FormError
+	var fe *usererr.Error
 	if err := h.SetRestartPolicy(ctx, "auto", 24); !errors.As(err, &fe) {
 		t.Errorf("hour 24: %v", err)
 	}

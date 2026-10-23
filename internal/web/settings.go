@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net"
@@ -14,14 +15,16 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/public"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Settings is an overview grid of areas, each with its own page; on
@@ -180,7 +183,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		case dnsrecords.StateUnsupported:
 			set("home-network", where+" · add a DNS record by hand", "warn")
 		default:
-			set("home-network", dnsHeadline[st.State], "problem")
+			set("home-network", attention.DNSHeadline[st.State], "problem")
 		}
 	} else {
 		set("home-network", where+" · set up a domain first", "")
@@ -204,7 +207,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		case rs.Needed:
 			set("updates", fmt.Sprintf("Restarting around %02d:00 to finish updates", s.Maintenance.Hour()), "ok")
 		case last != nil:
-			set("updates", "Up to date · checked "+whenText(last.At), "ok")
+			set("updates", "Up to date · checked "+words.When(last.At), "ok")
 		default:
 			set("updates", "Updates install every night after the backup", "")
 		}
@@ -229,8 +232,8 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		set("backups", sum, level)
 	}
 	set("storage", "Give family or friends space for their backups", "")
-	if s.Manager.OfferStorage(r.Context()) {
-		if guests, err := s.Manager.StorageGuests(r.Context()); err == nil {
+	if s.Guests.OfferStorage(r.Context()) {
+		if guests, err := s.Guests.StorageGuests(r.Context()); err == nil {
 			n := 0
 			for _, g := range guests {
 				if g.Removed.IsZero() {
@@ -352,7 +355,7 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 	data["Servers"] = servers
 	locations := map[string]string{}
 	for _, mc := range servers {
-		locations[mc.ID] = s.serverLocation(r.Context(), mc.ID)
+		locations[mc.ID] = s.Manager.ServerLocation(r.Context(), mc.ID)
 	}
 	data["Locations"] = locations
 	links := map[string]string{}
@@ -372,16 +375,25 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		}
 	}
 	data["ApplyActivities"] = applies
-	// Folders moves left behind, per server (asked of each at once).
-	kept := make([][]node.KeptFolder, len(servers))
+	// Each server's kept copies (asked of each at once).
+	found := make([][]manager.KeptCopy, len(servers))
 	var wg sync.WaitGroup
 	for i, mc := range servers {
-		wg.Go(func() { kept[i], _ = s.Manager.KeptData(r.Context(), mc.ID) })
+		wg.Go(func() { found[i], _ = s.Manager.KeptCopies(r.Context(), mc.ID) })
 	}
 	wg.Wait()
-	keptBy := map[string][]node.KeptFolder{}
+	names, titles := serverNames(servers), s.serviceTitles(r.Context())
+	keptBy := map[string]keptList{}
 	for i, mc := range servers {
-		keptBy[mc.ID] = kept[i]
+		if len(found[i]) == 0 {
+			continue
+		}
+		list := keptList{Action: "/settings/servers/" + mc.ID + "/kept"}
+		for _, c := range found[i] {
+			list.Copies = append(list.Copies, newKeptView(c, cmp.Or(titles[c.Service], c.Service), names, false))
+		}
+		list.Total = keptTotal(list.Copies)
+		keptBy[mc.ID] = list
 	}
 	data["Kept"] = keptBy
 	// Each server's disk space, asked of each at once.
@@ -488,14 +500,14 @@ func dialAddress(typed string) (string, error) {
 		host, port = h, p
 	}
 	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
-		return "", errors.New("That port isn't a number from 1 to 65535.")
+		return "", usererr.New("That port isn't a number from 1 to 65535.")
 	}
 	if ip, err := netip.ParseAddr(host); err == nil {
 		if !public.IsPublic(ip) {
-			return "", errors.New(host + " isn't a public address. A server at home can join the usual way: choose this server's home-network address.")
+			return "", usererr.New("%s isn't a public address. A server at home can join the usual way: choose this server's home-network address.", host)
 		}
 	} else if host == "" || strings.ContainsAny(host, " /:") || !strings.Contains(host, ".") {
-		return "", errors.New("Enter the new server's public address, such as 203.0.113.7, or a name for it.")
+		return "", usererr.New("Enter the new server's public address, such as 203.0.113.7, or a name for it.")
 	}
 	return net.JoinHostPort(host, port), nil
 }
@@ -525,8 +537,8 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 	}
 	if n := s.serverOf(r); n != nil {
 		m := s.serverRefOf(r)
-		s.forgetHostCheck(m.ID) // this page always checks afresh
-		if c, ok := s.hostChanges(r.Context(), m, n); ok && c.Any() {
+		s.hostChecks.Forget(m.ID) // this page always checks afresh
+		if c, ok := s.hostChecks.Get(r.Context(), m.ID, n.Updates()); ok && c.Any() {
 			data["HostChanges"] = c
 		}
 	}
@@ -540,7 +552,7 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 func (s *Server) renameServerSubmit(w http.ResponseWriter, r *http.Request) {
 	id, name := r.PathValue("server"), r.FormValue("name")
 	err := s.Manager.RenameServer(r.Context(), id, name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServers(w, r, map[string]any{"Error": msg, "ErrorServer": id})
 		return
 	}
@@ -573,7 +585,7 @@ func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	err := s.Manager.RemoveServer(r.Context(), id)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderServers(w, r, map[string]any{"Error": msg, "ErrorServer": id})
 		return
 	}
@@ -593,27 +605,12 @@ func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, "/servers")
 }
 
-func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
-	id, path := r.PathValue("server"), r.FormValue("path")
-	err := s.Manager.RemoveKeptData(r.Context(), id, path)
-	if errors.Is(err, manager.ErrNotFound) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	s.Store.Audit(r.Context(), currentUser(r), "servers", "deleted kept folder "+path+" on "+id)
-	redirect(w, r, "/servers#server-"+id)
-}
-
 // linkAddressSubmit sets where other servers reach a server directly
 // (SPEC.md §10.10).
 func (s *Server) linkAddressSubmit(w http.ResponseWriter, r *http.Request) {
 	id, addr := r.PathValue("server"), strings.TrimSpace(r.FormValue("address"))
 	err := s.Manager.SetLinkAddress(r.Context(), id, addr)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		w.WriteHeader(http.StatusBadRequest)
 		s.renderServers(w, r, map[string]any{"LinkError": msg, "LinkErrorServer": id})
 		return

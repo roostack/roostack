@@ -128,7 +128,9 @@ func (s *Server) sessionSettingsSubmit(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, "/settings/people?signin=saved#signing-in")
 }
 
-// idleText says an idle choice in words.
+// idleText says an idle choice in words: a setting's value ("1 hour",
+// "90 minutes"), not a length of time measured, so neither of words'
+// duration styles.
 func idleText(minutes int) string {
 	switch {
 	case minutes == 0:

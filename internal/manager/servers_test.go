@@ -10,17 +10,19 @@ import (
 	"testing"
 	"time"
 
-	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/node/nodetest"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // fakeRemote is another server that records its assignments.
 type fakeRemote struct {
+	nodetest.Base
 	guestLink []agent.WireGuard
 	media     node.Media
 	deleted   []string
@@ -73,33 +75,14 @@ func (f *fakeRemote) ServiceDetails(context.Context) (map[string]node.ServiceDet
 func (f *fakeRemote) BuiltIns(context.Context) ([]node.BuiltIn, error) {
 	return []node.BuiltIn{{Name: "roostack", Kind: "network", Status: "up"}}, nil
 }
-func (f *fakeRemote) InstallStatus(context.Context, string) node.HookStatus { return node.HookStatus{} }
-func (f *fakeRemote) RetryInstall(context.Context, string) error            { return nil }
-func (f *fakeRemote) RunAction(context.Context, string, string, map[string]string) (string, error) {
-	return "", errors.New("unused")
-}
-func (f *fakeRemote) RevealSecret(context.Context, string, string) (string, error) { return "", nil }
-func (f *fakeRemote) LatestActivity(string) (activity.Snapshot, bool) {
-	return activity.Snapshot{}, false
-}
-func (f *fakeRemote) Backups() node.Backups   { return f.backups }
-func (f *fakeRemote) Restores() node.Restores { return nil }
-func (f *fakeRemote) Updates() node.Updates   { return nil }
-func (f *fakeRemote) Media() node.Media       { return f.media }
-func (f *fakeRemote) Imports() node.Imports   { return nil }
+func (f *fakeRemote) Backups() node.Backups { return f.backups }
+func (f *fakeRemote) Media() node.Media     { return f.media }
 
 // Capabilities: it hosts guests, says its processor and its links, and
-// moves, updates and reports nothing else.
-func (f *fakeRemote) Mover() node.Mover         { return nil }
-func (f *fakeRemote) Updater() node.Updater     { return nil }
-func (f *fakeRemote) Disks() node.Disks         { return nil }
-func (f *fakeRemote) Memory() node.Memory       { return nil }
-func (f *fakeRemote) LeftData() node.LeftData   { return nil }
-func (f *fakeRemote) History() node.History     { return nil }
+// has its backups and media if set; nothing else (nodetest.Base).
 func (f *fakeRemote) Linked() node.Linked       { return f }
 func (f *fakeRemote) GuestHost() node.GuestHost { return f }
 func (f *fakeRemote) Processor() node.Processor { return f }
-func (f *fakeRemote) Photos() node.Photos       { return nil }
 
 func (f *fakeRemote) Settings() node.Settings {
 	f.mu.Lock()
@@ -223,7 +206,7 @@ func TestAssignmentsPerServer(t *testing.T) {
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	ctx := context.Background()
 
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.Install(ctx, "forgejo", InstallRequest{Host: "n-0000000009"}); !errors.As(err, &fe) {
 		t.Errorf("unknown server: %v", err)
 	}
@@ -294,8 +277,8 @@ func TestRemoveAndRenameServer(t *testing.T) {
 	}
 	m.Wait()
 
-	var fe *FormError
-	if err := m.RemoveServer(ctx, "n-0000000002"); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "still runs Forgejo") {
+	var fe *usererr.Error
+	if err := m.RemoveServer(ctx, "n-0000000002"); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "is still running Forgejo") {
 		t.Errorf("removing a server with services: %v", err)
 	}
 	if err := m.RemoveServer(ctx, "n-0000000001"); !errors.Is(err, ErrNotFound) {
@@ -324,6 +307,7 @@ func TestRemoveAndRenameServer(t *testing.T) {
 // A server that just joined gets the controller's time zone once it
 // answers (it restarts as part of the lab first).
 func TestNewServerGetsTheLabsTimezone(t *testing.T) {
+	t.Parallel()
 	m, _ := newManager(t)
 	m.Node.(*node.Local).Host = &node.HostSettings{Zone: func() string { return "Australia/Sydney" },
 		Zones: func() ([]string, error) { return []string{"Australia/Sydney", "Etc/UTC"}, nil }}
@@ -392,8 +376,7 @@ func TestPendingFor(t *testing.T) {
 	m, _ := newManager(t)
 	vps := pendingRemote{&fakeRemote{settings: &fakeServerSettings{}}}
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
-	defer func(g time.Duration) { pullGap = g }(pullGap)
-	pullGap = time.Hour
+	m.waits.pullGap = time.Hour
 
 	// None yet (the controller just started): it's built.
 	w, err := m.PendingFor("n-0000000002")
@@ -408,7 +391,7 @@ func TestPendingFor(t *testing.T) {
 		t.Errorf("a server not in the lab: %v", err)
 	}
 	// Later fetches get the latest without applying anew.
-	pullGap = 0
+	m.waits.pullGap = time.Nanosecond
 	for range 5 {
 		if w, err := m.PendingFor("n-0000000002"); err != nil || w.Version != 1 {
 			t.Fatalf("later fetch: %+v %v", w, err)

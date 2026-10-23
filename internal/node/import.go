@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -15,9 +14,12 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
-	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/importer"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Bringing your own data into a service (SPEC.md §8.4): the server the
@@ -163,8 +165,9 @@ var (
 	libraryRoot = config.LibraryRoot
 )
 
-// imports are this server's imports in progress.
-type imports struct {
+// importRuns is what this server's imports in progress share while it
+// runs.
+type importRuns struct {
 	mu sync.Mutex
 	// running cancels a service's check or copy.
 	running map[string]context.CancelFunc
@@ -180,36 +183,44 @@ func (n *Local) Imports() Imports {
 	if n.ImportAgent == nil || n.State == nil {
 		return nil
 	}
-	return n
+	return n.imports()
 }
+
+// localImports is bringing data into this server's services
+// (Local.Imports): the server's own parts are n's, and what the imports
+// share while it runs is n.imp.
+type localImports struct{ n *Local }
+
+func (n *Local) imports() localImports { return localImports{n} }
 
 func importKey(service string) string { return "import." + service }
 
 // loadImport reads a service's import (empty if none).
-func (n *Local) loadImport(ctx context.Context, service string) ImportState {
-	var st ImportState
-	n.loadSetting(ctx, importKey(service), &st)
+func (x localImports) loadImport(ctx context.Context, service string) ImportState {
+	if x.n.State == nil {
+		return ImportState{}
+	}
+	st, err := store.GetJSON[ImportState](ctx, x.n.State, importKey(service))
+	if err != nil {
+		x.n.Log.Error("reading a service's import", "service", service, "err", err)
+	}
 	return st
 }
 
 // updateImport changes a service's import and saves it.
-func (n *Local) updateImport(ctx context.Context, service string, change func(*ImportState) error) error {
-	n.imp.mu.Lock()
-	defer n.imp.mu.Unlock()
-	st := n.loadImport(ctx, service)
+func (x localImports) updateImport(ctx context.Context, service string, change func(*ImportState) error) error {
+	x.n.imp.mu.Lock()
+	defer x.n.imp.mu.Unlock()
+	st := x.loadImport(ctx, service)
 	if err := change(&st); err != nil {
 		return err
 	}
-	b, err := json.Marshal(st)
-	if err != nil {
-		return err
-	}
-	return n.State.SetSetting(ctx, importKey(service), string(b))
+	return store.PutJSON(ctx, x.n.State, importKey(service), st)
 }
 
 // importService is a service of this server's, for an import.
-func (n *Local) importService(service string) (state.Service, error) {
-	s, ok := n.service(service)
+func (x localImports) importService(service string) (state.Service, error) {
+	s, ok := x.n.service(service)
 	if !ok {
 		return s, ErrNotFound
 	}
@@ -228,53 +239,53 @@ func importFiles(service string, st ImportState) fs.FS {
 	return os.DirFS(dir)
 }
 
-func (n *Local) Import(ctx context.Context, service string) (ImportView, error) {
-	s, err := n.importService(service)
+func (x localImports) Import(ctx context.Context, service string) (ImportView, error) {
+	s, err := x.importService(service)
 	if err != nil {
 		return ImportView{}, err
 	}
-	st := n.loadImport(ctx, service)
+	st := x.loadImport(ctx, service)
 	v := ImportView{ImportState: st}
 	files := importFiles(service, st)
 	if files != nil {
 		_, err := fs.ReadDir(files, ".")
 		v.Mounted = err == nil
 	}
-	v.Plan = importer.Match(s.Package, st.Setup, st.Prefixes, st.Choices, files, n.libraryFinder(s, files))
+	v.Plan = importer.Match(s.Package, st.Setup, st.Prefixes, st.Choices, files, x.libraryFinder(s, files))
 	return v, nil
 }
 
-func (n *Local) SetImportSource(ctx context.Context, service string, src ImportSource) error {
-	if _, err := n.importService(service); err != nil {
+func (x localImports) SetImportSource(ctx context.Context, service string, src ImportSource) error {
+	if _, err := x.importService(service); err != nil {
 		return err
 	}
-	if n.importBusy(service) {
-		return formErrorf("Wait for the check or copy to finish, or stop it, first.")
+	if x.importBusy(service) {
+		return usererr.New("Wait for the check or copy to finish, or stop it, first.")
 	}
 	if !slices.Contains([]string{"drive", "folder", "share"}, src.Kind) {
-		return formErrorf("Choose a drive, a folder or a share.")
+		return usererr.New("Choose a drive, a folder, or a share.")
 	}
-	if _, err := n.ImportAgent.MountImport(ctx, service, src.Library); err != nil {
-		return formErrorf("Roostack couldn't open those files: %v.", strings.TrimSuffix(err.Error(), "."))
+	if _, err := x.n.ImportAgent.MountImport(ctx, service, src.Library); err != nil {
+		return usererr.New("Roostack couldn't open those files: %v.", strings.TrimSuffix(err.Error(), "."))
 	}
 	if src.Library.Share != nil {
 		share := *src.Library.Share
 		share.Password = "" // the agent keeps it, root's only
 		src.Library.Share = &share
 	}
-	n.forgetSamples(service)
-	return n.updateImport(ctx, service, func(st *ImportState) error {
+	x.forgetSamples(service)
+	return x.updateImport(ctx, service, func(st *ImportState) error {
 		st.Source, st.Check = &src, nil
 		if st.Setup != nil && (len(st.Prefixes) == 0 || st.Guessed) {
-			n.guessPrefixes(service, st)
+			x.guessPrefixes(service, st)
 		}
 		return nil
 	})
 }
 
 // guessPrefixes guesses where the old folders are in the person's copy.
-func (n *Local) guessPrefixes(service string, st *ImportState) {
-	s, ok := n.service(service)
+func (x localImports) guessPrefixes(service string, st *ImportState) {
+	s, ok := x.n.service(service)
 	if !ok {
 		return
 	}
@@ -282,30 +293,30 @@ func (n *Local) guessPrefixes(service string, st *ImportState) {
 	st.Guessed = len(st.Prefixes) > 0
 }
 
-func (n *Local) SetImportSetup(ctx context.Context, service string, setup *importer.Setup) error {
-	if _, err := n.importService(service); err != nil {
+func (x localImports) SetImportSetup(ctx context.Context, service string, setup *importer.Setup) error {
+	if _, err := x.importService(service); err != nil {
 		return err
 	}
 	if setup != nil {
 		if err := setup.Clean(); err != nil {
-			return formErrorf("%s.", capitalise(strings.TrimSuffix(err.Error(), ".")))
+			return usererr.New("%s.", words.Capitalise(strings.TrimSuffix(err.Error(), ".")))
 		}
 	}
-	n.forgetSamples(service)
-	return n.updateImport(ctx, service, func(st *ImportState) error {
+	x.forgetSamples(service)
+	return x.updateImport(ctx, service, func(st *ImportState) error {
 		st.Setup, st.Check, st.SetupDone = setup, nil, setup == nil
 		if len(st.Prefixes) == 0 || st.Guessed {
 			st.Prefixes, st.Guessed = nil, false
 			if setup != nil {
-				n.guessPrefixes(service, st)
+				x.guessPrefixes(service, st)
 			}
 		}
 		return nil
 	})
 }
 
-func (n *Local) SetImportPrefixes(ctx context.Context, service string, prefixes []importer.Prefix) error {
-	if _, err := n.importService(service); err != nil {
+func (x localImports) SetImportPrefixes(ctx context.Context, service string, prefixes []importer.Prefix) error {
+	if _, err := x.importService(service); err != nil {
 		return err
 	}
 	var keep []importer.Prefix
@@ -318,33 +329,33 @@ func (n *Local) SetImportPrefixes(ctx context.Context, service string, prefixes 
 			p.Now = "."
 		}
 		if !fs.ValidPath(p.Now) || len(p.Old) > 4096 || strings.ContainsAny(p.Old, "\x00\n") {
-			return formErrorf("%q isn't a folder Roostack can use.", p.Old)
+			return usererr.New("%q isn't a folder Roostack can use.", p.Old)
 		}
 		keep = append(keep, p)
 	}
-	n.forgetSamples(service)
-	return n.updateImport(ctx, service, func(st *ImportState) error {
+	x.forgetSamples(service)
+	return x.updateImport(ctx, service, func(st *ImportState) error {
 		st.Prefixes, st.Guessed, st.Check, st.SetupDone = keep, false, nil, true
 		return nil
 	})
 }
 
-func (n *Local) SetImportChoices(ctx context.Context, service string, ch importer.Choices) error {
-	s, err := n.importService(service)
+func (x localImports) SetImportChoices(ctx context.Context, service string, ch importer.Choices) error {
+	s, err := x.importService(service)
 	if err != nil {
 		return err
 	}
 	for name, rel := range ch.Storage {
 		if _, ok := s.Package.Storage[name]; !ok || (rel != importer.Leave && !fs.ValidPath(rel)) {
-			return formErrorf("Choose a folder in your files for %s.", name)
+			return usererr.New("Choose a folder in your files for %s.", name)
 		}
 	}
 	for name, rel := range ch.Dumps {
 		if _, ok := s.Package.Databases[name]; !ok || (rel != importer.Leave && !fs.ValidPath(rel)) {
-			return formErrorf("Choose a dump in your files for the database %s.", name)
+			return usererr.New("Choose a dump in your files for the database %s.", name)
 		}
 	}
-	return n.updateImport(ctx, service, func(st *ImportState) error {
+	return x.updateImport(ctx, service, func(st *ImportState) error {
 		st.Choices, st.Check = ch, nil
 		return nil
 	})
@@ -353,11 +364,11 @@ func (n *Local) SetImportChoices(ctx context.Context, service string, ch importe
 // maxListing caps a folder's listing.
 const maxListing = 1000
 
-func (n *Local) BrowseImport(ctx context.Context, service, rel string) (ImportListing, error) {
-	if _, err := n.importService(service); err != nil {
+func (x localImports) BrowseImport(ctx context.Context, service, rel string) (ImportListing, error) {
+	if _, err := x.importService(service); err != nil {
 		return ImportListing{}, err
 	}
-	files := importFiles(service, n.loadImport(ctx, service))
+	files := importFiles(service, x.loadImport(ctx, service))
 	rel = strings.Trim(rel, "/")
 	if rel == "" {
 		rel = "."
@@ -367,7 +378,7 @@ func (n *Local) BrowseImport(ctx context.Context, service, rel string) (ImportLi
 	}
 	entries, err := fs.ReadDir(files, rel)
 	if err != nil {
-		return ImportListing{}, formErrorf("Roostack can't open that folder: %v.", unwrapPathError(err))
+		return ImportListing{}, usererr.New("Roostack can't open that folder: %v.", unwrapPathError(err))
 	}
 	l := ImportListing{Path: rel}
 	for _, e := range entries {
@@ -398,30 +409,30 @@ func unwrapPathError(err error) error {
 }
 
 // importBusy says whether a service's check or copy is running.
-func (n *Local) importBusy(service string) bool {
-	n.imp.mu.Lock()
-	defer n.imp.mu.Unlock()
-	return n.imp.running[service] != nil
+func (x localImports) importBusy(service string) bool {
+	x.n.imp.mu.Lock()
+	defer x.n.imp.mu.Unlock()
+	return x.n.imp.running[service] != nil
 }
 
 // startImportRun runs a service's check or copy in the background, one at
 // a time.
-func (n *Local) startImportRun(service string, run func(ctx context.Context)) error {
-	n.imp.mu.Lock()
-	defer n.imp.mu.Unlock()
-	if n.imp.running[service] != nil {
-		return formErrorf("Wait for the check or copy to finish, or stop it, first.")
+func (x localImports) startImportRun(service string, run func(ctx context.Context)) error {
+	x.n.imp.mu.Lock()
+	defer x.n.imp.mu.Unlock()
+	if x.n.imp.running[service] != nil {
+		return usererr.New("Wait for the check or copy to finish, or stop it, first.")
 	}
-	if n.imp.running == nil {
-		n.imp.running = map[string]context.CancelFunc{}
+	if x.n.imp.running == nil {
+		x.n.imp.running = map[string]context.CancelFunc{}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	n.imp.running[service] = cancel
+	x.n.imp.running[service] = cancel
 	go func() {
 		defer func() {
-			n.imp.mu.Lock()
-			delete(n.imp.running, service)
-			n.imp.mu.Unlock()
+			x.n.imp.mu.Lock()
+			delete(x.n.imp.running, service)
+			x.n.imp.mu.Unlock()
 			cancel()
 		}()
 		run(ctx)
@@ -429,63 +440,61 @@ func (n *Local) startImportRun(service string, run func(ctx context.Context)) er
 	return nil
 }
 
-func (n *Local) StopImportCopy(ctx context.Context, service string) error {
-	n.imp.mu.Lock()
-	cancel := n.imp.running[service]
-	n.imp.mu.Unlock()
+func (x localImports) StopImportCopy(ctx context.Context, service string) error {
+	x.n.imp.mu.Lock()
+	cancel := x.n.imp.running[service]
+	x.n.imp.mu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
 	return nil
 }
 
-func (n *Local) CancelImport(ctx context.Context, service string) error {
-	if _, err := n.importService(service); err != nil {
+func (x localImports) CancelImport(ctx context.Context, service string) error {
+	if _, err := x.importService(service); err != nil {
 		return err
 	}
-	n.StopImportCopy(ctx, service)
-	for n.importBusy(service) {
-		select {
-		case <-ctx.Done():
+	x.StopImportCopy(ctx, service)
+	for x.importBusy(service) {
+		if !sleep.For(ctx, 100*time.Millisecond) {
 			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
 		}
 	}
-	if err := n.ImportAgent.UnmountImport(ctx, service); err != nil {
-		n.Log.Warn("unmounting the copy to bring data in from", "service", service, "err", err)
+	if err := x.n.ImportAgent.UnmountImport(ctx, service); err != nil {
+		x.n.Log.Warn("unmounting the copy to bring data in from", "service", service, "err", err)
 	}
-	for _, d := range n.DataDirs(service) {
+	for _, d := range x.n.DataDirs(service) {
 		if _, err := os.Stat(d + staging); err == nil {
-			if out, err := n.unshare(ctx, "rm", "-rf", "--", d+staging).CombinedOutput(); err != nil {
-				n.Log.Warn("deleting a copy", "dir", d+staging, "err", err, "out", string(out))
+			if out, err := x.n.unshare(ctx, "rm", "-rf", "--", d+staging).CombinedOutput(); err != nil {
+				x.n.Log.Warn("deleting a copy", "dir", d+staging, "err", err, "out", string(out))
 			}
 		}
 	}
-	n.forgetSamples(service)
-	n.imp.mu.Lock()
-	defer n.imp.mu.Unlock()
-	return n.State.SetSetting(ctx, importKey(service), "")
+	x.forgetSamples(service)
+	x.n.imp.mu.Lock()
+	defer x.n.imp.mu.Unlock()
+	return x.n.State.SetSetting(ctx, importKey(service), "")
 }
 
 // libraryFinder finds media libraries for the old media folders, for a
 // package that reads them (nil otherwise): by the files the old data
 // names there, sampled from SQLite databases in the person's copy, else by
 // the old folder's name.
-func (n *Local) libraryFinder(s state.Service, files fs.FS) importer.Libraries {
+func (x localImports) libraryFinder(s state.Service, files fs.FS) importer.Libraries {
 	if !s.Package.ReadsLibraries() {
 		return nil
 	}
-	n.mu.Lock()
+	x.n.mu.Lock()
 	var libs []string
-	for _, l := range n.assignment.Libraries {
+	for _, l := range x.n.assignment.Libraries {
 		libs = append(libs, l.Name)
 	}
-	n.mu.Unlock()
-	return libFinder{n: n, service: s.Name(), libs: libs, files: files}
+	x.n.mu.Unlock()
+	return libFinder{imp: x, service: s.Name(), libs: libs, files: files}
 }
 
 type libFinder struct {
-	n       *Local
+	imp     localImports
 	service string
 	libs    []string
 	files   fs.FS
@@ -495,7 +504,7 @@ type libFinder struct {
 const librarySample = 40
 
 func (f libFinder) Find(target, source string) (string, string, int, int) {
-	samples := f.n.samplesFor(f.service, f.files, target)
+	samples := f.imp.samplesFor(f.service, f.files, target)
 	best, found := "", 0
 	for _, l := range f.libs {
 		hits := 0
@@ -536,13 +545,13 @@ func librarySlug(s string) string {
 
 // samplesFor finds file names the old data names under target, from the
 // SQLite databases in the person's copy (looked for once, then kept).
-func (n *Local) samplesFor(service string, files fs.FS, target string) []string {
-	n.imp.mu.Lock()
-	if got, ok := n.imp.samples[service][target]; ok {
-		n.imp.mu.Unlock()
+func (x localImports) samplesFor(service string, files fs.FS, target string) []string {
+	x.n.imp.mu.Lock()
+	if got, ok := x.n.imp.samples[service][target]; ok {
+		x.n.imp.mu.Unlock()
 		return got
 	}
-	n.imp.mu.Unlock()
+	x.n.imp.mu.Unlock()
 	var out []string
 	if files != nil {
 		for _, db := range findSQLite(files, 50000) {
@@ -558,23 +567,23 @@ func (n *Local) samplesFor(service string, files fs.FS, target string) []string 
 			}
 		}
 	}
-	n.imp.mu.Lock()
-	if n.imp.samples == nil {
-		n.imp.samples = map[string]map[string][]string{}
+	x.n.imp.mu.Lock()
+	if x.n.imp.samples == nil {
+		x.n.imp.samples = map[string]map[string][]string{}
 	}
-	if n.imp.samples[service] == nil {
-		n.imp.samples[service] = map[string][]string{}
+	if x.n.imp.samples[service] == nil {
+		x.n.imp.samples[service] = map[string][]string{}
 	}
-	n.imp.samples[service][target] = out
-	n.imp.mu.Unlock()
+	x.n.imp.samples[service][target] = out
+	x.n.imp.mu.Unlock()
 	return out
 }
 
 // forgetSamples drops a service's samples (its copy or setup changed).
-func (n *Local) forgetSamples(service string) {
-	n.imp.mu.Lock()
-	delete(n.imp.samples, service)
-	n.imp.mu.Unlock()
+func (x localImports) forgetSamples(service string) {
+	x.n.imp.mu.Lock()
+	delete(x.n.imp.samples, service)
+	x.n.imp.mu.Unlock()
 }
 
 // findSQLite finds SQLite databases in files by name and header, looking
@@ -602,25 +611,4 @@ func findSQLite(files fs.FS, limit int) []string {
 		return nil
 	})
 	return out
-}
-
-// capitalise makes a sentence start with a capital.
-func capitalise(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
-// liveOutput is what runs of a service now: all of it, or only its
-// network and databases while it waits for its data, is stopped by
-// Roostack or is held after a restore that didn't finish (generate.Stop),
-// as the controller's assignment has it. Its app's units don't exist
-// then, so they can't be stopped or started.
-func (n *Local) liveOutput(service string) (*generate.Output, error) {
-	s, ok := n.service(service)
-	if !ok {
-		return nil, ErrNotFound
-	}
-	return state.Output(n.currentLab(), s)
 }

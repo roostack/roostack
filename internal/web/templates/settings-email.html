@@ -29,7 +29,7 @@
         <small>Often your email address. Empty if the server needs no login.</small></label>
       <label>Password <input name="password" type="password" autocomplete="new-password"
         placeholder="{{if $.HasPassword}}Saved: leave empty to keep it{{end}}">
-        <small>Kept on this server, readable only by Roostack, and never shown again.</small></label>
+        <small>It will be kept on this server, readable only by Roostack, and never shown again.</small></label>
     </div>
     {{if $.HasPassword}}<label class="check"><input type="checkbox" name="clear_password"><span>Forget the saved password</span></label>{{end}}
     <label>Send from <input name="from" value="{{.From}}" placeholder="roostack@example.com" required autocapitalize="off" spellcheck="false">
@@ -59,7 +59,7 @@
       <small class="hint">{{if .Email}}{{.Email}} · {{if .Groups}}{{range $i, $g := .Groups}}{{if $i}}, {{end}}{{$g}}{{end}}{{else}}their own account's security only{{end}}
         {{- else}}No address: no email{{end}}</small>
       {{- with .Cloud}}<br><small class="hint">{{template "cloud-recipient" .}}</small>
-      {{- else}}{{if .CloudNext}}<br><small class="hint">Roostack Cloud hears of them at the lab's next daily check-in</small>{{end}}{{end}}</span></li>{{end}}
+      {{- else}}{{if .CloudNext}}<br><small class="hint">Roostack Cloud will hear of them at the lab's next daily check-in</small>{{end}}{{end}}</span></li>{{end}}
   </ul>
 </section>
 {{end}}

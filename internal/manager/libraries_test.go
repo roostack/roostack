@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 type fakeLibraryStore struct{ libs []store.MediaLibrary }
@@ -83,7 +84,7 @@ func TestServiceLibraryPaths(t *testing.T) {
 		t.Errorf("paths %+v %v", c, err)
 	}
 	err = m.SetServiceLibraries(ctx, "player", []string{"films"}, map[string]string{"films": "/config/films"})
-	if msg, ok := err.(*FormError); !ok || msg.Msg != "Films can't be at /config/films inside Player: it overlaps /config, where Player already has a folder." {
+	if msg, ok := err.(*usererr.Error); !ok || msg.Msg != "Films can't be at /config/films inside Player: it overlaps /config, where Player already has a folder." {
 		t.Errorf("a path over its own folder: %v", err)
 	}
 	if err := m.SetServiceLibraries(ctx, "player", []string{"films"}, nil); err != nil {

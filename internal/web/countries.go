@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"slices"
 	"strings"
+
+	"roostack.cloud/roostack/internal/words"
 )
 
 // countryNames are the countries (ISO 3166-1 codes) the relay can let in
@@ -88,11 +90,5 @@ func countryNamesOf(codes []string) string {
 		names = append(names, cmp.Or(countryNames[c], c))
 	}
 	slices.Sort(names)
-	switch len(names) {
-	case 0:
-		return ""
-	case 1:
-		return names[0]
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+	return words.And(names)
 }

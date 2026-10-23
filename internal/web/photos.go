@@ -15,12 +15,13 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
-	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // Migrating photos into Immich (SPEC.md §8.5, docs/mockups/immich-import):
@@ -43,6 +44,8 @@ type PhotoMigrations interface {
 	RemovePhotoLocation(ctx context.Context, service, name string) error
 	PhotoDrives(ctx context.Context, service string, admin bool) ([]manager.PhotoDrive, error)
 	CheckPhotoSource(ctx context.Context, service string, src node.PhotoSource, admin bool) error
+	// MigrationStarted tells the Owners when someone else starts one.
+	MigrationStarted(ctx context.Context, service string, u *store.User)
 }
 
 // Steps of a migration, in order.
@@ -259,7 +262,7 @@ func (s *Server) renderPhotos(w http.ResponseWriter, r *http.Request, panel bool
 		return
 	}
 	x, err := s.Photos.PhotosOf(name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		pg.Error = msg
 		data["Own"], data["Photos"], data["Unavailable"] = !panel, pg, true
 		s.renderPhotosPage(w, data, panel, http.StatusOK)
@@ -373,7 +376,7 @@ func photoProgressOf(run *node.PhotoRun) photoProgress {
 	if run.Running && p.Done > 50 && p.Total > p.Done {
 		spent := time.Since(run.Started)
 		left := time.Duration(float64(spent) * float64(p.Total-p.Done) / float64(p.Done))
-		p.TimeLeft = roughDuration(left)
+		p.TimeLeft = words.RoughDuration(left)
 	}
 	return p
 }
@@ -427,7 +430,7 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 	// Drives, for those who may use one.
 	if f.CanDrive {
 		drives, err := s.Photos.PhotoDrives(ctx, ps.Name, pg.Admin)
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			f.DriveError = msg
 		} else if err != nil {
 			return err
@@ -479,7 +482,7 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 				return err
 			}
 			folders, err := x.PhotoFolders(ctx, f.Location, f.LocationSub)
-			if msg, ok := userMessage(err); ok {
+			if msg, ok := usererr.Message(err); ok {
 				f.LocationError = msg
 			} else if err != nil {
 				return err
@@ -583,7 +586,7 @@ func (s *Server) photoPost(w http.ResponseWriter, r *http.Request) (string, *sto
 		return "", nil, nil, false
 	}
 	x, err := s.Photos.PhotosOf(name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPhotos(w, r, r.FormValue("panel") == "1", msg, http.StatusBadRequest)
 		return "", nil, nil, false
 	} else if err != nil {
@@ -597,7 +600,7 @@ func (s *Server) photoPost(w http.ResponseWriter, r *http.Request) (string, *sto
 // it at the next step.
 func (s *Server) photoDone(w http.ResponseWriter, r *http.Request, err error, what, anchor string) {
 	panel := r.FormValue("panel") == "1"
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderPhotos(w, r, panel, msg, http.StatusBadRequest)
 		return
 	}
@@ -731,7 +734,7 @@ func (s *Server) photoStartSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	err := x.StartPhotos(r.Context(), name, who)
 	if err == nil && who == u.Username {
-		s.photosStarted(r.Context(), name, u)
+		s.Photos.MigrationStarted(r.Context(), name, u)
 	}
 	s.photoDone(w, r, err, "started migrating photos for "+who, "#step-7")
 }
@@ -772,7 +775,7 @@ func (s *Server) photoSettingsSubmit(w http.ResponseWriter, r *http.Request) {
 		set.Memory = photoimport.MemoryHalf
 	}
 	if err := s.Photos.SetPhotoSettings(r.Context(), name, set); err != nil {
-		if msg, ok := userMessage(err); ok {
+		if msg, ok := usererr.Message(err); ok {
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
@@ -856,7 +859,7 @@ func (s *Server) photoCardFor(ctx context.Context, u *store.User, name string) *
 		Locations: s.Photos.PhotoLocations(ctx, name), CanSettings: u.Role == auth.RoleOwner,
 		Address: "https://" + s.UIHost + "/immich-photos", Host: ps.Host, Me: u.Username}
 	x, err := s.Photos.PhotosOf(name)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		c.Error = msg
 		return c
 	} else if err != nil {
@@ -908,93 +911,11 @@ func (s *Server) photoHideSubmit(w http.ResponseWriter, r *http.Request) {
 func photoTotals(photos, videos int64) string {
 	switch {
 	case videos == 0:
-		return countWords(photos, "photo", "photos")
+		return words.Count(photos, "photo", "photos")
 	case photos == 0:
-		return countWords(videos, "video", "videos")
+		return words.Count(videos, "video", "videos")
 	}
-	return countWords(photos, "photo", "photos") + " and " + countWords(videos, "video", "videos")
-}
-
-// countWords is a count with its noun: "1 photo", "61,204 photos".
-func countWords(n int64, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return units.Count(n) + " " + many
-}
-
-// photosStarted tells the lab's Owners that someone else started
-// migrating photos (the Owner's card says they're told), by email.
-func (s *Server) photosStarted(ctx context.Context, service string, u *store.User) {
-	if s.Mail == nil || u.Role == auth.RoleOwner {
-		return
-	}
-	title := service
-	if ps, ok := s.photoService(ctx, service); ok {
-		title = ps.Title
-	}
-	body := fmt.Sprintf("%s started migrating photos into their %s account. You'll get another email when it ends.\n\n"+
-		"Follow it on %s's page: https://%s/services/%s#photos\n", cmp.Or(u.Name, u.Username), title, title, s.UIHost, service)
-	s.mailOwners(ctx, fmt.Sprintf("%s is migrating photos into %s", cmp.Or(u.Name, u.Username), title), body)
-}
-
-// PhotosEnded tells the person whose migration ended, and the Owners if
-// it isn't theirs, how it went (node.Local.OnPhotos).
-func (s *Server) PhotosEnded(ctx context.Context, m node.PhotoSummary) {
-	if s.Mail == nil || m.Run == nil {
-		return
-	}
-	title := m.Service
-	if ps, ok := s.photoService(ctx, m.Service); ok {
-		title = ps.Title
-	}
-	t := m.Run.Tally
-	var subject, what string
-	switch {
-	case m.Run.Err != "":
-		subject, what = "Migrating photos into "+title+" stopped", "It stopped with an error: "+m.Run.Err+"."
-	case m.Run.Stopped:
-		subject, what = "Migrating photos into "+title+" was stopped", "It was stopped. What's in Immich stays there; carry on whenever you like."
-	case m.Run.Interrupted:
-		subject, what = "Migrating photos into "+title+" was interrupted", "It stopped when the server restarted. What's in Immich stays there; carry on from the page."
-	default:
-		subject = "Your photos are in " + title
-		what = fmt.Sprintf("%s migrated, %s already there.", countWords(m.Run.Migrated(), "photo or video", "photos and videos"),
-			countWords(m.Run.HadBefore(), "was", "were"))
-		if t.Failed > 0 {
-			what += fmt.Sprintf(" %s couldn't be migrated: the page says which.", countWords(t.Failed, "file", "files"))
-		}
-	}
-	link := fmt.Sprintf("https://%s/immich-photos/%s", s.UIHost, m.Service)
-	body := what + "\n\nThe details: " + link + "\n"
-	if u, err := s.Store.UserByUsername(ctx, m.Who); err == nil && u.Email != "" {
-		if err := s.Mail.Send(ctx, mail.Message{To: []string{u.Email}, Subject: subject, Body: body}); err != nil && err != mail.ErrNotConfigured {
-			s.Log.Warn("emailing the end of a photo migration", "err", err)
-		}
-		if u.Role == auth.RoleOwner {
-			return
-		}
-	}
-	s.mailOwners(ctx, m.Who+": "+subject, body)
-}
-
-// mailOwners emails the lab's Owners who have an address.
-func (s *Server) mailOwners(ctx context.Context, subject, body string) {
-	users, err := s.Store.ListUsers(ctx)
-	if err != nil {
-		return
-	}
-	for _, u := range users {
-		if u.Role != auth.RoleOwner || u.Email == "" {
-			continue
-		}
-		if err := s.Mail.Send(ctx, mail.Message{To: []string{u.Email}, Subject: subject, Body: body}); err != nil {
-			if err != mail.ErrNotConfigured {
-				s.Log.Warn("emailing an Owner about a photo migration", "err", err)
-			}
-			return
-		}
-	}
+	return words.Count(photos, "photo", "photos") + " and " + words.Count(videos, "video", "videos")
 }
 
 // Kinds are the places this person may choose, in order.
@@ -1097,7 +1018,7 @@ func choicesText(kind string, c photoimport.Choices) string {
 		if len(parts) == 0 {
 			return "The photos alone"
 		}
-		return capitalise(strings.Join(parts, ", "))
+		return words.Capitalise(strings.Join(parts, ", "))
 	}
 	d := photoimport.DefaultChoices()
 	d.FolderAlbums = c.FolderAlbums // a folder's only
@@ -1121,7 +1042,7 @@ func choicesText(kind string, c photoimport.Choices) string {
 	case len(without) == 0:
 		return "Everything"
 	}
-	return capitalise(strings.Join(with, ", ")) + "; not " + strings.Join(without, ", ")
+	return words.Capitalise(strings.Join(with, ", ")) + "; not " + strings.Join(without, ", ")
 }
 
 // leftOutText says what a Takeout's choices leave out, with counts: "1,203
@@ -1135,7 +1056,7 @@ func leftOutText(s *photoimport.Scan, c photoimport.Choices) string {
 		parts = append(parts, units.Count(s.Partner)+" a partner shared with you")
 	}
 	if !c.Untitled && s.Untitled > 0 {
-		parts = append(parts, countWords(int64(s.Untitled), "album without a name", "albums without a name"))
+		parts = append(parts, words.Count(int64(s.Untitled), "album without a name", "albums without a name"))
 	}
 	return strings.Join(parts, ", ")
 }

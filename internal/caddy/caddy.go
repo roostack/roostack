@@ -131,7 +131,15 @@ type Wall struct {
 // RemoteHeaders are who someone is, for a walled service. Caddy removes
 // any a visitor sends, on every route, so no request can claim to be from
 // someone signed in.
-var RemoteHeaders = []string{"Remote-User", "Remote-Email", "Remote-Name", "Remote-Groups"}
+var RemoteHeaders = []string{RemoteUser, RemoteEmail, RemoteName, RemoteGroups}
+
+// The headers in RemoteHeaders, which the sign-in listener sets.
+const (
+	RemoteUser   = "Remote-User"
+	RemoteEmail  = "Remote-Email"
+	RemoteName   = "Remote-Name"
+	RemoteGroups = "Remote-Groups"
+)
 
 // Single sign-on's paths and cookie on a walled service's address
 // (internal/sso, which tests they match).

@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // What crosses Roostack's network between the controller and a node (SPEC.md
@@ -173,6 +174,8 @@ type WireStatus struct {
 	Settings bool `json:"settings"`
 	// Imports: data can be brought into its services (SPEC.md §8.4).
 	Imports bool `json:"imports,omitempty"`
+	// Kept: it has the kept-copies routes (keptwire.go), from 2026-10-23.
+	Kept bool `json:"kept,omitempty"`
 	// Addrs are its home-network addresses, and Links when each of its
 	// direct links last connected (Unix time, 0 never), by the other
 	// server's public key (SPEC.md §10.10).
@@ -207,7 +210,7 @@ func wireError(err error) error {
 	case kindNotFound:
 		return ErrNotFound
 	case kindForm:
-		return &FormError{Msg: re.Msg}
+		return &usererr.Error{Msg: re.Msg}
 	case kindAction:
 		return &ActionError{Title: re.Title, Output: re.Output, Err: errors.New(re.Msg)}
 	}

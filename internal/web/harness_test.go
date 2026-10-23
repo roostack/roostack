@@ -10,15 +10,17 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 // The harness the web tests drive the real handlers through: an
@@ -36,11 +38,7 @@ type harness struct {
 
 func newHarness(t *testing.T, setupToken string) *harness {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	services := func(context.Context) ([]ServiceView, error) {
 		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running",
 			URLs: []string{"https://passwords.lab.example.com"}}}, nil
@@ -53,6 +51,7 @@ func newHarness(t *testing.T, setupToken string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.SetupTokenFile = config.Default().Paths.SetupTokenFile()
 	h := &harness{t: t, store: st, server: s}
 	s.OnSetupComplete = func() { h.setup = true }
 	h.srv = httptest.NewServer(s.Handler())
@@ -154,7 +153,7 @@ func loggedIn(t *testing.T, role string) (*harness, *fakeManager) {
 	t.Helper()
 	h := newHarness(t, "")
 	fm := &fakeManager{}
-	h.server.Manager, h.server.Node = fm, fm
+	h.server.Manager, h.server.Guests, h.server.Keys, h.server.Node = fm, fm, fm, fm
 	h.server.Domain = "lab.example.com"
 	h.server.HasGPU = true
 	hash, _ := authkit.HashPassword("a long password")
@@ -185,6 +184,15 @@ func (h *harness) setSetup(ls LabSetup) {
 
 // node is the fake server.
 func (h *harness) node() *fakeManager { return h.server.Node.(*fakeManager) }
+
+// notify does one run of the notifier, wired as Roostack wires it.
+func (h *harness) notify(ctx context.Context, now time.Time) error {
+	n := &attention.Notifier{Store: h.store, Log: h.server.Log, Lab: h.server.AttentionLab}
+	if h.server.Mail != nil {
+		n.Mail = h.server.Mail
+	}
+	return n.Notify(ctx, now)
+}
 
 // acts is the fake node's activity registry.
 func (h *harness) acts() *activity.Registry {

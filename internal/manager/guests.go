@@ -2,29 +2,34 @@ package manager
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/netip"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"roostack.cloud/roostack/internal/activity"
-	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
-// Storage for other labs (SPEC.md §10.10). As host, this lab keeps other
-// labs' encrypted backups in their own space with a size limit; as guest,
-// it stores its own backups at another lab.
+// Storage for other labs (SPEC.md §10.10): this lab keeps other labs'
+// encrypted backups in their own space with a size limit. (As a guest, it
+// stores its own backups at another lab: remotestorage.go.)
+
+// Guests is storage for other labs (Manager.Guests): the labs storing
+// here, their space, and which of the lab's servers holds them.
+type Guests struct {
+	core core
+	// Hub is the host's side of the guests' link and invites, and Records
+	// the store's record of guests (nil: this lab offers no storage).
+	Hub     *labnet.GuestHub
+	Records GuestRecords
+}
 
 // GuestRecords is the store's record of guests.
 type GuestRecords interface {
@@ -38,17 +43,6 @@ type GuestRecords interface {
 
 // GuestGrace is how long a removed guest lab's backups stay.
 const GuestGrace = labnet.GuestGrace
-
-// LinkAgent is roostack-agent's WireGuard operations for links between labs.
-type LinkAgent interface {
-	ApplyWireGuard(ctx context.Context, wg agent.WireGuard) (string, error)
-	WireGuardStatus(ctx context.Context, iface string) (agent.WireGuardStatus, error)
-	RemoveWireGuard(ctx context.Context, iface string) error
-}
-
-// FirstProxyPort is where the controller forwards its servers' backups
-// to the first other lab it stores at (the next one +1, …).
-const FirstProxyPort = 8200
 
 // GuestHeadroom is the share of the disk (percent) kept free beyond every
 // guest's quota, for the lab's own services and backups.
@@ -74,21 +68,21 @@ func (g GuestView) UsedPercent() int {
 func (g GuestView) DeleteOn() time.Time { return g.Removed.Add(GuestGrace) }
 
 // OfferStorage reports whether this lab offers storage to others.
-func (m *Manager) OfferStorage(ctx context.Context) bool {
-	return m.GuestHub != nil && m.GuestHub.Enabled(ctx)
+func (x *Guests) OfferStorage(ctx context.Context) bool {
+	return x.Hub != nil && x.Hub.Enabled(ctx)
 }
 
 // StorageGuests lists the other labs storing here.
-func (m *Manager) StorageGuests(ctx context.Context) ([]GuestView, error) {
-	if m.GuestRecords == nil {
+func (x *Guests) StorageGuests(ctx context.Context) ([]GuestView, error) {
+	if x.Records == nil {
 		return nil, nil
 	}
-	guests, err := m.GuestRecords.Guests(ctx, time.Now())
+	guests, err := x.Records.Guests(ctx, time.Now())
 	if err != nil {
 		return nil, err
 	}
 	var hs map[string]int64
-	host := m.guestHost(ctx)
+	host := x.guestHost(ctx)
 	if host != nil {
 		if st, err := host.GuestLinkStatus(ctx); err == nil {
 			hs = st.Handshakes
@@ -112,31 +106,31 @@ func (m *Manager) StorageGuests(ctx context.Context) ([]GuestView, error) {
 
 // InviteGuest makes a storage invite for another lab, with quota bytes.
 // endpoint is this server's address and guests port as they see it.
-func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error) {
-	if m.GuestHub == nil {
+func (x *Guests) InviteGuest(ctx context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error) {
+	if x.Hub == nil {
 		return labnet.StorageInvite{}, ErrNotFound
 	}
 	name = strings.TrimSpace(name)
 	switch {
 	case name == "" || len([]rune(name)) > 60:
-		return labnet.StorageInvite{}, formErrorf("Give it a name, such as \"Sam's lab\".")
+		return labnet.StorageInvite{}, usererr.New("Give it a name, such as \"Sam's lab\".")
 	case quota < units.GB:
-		return labnet.StorageInvite{}, formErrorf("Offer at least 1 GB.")
+		return labnet.StorageInvite{}, usererr.New("Offer at least 1 GB.")
 	}
 	if host, port, err := splitEndpoint(endpoint); err != nil || host == "" || port == 0 {
-		return labnet.StorageInvite{}, formErrorf("Enter the address and port the other lab reaches this one at, such as 203.0.113.7:51821.")
+		return labnet.StorageInvite{}, usererr.New("Enter the address and port the other lab reaches this one at, such as 203.0.113.7:51821.")
 	}
-	if m.guestHost(ctx) == nil {
-		return labnet.StorageInvite{}, formErrorf("Roostack can't reach %s, which offers the storage, right now.", m.nameOf(m.GuestServer(ctx)))
+	if x.guestHost(ctx) == nil {
+		return labnet.StorageInvite{}, usererr.New("Roostack can't reach %s, which offers the storage, right now.", x.core.nameOf(x.GuestServer(ctx)))
 	}
-	if err := m.quotaFits(ctx, quota, 0); err != nil {
+	if err := x.quotaFits(ctx, quota, 0); err != nil {
 		return labnet.StorageInvite{}, err
 	}
-	inv, err := m.GuestHub.NewInvite(ctx, name, quota, endpoint)
+	inv, err := x.Hub.NewInvite(ctx, name, quota, endpoint)
 	if err != nil {
 		return inv, err
 	}
-	m.Apply() // the guest's store starts
+	x.core.Apply() // the guest's store starts
 	return inv, nil
 }
 
@@ -154,18 +148,18 @@ type GuestSpace struct {
 
 // GuestSpaceLeft describes the space on the server offering storage. ok
 // is false when it can't be asked.
-func (m *Manager) GuestSpaceLeft(ctx context.Context) (GuestSpace, bool) {
-	return m.spaceLeft(ctx, 0)
+func (x *Guests) GuestSpaceLeft(ctx context.Context) (GuestSpace, bool) {
+	return x.spaceLeft(ctx, 0)
 }
 
 // spaceLeft is GuestSpaceLeft, not counting guest except's quota (one
 // whose quota is changing).
-func (m *Manager) spaceLeft(ctx context.Context, except int64) (GuestSpace, bool) {
+func (x *Guests) spaceLeft(ctx context.Context, except int64) (GuestSpace, bool) {
 	var sp GuestSpace
-	if m.GuestRecords == nil {
+	if x.Records == nil {
 		return sp, false
 	}
-	host := m.guestHost(ctx)
+	host := x.guestHost(ctx)
 	if host == nil {
 		return sp, false
 	}
@@ -173,7 +167,7 @@ func (m *Manager) spaceLeft(ctx context.Context, except int64) (GuestSpace, bool
 	if sp.Free, sp.Total, err = host.GuestSpace(ctx); err != nil {
 		return sp, false
 	}
-	guests, err := m.GuestRecords.Guests(ctx, time.Now())
+	guests, err := x.Records.Guests(ctx, time.Now())
 	if err != nil {
 		return sp, false
 	}
@@ -195,42 +189,42 @@ func (m *Manager) spaceLeft(ctx context.Context, except int64) (GuestSpace, bool
 // quotaFits checks a quota fits on the disk with room to spare, beside
 // every other guest's (SPEC.md §10.10). If the disk can't be asked, it
 // isn't refused.
-func (m *Manager) quotaFits(ctx context.Context, quota, except int64) error {
-	if sp, ok := m.spaceLeft(ctx, except); ok && quota > sp.Left {
-		return formErrorf("That doesn't fit: this disk can offer about %s more (after what's promised already and some room to spare).", sizeGB(sp.Left))
+func (x *Guests) quotaFits(ctx context.Context, quota, except int64) error {
+	if sp, ok := x.spaceLeft(ctx, except); ok && quota > sp.Left {
+		return usererr.New("That doesn't fit: this disk can offer about %s more (after what's promised already and some room to spare).", sizeGB(sp.Left))
 	}
 	return nil
 }
 
 // RemoveGuest cuts a guest lab's access. Its data stays until
 // DeleteGuestData.
-func (m *Manager) RemoveGuest(ctx context.Context, id int64) error {
-	if m.GuestRecords == nil {
+func (x *Guests) RemoveGuest(ctx context.Context, id int64) error {
+	if x.Records == nil {
 		return ErrNotFound
 	}
 	// Its store stops now; its link stays so it can be told, and its data
 	// until the grace period ends (PurgeRemovedGuests).
-	if err := m.GuestRecords.SetGuestRemoved(ctx, id, time.Now()); errors.Is(err, store.ErrNotFound) {
+	if err := x.Records.SetGuestRemoved(ctx, id, time.Now()); errors.Is(err, store.ErrNotFound) {
 		return ErrNotFound
 	} else if err != nil {
 		return err
 	}
-	m.Apply()
+	x.core.Apply()
 	return nil
 }
 
 // DeleteRemovedGuest deletes a removed guest's data now, and its link.
-func (m *Manager) DeleteRemovedGuest(ctx context.Context, id int64) error {
-	if m.GuestRecords == nil {
+func (x *Guests) DeleteRemovedGuest(ctx context.Context, id int64) error {
+	if x.Records == nil {
 		return ErrNotFound
 	}
-	guests, err := m.GuestRecords.Guests(ctx, time.Now())
+	guests, err := x.Records.Guests(ctx, time.Now())
 	if err != nil {
 		return err
 	}
 	for _, g := range guests {
 		if g.ID == id && !g.Removed.IsZero() {
-			return m.purgeGuest(ctx, g)
+			return x.purgeGuest(ctx, g)
 		}
 	}
 	return ErrNotFound
@@ -238,68 +232,68 @@ func (m *Manager) DeleteRemovedGuest(ctx context.Context, id int64) error {
 
 // PurgeRemovedGuests deletes the data of guests removed longer than
 // GuestGrace ago (daily).
-func (m *Manager) PurgeRemovedGuests(ctx context.Context, now time.Time) error {
-	if m.GuestRecords == nil {
+func (x *Guests) PurgeRemovedGuests(ctx context.Context, now time.Time) error {
+	if x.Records == nil {
 		return nil
 	}
-	guests, err := m.GuestRecords.Guests(ctx, now)
+	guests, err := x.Records.Guests(ctx, now)
 	if err != nil {
 		return err
 	}
 	var errs []error
 	for _, g := range guests {
 		if !g.Removed.IsZero() && now.Sub(g.Removed) >= GuestGrace {
-			m.Log.Info("deleting a removed guest lab's backups", "guest", g.Name, "removed", g.Removed)
-			errs = append(errs, m.purgeGuest(ctx, g))
+			x.core.logger().Info("deleting a removed guest lab's backups", "guest", g.Name, "removed", g.Removed)
+			errs = append(errs, x.purgeGuest(ctx, g))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-func (m *Manager) purgeGuest(ctx context.Context, g store.Guest) error {
-	host := m.guestHost(ctx)
+func (x *Guests) purgeGuest(ctx context.Context, g store.Guest) error {
+	host := x.guestHost(ctx)
 	if host == nil {
-		return fmt.Errorf("deleting %s's backups: %s can't be reached", g.Name, m.nameOf(m.GuestServer(ctx)))
+		return fmt.Errorf("deleting %s's backups: %s can't be reached", g.Name, x.core.nameOf(x.GuestServer(ctx)))
 	}
 	if err := host.RemoveGuestDir(ctx, g.User()); err != nil && !errors.Is(err, node.ErrNotFound) {
 		return fmt.Errorf("deleting %s's backups: %w", g.Name, err)
 	}
-	if err := m.GuestRecords.RemoveGuest(ctx, g.ID); err != nil {
+	if err := x.Records.RemoveGuest(ctx, g.ID); err != nil {
 		return err
 	}
-	return m.GuestHub.SyncPeers(ctx)
+	return x.Hub.SyncPeers(ctx)
 }
 
 // SetGuestQuota changes how much a guest may store.
-func (m *Manager) SetGuestQuota(ctx context.Context, id, quota int64) error {
-	if m.GuestRecords == nil {
+func (x *Guests) SetGuestQuota(ctx context.Context, id, quota int64) error {
+	if x.Records == nil {
 		return ErrNotFound
 	}
 	if quota < units.GB {
-		return formErrorf("Offer at least 1 GB.")
+		return usererr.New("Offer at least 1 GB.")
 	}
-	if err := m.quotaFits(ctx, quota, id); err != nil {
+	if err := x.quotaFits(ctx, quota, id); err != nil {
 		return err
 	}
-	if err := m.GuestRecords.SetGuestQuota(ctx, id, quota); err != nil {
+	if err := x.Records.SetGuestQuota(ctx, id, quota); err != nil {
 		return err
 	}
-	m.Apply()
+	x.core.Apply()
 	return nil
 }
 
 // guestStores is the controller's assignment of guest stores.
-func (m *Manager) guestStores(ctx context.Context) ([]generate.GuestStorage, string) {
-	if m.GuestHub == nil || !m.GuestHub.Enabled(ctx) {
+func (x *Guests) guestStores(ctx context.Context) ([]generate.GuestStorage, string) {
+	if x.Hub == nil || !x.Hub.Enabled(ctx) {
 		return nil, ""
 	}
-	addr, err := m.GuestHub.HostAddr(ctx)
+	addr, err := x.Hub.HostAddr(ctx)
 	if err != nil {
 		return nil, ""
 	}
-	guests, err := m.GuestRecords.Guests(ctx, time.Now())
+	guests, err := x.Records.Guests(ctx, time.Now())
 	if err != nil {
-		m.Log.Error("reading storage guests", "err", err)
+		x.core.logger().Error("reading storage guests", "err", err)
 		return nil, addr.String()
 	}
 	var out []generate.GuestStorage
@@ -311,285 +305,6 @@ func (m *Manager) guestStores(ctx context.Context) ([]generate.GuestStorage, str
 			Users: g.Users, StoreHash: g.StoreHash, AdminHash: g.AdminHash})
 	}
 	return out, addr.String()
-}
-
-// RemoteStorage is this lab's storage at another lab: a provider.
-type RemoteStorage struct {
-	HostName string     `json:"host_name"`
-	Iface    string     `json:"iface"`
-	HostAddr netip.Addr `json:"host_addr"`
-	// User is this lab's name at the host, with AdminPassword its access
-	// that can delete (the controller's, for pruning).
-	User          string `json:"user"`
-	AdminPassword string `json:"admin_password"`
-	// Servers are this lab's servers' own store passwords there, by
-	// server ID (each is its own store user: remoteServerUser).
-	Servers map[string]string `json:"servers,omitempty"`
-	// StorePassword is the store password every server shared, in links
-	// made before servers had their own (2026-10-17): backups set up then
-	// keep it.
-	StorePassword string `json:"store_password,omitempty"`
-	Port          int    `json:"port"`
-	Quota         int64  `json:"quota"`
-	// ProxyPort is where the controller forwards its servers' backups.
-	ProxyPort int `json:"proxy_port"`
-	// Ref is its backup choice ("provider:<id>"); not stored.
-	Ref string `json:"-"`
-}
-
-// AddRemoteStorage links this lab to another lab's storage with its
-// invite; its servers can then choose it on their Backups page.
-func (m *Manager) AddRemoteStorage(ctx context.Context, code string) error {
-	if m.BackupStore == nil || m.LinkAgent == nil {
-		return ErrNotFound
-	}
-	inv, err := labnet.ParseStorageInvite(code)
-	if err != nil {
-		return formErrorf("%s", err)
-	}
-	remotes, err := m.remoteStorage(ctx)
-	if err != nil {
-		return err
-	}
-	used := map[string]bool{}
-	for _, r := range remotes {
-		used[r.Iface] = true
-	}
-	n := 1
-	for ; n <= 9 && used["roostack-st"+strconv.Itoa(n)]; n++ {
-	}
-	if n > 9 {
-		return formErrorf("This lab already stores at 9 other labs.")
-	}
-	iface := "roostack-st" + strconv.Itoa(n)
-	if err := labnet.JoinStorage(ctx, inv, iface, m.LinkAgent); err != nil {
-		m.LinkAgent.RemoveWireGuard(ctx, iface)
-		return formErrorf("%s", err)
-	}
-	r := RemoteStorage{HostName: inv.HostName, Iface: iface, HostAddr: inv.HostAddr, User: inv.User,
-		StorePassword: inv.StorePassword, AdminPassword: inv.AdminPassword, Port: inv.Port, Quota: inv.Quota,
-		ProxyPort: FirstProxyPort + n - 1}
-	// Each server gets its own user there when its backups are set up
-	// (remoteServerUser).
-	cfg, _ := json.Marshal(r)
-	if _, err := m.BackupStore.AddBackupProvider(ctx, store.BackupProvider{Kind: "remote",
-		Name: inv.HostName + "'s storage", Config: string(cfg)}); err != nil {
-		return err
-	}
-	if m.RemoteAdded != nil {
-		m.RemoteAdded(r)
-	}
-	m.Apply() // the controller's firewall lets its servers reach the proxy
-	return nil
-}
-
-// remoteStorage lists this lab's storage at other labs.
-func (m *Manager) remoteStorage(ctx context.Context) ([]RemoteStorage, error) {
-	providers, err := m.BackupStore.BackupProviders(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var out []RemoteStorage
-	for _, p := range providers {
-		if p.Kind != "remote" {
-			continue
-		}
-		var r RemoteStorage
-		if json.Unmarshal([]byte(p.Config), &r) == nil {
-			r.Ref = fmt.Sprintf("provider:%d", p.ID)
-			out = append(out, r)
-		}
-	}
-	return out, nil
-}
-
-// RemoteStorages lists this lab's storage at other labs (e.g. to start
-// the forwarding proxies at startup).
-func (m *Manager) RemoteStorages(ctx context.Context) []RemoteStorage {
-	if m.BackupStore == nil {
-		return nil
-	}
-	r, _ := m.remoteStorage(ctx)
-	return r
-}
-
-// RemoteUsage asks the host how much this lab stores there.
-func (m *Manager) RemoteUsage(ctx context.Context, r RemoteStorage) (labnet.GuestUsage, error) {
-	u, err := labnet.Usage(ctx, r.HostAddr, r.User, r.AdminPassword)
-	if err == nil && u.Host != "" && u.Host != r.HostName {
-		m.renameRemote(ctx, r, u.Host)
-	}
-	if err == nil {
-		m.remoteMu.Lock()
-		if m.remoteSeen == nil {
-			m.remoteSeen = map[string]labnet.GuestUsage{}
-		}
-		m.remoteSeen[r.Ref] = u
-		m.remoteMu.Unlock()
-	}
-	return u, err
-}
-
-// CheckRemotes asks every lab storing this one's backups how it's going
-// (hourly), so a removal is noticed.
-func (m *Manager) CheckRemotes(ctx context.Context) {
-	for _, r := range m.RemoteStorages(ctx) {
-		m.RemoteUsage(ctx, r)
-	}
-}
-
-// EndingStorage is storage at another lab that has stopped keeping this
-// lab's backups: what's there is deleted on DeleteOn.
-type EndingStorage struct {
-	HostName string
-	DeleteOn time.Time
-}
-
-// EndingStorages lists them, as last heard.
-func (m *Manager) EndingStorages(ctx context.Context) []EndingStorage {
-	m.remoteMu.Lock()
-	defer m.remoteMu.Unlock()
-	var out []EndingStorage
-	for _, r := range m.RemoteStorages(ctx) {
-		if u, ok := m.remoteSeen[r.Ref]; ok && !u.DeleteOn.IsZero() {
-			out = append(out, EndingStorage{HostName: r.HostName, DeleteOn: u.DeleteOn})
-		}
-	}
-	return out
-}
-
-// renameRemote follows a host lab's new name.
-func (m *Manager) renameRemote(ctx context.Context, r RemoteStorage, name string) {
-	_, id, _ := strings.Cut(r.Ref, ":")
-	p, err := m.provider(ctx, id)
-	if err != nil {
-		return
-	}
-	r.HostName = name
-	cfg, _ := json.Marshal(r)
-	p.Name, p.Config = name+"'s storage", string(cfg)
-	if err := m.BackupStore.UpdateBackupProvider(ctx, p); err != nil {
-		m.Log.Warn("renaming another lab's storage", "err", err)
-	}
-}
-
-// proxyPorts are the controller's forwarding ports, for its firewall.
-func (m *Manager) proxyPorts(ctx context.Context) []int {
-	var ports []int
-	for _, r := range m.RemoteStorages(ctx) {
-		ports = append(ports, r.ProxyPort)
-	}
-	slices.Sort(ports)
-	return ports
-}
-
-// remoteRepos returns a server's repository at another lab: as the
-// server reaches it (through the controller's proxy, as its own user
-// there: remoteServerUser) and as the controller does (directly, with the
-// lab's admin access there).
-func (m *Manager) remoteRepos(r RemoteStorage, labID, serverID string) (serverURL string, serverEnv []string, adminURL string, adminEnv []string) {
-	// rest-server takes at most two levels, and a user reaches only the
-	// first level named after it (--private-repos), as on a server's
-	// disk.
-	path := "/" + serverID + "/" + labID
-	host := m.addressOf(m.Lab.NodeID)
-	if serverID == m.Lab.NodeID {
-		host = "127.0.0.1"
-	}
-	serverURL = fmt.Sprintf("rest:http://%s:%d%s", host, r.ProxyPort, path)
-	serverEnv = []string{"RESTIC_REST_USERNAME=" + serverID, "RESTIC_REST_PASSWORD=" + r.Servers[serverID]}
-	adminURL, adminEnv = remoteAdmin(r, serverURL)
-	return
-}
-
-// remoteAdmin is the controller's access to a repository at another lab,
-// from the server's URL for it (through the proxy): the same path on the
-// host's admin port. Backups set up before servers had their own users
-// are at /<lab's user>/<server ID>, and keep working.
-func remoteAdmin(r RemoteStorage, serverURL string) (string, []string) {
-	path := serverURL
-	if u, err := url.Parse(strings.TrimPrefix(serverURL, "rest:")); err == nil {
-		path = u.Path
-	}
-	return fmt.Sprintf("rest:http://%s:%d%s", r.HostAddr, r.Port+1, path),
-		[]string{"RESTIC_REST_USERNAME=" + r.User, "RESTIC_REST_PASSWORD=" + r.AdminPassword}
-}
-
-// remoteConfigMu makes changes to a friend's lab's record one at a time
-// (servers' users are added as their backups are set up).
-var remoteConfigMu sync.Mutex
-
-// remoteServerUser makes sure a server has its own user at another lab's
-// store (SPEC.md §10.10, review M21), so a server that's taken over can't
-// add to its siblings' backups there or read them: a password kept in the
-// lab's record, whose hash the host is given over the guest API (again
-// each time, in case it lost it). It returns the record with it.
-func (m *Manager) remoteServerUser(ctx context.Context, ref, serverID string) (RemoteStorage, error) {
-	remoteConfigMu.Lock()
-	defer remoteConfigMu.Unlock()
-	d, err := m.destinationOf(ctx, ref)
-	if err != nil {
-		return RemoteStorage{}, err
-	}
-	r := d.remote
-	r.Ref = ref
-	pw := r.Servers[serverID]
-	var hash string
-	if pw == "" {
-		pw, hash, err = labnet.NewStorePassword()
-	} else {
-		hash, err = labnet.HashPassword(pw)
-	}
-	if err != nil {
-		return r, err
-	}
-	if err := labnet.SetGuestUser(ctx, r.HostAddr, r.User, r.AdminPassword, serverID, hash); err != nil {
-		return r, formErrorf("%s didn't take a user for %s: %v. Check their lab is running, and try again.", r.HostName, m.nameOf(serverID), err)
-	}
-	if r.Servers[serverID] == pw {
-		return r, nil
-	}
-	if r.Servers == nil {
-		r.Servers = map[string]string{}
-	}
-	r.Servers[serverID] = pw
-	cfg, _ := json.Marshal(r)
-	p := d.provider
-	p.Config = string(cfg)
-	return r, m.BackupStore.UpdateBackupProvider(ctx, p)
-}
-
-// removeRemoteUsers removes a server's users at other labs (it's leaving
-// the lab), and forgets their passwords.
-func (m *Manager) removeRemoteUsers(ctx context.Context, act *activity.Log, serverID string) {
-	if m.BackupStore == nil {
-		return
-	}
-	remoteConfigMu.Lock()
-	defer remoteConfigMu.Unlock()
-	for _, r := range m.RemoteStorages(ctx) {
-		if r.Servers[serverID] == "" {
-			continue
-		}
-		if err := labnet.RemoveGuestUser(ctx, r.HostAddr, r.User, r.AdminPassword, serverID); err != nil {
-			act.Printf("Couldn't remove %s's user at %s (%v): it can't reach it without this lab's network anyway.",
-				m.nameOf(serverID), r.HostName, err)
-			m.Log.Warn("removing a server's user at another lab", "server", serverID, "host", r.HostName, "err", err)
-		} else {
-			act.Printf("Removed %s's user at %s.", m.nameOf(serverID), r.HostName)
-		}
-		_, id, _ := strings.Cut(r.Ref, ":")
-		p, err := m.provider(ctx, id)
-		if err != nil {
-			continue
-		}
-		delete(r.Servers, serverID)
-		cfg, _ := json.Marshal(r)
-		p.Config = string(cfg)
-		if err := m.BackupStore.UpdateBackupProvider(ctx, p); err != nil {
-			m.Log.Warn("forgetting a removed server's password at another lab", "err", err)
-		}
-	}
 }
 
 func splitEndpoint(s string) (string, int, error) {
@@ -610,16 +325,16 @@ type LeftoverGuest struct {
 }
 
 // LeftoverGuests lists data of guests no longer storing here.
-func (m *Manager) LeftoverGuests(ctx context.Context) ([]LeftoverGuest, error) {
-	host := m.guestHost(ctx)
-	if host == nil || m.GuestRecords == nil {
+func (x *Guests) LeftoverGuests(ctx context.Context) ([]LeftoverGuest, error) {
+	host := x.guestHost(ctx)
+	if host == nil || x.Records == nil {
 		return nil, nil
 	}
 	users, err := host.GuestDirs(ctx)
 	if err != nil {
 		return nil, err
 	}
-	guests, err := m.GuestRecords.Guests(ctx, time.Now())
+	guests, err := x.Records.Guests(ctx, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -638,12 +353,12 @@ func (m *Manager) LeftoverGuests(ctx context.Context) ([]LeftoverGuest, error) {
 }
 
 // DeleteLeftoverGuest deletes a removed guest's data for good.
-func (m *Manager) DeleteLeftoverGuest(ctx context.Context, user string) error {
-	left, err := m.LeftoverGuests(ctx)
+func (x *Guests) DeleteLeftoverGuest(ctx context.Context, user string) error {
+	left, err := x.LeftoverGuests(ctx)
 	if err != nil {
 		return err
 	}
-	host := m.guestHost(ctx)
+	host := x.guestHost(ctx)
 	if !slices.ContainsFunc(left, func(l LeftoverGuest) bool { return l.User == user }) || host == nil {
 		return ErrNotFound
 	}

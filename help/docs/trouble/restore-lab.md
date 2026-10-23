@@ -2,7 +2,7 @@
 
 If the server that runs your lab dies, is stolen, or is lost in a fire, you
 can rebuild the lab on a new computer from its backups. Your services, their
-data, your settings and the accounts all come back.
+data, your settings, and the accounts will all come back.
 
 You need:
 
@@ -21,35 +21,36 @@ You need:
 
     Roostack Cloud
     :   If your lab backed up to Roostack Cloud. Nothing else to enter:
-        your recovery key is enough. Roostack proves to Roostack Cloud
-        that you have it, without sending it, and Roostack Cloud emails
+        your recovery key is enough. Roostack will prove to Roostack Cloud
+        that you have it without sending it, and Roostack Cloud will email
         your account to say the backups were opened.
 
     Online storage
     :   Your online storage account: endpoint, bucket, folder (if you
-        chose one), and its keys. Roostack looks for every server's
+        chose one), and its keys. Roostack will look for every server's
         backups in the bucket.
 
     A disk connected to this server
-    :   Plug in the backup drive, and choose it from the list. Roostack
-        looks on it, and a few folders down.
+    :   Plug in the backup drive and choose it from the list. Roostack will
+        look on it and a few folders down.
 
     Another address
     :   Any restic address, for technical users.
 
 4. Enter your **recovery key**, and choose **Look for backups**.
-5. Roostack lists the backups the key opens, with when each was last
+5. Roostack will list the backups the key opens, with when each was last
    backed up. Choose **Restore this lab** next to your lab. If you once
    unlinked the lab from Roostack Cloud and linked it again, Roostack
-   Cloud keeps the backups from before for a while: the page lists each
-   link's backups, with when it was linked or unlinked, so you can choose.
+   Cloud keeps the backups from before for a while: the page will list each
+   link's backups, with when it was linked or unlinked, so that you can
+   choose.
 
-Roostack puts everything back, then restarts as your lab. Keep the page
-open: it moves on to the login page when it's done. Large backups can take
-a while. Log in as before.
+Roostack will put everything back, then restart as your lab. Keep the page
+open: it will move on to the login page when it's done. Large backups can
+take a while. Log in as before.
 
-After that, Roostack sets your services up again, and puts their databases
-back; the home page says so while it's happening.
+After that, Roostack will set your services up again and put their
+databases back; the home page will say so while it's happening.
 
 ??? note "If it wasn't you: an email about your recovery key"
 
@@ -57,8 +58,8 @@ back; the home page says so while it's happening.
     used with it: to read the lab's backups for a restore, or to relink a
     lab whose certificate stopped working. If you didn't do it, someone has
     your recovery key, and it opens every backup: change it now, on the
-    lab's **Backups** page (**Change recovery key…**). The old key then
-    stops working, in Roostack Cloud too.
+    lab's **Backups** page (**Change recovery key…**). The old key will
+    then stop working, in Roostack Cloud too.
 
 ??? note "For technical users"
 
@@ -72,35 +73,36 @@ back; the home page says so while it's happening.
 
 ## If you had more than one server
 
-The lab comes back on the new server, from its latest backup. Your other
-servers reconnect by themselves if they can reach it the way they reached
-the old one: the same address, and UDP port 51820 forwarded to it if it's
-behind a router.
+The lab will come back on the new server, from its latest backup. Your
+other servers will reconnect by themselves if they can reach it the way
+they reached the old one: the same address, and UDP port 51820 forwarded to
+it if it's behind a router.
 
 !!! warning "Don't restore a lab that's still running"
 
-    Restoring a lab onto a second computer while the first still runs gives
-    you two copies fighting over the same web addresses and certificates.
-    Only restore when the old server is gone.
+    Restoring a lab onto a second computer while the first is still running
+    will give you two copies fighting over the same web addresses and
+    certificates. Only restore when the old server is gone.
 
 ## If the old server comes back
 
 Sometimes the old server wasn't gone after all: the power or the internet
 was out while you were away, and you restored the lab somewhere else to get
-things working. When the old one comes back, it notices at its next backup:
-the restored lab has been backing up into the same storage, and is newer.
-The old copy then stands down. It stops backing up and stops updating your
-web addresses, and its **Backups** and home pages say so. Its services keep
-running until you deal with it: switch it off, or wipe it.
+things working. When the old one comes back, it will notice at its next
+backup: the restored lab has been backing up into the same storage, and is
+newer. The old copy will then stand down: it will stop backing up and stop
+updating your web addresses, and its **Backups** and home pages will say
+so. Its services will keep running until you deal with it: switch it off or
+wipe it.
 
 If it's the other way round (the restore was only a test, say), open the
 right copy's **Backups** page and choose **This is the right copy → Keep
-this copy**. It backs up again, and the other copy stands down at its next
-backup. Switch the other one off first.
+this copy**. It will back up again, and the other copy will stand down at
+its next backup. Switch the other one off first.
 
 A server your lab removed while it couldn't be reached (its services were
-restored elsewhere) does the same if it comes back: its own page says it
-was removed, and it no longer backs up into your lab's storage.
+restored elsewhere) will do the same if it comes back: its own page will
+say it was removed, and it will no longer back up into your lab's storage.
 
 ??? note "For technical users"
 

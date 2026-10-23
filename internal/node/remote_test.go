@@ -25,10 +25,13 @@ import (
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/testwait"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // fakeNode records what the controller asked of it.
 type fakeNode struct {
+	bareNode
 	applied  chan Assignment
 	settings *fakeSettings
 	media    Media
@@ -72,7 +75,7 @@ func (f *fakeNode) RetryInstall(_ context.Context, s string) error {
 func (f *fakeNode) RunAction(_ context.Context, s, a string, in map[string]string) (string, error) {
 	switch {
 	case in["password"] == "short":
-		return "", &FormError{Msg: "Password must be at least 8 characters."}
+		return "", &usererr.Error{Msg: "Password must be at least 8 characters."}
 	case a == "fail":
 		return "", &ActionError{Title: "Reset a password", Output: "database not ready", Err: errors.New("exit status 1")}
 	}
@@ -82,24 +85,11 @@ func (f *fakeNode) RevealSecret(_ context.Context, s, k string) (string, error) 
 func (f *fakeNode) LatestActivity(kind string) (activity.Snapshot, bool) {
 	return activity.Snapshot{Title: "Applying changes", Status: "All changes applied"}, kind == activity.Apply
 }
-func (f *fakeNode) Backups() Backups   { return nil }
-func (f *fakeNode) Restores() Restores { return nil }
-func (f *fakeNode) Updates() Updates   { return nil }
 func (f *fakeNode) Settings() Settings { return f.settings }
 func (f *fakeNode) Media() Media       { return f.media }
-func (f *fakeNode) Imports() Imports   { return nil }
 
-// Capabilities: it reports its memory, and nothing else.
-func (f *fakeNode) Mover() Mover         { return nil }
-func (f *fakeNode) Updater() Updater     { return nil }
-func (f *fakeNode) Disks() Disks         { return nil }
-func (f *fakeNode) Memory() Memory       { return f }
-func (f *fakeNode) LeftData() LeftData   { return nil }
-func (f *fakeNode) History() History     { return nil }
-func (f *fakeNode) Linked() Linked       { return nil }
-func (f *fakeNode) GuestHost() GuestHost { return nil }
-func (f *fakeNode) Processor() Processor { return nil }
-func (f *fakeNode) Photos() Photos       { return nil }
+// Capabilities: its settings, media and memory; nothing else (bareNode).
+func (f *fakeNode) Memory() Memory { return f }
 
 type fakeSettings struct{ zone string }
 
@@ -108,7 +98,7 @@ func (f *fakeSettings) Timezones(context.Context) (string, []string, error) {
 }
 func (f *fakeSettings) SetTimezone(_ context.Context, name string) (bool, error) {
 	if name == "Mars" {
-		return false, &FormError{Msg: "Choose a time zone from the list."}
+		return false, &usererr.Error{Msg: "Choose a time zone from the list."}
 	}
 	f.zone = name
 	return true, nil
@@ -202,7 +192,7 @@ func TestRemote(t *testing.T) {
 	if out, err := r.RunAction(ctx, "forgejo", "reset", map[string]string{"username": "mum"}); err != nil || out != "ok mum" {
 		t.Errorf("action: %q %v", out, err)
 	}
-	var fe *FormError
+	var fe *usererr.Error
 	if _, err := r.RunAction(ctx, "forgejo", "reset", map[string]string{"password": "short"}); !errors.As(err, &fe) {
 		t.Errorf("form error lost: %v", err)
 	}
@@ -255,15 +245,12 @@ func TestRemote(t *testing.T) {
 	// before its reply reaches the controller, which only then counts it
 	// as delivered.
 	pushed := func() {
-		for deadline := time.Now().Add(5 * time.Second); ; {
+		t.Helper()
+		testwait.For(t, 5*time.Second, func() bool {
 			r.mu.Lock()
-			pushing := r.pushing
-			r.mu.Unlock()
-			if !pushing || time.Now().After(deadline) {
-				return
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
+			defer r.mu.Unlock()
+			return !r.pushing
+		})
 	}
 	// Once the send has finished, the secrets aren't kept.
 	pushed()

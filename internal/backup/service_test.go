@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 func TestIsLocal(t *testing.T) {
@@ -34,13 +35,10 @@ func TestIsLocal(t *testing.T) {
 }
 
 func TestServiceRecordsRuns(t *testing.T) {
+	t.Parallel()
 	repo, copyRepo := testRepo(t), testRepo(t)
 	root := t.TempDir()
-	st, err := store.Open(filepath.Join(root, "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}
 	writeFile(t, filepath.Join(paths.StateDir, "lab.yaml"), "x")
 
@@ -124,11 +122,7 @@ func TestServiceRecordsRuns(t *testing.T) {
 // otherwise; the next backup's time says when the catch-up runs one.
 func TestCatchUp(t *testing.T) {
 	ctx := context.Background()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	// A coordinator that never runs anything: queued is all we look at.
 	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now, Journal: nopJournal{},
 		Ticks: make(chan time.Time), Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
@@ -171,11 +165,7 @@ func TestCatchUp(t *testing.T) {
 // server has restarted with the swap.
 func TestStatusAfterSwap(t *testing.T) {
 	ctx := context.Background()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now, Journal: nopJournal{},
 		Ticks: make(chan time.Time), Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	usb, cloud := &Repo{URL: "/mnt/usb/roostack"}, &Repo{URL: "s3:https://s3.example/b/lab"}

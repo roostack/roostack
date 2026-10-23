@@ -17,14 +17,17 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/labrestore"
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/node/nodetest"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -33,7 +36,8 @@ import (
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // The fakes the web tests share. fakeManager is the manager, and plays
@@ -104,7 +108,7 @@ func (f *fakeManager) NodeByID(id string) node.Node {
 
 func (f *fakeManager) SetTitle(_ context.Context, name, title string) error {
 	if strings.TrimSpace(title) == "" {
-		return &manager.FormError{Msg: "Enter a title."}
+		return &usererr.Error{Msg: "Enter a title."}
 	}
 	f.serverOps = append(f.serverOps, "title "+name+"="+title)
 	return nil
@@ -148,7 +152,7 @@ type fakeCatalog struct {
 
 func (f *fakeCatalog) RetryInstallWith(_ context.Context, name string, settings, secrets map[string]string) error {
 	if settings["admin_username"] == "" {
-		return &manager.FormError{Msg: "Administrator username is required."}
+		return &usererr.Error{Msg: "Administrator username is required."}
 	}
 	f.retriedWith = append(f.retriedWith, name+" "+settings["admin_username"]+" "+secrets["admin_password"])
 	return nil
@@ -164,7 +168,7 @@ func (f *fakeCatalog) MoveInfo(_ context.Context, name string) (manager.MoveInfo
 
 func (f *fakeCatalog) MoveService(_ context.Context, name, to, way string) error {
 	if to == "" {
-		return &manager.FormError{Msg: "Choose a server in this lab."}
+		return &usererr.Error{Msg: "Choose a server in this lab."}
 	}
 	f.moves = append(f.moves, name+" → "+to+" ("+way+")")
 	return nil
@@ -215,7 +219,7 @@ func (f *fakeCatalog) InstallSummary(name string, req manager.InstallRequest) (*
 		return nil, err
 	}
 	if req.Name == p.Name+"-bad" {
-		return nil, &manager.FormError{Msg: "Choose another name."}
+		return nil, &usererr.Error{Msg: "Choose another name."}
 	}
 	in := &instance.Instance{Package: p.Name, Version: p.Version, Updates: instance.UpdatesNotify, Settings: map[string]any{},
 		Routes: map[string]instance.RouteOverride{}}
@@ -320,7 +324,7 @@ func (f *fakeCatalog) CurrentSettings(name string) (map[string]any, string, erro
 
 func (f *fakeCatalog) UpdateSettings(_ context.Context, name string, req manager.SettingsRequest) error {
 	if req.Subdomain == "taken" {
-		return &manager.FormError{Msg: "That web address is already used by another service."}
+		return &usererr.Error{Msg: "That web address is already used by another service."}
 	}
 	f.updated = append(f.updated, req)
 	return nil
@@ -344,22 +348,65 @@ type fakeServers struct {
 	linkAddrs  map[string]string
 	linkPath   string
 	linkFailed bool
+	// kept are the servers' kept copies; nil: Forgejo's old copy on
+	// n-9876543210.
+	kept []manager.KeptCopy
+	// locations are where the Owner said each server is, kept as the
+	// manager keeps them (manager.LocationKey).
+	locations settingsKV
 }
 
-func (f *fakeServers) KeptData(_ context.Context, id string) ([]node.KeptFolder, error) {
-	if id != "n-9876543210" {
-		return nil, nil
+// settingsKV is the controller's settings (manager.KV), in memory.
+type settingsKV map[string]string
+
+func (kv settingsKV) Setting(_ context.Context, key string) (string, error) { return kv[key], nil }
+
+func (kv settingsKV) SetSetting(_ context.Context, key, value string) error {
+	kv[key] = value
+	return nil
+}
+
+// ServerLocation and ServerPlace are the manager's own, on the fake's
+// settings.
+func (f *fakeServers) ServerLocation(ctx context.Context, id string) string {
+	return (&manager.Manager{Settings: f.locations}).ServerLocation(ctx, id)
+}
+
+func (f *fakeServers) ServerPlace(ctx context.Context, from, host string) (bool, bool, []string) {
+	return (&manager.Manager{Settings: f.locations}).ServerPlace(ctx, from, host)
+}
+
+func (f *fakeServers) SetServerLocation(ctx context.Context, id, loc string) error {
+	if f.locations == nil {
+		f.locations = settingsKV{}
 	}
-	return []node.KeptFolder{{Path: "/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806", Service: "forgejo",
-		MovedAway: true, Time: time.Now(), Size: 70 * units.MB}}, nil
+	f.locations[manager.LocationKey+id] = loc
+	f.ApplyBecause("A server's location changed")
+	return nil
 }
 
-func (f *fakeServers) RemoveKeptData(_ context.Context, id, path string) error {
+func (f *fakeServers) KeptCopies(_ context.Context, id string) ([]manager.KeptCopy, error) {
+	all := f.kept
+	if all == nil {
+		all = []manager.KeptCopy{{Copy: kept.Copy{Service: "forgejo", Why: kept.MovedAway, Note: "to-nuc", Time: time.Now(),
+			Whole: true, Size: 70 * units.MB, Paths: []string{"/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806"}},
+			Server: "n-9876543210", Host: "n-0123456789"}}
+	}
+	var out []manager.KeptCopy
+	for _, c := range all {
+		if c.Server == id {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeServers) RemoveKept(_ context.Context, id, path string) error {
 	f.serverOps = append(f.serverOps, "delete "+path+" on "+id)
 	return nil
 }
 
-func (f *fakeServers) PutBackKeptData(_ context.Context, id, path string) error {
+func (f *fakeServers) PutBackKept(_ context.Context, id, path string) error {
 	f.serverOps = append(f.serverOps, "put back "+path+" on "+id)
 	return nil
 }
@@ -368,7 +415,7 @@ func (f *fakeServers) LinkAddress(_ context.Context, id string) string { return 
 
 func (f *fakeServers) SetLinkAddress(_ context.Context, id, addr string) error {
 	if addr != "" && !strings.Contains(addr, ":") {
-		return &manager.FormError{Msg: "Enter the address as host:port."}
+		return &usererr.Error{Msg: "Enter the address as host:port."}
 	}
 	if f.linkAddrs == nil {
 		f.linkAddrs = map[string]string{}
@@ -387,7 +434,7 @@ func (f *fakeServers) ApplyBecause(reason string) {
 
 func (f *fakeServers) RemoveServer(_ context.Context, id string) error {
 	if id == "n-9876543210" {
-		return &manager.FormError{Msg: "vps still runs Forgejo. Remove it first, or move it to another server."}
+		return &usererr.Error{Msg: "vps is still running Forgejo. Remove it first or move it to another server."}
 	}
 	f.serverOps = append(f.serverOps, "remove "+id)
 	return nil
@@ -491,7 +538,7 @@ func (f *fakeBackupPlan) ChangeS3Key(_ context.Context, ref, accessKey, secretKe
 func (f *fakeBackupPlan) BackupChoices(context.Context) ([]manager.BackupChoice, error) {
 	out := []manager.BackupChoice{{Ref: "server:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}
 	if f.cloudBackup {
-		out = append(out, manager.BackupChoice{Ref: manager.CloudChoice, Title: "Roostack Cloud", Note: "This lab uses 120.0 GB of 500.0 GB."})
+		out = append(out, manager.BackupChoice{Ref: destination.Cloud, Title: "Roostack Cloud", Note: "This lab uses 120.0 GB of 500.0 GB."})
 	}
 	return out, nil
 }
@@ -506,7 +553,7 @@ func (f *fakeBackupPlan) BackupKind(_ context.Context, _, ref string) string {
 		return manager.KindOnline
 	case strings.HasPrefix(ref, "remote:"):
 		return manager.KindFriend
-	case ref == manager.CloudChoice:
+	case ref == destination.Cloud:
 		return manager.KindCloud
 	}
 	return manager.KindServer
@@ -521,7 +568,7 @@ func (f *fakeBackupPlan) PromoteBackupCopy(_ context.Context, _, ref string) err
 			return nil
 		}
 	}
-	return &manager.FormError{Msg: "That isn't one of its backups."}
+	return &usererr.Error{Msg: "That isn't one of its backups."}
 }
 
 func (f *fakeBackupPlan) BackupCopiesOf(context.Context, string) []manager.BackupCopy {
@@ -530,7 +577,7 @@ func (f *fakeBackupPlan) BackupCopiesOf(context.Context, string) []manager.Backu
 
 func (f *fakeBackupPlan) AddBackupCopy(_ context.Context, id, ref string) error {
 	if ref == f.destination {
-		return &manager.FormError{Msg: "That's where its backups already go."}
+		return &usererr.Error{Msg: "That's where its backups already go."}
 	}
 	f.copies = append(f.copies, manager.BackupCopy{Ref: ref, Title: "Backblaze", Repository: "s3:https://s3.example.com/b/roostack/l/" + id})
 	return nil
@@ -551,7 +598,7 @@ func (f *fakeBackupPlan) BackupTargetOf(_ context.Context, id string) (store.Bac
 
 func (f *fakeBackupPlan) SetBackupDestination(_ context.Context, id, ref string) error {
 	if ref == "" {
-		return &manager.FormError{Msg: "Choose where backups go."}
+		return &usererr.Error{Msg: "Choose where backups go."}
 	}
 	f.destination, f.destRepo = ref, ""
 	return nil
@@ -559,7 +606,7 @@ func (f *fakeBackupPlan) SetBackupDestination(_ context.Context, id, ref string)
 
 func (f *fakeBackupPlan) AddS3Provider(_ context.Context, name string, p manager.S3Provider) error {
 	if p.Bucket == "" {
-		return &manager.FormError{Msg: "Enter the storage endpoint (starting with https://) and a bucket name."}
+		return &usererr.Error{Msg: "Enter the storage endpoint (starting with https://) and a bucket name."}
 	}
 	f.providers = append(f.providers, name)
 	return nil
@@ -582,7 +629,7 @@ func (f *fakeStorage) StorageGuests(context.Context) ([]manager.GuestView, error
 
 func (f *fakeStorage) InviteGuest(_ context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error) {
 	if quota < 1*units.GB {
-		return labnet.StorageInvite{}, &manager.FormError{Msg: "Offer at least 1 GB."}
+		return labnet.StorageInvite{}, &usererr.Error{Msg: "Offer at least 1 GB."}
 	}
 	f.guestOps = append(f.guestOps, fmt.Sprintf("invite %s %d %s", name, quota/units.GB, endpoint))
 	return labnet.StorageInvite{Token: "t", User: "g1"}, nil
@@ -597,7 +644,7 @@ func (f *fakeStorage) GuestServer(context.Context) string {
 
 func (f *fakeStorage) SetGuestServer(_ context.Context, id string) error {
 	if len(f.guests) > 0 {
-		return &manager.FormError{Msg: "Other labs store backups on nuc."}
+		return &usererr.Error{Msg: "Other labs store backups on nuc."}
 	}
 	f.guestServer = id
 	return nil
@@ -638,7 +685,7 @@ func (f *fakeStorage) DeleteLeftoverGuest(_ context.Context, user string) error 
 
 func (f *fakeStorage) AddRemoteStorage(_ context.Context, code string) error {
 	if !strings.HasPrefix(code, "roostack-storage-") {
-		return &manager.FormError{Msg: "that isn't a Roostack storage invite"}
+		return &usererr.Error{Msg: "that isn't a Roostack storage invite"}
 	}
 	f.guestOps = append(f.guestOps, "add remote")
 	return nil
@@ -686,7 +733,7 @@ func (f *fakePublic) SetPublic(_ context.Context, name string, req manager.Publi
 		return err
 	}
 	if req.Public && access[0].Unsafe != "" && !req.AcceptUnsafe {
-		return &manager.FormError{Msg: "Tick the box to confirm you understand why this address isn't safe to make public."}
+		return &usererr.Error{Msg: "Tick the box to confirm you understand why this address isn't safe to make public."}
 	}
 	f.publicReqs = append(f.publicReqs, req)
 	f.access[0].Public = req.Public
@@ -758,7 +805,7 @@ func (f *fakePublic) SetRelay(_ context.Context, on bool) error {
 
 func (f *fakePublic) SetEdge(_ context.Context, id string) error {
 	if id != "" && !slices.ContainsFunc(f.edges, func(e manager.EdgeServer) bool { return e.ID == id }) {
-		return &manager.FormError{Msg: "That server can't be the way in."}
+		return &usererr.Error{Msg: "That server can't be the way in."}
 	}
 	f.edge = id
 	return nil
@@ -895,10 +942,10 @@ func (f *fakeServiceUpdates) UpdateService(_ context.Context, name, to, by strin
 		return manager.ErrNotFound
 	}
 	if u.To != to {
-		return &manager.FormError{Msg: "The update on offer has changed."}
+		return &usererr.Error{Msg: "The update on offer has changed."}
 	}
 	if len(u.NewRisks) > 0 && !acceptRisks {
-		return &manager.FormError{Msg: "Tick the box."}
+		return &usererr.Error{Msg: "Tick the box."}
 	}
 	f.svcUpdated = append(f.svcUpdated, name+" "+to+" by "+by)
 	return nil
@@ -948,7 +995,7 @@ func (f *fakeDataImports) Imports() node.Imports { return f.imports }
 
 func (f *fakeDataImports) ImportsOf(string) (node.Imports, error) {
 	if f.imports == nil {
-		return nil, &manager.FormError{Msg: "Data can't be brought into services on that server."}
+		return nil, &usererr.Error{Msg: "Data can't be brought into services on that server."}
 	}
 	return f.imports, nil
 }
@@ -963,6 +1010,7 @@ func (f *fakeDataImports) Switching(string) bool { return false }
 // fakeNode is the lab's one server (node.Node, ServiceNode): its
 // services' setup and actions, its jobs, history and disks.
 type fakeNode struct {
+	nodetest.Base
 	setup     map[string]manager.HookStatus
 	retried   []string
 	actions   []string
@@ -1012,17 +1060,9 @@ func (f *fakeNode) CullHistory(_ context.Context, before time.Time) (int64, erro
 
 // DiskSpaces is f.disk (the system disk, with the backup store) and any
 // more disks in f.disks.
-// Capabilities: its disks and history, and nothing else.
-func (f *fakeNode) Disks() node.Disks         { return f }
-func (f *fakeNode) History() node.History     { return f }
-func (f *fakeNode) Mover() node.Mover         { return nil }
-func (f *fakeNode) Updater() node.Updater     { return nil }
-func (f *fakeNode) Memory() node.Memory       { return nil }
-func (f *fakeNode) LeftData() node.LeftData   { return nil }
-func (f *fakeNode) Linked() node.Linked       { return nil }
-func (f *fakeNode) GuestHost() node.GuestHost { return nil }
-func (f *fakeNode) Processor() node.Processor { return nil }
-func (f *fakeNode) Photos() node.Photos       { return nil }
+// Capabilities: its disks and history; nothing else (nodetest.Base).
+func (f *fakeNode) Disks() node.Disks     { return f }
+func (f *fakeNode) History() node.History { return f }
 
 func (f *fakeNode) DiskSpaces(context.Context) ([]node.DiskSpace, error) {
 	if f.disk == nil {
@@ -1035,17 +1075,9 @@ func (f *fakeNode) DiskSpaces(context.Context) ([]node.DiskSpace, error) {
 
 func (f *fakeNode) Settings() node.Settings { return f.settings }
 
-func (f *fakeNode) Media() node.Media { return nil }
-
 // The fake is also the lab's one server.
 func (f *fakeNode) Identity() nodeid.Identity {
 	return nodeid.Identity{ID: "n-0123456789", Name: "nuc"}
-}
-
-func (f *fakeNode) Apply(node.Assignment) {}
-
-func (f *fakeNode) ServiceStates(context.Context) (map[string]string, error) {
-	return nil, nil
 }
 
 func (f *fakeNode) Backups() node.Backups { return f.backups }
@@ -1079,10 +1111,6 @@ func (f *fakeNode) RunAction(_ context.Context, name, action string, inputs map[
 	return f.actionOut, f.actionErr
 }
 
-func (f *fakeNode) ServiceDetails(context.Context) (map[string]node.ServiceDetail, error) {
-	return nil, nil
-}
-
 func (f *fakeNode) BuiltIns(context.Context) ([]node.BuiltIn, error) {
 	return []node.BuiltIn{{Name: "Caddy", Kind: "proxy", Status: "active (running)", Detail: "Web addresses"}}, nil
 }
@@ -1108,7 +1136,7 @@ func (f *fakeMail) Settings() (config.Mail, bool) { return f.m, f.password != ""
 
 func (f *fakeMail) Save(m config.Mail, password string, clear bool) error {
 	if m.From == "" {
-		return &mail.FormError{Msg: "Enter the address emails come from."}
+		return &usererr.Error{Msg: "Enter the address emails come from."}
 	}
 	f.m = m
 	if clear {
@@ -1229,7 +1257,7 @@ func (f *fakeLibraries) LibraryDrives(context.Context, string) ([]agent.Drive, e
 func (f *fakeLibraries) LibraryFolders(_ context.Context, _ string, l agent.Library) (agent.FolderList, error) {
 	f.folderOf = append(f.folderOf, l)
 	if l.Sub == "Backups" {
-		return agent.FolderList{}, &node.FormError{Msg: "that's a backup drive: keep media on another drive"}
+		return agent.FolderList{}, &usererr.Error{Msg: "that's a backup drive: keep media on another drive"}
 	}
 	list := agent.FolderList{Path: l.Sub, Folders: []agent.FolderEntry{{Name: "Films", Folders: 412}, {Name: "Music", Folders: 3, Files: 1}}, Files: 1}
 	if l.Sub == "Films" {
@@ -1245,7 +1273,7 @@ func (f *fakeLibraries) LibraryReaders(context.Context, string) ([]manager.Libra
 
 func (f *fakeLibraries) AddLibrary(_ context.Context, req manager.LibraryRequest) error {
 	if strings.TrimSpace(req.Title) == "" {
-		return &node.FormError{Msg: "Give the library a name with some letters or digits, e.g. Films."}
+		return &usererr.Error{Msg: "Give the library a name with some letters or digits, e.g. Films."}
 	}
 	f.added = append(f.added, req)
 	return nil
@@ -1323,9 +1351,7 @@ func (f *fakeRegistry) Dir() string { return "/var/lib/roostack/catalog" }
 
 type fakeRestores struct {
 	snaps    []backup.Snapshot
-	kept     []backup.KeptCopy
 	restored []string
-	removed  []string
 	pending  bool
 	putBack  []string
 }
@@ -1344,17 +1370,8 @@ func (f *fakeRestores) Restore(_ context.Context, name, id string) error {
 
 func (f *fakeRestores) Pending(context.Context) (bool, error) { return f.pending, nil }
 
-func (f *fakeRestores) Kept(context.Context, string) ([]backup.KeptCopy, error) {
-	return f.kept, nil
-}
-
 func (f *fakeRestores) Outcome(context.Context, string) (backup.RestoreOutcome, error) {
 	return backup.RestoreOutcome{}, nil
-}
-
-func (f *fakeRestores) RemoveKept(_ context.Context, _, p string) error {
-	f.removed = append(f.removed, p)
-	return nil
 }
 
 func (f *fakeRestores) PutBack(_ context.Context, _, p string) error {
@@ -1372,7 +1389,7 @@ func (f *fakeSSO) SSOAvailable(string) (bool, string) { return f.why == "", f.wh
 
 func (f *fakeSSO) SetSSO(_ context.Context, name string, on bool) error {
 	if on && f.why != "" {
-		return &manager.FormError{Msg: f.why}
+		return &usererr.Error{Msg: f.why}
 	}
 	f.on[name] = on
 	return nil
@@ -1453,13 +1470,13 @@ func (f *fakeSetup) SSHAccess(context.Context, bool) (node.SSHAccess, error) {
 
 func (f *fakeSetup) SetSSH(_ context.Context, c node.SSHChange) error {
 	if c.Choice == "off" && len(f.clients) > 0 && !c.Confirmed {
-		return &node.FormError{Msg: "That would disconnect the SSH connection."}
+		return &usererr.Error{Msg: "That would disconnect the SSH connection."}
 	}
 	if c.Choice == "off" {
 		c.Login = config.SSHLoginKey
 	}
 	if _, ok := f.sshd.SudoKeyLogin(); c.Login == config.SSHLoginKey && c.Choice != "off" && !f.sshd.KeysOnly && !ok {
-		return &node.FormError{Msg: "Roostack hasn't seen anyone log in with an SSH key."}
+		return &usererr.Error{Msg: "Roostack hasn't seen anyone log in with an SSH key."}
 	}
 	f.sshd.KeysOnly = c.Login == config.SSHLoginKey
 	f.sshd.Passwords = !f.sshd.KeysOnly
@@ -1492,7 +1509,7 @@ func (f *fakeSetup) EraseDrive(_ context.Context, disk string) error {
 
 func (f *fakeSetup) SetLabName(_ context.Context, name string, restart bool) error {
 	if strings.TrimSpace(name) == "" {
-		return &setup.CheckError{Msg: "Give the lab a name."}
+		return &usererr.Error{Msg: "Give the lab a name."}
 	}
 	f.labName, f.restarted = name, restart
 	return nil
@@ -1508,7 +1525,7 @@ func (f *fakeSetup) Network(detect func() string) setup.NetworkChoice {
 
 func (f *fakeSetup) SetNetwork(network string, uiTunnelOnly bool) error {
 	if network != config.NetworkHome && network != config.NetworkInternet {
-		return &setup.CheckError{Msg: "Choose where this lab is."}
+		return &usererr.Error{Msg: "Choose where this lab is."}
 	}
 	f.network, f.uiTunnelOnly, f.restarted = network, uiTunnelOnly, true
 	return nil
@@ -1525,7 +1542,7 @@ func (f *fakeSetup) SetBackupDestination(_ context.Context, d node.BackupDestina
 
 func (f *fakeSetup) SetRestartPolicy(_ context.Context, mode string, hour int) error {
 	if hour < 0 || hour > 23 {
-		return &node.FormError{Msg: "Choose an hour between 0 and 23."}
+		return &usererr.Error{Msg: "Choose an hour between 0 and 23."}
 	}
 	f.policy, f.restarted = fmt.Sprintf("%s %d", mode, hour), true
 	return nil
@@ -1533,7 +1550,7 @@ func (f *fakeSetup) SetRestartPolicy(_ context.Context, mode string, hour int) e
 
 func (f *fakeSetup) SetTimezone(_ context.Context, name string) (bool, error) {
 	if name != "Australia/Melbourne" && name != "Etc/UTC" {
-		return false, &node.FormError{Msg: "Choose a time zone from the list."}
+		return false, &usererr.Error{Msg: "Choose a time zone from the list."}
 	}
 	changed := name != f.zone
 	f.zone, f.restarted = name, f.restarted || changed

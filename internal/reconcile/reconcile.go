@@ -27,7 +27,10 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/podman"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/systemd"
 )
 
@@ -56,18 +59,6 @@ type Secrets interface {
 	Read(ctx context.Context, name string) ([]byte, error)
 }
 
-// NoImageForArch is a Pull that failed because the image has no build for
-// this server's kind of processor (ARM64-PLAN.md 1.3). Its message is for
-// the Owner, in place of Podman's "no image found in image index".
-type NoImageForArch struct {
-	Image string
-	Arch  string // Go's name for the processor, e.g. arm64
-}
-
-func (e *NoImageForArch) Error() string {
-	return fmt.Sprintf("This service has no version for this server's kind of processor (%s), so it can't run here. (Image: %s)", e.Arch, e.Image)
-}
-
 // Reconciler applies desired state.
 type Reconciler struct {
 	Paths   config.Paths
@@ -81,13 +72,14 @@ type Reconciler struct {
 	// Pull downloads an image before a new container's first start, writing
 	// its output to w, so a download is its own step with its own log
 	// (optional: without it, starting the unit pulls the image). An image
-	// with no build for this server's processor is a *NoImageForArch.
+	// with no build for this server's processor is a *podman.NoImageForArch.
 	Pull func(ctx context.Context, image string, w io.Writer) error
 	// Progress hears each step of starting new containers, for showing a
 	// service's install step by step (optional).
 	Progress func(Event)
 	// Settle is how long a unit that failed to start gets to come up after
-	// all, through systemd restarting it (0 means 30 s).
+	// all, through systemd restarting it (0 means 30 s). Its state is read
+	// every 2 s, or every Settle if that's shorter (tests).
 	Settle time.Duration
 	// Unfinished are units of new containers whose first start didn't
 	// finish (a failed download, or Roostack restarted halfway): they're
@@ -114,12 +106,11 @@ func (r *Reconciler) start(ctx context.Context, log *activity.Log, units ...stri
 		return err
 	}
 	log.Printf("Starting failed; waiting for systemd to try again: %v", err)
-	deadline := time.Now().Add(cmp.Or(r.Settle, 30*time.Second))
+	settle := cmp.Or(r.Settle, 30*time.Second)
+	deadline := time.Now().Add(settle)
 	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, min(2*time.Second, settle)) {
 			return err
-		case <-time.After(2 * time.Second):
 		}
 		states, serr := st.Status(ctx, units...)
 		if serr == nil && len(states) == len(units) && !slices.ContainsFunc(states, func(s systemd.UnitStatus) bool {
@@ -212,10 +203,10 @@ func startNote(quadlet string) string {
 			continue
 		}
 		if strings.HasSuffix(image, ".build") {
-			return "builds its image the first time (compiling: several minutes)"
+			return "building its image the first time (compiling: several minutes)"
 		}
 		name, _, _ := strings.Cut(image, "@") // without the digest
-		return "downloads " + name + " if it isn't here yet"
+		return "downloading " + name + " if it isn't here yet"
 	}
 	return ""
 }
@@ -573,7 +564,7 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 			r.progress(StageDownload, u, true, err)
 			if err != nil {
 				// Already a sentence for the Owner.
-				var noArch *NoImageForArch
+				var noArch *podman.NoImageForArch
 				if errors.As(err, &noArch) {
 					return err
 				}
@@ -617,9 +608,7 @@ func (r *Reconciler) hasUserSecret(name string) bool {
 func (r *Reconciler) secretValue(s generate.Secret) ([]byte, error) {
 	if s.Generate {
 		buf := make([]byte, 32)
-		if _, err := rand.Read(buf); err != nil {
-			return nil, err
-		}
+		rand.Read(buf) // never fails (Go 1.24)
 		return []byte(base64.RawURLEncoding.EncodeToString(buf)), nil
 	}
 	if r.UserSecret != nil {
@@ -703,27 +692,11 @@ func readOwned(dir string, owned func(string) bool) (map[string]string, error) {
 	return files, nil
 }
 
-// writeAtomic writes a file via a temporary file and rename, so readers
-// never see a partial file.
+// writeAtomic writes a generated file atomically, so readers never see a
+// partial file.
 func writeAtomic(path, content string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".roostack-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name()) // no-op after a successful rename
-	if _, err := tmp.WriteString(content); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Chmod(0o644); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
+	return fsutil.WriteFile(path, []byte(content), 0o644)
 }

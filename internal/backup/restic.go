@@ -59,6 +59,9 @@ type Repo struct {
 	// Hints, if set, tells restic which key file to try (hints.go), so a
 	// slow key someone added doesn't slow every open.
 	Hints *KeyHints
+	// JunkRecheck is how long FindJunk waits before reading a suspect
+	// file again; zero is junkRecheck (quarantine.go).
+	JunkRecheck time.Duration
 }
 
 // Retention is how many snapshots to keep (SPEC.md §6.9 defaults).

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Roostack migrates photos into the registry's Immich package, which it
@@ -132,12 +133,6 @@ type answer struct {
 	Error  string          `json:"error"`
 }
 
-// KeyError is something wrong with a key, said for the person who pasted
-// it.
-type KeyError struct{ Msg string }
-
-func (e *KeyError) Error() string { return e.Msg }
-
 // ParseAccount reads AccountScript's output.
 func ParseAccount(out []byte) (Account, error) {
 	var answers map[string]answer
@@ -149,7 +144,7 @@ func ParseAccount(out []byte) (Account, error) {
 	case key.Status == 0:
 		return Account{}, fmt.Errorf("Immich isn't answering (%s): is it running?", strings.TrimSpace(key.Error))
 	case key.Status == 401:
-		return Account{}, &KeyError{"Immich didn't accept that key. Copy it again: Immich shows a key only once, so you may need to make another."}
+		return Account{}, &usererr.Error{Msg: "Immich didn't accept that key. Copy it again: Immich shows a key only once, so you may need to make another."}
 	case key.Status != 200:
 		return Account{}, fmt.Errorf("Immich answered %d about the key", key.Status)
 	}

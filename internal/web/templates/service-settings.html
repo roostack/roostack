@@ -7,7 +7,7 @@
     {{logo .Service.IconURL .Service.DrawnIcon}}
     <div>
       <h1>{{.Service.Title}}'s settings</h1>
-      <p class="lede">Saving goes back to {{.Service.Title}}'s page. <a href="/services/{{.Service.Name}}">Back without changing anything</a></p>
+      <p class="lede">Saving will go back to {{.Service.Title}}'s page. <a href="/services/{{.Service.Name}}">Back without changing anything</a></p>
     </div>
   </div>
 </div>
@@ -28,7 +28,7 @@
             <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off">
             <span>.{{or .Domain "your lab's address"}}</span>
           </span>
-          <small>Changing it moves {{.Service.Title}} to the new address; old links stop working.</small>
+          <small>Changing it will move {{.Service.Title}} to the new address, and old links will stop working.</small>
         </label>
         {{end}}
         {{template "setting-fields" .SettingFields}}
@@ -47,7 +47,7 @@
             <summary>Where each is inside {{$.Service.Title}}: {{if .Paths}}{{range $i, $l := .Choices}}{{with index $.Libraries.Paths $l.Name}}{{$l.Title}} at <code>{{.}}</code>, {{end}}{{end}}the rest{{else}}all{{end}} in <code>{{.Inside}}</code></summary>
             <input type="hidden" name="library_paths_shown" value="1">
             <p class="hint">Only for an app that remembers where every file is, moved from another server: give a library the place its old
-              container had it, so {{$.Service.Title}} finds each file where it expects. Empty is <code>{{.Inside}}/</code> and the library's name.</p>
+              container had it so {{$.Service.Title}} finds each file where it expects. Empty is <code>{{.Inside}}/</code> and the library's name.</p>
             <div class="field-row">
             {{range .Choices}}<label>{{.Title}}
               <input name="library_path.{{.Name}}" value="{{if $.Submitted}}{{$.Submitted.Get (printf "library_path.%s" .Name)}}{{else}}{{index $.Libraries.Paths .Name}}{{end}}"
@@ -62,18 +62,18 @@
         <div class="seg-group" id="updates">
           <p class="field-label">Updates</p>
           {{segmented "updates" "How it updates" .UpdatePolicy (choice "notify" "Tell me") (choice "patch" "Fixes") (choice "minor" "Fixes and features") (choice "all" "Everything")}}
-          <p class="seg-panel hint seg-hint" data-seg="1">Updates are shown on its page and under “Needs attention”, and you apply them.</p>
-          <p class="seg-panel hint seg-hint" data-seg="2">Fix releases go on automatically after the nightly backup. Larger updates are shown for you to apply.</p>
-          <p class="seg-panel hint seg-hint" data-seg="3">Fix and feature releases go on automatically after the nightly backup; not new major
+          <p class="seg-panel hint seg-hint" data-seg="1">Updates will be shown on its page and under “Needs attention”, and you'll apply them.</p>
+          <p class="seg-panel hint seg-hint" data-seg="2">Fix releases will go on automatically after the nightly backup, and larger updates will be shown for you to apply.</p>
+          <p class="seg-panel hint seg-hint" data-seg="3">Fix and feature releases will go on automatically after the nightly backup; not new major
             versions, which can change how it works.</p>
-          <p class="seg-panel hint seg-hint" data-seg="4">Every update goes on automatically after the nightly backup, new major versions too.</p>
+          <p class="seg-panel hint seg-hint" data-seg="4">Every update will go on automatically after the nightly backup, new major versions too.</p>
         </div>
         <details class="form-more"><summary>When automatic updates wait</summary>
-          <p class="hint">Automatic updates need backups set up, and wait for you when an update has notes to read.
+          <p class="hint">Automatic updates need backups set up and wait for you when an update has notes to read.
             If the service registry says the version {{.Service.Title}} runs is dangerous and Roostack stops it, a fix it would take
-            automatically is applied straight away.</p></details>
+            automatically will be applied straight away.</p></details>
         <button type="submit">Save</button>
-        <p class="hint">Saving restarts {{.Service.Title}} when its address, settings or libraries change; it's unavailable for a moment.</p>
+        <p class="hint">Saving will restart {{.Service.Title}} when its address, settings, or libraries change, and it will be unavailable for a moment.</p>
       </form>
     </section>
     <section class="card" id="name">
@@ -84,8 +84,8 @@
         <input id="service-title" name="title" value="{{.Service.Title}}" maxlength="60" required>
         <button type="submit" class="secondary">Rename</button>
       </form>
-      <p class="hint">This changes what it's called on your pages. Its name, <code>{{.Service.Name}}</code>, is used for its folders,
-        containers and backups, so it stays.</p>
+      <p class="hint">This will change what it's called on your pages. Its name, <code>{{.Service.Name}}</code>, is used for its folders,
+        containers, and backups, so it will stay.</p>
     </section>
   </div>
 </div>

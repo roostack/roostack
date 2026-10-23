@@ -45,7 +45,8 @@ type Provider struct {
 	directive func(set []string) string
 	// configDirective, instead, also has the InConfig fields' values.
 	configDirective func(set []string, values map[string]string) string
-	// probe checks credentials against the provider's API (probes.go).
+	// probe is a provider's own credentials check (check.go), where
+	// Check can't write and delete a TXT record through records.
 	probe probe
 	// records manages DNS records (records.go); nil if unsupported.
 	records *recordsAPI
@@ -107,13 +108,12 @@ var providers = []*Provider{
 			"template for your domain. Also add the permission Zone → Zone → Read.",
 		Fields:    []Field{{Key: "api_token", Label: "API token", Sensitive: true}},
 		directive: func([]string) string { return "dns cloudflare " + env("api_token") },
-		probe:     cloudflareProbe,
 		records:   cloudflareRecords,
 	},
 	{
 		ID: "route53", Title: "Amazon Route 53 (AWS)", Plugin: "github.com/caddy-dns/route53",
 		Help: "Create an IAM user with an access key, allowed to use route53:ListHostedZonesByName, " +
-			"route53:ListResourceRecordSets, route53:ChangeResourceRecordSets and route53:GetChange.",
+			"route53:ListResourceRecordSets, route53:ChangeResourceRecordSets, and route53:GetChange.",
 		Fields: []Field{
 			{Key: "access_key_id", Label: "Access key ID"},
 			{Key: "secret_access_key", Label: "Secret access key", Sensitive: true},
@@ -122,7 +122,6 @@ var providers = []*Provider{
 		directive: func(set []string) string {
 			return block("route53", set, "access_key_id", "secret_access_key", "region")
 		},
-		probe:   route53Probe,
 		records: route53Records,
 	},
 	{
@@ -134,7 +133,6 @@ var providers = []*Provider{
 			{Key: "api_secret_key", Label: "Secret API key", Sensitive: true},
 		},
 		directive: func(set []string) string { return block("porkbun", set, "api_key", "api_secret_key") },
-		probe:     porkbunProbe,
 		records:   porkbunRecords,
 	},
 	{
@@ -143,7 +141,6 @@ var providers = []*Provider{
 			"one that can manage your domain's technical configuration.",
 		Fields:    []Field{{Key: "bearer_token", Label: "Personal access token", Sensitive: true}},
 		directive: func([]string) string { return "dns gandi " + env("bearer_token") },
-		probe:     gandiProbe,
 		records:   gandiRecords,
 	},
 	{
@@ -156,7 +153,6 @@ var providers = []*Provider{
 		},
 		// The plugin expects "key:secret" in one value.
 		directive: func([]string) string { return "dns godaddy " + env("api_key") + ":" + env("api_secret") },
-		probe:     godaddyProbe,
 		records:   godaddyRecords,
 	},
 	{
@@ -168,7 +164,7 @@ var providers = []*Provider{
 			{Key: "user", Label: "Namecheap username"},
 			{Key: "api_key", Label: "API key", Sensitive: true},
 			{Key: "client_ip", Label: "Public IP address", Optional: true,
-				Help: "Optional: detected automatically if left empty."},
+				Help: "Optional: Roostack will detect it automatically if it's left empty."},
 		},
 		directive: func(set []string) string { return block("namecheap", set, "api_key", "user", "client_ip") },
 		probe:     namecheapProbe,
@@ -183,9 +179,9 @@ var providers = []*Provider{
 			{Key: "api_secret", Label: "API secret", Sensitive: true},
 		},
 		directive: func(set []string) string { return block("spaceship", set, "api_key", "api_secret") },
-		probe:     spaceshipProbe,
 		records:   spaceshipRecords,
 	},
+	cloudProvider,
 }
 
 // Providers lists the providers people choose from, in display order.

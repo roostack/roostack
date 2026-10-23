@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // nav is the sidebar (docs/DESIGN.md "Layout"), shown to logged-in users.
@@ -288,7 +289,7 @@ func (s *Server) homePartial(w http.ResponseWriter, r *http.Request) {
 // attention, and for those who manage services, the servers and the
 // figures across the top (docs/DESIGN.md "Layout").
 func (s *Server) homeData(r *http.Request, data map[string]any) {
-	data["Attention"] = s.attention(r.Context(), currentUser(r))
+	data["Attention"] = s.AttentionLab().For(r.Context(), currentUser(r))
 	// Members see a link to migrate their photos into each Immich they may
 	// (SPEC.md §8.5).
 	if u := currentUser(r); !isAdmin(u) {
@@ -534,7 +535,7 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	// this page).
 	data["RecoveryKey"] = owner && s.hasRecoveryKey()
 	if data["RecoveryKey"] == true {
-		if k, err := s.Manager.KeyChangeStatus(); err == nil {
+		if k, err := s.Keys.KeyChangeStatus(); err == nil {
 			data["KeyChange"] = k
 		}
 	}
@@ -736,7 +737,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := authkit.CheckPasswordPolicy(pw); err != nil {
-		fail(capitalize(err.Error()) + ".")
+		fail(words.Capitalise(err.Error()) + ".")
 		return
 	}
 	hash, err := authkit.HashPassword(pw)
@@ -758,7 +759,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.renderAccount(w, "account", "account", map[string]any{"User": u, "Action": "/account/password",
-		"Done": "Password changed. Other devices you were logged in on need to log in again."})
+		"Done": "Password changed. Other devices you were logged in on will need to log in again."})
 }
 
 func (s *Server) applyStatus() *manager.ApplyStatus {

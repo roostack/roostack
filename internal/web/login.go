@@ -1,12 +1,17 @@
 package web
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -142,7 +147,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		s.Log.Warn("failed 2FA code", "user", u.Username, "remote", r.RemoteAddr)
 		time.Sleep(failedLoginDelay)
 		if res == codeLocked {
-			s.Store.Audit(r.Context(), u, auditLocked, "at login")
+			s.Store.Audit(r.Context(), u, attention.AuditLocked, "at login")
 			s.pending.delete(key)
 			w.WriteHeader(http.StatusTooManyRequests)
 			s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until)})
@@ -193,13 +198,6 @@ func (s *Server) endSession(w http.ResponseWriter, r *http.Request) bool {
 	return signedIn
 }
 
-func capitalize(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
 // startSession signs u in. remember ("keep me signed in", if offered)
 // makes it last rememberDuration on this browser without the idle limit;
 // otherwise the cookie ends with the browser (session.go).
@@ -229,4 +227,71 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.U
 // request arrives over plain HTTP with X-Forwarded-Proto set.
 func isHTTPS(r *http.Request) bool {
 	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+}
+
+// deviceCookie marks a browser someone has logged in from, so a login
+// from a new one can be a security email.
+const deviceCookie = "roostack_device"
+
+// noteDevice remembers the browser u just logged in from; a new one, for
+// someone who has logged in before, is audited (and so emailed).
+func (s *Server) noteDevice(w http.ResponseWriter, r *http.Request, u *store.User) {
+	if fromSetupListener(r) {
+		return // no cookie that outlives the setup pages (SPEC.md §6.3.2)
+	}
+	token := ""
+	if c, err := r.Cookie(deviceCookie); err == nil && len(c.Value) == 32 {
+		token = c.Value
+	} else {
+		b := make([]byte, 16)
+		rand.Read(b)
+		token = hex.EncodeToString(b)
+	}
+	sum := sha256.Sum256([]byte(token))
+	isNew, hadOthers, err := s.Store.KnownDevice(r.Context(), u.ID, hex.EncodeToString(sum[:]), time.Now())
+	if err != nil {
+		s.Log.Error("remembering a device", "err", err)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: deviceCookie, Value: token, Path: "/", MaxAge: 400 * 24 * 3600,
+		HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r)})
+	if isNew && hadOthers {
+		s.Store.Audit(r.Context(), u, attention.AuditNewDevice, deviceDescription(r))
+	}
+}
+
+// deviceDescription says where a login came from: the address, and the
+// browser and system as the browser names them.
+func deviceDescription(r *http.Request) string {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		ip = r.RemoteAddr
+	}
+	if fromLoopback(r) {
+		if fwd := strings.Split(r.Header.Get("X-Forwarded-For"), ","); fwd[0] != "" {
+			ip = strings.TrimSpace(fwd[len(fwd)-1])
+		}
+	}
+	ua := r.UserAgent()
+	browser := "an unknown browser"
+	for _, b := range []string{"Firefox", "Edg", "Chrome", "Safari"} {
+		if strings.Contains(ua, b+"/") {
+			browser = map[string]string{"Edg": "Edge"}[b]
+			if browser == "" {
+				browser = b
+			}
+			break
+		}
+	}
+	system := ""
+	for _, o := range []string{"Android", "iPhone", "iPad", "Windows", "Mac OS X", "Linux"} {
+		if strings.Contains(ua, o) {
+			system = " on " + map[string]string{"Mac OS X": "a Mac"}[o]
+			if system == " on " {
+				system = " on " + o
+			}
+			break
+		}
+	}
+	return "from " + ip + ", " + browser + system
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/dns/dnstest"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 // Deleting records, against every provider's fake API (dnstest): records
@@ -50,11 +50,7 @@ type cleanupLab struct {
 }
 
 func newCleanupLab(t *testing.T) *cleanupLab {
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	return &cleanupLab{t: t, fake: dnstest.Start(t), store: st, lanIP: "192.168.1.20", entry: "81.2.69.160"}
 }
 

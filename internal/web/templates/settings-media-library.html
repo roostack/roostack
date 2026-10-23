@@ -8,8 +8,8 @@
 <section class="card section">
   <dl class="facts">
     <dt>Where</dt><dd>{{.Where}}</dd>
-    <dt>Now</dt><dd>{{if .Unknown}}Its server isn't answering.{{else if and (not .Connected) .ShareType}}Not answering: check {{.ShareServer}} is on and on the network. Until then services see an empty folder.{{else if not .Connected}}Not connected: plug it in. Until then services see an empty folder.{{else if not .Mounted}}Not mounted yet.{{else}}Connected{{with .Size}}, on a {{size .}} disk{{end}}.{{end}}</dd>
-    {{with .OwnerName}}<dt>Read as</dt><dd>its owner, {{.}}: their files show as Roostack's, for this library only.</dd>{{end}}
+    <dt>Now</dt><dd>{{if .Unknown}}Its server isn't answering.{{else if and (not .Connected) .ShareType}}Not answering: check {{.ShareServer}} is on and on the network. Until then services will see an empty folder.{{else if not .Connected}}Not connected: plug it in. Until then services will see an empty folder.{{else if not .Mounted}}Not mounted yet.{{else}}Connected{{with .Size}}, on a {{size .}} disk{{end}}.{{end}}</dd>
+    {{with .OwnerName}}<dt>Read as</dt><dd>its owner, {{.}}: their files show as Roostack's for this library only.</dd>{{end}}
     <dt>In services</dt><dd><code>&lt;their media folder&gt;/{{.Name}}</code></dd>
   </dl>
 </section>
@@ -24,8 +24,8 @@
 </section>
 <section class="card section">
   <h2>Remove it</h2>
-  <p>Services stop seeing it. Nothing on the drive or in the folder changes.</p>
-  {{confirm (printf "/settings/media/%s/%s/remove" .ServerID .Name) (printf "Remove the media library %s? Services stop seeing it; its files stay where they are." .Title) "Remove library" "quiet danger"}}
+  <p>Services will stop seeing it. Nothing on the drive or in the folder will change.</p>
+  {{confirm (printf "/settings/media/%s/%s/remove" .ServerID .Name) (printf "Remove the media library %s? Services will stop seeing it, and its files will stay where they are." .Title) "Remove library" "quiet danger"}}
 </section>
 {{end}}
 {{end}}

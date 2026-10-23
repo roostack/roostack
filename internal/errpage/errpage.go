@@ -48,9 +48,9 @@ var servicePages = []Page{
 	{404, "vacant", "Nobody roosts here.", "No service uses this address. It may have been removed, or the link is wrong."},
 	{429, "crowded", "Too many chickens.", "Too many requests from your address, so it's slowed down for a while. Try again in a minute."},
 	{502, "asleep", "{service} is asleep on the job.",
-		"It isn't answering right now. It may be stopped, or still starting after a restart: try again in a few minutes."},
-	{503, "hatching", "Still hatching.", "{service} is starting up. This usually takes a minute or two: this page tries again by itself."},
-	{504, "slow", "Taking its sweet time.", "{service} took too long to answer. It may be busy (a big upload, or an update): try again in a moment."},
+		"It isn't answering right now. It may be stopped or still starting after a restart: try again in a few minutes."},
+	{503, "hatching", "Still hatching.", "{service} is starting up. This usually takes a minute or two: this page will try again by itself."},
+	{504, "slow", "Taking its sweet time.", "{service} took too long to answer. It may be busy (a big upload or an update): try again in a moment."},
 	{0, "scrambled", "That one got scrambled.", "Something went wrong reaching {service}. Trying again often works."},
 }
 
@@ -61,8 +61,8 @@ var servicePages = []Page{
 // the request, nor has "Try again": the same request is refused again.
 var (
 	bannedPage = Page{403, "shooed", "Shooed out of the henhouse.",
-		"Requests from your address are turned away for a while, because it was seen probing or attacking websites, this one or others. " +
-			"If that wasn't you, it may have been someone else on the same network: try again later, or from another connection."}
+		"Requests from your address are being turned away for a while because it was seen probing or attacking websites, this one or others. " +
+			"If that wasn't you, it may have been someone else on the same network: try again later or from another connection."}
 	exploitPage = Page{403, "shooed", "That one ruffled some feathers.",
 		"This request was turned away before it reached {service}, because it looked like an attack. " +
 			"If you were only using {service} as usual, tell whoever runs it: the check sometimes gets it wrong, and they can fix it."}

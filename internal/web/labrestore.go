@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labrestore"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Restoring a whole lab onto a new server (SPEC.md §6.9): on a fresh
@@ -146,14 +147,14 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 	}
 	if !s.setupPassed(r) {
 		time.Sleep(failedLoginDelay)
-		fail("The setup code is wrong. It is shown in the Roostack log and in /var/lib/roostack/setup-token.")
+		fail("The setup code is wrong. It is shown in the Roostack log and in " + s.SetupTokenFile + ".")
 		return
 	}
 	// A drive is mounted (if it isn't) and searched.
 	if id := r.FormValue("drive"); src.Kind == "folder" && id != "" && id != "other" {
 		dir, err := s.LabRestore.UseDrive(r.Context(), id)
 		if err != nil {
-			fail(capitalize(err.Error()) + ".")
+			fail(words.Capitalise(err.Error()) + ".")
 			return
 		}
 		src.Folder = dir
@@ -170,7 +171,7 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	found, unopened, err := s.LabRestore.Find(ctx, src, key)
 	if err != nil {
-		fail(capitalize(err.Error()) + ".")
+		fail(words.Capitalise(err.Error()) + ".")
 		return
 	}
 	id, err := authkit.NewToken()
@@ -247,7 +248,7 @@ func (s *Server) labRestoreStart(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.LabRestore.Start(sess.found[i]); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "setup-restore", map[string]any{"Kind": "s3", "CloudOn": s.Cloud != nil, "Error": capitalize(err.Error()) + "."})
+		s.render(w, "setup-restore", map[string]any{"Kind": "s3", "CloudOn": s.Cloud != nil, "Error": words.Capitalise(err.Error()) + "."})
 		return
 	}
 	redirect(w, r, "/setup/restore/progress")

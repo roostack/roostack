@@ -27,6 +27,7 @@ import (
 	"roostack.cloud/roostack/internal/s3api/s3fake"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/trust"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 type fakeSystemd struct {
@@ -182,7 +183,7 @@ func TestInstallAndRemove(t *testing.T) {
 	}
 
 	// Same name twice, and a clashing web address, are user errors.
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.Install(ctx, "vaultwarden", InstallRequest{}); !errors.As(err, &fe) {
 		t.Errorf("second install: %v, want a form error", err)
 	}
@@ -237,7 +238,7 @@ func TestSecondCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	var fe *FormError
+	var fe *usererr.Error
 	for _, bad := range []string{"Work Vault", "work", "passwords-work"} {
 		if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: bad}); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "vaultwarden-") {
 			t.Errorf("name %q: %v", bad, err)
@@ -355,7 +356,7 @@ func TestPorts(t *testing.T) {
 		t.Fatalf("ports = %+v, %v; want ssh off on 2222", ports, err)
 	}
 
-	var fe *FormError
+	var fe *usererr.Error
 	if err := m.SetPort(ctx, "forgejo", "ssh", true, m.Lab.UIPort); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "admin UI") {
 		t.Errorf("UI port: %v", err)
 	}
@@ -386,7 +387,7 @@ func TestPorts(t *testing.T) {
 // A clash state.Desired finds says what clashed: a port clash isn't
 // reported as a web address's (it once was, by matching "already used").
 func TestClashError(t *testing.T) {
-	var fe *FormError
+	var fe *usererr.Error
 	port := errors.Join(errors.New("other"), &state.PortInUseError{Service: "forgejo-work", Port: 2222, UsedBy: "forgejo"})
 	if err := clashError(port); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "port 2222") || strings.Contains(fe.Msg, "web address") {
 		t.Errorf("port clash: %v", err)
@@ -632,7 +633,7 @@ func TestInstallSummary(t *testing.T) {
 	}
 
 	// The form's mistakes are the same as Install's.
-	var fe *FormError
+	var fe *usererr.Error
 	if _, err := m.InstallSummary("immich", InstallRequest{Name: "other"}); !errors.As(err, &fe) {
 		t.Errorf("a bad name: %v, want a form error", err)
 	}

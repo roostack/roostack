@@ -3,7 +3,6 @@ package manager
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,11 +12,15 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Updating a service to a newer package version (SPEC.md §7). The
@@ -49,8 +52,8 @@ const (
 // last update (UpdateRecord, as JSON).
 const updateKey = "service-update:"
 
-// Timings for checking an updated service (variables for tests).
-var (
+// Timings for checking an updated service.
+const (
 	healthWait   = 5 * time.Minute
 	healthStable = time.Minute
 	healthEvery  = 5 * time.Second
@@ -62,7 +65,7 @@ var (
 // on (failed) for failedFor.
 const maxRestarts = 5
 
-var failedFor = 30 * time.Second
+const failedFor = 30 * time.Second
 
 // Update is an installed service's available update.
 type Update struct {
@@ -120,7 +123,7 @@ func (u *Update) Confirm() string {
 	if u.NoBackups {
 		q += " Its server has no backups set up, so if the update changes its data, there's no copy to go back to."
 	} else {
-		q += " Roostack backs it up first (only what changed since the last backup), then updates it; it's unavailable for a few minutes."
+		q += " Roostack will back it up first (only what changed since the last backup), then update it; it will be unavailable for a few minutes."
 	}
 	if len(u.Notes) > 0 {
 		q += " Read the notes first."
@@ -143,6 +146,33 @@ type UpdateRecord struct {
 	Backup time.Time `json:"backup,omitzero"`
 	// Server is where it ran: its backups are that server's.
 	Server string `json:"server,omitempty"`
+}
+
+// updateNews is how long a service's page says it was updated.
+const updateNews = 7 * 24 * time.Hour
+
+// Shown says whether the update is still news, for the service's page and
+// Needs attention: a success for a week; a failure while that version is
+// still on offer (available, the update on offer now, or nil), or for a
+// week if nothing newer has replaced it.
+func (r *UpdateRecord) Shown(available *Update) bool {
+	recent := time.Since(r.Finished) < updateNews
+	if r.Result == UpdateDone {
+		return recent
+	}
+	return (available != nil && available.To == r.To) || (available == nil && recent)
+}
+
+// AppVersion is the app's version in a package version, with the package
+// revision when other (the version it updated from or to) has the same
+// app version, so the two never read the same: "1.34.3", or "1.34.3,
+// package revision 2".
+func AppVersion(v string, other ...string) string {
+	up := pkgspec.Upstream(v)
+	if len(other) == 0 || up != pkgspec.Upstream(other[0]) {
+		return up
+	}
+	return up + ", package revision " + strings.TrimPrefix(v[len(up):], "-roostack.")
 }
 
 // ServiceUpdate is an update queued or in progress, for the service page.
@@ -199,12 +229,12 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 		// build for the one this service's server has (SPEC.md §8.3.3).
 		if a, _ := m.noBuildFor(ctx, p.Name, p.Version, in.Host); a != "" && u.Blocked == "" {
 			u.Blocked = fmt.Sprintf("This version has no build for %s's kind of processor (%s), so it can't run there. "+
-				"Roostack offers it once it has one.", m.serverName(cmp.Or(in.Host, m.Lab.NodeID)), a)
+				"Roostack will offer it once it has one.", m.serverName(in.HostOr(m.Lab.NodeID)), a)
 		}
 		if rec := m.LastUpdate(ctx, s.Name()); rec != nil && rec.To == p.Version && rec.Result != UpdateDone {
 			u.FailedBefore = true
 		}
-		u.NoBackups = !m.backupsOn(ctx, cmp.Or(in.Host, m.Lab.NodeID))
+		u.NoBackups = !m.backupsOn(ctx, in.HostOr(m.Lab.NodeID))
 		u.Auto = in.AllowsUpdate(u.Kind) && len(u.Notes) == 0 && len(u.NewRisks) == 0 && !u.FailedBefore && !u.NoBackups &&
 			u.Blocked == ""
 		out[s.Name()] = u
@@ -269,7 +299,7 @@ func (m *Manager) backupsOn(ctx context.Context, host string) bool {
 		return false
 	}
 	t, _, ok := m.BackupTargetOf(ctx, host)
-	return ok && t.Provider != "setup"
+	return ok && t.Provider != destination.Setup
 }
 
 // updatedInstance is a service's instance for a newer package: the same
@@ -320,11 +350,11 @@ func updatedInstance(in *instance.Instance, old, p *pkgspec.Package) (*instance.
 		}
 	}
 	if len(needs) > 0 {
-		return nil, nil, formErrorf("%s %s needs something set that this version didn't (%s), and Roostack can't ask for it yet.",
+		return nil, nil, usererr.New("%s %s needs something set that this version didn't (%s), and Roostack can't ask for it yet.",
 			p.Title, pkgspec.Upstream(p.Version), strings.Join(needs, ", "))
 	}
 	if err := cp.Validate(p); err != nil {
-		return nil, nil, formErrorf("%s %s doesn't fit this service's settings: %v", p.Title, pkgspec.Upstream(p.Version), err)
+		return nil, nil, usererr.New("%s %s doesn't fit this service's settings: %v", p.Title, pkgspec.Upstream(p.Version), err)
 	}
 	slices.Sort(dropped)
 	return &cp, dropped, nil
@@ -335,23 +365,18 @@ func (m *Manager) LastUpdate(ctx context.Context, name string) *UpdateRecord {
 	if m.Settings == nil {
 		return nil
 	}
-	v, err := m.Settings.Setting(ctx, updateKey+name)
-	if err != nil || v == "" {
+	rec, err := store.GetJSON[*UpdateRecord](ctx, m.Settings, updateKey+name)
+	if err != nil {
 		return nil
 	}
-	var rec UpdateRecord
-	if json.Unmarshal([]byte(v), &rec) != nil {
-		return nil
-	}
-	return &rec
+	return rec
 }
 
 func (m *Manager) saveUpdate(ctx context.Context, name string, rec UpdateRecord) {
 	if m.Settings == nil {
 		return
 	}
-	data, _ := json.Marshal(rec)
-	if err := m.Settings.SetSetting(ctx, updateKey+name, string(data)); err != nil {
+	if err := store.PutJSON(ctx, m.Settings, updateKey+name, rec); err != nil {
 		m.Log.Error("recording an update", "service", name, "err", err)
 	}
 }
@@ -384,7 +409,7 @@ func (m *Manager) keptVersions() map[string]string {
 // UpdatePolicy is how a service updates (instance.Updates*; notify if
 // it can't be read).
 func (m *Manager) UpdatePolicy(name string) string {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return instance.UpdatesNotify
 	}
 	in, err := instance.Load(state.InstanceFile(m.Lab, name))
@@ -397,12 +422,12 @@ func (m *Manager) UpdatePolicy(name string) string {
 // SetUpdatePolicy changes how a service updates (SPEC.md §7).
 func (m *Manager) SetUpdatePolicy(ctx context.Context, name, policy string) error {
 	if !instance.ValidUpdates(policy) {
-		return formErrorf("Choose how %s updates.", name)
+		return usererr.New("Choose how %s updates.", name)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	path := state.InstanceFile(m.Lab, name)
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return ErrNotFound
 	}
 	in, err := instance.Load(path)
@@ -424,16 +449,16 @@ func (m *Manager) UpdateService(ctx context.Context, name, to, by string, accept
 	u := m.AvailableUpdates(ctx)[name]
 	switch {
 	case u == nil:
-		if !validName(name) {
+		if !instance.ValidName(name) {
 			return ErrNotFound
 		}
-		return formErrorf("There's no update for this service now.")
+		return usererr.New("There's no update for this service now.")
 	case u.To != to:
-		return formErrorf("The update on offer has changed to %s: have a look, then update again.", u.ToApp())
+		return usererr.New("The update on offer has changed to %s: have a look, then update again.", u.ToApp())
 	case u.Blocked != "":
-		return formErrorf("%s", u.Blocked)
+		return usererr.New("%s", u.Blocked)
 	case len(u.NewRisks) > 0 && !acceptRisks:
-		return formErrorf("%s %s asks for things the version it runs didn't. Read them, and tick the box if you want to update anyway.", u.Title, u.ToApp())
+		return usererr.New("%s %s asks for things the version it runs didn't. Read them and tick the box if you want to update anyway.", u.Title, u.ToApp())
 	case len(u.NewRisks) > 0:
 		m.Log.Warn("updating to a package of your own with new risks, as the Owner confirmed",
 			"service", name, "version", to, "risks", u.NewRisks)
@@ -450,7 +475,7 @@ func (m *Manager) startUpdate(u *Update, why string, automatic bool, by string, 
 	}
 	if m.upd.active[u.Service] != nil {
 		m.upd.mu.Unlock()
-		return formErrorf("%s is already updating.", u.Title)
+		return usererr.New("%s is already updating.", u.Title)
 	}
 	backup = backup && !u.NoBackups
 	steps := []node.InstallStep{{Key: "download", Title: "Downloading the new version"}}
@@ -546,7 +571,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		err = fmt.Errorf("%s changed to %s meanwhile", u.Title, old.Instance.Version)
 		return rec
 	}
-	host := cmp.Or(old.Instance.Host, m.Lab.NodeID)
+	host := old.Instance.HostOr(m.Lab.NodeID)
 	rec.Server = host
 	n := m.node(host)
 	up := node.Capability(n, node.Node.Updater)
@@ -565,7 +590,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		return rec
 	}
 	for _, d := range dropped {
-		act.Printf("%s %s has no %s any more: it's left out.", p.Title, u.ToApp(), d)
+		act.Printf("%s %s has no %s any more: it's being left out.", p.Title, u.ToApp(), d)
 	}
 	for _, note := range u.Notes {
 		act.Printf("Upgrade note (%s): %s", note.Version, note.Note)
@@ -597,7 +622,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 	if backup && !st.Backup.IsZero() {
 		act.Printf("Backed up at %s.", st.Backup.Format(time.Kitchen))
 	} else if !backup {
-		act.Printf("No backup first: %s.", map[bool]string{true: "it follows the nightly backup", false: "backups aren't set up"}[automatic])
+		act.Printf("No backup first: %s.", map[bool]string{true: "automatic updates run straight after the nightly backup", false: "backups aren't set up"}[automatic])
 	}
 	// Keep the hold while switching and checking.
 	stop := make(chan struct{})
@@ -630,7 +655,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		return rec
 	}
 	switched := time.Now()
-	herr := waitApplied(ctx, n, switched.Add(-time.Second))
+	herr := m.waitApplied(ctx, n, switched.Add(-time.Second))
 	if herr == nil {
 		// 4: check.
 		act.Step("Checking %s works", u.Title)
@@ -652,19 +677,19 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		return rec
 	}
 	back := time.Now()
-	if aerr := waitApplied(ctx, n, back.Add(-time.Second)); aerr != nil {
+	if aerr := m.waitApplied(ctx, n, back.Add(-time.Second)); aerr != nil {
 		rec.Result, err = UpdateFailed, fmt.Errorf("%w; going back failed too: %v", herr, aerr)
 		return rec
 	}
 	if w := m.Withdrawals(ctx)[u.Service]; w != nil && w.Stopped {
-		act.Printf("%s %s stays stopped: the service registry says it's dangerous.", u.Title, u.FromApp())
+		act.Printf("%s %s will stay stopped: the service registry says it's dangerous.", u.Title, u.FromApp())
 		return rec
 	}
 	if cerr := m.checkHealth(ctx, act, up, u.Service); cerr != nil {
 		rec.Result, err = UpdateFailed, fmt.Errorf("%w; %s doesn't work on %s either: %v", herr, u.Title, u.FromApp(), cerr)
 		return rec
 	}
-	act.Printf("%s runs %s again.", u.Title, u.FromApp())
+	act.Printf("%s is running %s again.", u.Title, u.FromApp())
 	return rec
 }
 
@@ -730,10 +755,8 @@ func (m *Manager) awaitHold(ctx context.Context, act *activity.Log, u *Update, u
 				return st, errors.New("its server let go of the update")
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, cmp.Or(m.waits.statusEvery, statusEvery)) {
 			return st, ctx.Err()
-		case <-time.After(statusEvery):
 		}
 	}
 }
@@ -754,14 +777,16 @@ func (m *Manager) switchVersion(from, to *instance.Instance, reason string) erro
 	if err := to.Save(path); err != nil {
 		return err
 	}
-	m.applyReason = reason
-	m.startApplyLocked()
+	m.startApplyLocked(reason)
 	return nil
 }
 
 // checkHealth waits for a service to be healthy, without restarts, for
 // healthStable, giving up after healthWait with the last problem.
 func (m *Manager) checkHealth(ctx context.Context, act *activity.Log, up node.Updater, name string) error {
+	// The timings, or the ones a test set (waits).
+	healthWait, healthStable := cmp.Or(m.waits.healthWait, healthWait), cmp.Or(m.waits.healthStable, healthStable)
+	healthEvery, failedFor := cmp.Or(m.waits.healthEvery, healthEvery), cmp.Or(m.waits.failedFor, failedFor)
 	deadline := time.Now().Add(healthWait)
 	var stableSince, failedSince time.Time
 	restarts, first, problem := -1, -1, "it didn't start"
@@ -801,10 +826,8 @@ func (m *Manager) checkHealth(ctx context.Context, act *activity.Log, up node.Up
 				failedSince = time.Now()
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, healthEvery) {
 			return ctx.Err()
-		case <-time.After(healthEvery):
 		}
 	}
 	return fmt.Errorf("It still wasn't working after %s: %s", minutes(healthWait), problem)
@@ -848,7 +871,7 @@ func (m *Manager) AutoUpdate(ctx context.Context, since time.Time) {
 			}
 			slices.SortFunc(us, func(a, b *Update) int { return strings.Compare(a.Service, b.Service) })
 			for _, u := range us {
-				why := fmt.Sprintf("its update policy (%s) takes this %s update, after the nightly backup", u.Policy, u.Kind)
+				why := fmt.Sprintf("its update policy (%s) takes this %s update after the nightly backup", u.Policy, u.Kind)
 				if err := m.startUpdate(u, why, true, "", false); err != nil {
 					m.Log.Info("automatic update not started", "service", u.Service, "err", err)
 				}

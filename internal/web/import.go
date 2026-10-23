@@ -20,7 +20,9 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
+	"roostack.cloud/roostack/units"
 )
 
 // Bringing a service's data in from the person's own copy (SPEC.md §8.4):
@@ -172,7 +174,7 @@ func (s *Server) importOf(w http.ResponseWriter, r *http.Request) (string, node.
 		http.NotFound(w, r)
 		return "", nil, false
 	}
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		http.Error(w, msg, http.StatusBadRequest)
 		return "", nil, false
 	}
@@ -301,7 +303,7 @@ func importLabel(v node.ImportView, rel string) string {
 // form came back or as the import has it.
 func (s *Server) importSource(r *http.Request, name string, pg *importPage) error {
 	f := &pg.Source
-	f.Roots = agent.LibraryFolderRoots
+	f.Roots = agent.FolderRoots
 	q := r.URL.Query()
 	if r.Method == http.MethodPost {
 		q = r.PostForm
@@ -332,7 +334,7 @@ func (s *Server) importSource(r *http.Request, name string, pg *importPage) erro
 	server := n.Identity().ID
 	f.ServerName = n.Identity().Name
 	drives, err := s.Libraries.LibraryDrives(r.Context(), server)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		f.DrivesError = msg
 	} else if err != nil {
 		return err
@@ -454,7 +456,7 @@ func (s *Server) importRows(r *http.Request, pg *importPage) {
 	var stop []string
 	for _, m := range v.Plan.Containers {
 		if m.Part != "" {
-			oc := oldContainer(v.Setup, m.Old)
+			oc := v.Setup.Container(m.Old)
 			stop = append(stop, cmp.Or(oc.Service, oc.Name))
 		}
 	}
@@ -495,13 +497,13 @@ func (s *Server) importRows(r *http.Request, pg *importPage) {
 	if cp := v.Copy; cp != nil {
 		total := max(cp.Bytes, 1)
 		pg.CopyPercent = int(min(100, cp.Progress.Bytes*100/total))
-		pg.CopyText = fmt.Sprintf("%s of %s · %s of %s files", sizeText(cp.Progress.Bytes), sizeText(cp.Bytes),
+		pg.CopyText = fmt.Sprintf("%s of %s · %s of %s files", units.Bytes(cp.Progress.Bytes), units.Bytes(cp.Bytes),
 			units.Count(cp.Progress.Files), units.Count(cp.Files))
 		if cp.Running && cp.Progress.Copied > 0 {
 			elapsed := time.Since(cp.Started)
 			rate := float64(cp.Progress.Copied) / elapsed.Seconds()
 			if left := time.Duration(float64(cp.Bytes-cp.Progress.Bytes)/rate) * time.Second; rate > 0 && left > 0 {
-				pg.CopyLeft = "about " + roughDuration(left) + " left"
+				pg.CopyLeft = "about " + words.RoughDuration(left) + " left"
 			}
 		}
 	}
@@ -519,7 +521,7 @@ func importOldText(old string) string {
 func leftText(l importer.Left) string {
 	why := map[string]string{
 		importer.WhyDBFiles: "the old database's own files: never copied, as its dump brings the database",
-		importer.WhyFile:    "a single file of the system's: Roostack sets what it's for itself",
+		importer.WhyFile:    "a single file of the system's: Roostack will set what it's for itself",
 		importer.WhyUnused:  "nothing here is kept there",
 	}[l.Why]
 	return fmt.Sprintf("%s (%s's %s): %s.", l.Source, l.Container, l.Target, why)
@@ -543,21 +545,9 @@ func libraryPlacementText(at []string, title string) string {
 		}
 	}
 	if parent != "/" && !slices.Contains([]string{"/app", "/opt", "/srv", "/var"}, parent) {
-		return fmt.Sprintf("%s's media folder goes at %s, with each library in it under the name it had. A drive unplugged and plugged back in comes back by itself.", title, parent)
+		return fmt.Sprintf("%s's media folder will go at %s, with each library in it under the name it had. A drive unplugged and plugged back in will come back by itself.", title, parent)
 	}
-	return fmt.Sprintf("These aren't in one folder, so each library is shown at its own place. If a library's drive is unplugged, %s can't see it again until it restarts: Roostack restarts %s by itself once the drive is back, which takes a few seconds.", title, title)
-}
-
-// oldContainer finds an old container by name.
-func oldContainer(s *importer.Setup, name string) importer.Container {
-	if s != nil {
-		for _, c := range s.Containers {
-			if c.Name == name {
-				return c
-			}
-		}
-	}
-	return importer.Container{}
+	return fmt.Sprintf("These aren't in one folder, so each library will be shown at its own place. If a library's drive is unplugged, %s won't be able to see it again until it restarts: Roostack will restart %s by itself once the drive is back, which will take a few seconds.", title, title)
 }
 
 // dumpChoices are the dump-like files at the top of the person's copy and
@@ -591,17 +581,6 @@ func (s *Server) dumpChoices(r *http.Request, pg *importPage) []string {
 	}
 	slices.Sort(out)
 	return out
-}
-
-// roughDuration says how long, roughly: "25 minutes", "3 hours".
-func roughDuration(d time.Duration) string {
-	switch {
-	case d < 90*time.Second:
-		return "a minute"
-	case d < 90*time.Minute:
-		return fmt.Sprintf("%d minutes", int(d.Minutes()+0.5))
-	}
-	return fmt.Sprintf("%d hours", int(d.Hours()+0.5))
 }
 
 // importFoldersPage is the folder picker for step 1 (a drive's folders, or
@@ -663,7 +642,7 @@ func (s *Server) importBrowsePage(w http.ResponseWriter, r *http.Request) {
 	p.UseText = "Use " + path.Base(cmp.Or(strings.TrimPrefix(rel, "."), top))
 	p.UseHref = base + "?" + url.Values{"for": {forWhat}, "path": {rel}}.Encode()
 	list, err := x.BrowseImport(r.Context(), name, rel)
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		p.Error, p.UseHref = msg, ""
 	} else if err != nil {
 		s.serverError(w, err)
@@ -679,7 +658,7 @@ func (s *Server) importBrowsePage(w http.ResponseWriter, r *http.Request) {
 
 // importDone audits a change and goes back to the import page.
 func (s *Server) importDone(w http.ResponseWriter, r *http.Request, err error, what, anchor string) {
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderImport(w, r, msg, http.StatusBadRequest)
 		return
 	}
@@ -754,7 +733,7 @@ func (s *Server) importSetupSubmit(w http.ResponseWriter, r *http.Request) {
 	case "inspect":
 		got, err := importer.ParseInspect([]byte(r.FormValue("inspect")))
 		if err != nil {
-			s.renderImport(w, r, capitalise(err.Error())+".", http.StatusBadRequest)
+			s.renderImport(w, r, words.Capitalise(err.Error())+".", http.StatusBadRequest)
 			return
 		}
 		setup = &got
@@ -903,7 +882,7 @@ func (s *Server) importCancelSubmit(w http.ResponseWriter, r *http.Request) {
 func importUnderway(v node.ImportView) string {
 	switch {
 	case v.Copy != nil && v.Copy.Running:
-		return fmt.Sprintf("copying, %s of %s", sizeText(v.Copy.Progress.Bytes), sizeText(v.Copy.Bytes))
+		return fmt.Sprintf("copying, %s of %s", units.Bytes(v.Copy.Progress.Bytes), units.Bytes(v.Copy.Bytes))
 	case v.Copy != nil && v.Copy.Passes > 0:
 		return "copied, ready to switch"
 	case v.Checking:

@@ -20,12 +20,9 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 
 	"roostack.cloud/roostack/internal/fsutil"
 )
@@ -40,24 +37,29 @@ const (
 )
 
 // Host performs the privileged actions. Tests replace it.
+//
+// The server checks every request before a Host sees it (wire.go): the
+// names that make paths (services, libraries, people, interfaces), the
+// time zone and the release series are valid. A Host's error is its own
+// failure, which the caller gets as a 500, unless it's a refusal (refuse):
+// something about what was asked that a person can change, a 400.
 type Host interface {
 	// SetUnprivilegedPortStart lets rootless containers bind ports >= 80
 	// (docs/ASSUMPTIONS.md C3), now and after reboot.
 	SetUnprivilegedPortStart() error
 	// ApplyFirewall checks and loads an nftables ruleset, and saves it so it
-	// is re-applied when the agent starts.
+	// is re-applied when the agent starts (firewall.go).
 	ApplyFirewall(ruleset string) error
 	// AllowWireGuardJoin lets WireGuard's port in until the firewall is
 	// next applied: a server joining a lab whose controller dials it
 	// (SPEC.md §10.2), before its own firewall says so.
 	AllowWireGuardJoin() error
-	// SetTimezone sets the host's time zone (an IANA name, already checked
-	// with ValidTimezone).
+	// SetTimezone sets the host's time zone (timezone.go).
 	SetTimezone(name string) error
 	// RunUpdates refreshes the package lists and installs available
 	// updates with unattended-upgrades, writing its output to w as it runs.
-	// A series (already checked with ValidSeries) first moves Roostack's
-	// apt source to that release series and installs it (updates.go).
+	// A series first moves Roostack's apt source to that release series
+	// and installs it (updates.go).
 	RunUpdates(ctx context.Context, series string, w io.Writer) error
 	// UpdatesStatus reads the latest run of updates, which may have
 	// outlived the agent that started it (updates.go).
@@ -65,7 +67,8 @@ type Host interface {
 	// Reboot restarts the host shortly after returning.
 	Reboot() error
 	// ApplyWireGuard configures one of Roostack's WireGuard interfaces
-	// (already validated) and brings it up, returning its public key.
+	// (already validated) and brings it up, returning its public key
+	// (wireguard.go).
 	ApplyWireGuard(wg WireGuard) (publicKey string, err error)
 	// ApplyLinks sets the direct links to other servers on Roostack's
 	// network, keeping the link to the controller.
@@ -74,6 +77,9 @@ type Host interface {
 	WireGuardStatus(iface string) (WireGuardStatus, error)
 	// WireGuardKeys reads Roostack's interfaces' private keys.
 	WireGuardKeys() (map[string]string, error)
+	// RemoveWireGuard takes an interface down and deletes its
+	// configuration (e.g. the server left its lab).
+	RemoveWireGuard(iface string) error
 	// HostChanges checks for changes Roostack didn't make (SPEC.md §3.2).
 	HostChanges() (HostChanges, error)
 	// PrepareBackupFolder readies a backup folder (folder.go).
@@ -108,9 +114,6 @@ type Host interface {
 	// (photos.go).
 	MountPhotos(service, who string, l Library) (string, error)
 	UnmountPhotos(service, who string) error
-	// RemoveWireGuard takes an interface down and deletes its
-	// configuration (e.g. the server left its lab).
-	RemoveWireGuard(iface string) error
 	// SSHStatus reads what the SSH server does; SetSSHKeysOnly writes or
 	// removes Roostack's drop-in in its configuration (ssh.go).
 	SSHStatus() (SSHStatus, error)
@@ -131,374 +134,219 @@ type ctxKey struct{}
 // nsKey marks a connection from another user namespace (peerInHostNS).
 type nsKey struct{}
 
-// Handler returns the API routes, wrapped in the caller check.
+// Handler returns the API routes, wrapped in the caller check: the whole
+// privilege boundary. Each route says what it changes, for the agent's
+// log (reads say nothing), and the most its request's body may hold.
 func (s *Server) Handler() http.Handler {
+	h := s.Host
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/health", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": s.Version})
-	})
-	mux.HandleFunc("POST /v1/ports/unprivileged-start", func(w http.ResponseWriter, r *http.Request) {
-		s.do(w, r, "set unprivileged port start", s.Host.SetUnprivilegedPortStart)
-	})
-	mux.HandleFunc("PUT /v1/firewall", func(w http.ResponseWriter, r *http.Request) {
-		var fw Firewall
-		if !decode(w, r, 64<<10, &fw) {
-			return
-		}
-		if err := fw.Validate(); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		s.do(w, r, "apply firewall", func() error { return s.Host.ApplyFirewall(fw.Ruleset()) })
-	})
+	handle := mux.HandleFunc
+	handle("GET /v1/health", read(s, func() (Health, error) { return Health{OK: true, Version: s.Version}, nil }))
+
+	// The firewall, the time zone, OS updates and rebooting.
+	handle("POST /v1/ports/unprivileged-start", do(s, "set unprivileged port start", h.SetUnprivilegedPortStart))
+	handle("PUT /v1/firewall", action(s, "apply firewall", 64<<10, func(fw Firewall) error { return h.ApplyFirewall(fw.Ruleset()) }))
 	// No arguments: it only ever opens WireGuard's own port.
-	mux.HandleFunc("POST /v1/firewall/wireguard-join", func(w http.ResponseWriter, r *http.Request) {
-		s.do(w, r, "open wireguard for joining", s.Host.AllowWireGuardJoin)
-	})
-	mux.HandleFunc("PUT /v1/timezone", func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Timezone string `json:"timezone"`
-		}
-		if !decode(w, r, 4<<10, &req) {
-			return
-		}
-		if !ValidTimezone(req.Timezone) {
-			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid time zone %q", req.Timezone))
-			return
-		}
-		s.do(w, r, "set time zone "+req.Timezone, func() error { return s.Host.SetTimezone(req.Timezone) })
-	})
-	// Streams newline-delimited JSON: {"line": ...} as output arrives,
-	// then {"done": true, "error": ...}.
-	// The body is optional: {"series": "0.5"} also moves Roostack to that
-	// release series, once the Owner has accepted it (SPEC.md §7).
-	mux.HandleFunc("POST /v1/updates/run", func(w http.ResponseWriter, r *http.Request) {
-		uid, _ := r.Context().Value(ctxKey{}).(uint32)
-		var req struct {
-			Series string `json:"series"`
-		}
-		if r.ContentLength != 0 && !decode(w, r, 4<<10, &req) {
-			return
-		}
-		if req.Series != "" && !ValidSeries(req.Series) {
-			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid release series %q", req.Series))
-			return
-		}
-		w.Header().Set("Content-Type", "application/x-ndjson")
-		w.WriteHeader(http.StatusOK)
-		st := &lineStream{enc: json.NewEncoder(w), flush: w.(http.Flusher).Flush}
-		// Once started, updates run to the end even if the caller goes
-		// away (e.g. Roostack restarts): stopping dpkg halfway leaves packages
-		// half-installed.
-		err := s.Host.RunUpdates(context.WithoutCancel(r.Context()), req.Series, st)
-		st.close()
-		end := map[string]any{"done": true}
-		if err != nil {
-			s.Log.Error("OS updates failed", "uid", uid, "series", req.Series, "err", err)
-			end["error"] = err.Error()
-		} else {
-			s.Log.Info("OS updates", "uid", uid, "series", req.Series)
-		}
-		st.mu.Lock()
-		st.enc.Encode(end)
-		st.flush()
-		st.mu.Unlock()
-	})
-	// The latest run of OS updates: still going, or how it ended, even if
-	// the agent restarted meanwhile (UpdatesRun).
-	mux.HandleFunc("GET /v1/updates/last", func(w http.ResponseWriter, r *http.Request) {
-		run, err := s.Host.UpdatesStatus()
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, run)
-	})
-	mux.HandleFunc("POST /v1/reboot", func(w http.ResponseWriter, r *http.Request) {
-		s.do(w, r, "reboot", s.Host.Reboot)
-	})
-	iface := func(w http.ResponseWriter, r *http.Request) (string, bool) {
-		name := r.URL.Query().Get("interface")
-		if name == "" {
-			name = WireGuardInterface
-		}
-		if !ValidInterface(name) {
-			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid interface %q", name))
-			return "", false
-		}
-		return name, true
-	}
-	mux.HandleFunc("GET /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
-		name, ok := iface(w, r)
-		if !ok {
-			return
-		}
-		st, err := s.Host.WireGuardStatus(name)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, st)
-	})
-	mux.HandleFunc("GET /v1/drives", func(w http.ResponseWriter, r *http.Request) {
-		drives, err := s.Host.Drives()
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, drives)
-	})
-	mux.HandleFunc("POST /v1/drives/use", func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			ID string `json:"id"`
-		}
-		if !decode(w, r, 4<<10, &req) {
-			return
-		}
-		used, err := s.Host.UseDrive(req.ID)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		s.Log.Info("backup drive ready", "id", req.ID, "dir", used.Dir)
-		writeJSON(w, http.StatusOK, used)
-	})
-	mux.HandleFunc("POST /v1/drives/erase", func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Disk  string `json:"disk"`
-			Label string `json:"label"`
-		}
-		if !decode(w, r, 4<<10, &req) {
-			return
-		}
-		uid, _ := r.Context().Value(ctxKey{}).(uint32)
-		s.Log.Warn("erasing a disk for backups", "disk", req.Disk, "uid", uid)
-		if err := s.Host.EraseDrive(req.Disk, req.Label); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-	})
-	mux.HandleFunc("GET /v1/libraries", func(w http.ResponseWriter, r *http.Request) {
-		libs, err := s.Host.Libraries()
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, libs)
-	})
-	mux.HandleFunc("POST /v1/libraries/folders", func(w http.ResponseWriter, r *http.Request) {
-		var l Library
-		if !decode(w, r, 8<<10, &l) {
-			return
-		}
-		list, err := s.Host.LibraryFolders(l)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, list)
-	})
-	mux.HandleFunc("PUT /v1/libraries/{name}", func(w http.ResponseWriter, r *http.Request) {
-		var l Library
-		if !decode(w, r, 8<<10, &l) {
-			return
-		}
-		l.Name = r.PathValue("name")
-		if err := s.Host.MountLibrary(l); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		s.Log.Info("media library mounted", "name", l.Name, "drive", l.Drive, "sub", l.Sub, "folder", l.Folder, "as_owner", l.AsOwner != nil)
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-	})
-	mux.HandleFunc("DELETE /v1/libraries/{name}", func(w http.ResponseWriter, r *http.Request) {
-		name := r.PathValue("name")
-		if err := s.Host.UnmountLibrary(name); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		s.Log.Info("media library removed", "name", name)
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-	})
-	mux.HandleFunc("PUT /v1/library-views/{service}", func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Libraries []string          `json:"libraries"`
-			At        map[string]string `json:"at,omitempty"`
-		}
-		if !decode(w, r, 8<<10, &req) {
-			return
-		}
-		if err := s.Host.SetLibraryViews(r.PathValue("service"), req.Libraries, req.At); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-	})
-	mux.HandleFunc("POST /v1/shares/check", func(w http.ResponseWriter, r *http.Request) {
-		var sh Share
-		if !decode(w, r, 8<<10, &sh) {
-			return
-		}
-		list, err := s.Host.CheckShare(sh)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, list)
-	})
-	mux.HandleFunc("PUT /v1/shares/{name}/login", func(w http.ResponseWriter, r *http.Request) {
-		var sh Share
-		if !decode(w, r, 8<<10, &sh) {
-			return
-		}
-		if err := s.Host.SaveShareLogin(r.PathValue("name"), sh); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		s.Log.Info("share login saved", "library", r.PathValue("name"), "server", sh.Server) // never the password
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-	})
-	// Bringing data into a service (SPEC.md §8.4).
-	mux.HandleFunc("PUT /v1/imports/{service}", func(w http.ResponseWriter, r *http.Request) {
-		var l Library
-		if !decode(w, r, 8<<10, &l) {
-			return
-		}
-		path, err := s.Host.MountImport(r.PathValue("service"), l)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		s.Log.Info("mounted a place to bring data in from", "service", r.PathValue("service"), "at", path) // never a password
-		writeJSON(w, http.StatusOK, map[string]string{"path": path})
-	})
-	mux.HandleFunc("DELETE /v1/imports/{service}", func(w http.ResponseWriter, r *http.Request) {
-		if err := s.Host.UnmountImport(r.PathValue("service")); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-	})
-	// Migrating photos into Immich (SPEC.md §8.5).
-	mux.HandleFunc("PUT /v1/photos/{service}/{who}", func(w http.ResponseWriter, r *http.Request) {
-		var l Library
-		if !decode(w, r, 8<<10, &l) {
-			return
-		}
-		path, err := s.Host.MountPhotos(r.PathValue("service"), r.PathValue("who"), l)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		s.Log.Info("mounted an export to migrate photos from", "service", r.PathValue("service"), "who", r.PathValue("who"), "at", path) // never a password
-		writeJSON(w, http.StatusOK, map[string]string{"path": path})
-	})
-	mux.HandleFunc("DELETE /v1/photos/{service}/{who}", func(w http.ResponseWriter, r *http.Request) {
-		if err := s.Host.UnmountPhotos(r.PathValue("service"), r.PathValue("who")); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-	})
-	mux.HandleFunc("DELETE /v1/library-views/{service}", func(w http.ResponseWriter, r *http.Request) {
-		if err := s.Host.RemoveLibraryViews(r.PathValue("service")); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-	})
-	mux.HandleFunc("POST /v1/backup-folder", func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Dir string `json:"dir"`
-		}
-		if !decode(w, r, 4<<10, &req) {
-			return
-		}
-		dir, err := s.Host.PrepareBackupFolder(req.Dir)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		s.Log.Info("prepared backup folder", "dir", dir)
-		writeJSON(w, http.StatusOK, map[string]string{"dir": dir})
-	})
-	mux.HandleFunc("GET /v1/host/changes", func(w http.ResponseWriter, r *http.Request) {
-		c, err := s.Host.HostChanges()
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, c)
-	})
-	// The keys go into Roostack's backups, like its CA's key, so a restored
-	// lab keeps the keys its peers know.
-	mux.HandleFunc("GET /v1/wireguard/keys", func(w http.ResponseWriter, r *http.Request) {
-		keys, err := s.Host.WireGuardKeys()
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, keys)
-	})
-	mux.HandleFunc("DELETE /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
-		name, ok := iface(w, r)
-		if !ok {
-			return
-		}
-		s.do(w, r, "remove wireguard "+name, func() error { return s.Host.RemoveWireGuard(name) })
-	})
-	mux.HandleFunc("PUT /v1/wireguard/links", func(w http.ResponseWriter, r *http.Request) {
-		var l Links
-		if !decode(w, r, 64<<10, &l) {
-			return
-		}
-		if err := l.Validate(); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		s.do(w, r, "apply direct links", func() error { return s.Host.ApplyLinks(l) })
-	})
-	mux.HandleFunc("PUT /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
-		var wg WireGuard
-		if !decode(w, r, 256<<10, &wg) {
-			return
-		}
-		if err := wg.Validate(); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		uid, _ := r.Context().Value(ctxKey{}).(uint32)
-		pub, err := s.Host.ApplyWireGuard(wg)
-		if err != nil {
-			s.Log.Error("apply wireguard failed", "uid", uid, "err", err)
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		s.Log.Info("apply wireguard", "uid", uid, "address", wg.Address, "peers", len(wg.Peers))
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "public_key": pub})
-	})
-	// SSH hardening (ssh.go): only on or off; the drop-in's content is
-	// the agent's own.
-	mux.HandleFunc("GET /v1/ssh", func(w http.ResponseWriter, r *http.Request) {
-		// What could be read comes back with the error, so the page still
-		// knows there's an SSH server.
-		st, err := s.Host.SSHStatus()
+	handle("POST /v1/firewall/wireguard-join", do(s, "open wireguard for joining", h.AllowWireGuardJoin))
+	handle("PUT /v1/timezone", action(s, "set time zone", 4<<10, func(r TimezoneRequest) error { return h.SetTimezone(r.Timezone) }))
+	handle("POST /v1/updates/run", s.runUpdates)
+	handle("GET /v1/updates/last", read(s, h.UpdatesStatus))
+	handle("POST /v1/reboot", do(s, "reboot", h.Reboot))
+
+	// Roostack's WireGuard interfaces. The keys go into Roostack's backups,
+	// like its CA's key, so a restored lab keeps the keys its peers know.
+	handle("GET /v1/wireguard", route(s, "", 0, func(r InterfaceRequest) (WireGuardStatus, error) { return h.WireGuardStatus(r.Interface) }))
+	handle("PUT /v1/wireguard", route(s, "apply wireguard", 256<<10, func(wg WireGuard) (WireGuardApplied, error) {
+		pub, err := h.ApplyWireGuard(wg)
+		return WireGuardApplied{OK: true, PublicKey: pub}, err
+	}))
+	handle("DELETE /v1/wireguard", action(s, "remove wireguard", 0, func(r InterfaceRequest) error { return h.RemoveWireGuard(r.Interface) }))
+	handle("PUT /v1/wireguard/links", action(s, "apply direct links", 64<<10, h.ApplyLinks))
+	handle("GET /v1/wireguard/keys", read(s, h.WireGuardKeys))
+
+	// Backups: drives and folders.
+	handle("GET /v1/drives", read(s, h.Drives))
+	handle("POST /v1/drives/use", route(s, "use backup drive", 4<<10, func(r UseDriveRequest) (UsedDrive, error) { return h.UseDrive(r.ID) }))
+	handle("POST /v1/drives/erase", action(s, "erase disk for backups", 4<<10, func(r EraseDriveRequest) error {
+		s.Log.Warn("erasing a disk for backups", "disk", r.Disk)
+		return h.EraseDrive(r.Disk, r.Label)
+	}))
+	handle("POST /v1/backup-folder", route(s, "prepare backup folder", 4<<10, func(r BackupFolder) (BackupFolder, error) {
+		dir, err := h.PrepareBackupFolder(r.Dir)
+		return BackupFolder{Dir: dir}, err
+	}))
+
+	// Media libraries (SPEC.md §8.1) and the services that read them.
+	handle("GET /v1/libraries", read(s, h.Libraries))
+	handle("POST /v1/libraries/folders", route(s, "", 8<<10, h.LibraryFolders))
+	handle("PUT /v1/libraries/{name}", action(s, "mount media library", 8<<10, func(r mountLibrary) error { return h.MountLibrary(r.Library) }))
+	handle("DELETE /v1/libraries/{name}", action(s, "remove media library", 0, func(r LibraryRequest) error { return h.UnmountLibrary(r.Name) }))
+	handle("PUT /v1/library-views/{service}", action(s, "set library views", 8<<10, func(r ViewsRequest) error {
+		return h.SetLibraryViews(r.Service, r.Libraries, r.At)
+	}))
+	handle("DELETE /v1/library-views/{service}", action(s, "remove library views", 0, func(r ServiceRequest) error { return h.RemoveLibraryViews(r.Service) }))
+	handle("POST /v1/shares/check", route(s, "", 8<<10, h.CheckShare))
+	handle("PUT /v1/shares/{name}/login", action(s, "save share login", 8<<10, func(r ShareLoginRequest) error { return h.SaveShareLogin(r.Name, r.Share) }))
+
+	// Bringing data into a service (SPEC.md §8.4), and migrating photos
+	// into Immich (SPEC.md §8.5).
+	handle("PUT /v1/imports/{service}", route(s, "mount place to bring data in from", 8<<10, func(r ImportRequest) (Mounted, error) {
+		path, err := h.MountImport(r.Service, r.Library)
+		return Mounted{Path: path}, err
+	}))
+	handle("DELETE /v1/imports/{service}", action(s, "unmount place to bring data in from", 0, func(r ServiceRequest) error { return h.UnmountImport(r.Service) }))
+	handle("PUT /v1/photos/{service}/{who}", route(s, "mount export to migrate photos from", 8<<10, func(r PhotosRequest) (Mounted, error) {
+		path, err := h.MountPhotos(r.Service, r.Who, r.Library)
+		return Mounted{Path: path}, err
+	}))
+	handle("DELETE /v1/photos/{service}/{who}", action(s, "unmount export to migrate photos from", 0, func(r PhotosRequest) error {
+		return h.UnmountPhotos(r.Service, r.Who)
+	}))
+
+	// The host itself: changes Roostack didn't make, and SSH hardening
+	// (ssh.go), only on or off, the drop-in's content being the agent's own.
+	handle("GET /v1/host/changes", read(s, h.HostChanges))
+	// What could be read comes back with the error, so the page still
+	// knows there's an SSH server.
+	handle("GET /v1/ssh", read(s, func() (SSHStatus, error) {
+		st, err := h.SSHStatus()
 		if err != nil {
 			st.Error = err.Error()
 		}
-		writeJSON(w, http.StatusOK, st)
-	})
-	mux.HandleFunc("PUT /v1/ssh", func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			KeysOnly bool `json:"keys_only"`
-		}
-		if !decode(w, r, 4<<10, &req) {
+		return st, nil
+	}))
+	handle("PUT /v1/ssh", action(s, "set ssh keys only", 4<<10, func(r SSHRequest) error { return h.SetSSHKeysOnly(r.KeysOnly) }))
+	return s.checkCaller(mux)
+}
+
+// none is a request with nothing in it.
+type none struct{}
+
+// A request that takes values from its URL gets them from fromURL, and
+// one with a Validate is refused (400) unless it passes, before the
+// route's work starts. A request or answer with logAttrs says what it was
+// in the agent's log, never a password.
+type (
+	urlRequest interface{ fromURL(r *http.Request) }
+	validated  interface{ Validate() error }
+	logged     interface{ logAttrs() []any }
+)
+
+// route serves a call that answers with a Resp. Its request is decoded
+// from a body of at most limit bytes (0: it has none), filled in from the
+// URL and validated. what says what the call changes, logged with the
+// caller and the request whether it worked or not; a call that only reads
+// has none.
+func route[Req, Resp any](s *Server, what string, limit int64, fn func(Req) (Resp, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req Req
+		if limit > 0 && !decode(w, r, limit, &req) {
 			return
 		}
-		s.do(w, r, "set ssh keys only "+strconv.FormatBool(req.KeysOnly), func() error { return s.Host.SetSSHKeysOnly(req.KeysOnly) })
-	})
-	return s.checkCaller(mux)
+		if u, ok := any(&req).(urlRequest); ok {
+			u.fromURL(r)
+		}
+		if v, ok := any(req).(validated); ok {
+			if err := v.Validate(); err != nil {
+				writeError(w, http.StatusBadRequest, err)
+				return
+			}
+		}
+		resp, err := fn(req)
+		if what != "" {
+			s.logCall(r, what, err, req, resp)
+		}
+		if err != nil {
+			writeError(w, statusOf(err), err)
+			return
+		}
+		writeJSON(w, http.StatusOK, resp)
+	}
+}
+
+// action serves a call that changes something and answers only that it
+// worked (route).
+func action[Req any](s *Server, what string, limit int64, fn func(Req) error) http.HandlerFunc {
+	return route(s, what, limit, func(req Req) (Answer, error) { return Answer{OK: true}, fn(req) })
+}
+
+// do serves an action with no request.
+func do(s *Server, what string, fn func() error) http.HandlerFunc {
+	return action(s, what, 0, func(none) error { return fn() })
+}
+
+// read serves a call that only reads, with no request.
+func read[Resp any](s *Server, fn func() (Resp, error)) http.HandlerFunc {
+	return route(s, "", 0, func(none) (Resp, error) { return fn() })
+}
+
+// logCall logs a call that changes something: what it did, or that it
+// failed and why, with the caller and what its request (and, once it
+// worked, its answer) say.
+func (s *Server) logCall(r *http.Request, what string, err error, req, resp any) {
+	uid, _ := r.Context().Value(ctxKey{}).(uint32)
+	attrs := []any{"uid", uid}
+	if l, ok := req.(logged); ok {
+		attrs = append(attrs, l.logAttrs()...)
+	}
+	if err != nil {
+		s.Log.Error(what+" failed", append(attrs, "err", err)...)
+		return
+	}
+	if l, ok := resp.(logged); ok {
+		attrs = append(attrs, l.logAttrs()...)
+	}
+	s.Log.Info(what, attrs...)
+}
+
+// refusal is a Host refusing what was asked, for a reason a person can
+// change: a drive that isn't connected, a folder outside the allowed
+// places. The caller gets it as a 400, where the agent's own failures are
+// 500s.
+type refusal struct{ error }
+
+// refuse makes a refusal from a sentence, as fmt.Errorf does.
+func refuse(format string, a ...any) error { return refusal{fmt.Errorf(format, a...)} }
+
+// statusOf is the status for a Host's error.
+func statusOf(err error) int {
+	if errors.As(err, new(refusal)) {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
+}
+
+// runUpdates runs OS updates, streaming newline-delimited JSON
+// (UpdatesMessage): each line of output as it arrives, then how it ended.
+func (s *Server) runUpdates(w http.ResponseWriter, r *http.Request) {
+	uid, _ := r.Context().Value(ctxKey{}).(uint32)
+	var req UpdatesRequest
+	if r.ContentLength != 0 && !decode(w, r, 4<<10, &req) {
+		return
+	}
+	if err := req.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.WriteHeader(http.StatusOK)
+	st := &lineStream{enc: json.NewEncoder(w), flush: w.(http.Flusher).Flush}
+	// Once started, updates run to the end even if the caller goes
+	// away (e.g. Roostack restarts): stopping dpkg halfway leaves packages
+	// half-installed.
+	err := s.Host.RunUpdates(context.WithoutCancel(r.Context()), req.Series, st)
+	st.close()
+	end := UpdatesMessage{Done: true}
+	if err != nil {
+		s.Log.Error("OS updates failed", "uid", uid, "series", req.Series, "err", err)
+		end.Error = err.Error()
+	} else {
+		s.Log.Info("OS updates", "uid", uid, "series", req.Series)
+	}
+	st.mu.Lock()
+	st.enc.Encode(end)
+	st.flush()
+	st.mu.Unlock()
 }
 
 // decode reads a request body of at most limit bytes into v, refusing
@@ -512,17 +360,6 @@ func decode(w http.ResponseWriter, r *http.Request, limit int64, v any) bool {
 		return false
 	}
 	return true
-}
-
-func (s *Server) do(w http.ResponseWriter, r *http.Request, what string, fn func() error) {
-	uid, _ := r.Context().Value(ctxKey{}).(uint32)
-	if err := fn(); err != nil {
-		s.Log.Error(what+" failed", "uid", uid, "err", err)
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	s.Log.Info(what, "uid", uid)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 // checkCaller rejects connections from users other than AllowedUIDs.
@@ -613,7 +450,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func writeError(w http.ResponseWriter, status int, err error) {
-	writeJSON(w, status, map[string]any{"ok": false, "error": err.Error()})
+	writeJSON(w, status, Answer{Error: err.Error()})
 }
 
 // LinuxHost performs actions on the real host.
@@ -627,294 +464,8 @@ type LinuxHost struct {
 func (h LinuxHost) SetUnprivilegedPortStart() error {
 	const conf = "# Managed by roostack-agent: lets rootless containers bind ports 80 and 443.\n" +
 		"net.ipv4.ip_unprivileged_port_start = 80\n"
-	if err := os.WriteFile(sysctlFile, []byte(conf), 0o644); err != nil {
+	if err := fsutil.WriteFile(sysctlFile, []byte(conf), 0o644); err != nil {
 		return err
 	}
 	return os.WriteFile(unprivPortProc, []byte("80\n"), 0o644)
-}
-
-// AllowWireGuardJoin adds one rule at the top of Roostack's input chain:
-// UDP to WireGuardPort. The next ApplyFirewall replaces the whole table,
-// so it lasts until then. Without Roostack's table (the Owner hasn't
-// chosen its firewall yet) nothing blocks the port anyway.
-func (h LinuxHost) AllowWireGuardJoin() error {
-	if exec.Command("nft", "list", "table", "inet", "roostack").Run() != nil {
-		return nil
-	}
-	out, err := exec.Command("nft", "insert", "rule", "inet", "roostack", "input", "udp", "dport", strconv.Itoa(WireGuardPort),
-		"accept", "comment", `"roostack: joining a lab"`).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("nft: %w: %s", err, out)
-	}
-	return nil
-}
-
-// ApplyFirewall checks the ruleset with `nft -c`, loads it, then saves it.
-func (h LinuxHost) ApplyFirewall(ruleset string) error {
-	tmp, err := os.CreateTemp("", "roostack-firewall-*.nft")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.WriteString(ruleset); err != nil {
-		tmp.Close()
-		return err
-	}
-	tmp.Close()
-	if out, err := exec.Command("nft", "-c", "-f", tmp.Name()).CombinedOutput(); err != nil {
-		return fmt.Errorf("nft check: %w: %s", err, out)
-	}
-	if out, err := exec.Command("nft", "-f", tmp.Name()).CombinedOutput(); err != nil {
-		return fmt.Errorf("nft apply: %w: %s", err, out)
-	}
-	if err := os.MkdirAll(filepath.Dir(h.FirewallFile), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(h.FirewallFile, []byte(ruleset), 0o644)
-}
-
-// SetTimezone runs timedatectl, which also checks the zone exists.
-func (h LinuxHost) SetTimezone(name string) error {
-	if out, err := exec.Command("timedatectl", "set-timezone", name).CombinedOutput(); err != nil {
-		return fmt.Errorf("timedatectl: %w: %s", err, out)
-	}
-	return nil
-}
-
-// dpkgLogMarker: unattended-upgrade -v prints "Log started: <time>" and
-// "Log ended: <time>" around every dpkg run (dozens in one update), which
-// tell nobody anything.
-func dpkgLogMarker(line string) bool {
-	return strings.HasPrefix(line, "Log started: ") || strings.HasPrefix(line, "Log ended: ")
-}
-
-// lineFilter passes output on a line at a time, leaving out the lines drop
-// says to.
-type lineFilter struct {
-	mu      sync.Mutex
-	w       io.Writer
-	drop    func(line string) bool
-	partial string
-}
-
-func (f *lineFilter) Write(p []byte) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	lines := strings.Split(f.partial+string(p), "\n")
-	f.partial = lines[len(lines)-1]
-	for _, line := range lines[:len(lines)-1] {
-		if f.drop(strings.TrimRight(line, "\r")) {
-			continue
-		}
-		if _, err := io.WriteString(f.w, line+"\n"); err != nil {
-			return len(p), err
-		}
-	}
-	return len(p), nil
-}
-
-// flush passes on an unfinished last line.
-func (f *lineFilter) flush() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.partial != "" && !f.drop(f.partial) {
-		io.WriteString(f.w, f.partial)
-	}
-	f.partial = ""
-}
-
-// lineStream sends written output as {"line": ...} JSON lines. If the
-// caller has gone, output is dropped rather than failing the write, which
-// would close the command's output and kill it (SIGPIPE).
-type lineStream struct {
-	mu      sync.Mutex
-	enc     *json.Encoder
-	flush   func()
-	partial string
-	gone    bool
-}
-
-func (s *lineStream) Write(p []byte) (int, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.gone {
-		return len(p), nil
-	}
-	lines := strings.Split(s.partial+string(p), "\n")
-	s.partial = lines[len(lines)-1]
-	for _, line := range lines[:len(lines)-1] {
-		if err := s.enc.Encode(map[string]string{"line": line}); err != nil {
-			s.gone = true
-			return len(p), nil
-		}
-	}
-	s.flush()
-	return len(p), nil
-}
-
-func (s *lineStream) close() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.partial != "" {
-		s.enc.Encode(map[string]string{"line": s.partial})
-		s.partial = ""
-	}
-}
-
-// Reboot asks systemd to reboot after a moment, so the API call returns.
-func (h LinuxHost) Reboot() error {
-	return exec.Command("systemd-run", "--on-active=5", "--unit=roostack-reboot", "--collect",
-		"systemctl", "reboot").Run()
-}
-
-// WireGuardKeys reads Roostack's interfaces' private keys.
-func (h LinuxHost) WireGuardKeys() (map[string]string, error) { return WireGuardKeys() }
-
-// ApplyWireGuard writes an interface's wg-quick file and brings it up. A
-// running interface takes new peers without dropping connections (wg
-// syncconf); a new address or key restarts it.
-func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
-	iface := wg.Iface()
-	file := wireGuardConf(iface)
-	old, _ := os.ReadFile(file)
-	key := confKey(string(old))
-	switch {
-	case wg.JoinKey != "":
-		key = wg.JoinKey
-	case key == "" && wg.SavedKey != "" && !wg.NewKey:
-		key = wg.SavedKey
-	case key == "" || wg.NewKey:
-		var err error
-		if key, err = NewWireGuardKey(); err != nil {
-			return "", err
-		}
-	}
-	pub, err := WireGuardPublicKey(key)
-	if err != nil {
-		return "", err
-	}
-	conf := wg.Config(key)
-	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
-		return "", err
-	}
-	if err := fsutil.WritePrivate(file, []byte(conf)); err != nil {
-		return "", err
-	}
-	unit := "wg-quick@" + iface
-	if out, err := exec.Command("systemctl", "enable", unit).CombinedOutput(); err != nil {
-		return "", fmt.Errorf("enabling %s: %w: %s", unit, err, out)
-	}
-	_, statErr := os.Stat("/sys/class/net/" + iface)
-	sameIface := statErr == nil && confKey(string(old)) == key && confAddress(string(old)) == wg.Address
-	if sameIface {
-		if err := syncConf(iface); err != nil {
-			return "", err
-		}
-		return pub, setForwarding(iface, wg.Forward)
-	}
-	if out, err := exec.Command("systemctl", "restart", unit).CombinedOutput(); err != nil {
-		return "", fmt.Errorf("starting %s: %w: %s", unit, err, out)
-	}
-	return pub, setForwarding(iface, wg.Forward)
-}
-
-// syncConf applies an interface's file to the running interface, without
-// taking it down.
-func syncConf(iface string) error {
-	// wg syncconf takes the file without wg-quick's extra keys.
-	strip, err := exec.Command("wg-quick", "strip", iface).Output()
-	if err != nil {
-		return fmt.Errorf("wg-quick strip: %w", err)
-	}
-	cmd := exec.Command("wg", "syncconf", iface, "/dev/stdin")
-	cmd.Stdin = strings.NewReader(string(strip))
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("wg syncconf: %w: %s", err, out)
-	}
-	return nil
-}
-
-// ApplyLinks sets this server's direct links to other servers (Links),
-// keeping its link to the controller.
-func (h LinuxHost) ApplyLinks(l Links) error {
-	file := wireGuardConf(WireGuardInterface)
-	old, err := os.ReadFile(file)
-	if errors.Is(err, os.ErrNotExist) {
-		return errors.New("this server isn't in a lab")
-	}
-	if err != nil {
-		return err
-	}
-	conf, err := l.apply(string(old))
-	if err != nil {
-		return err
-	}
-	if conf == string(old) {
-		return nil
-	}
-	if err := fsutil.WritePrivate(file, []byte(conf)); err != nil {
-		return err
-	}
-	if _, err := os.Stat("/sys/class/net/" + WireGuardInterface); err != nil {
-		return nil // it comes up with them
-	}
-	return syncConf(WireGuardInterface)
-}
-
-// setForwarding turns forwarding of packets arriving on an interface on
-// or off now (wg-quick's PostUp does it at boot).
-func setForwarding(iface string, on bool) error {
-	v := "0\n"
-	if on {
-		v = "1\n"
-	}
-	return os.WriteFile("/proc/sys/net/ipv4/conf/"+iface+"/forwarding", []byte(v), 0o644)
-}
-
-// RemoveWireGuard stops and disables an interface and deletes its file.
-func (h LinuxHost) RemoveWireGuard(iface string) error {
-	unit := "wg-quick@" + iface
-	if out, err := exec.Command("systemctl", "disable", "--now", unit).CombinedOutput(); err != nil {
-		return fmt.Errorf("stopping %s: %w: %s", unit, err, out)
-	}
-	if err := os.Remove(wireGuardConf(iface)); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	return nil
-}
-
-// WireGuardStatus reads an interface's wg-quick file and when each peer
-// last connected.
-func (h LinuxHost) WireGuardStatus(iface string) (WireGuardStatus, error) {
-	file := wireGuardConf(iface)
-	conf, err := os.ReadFile(file)
-	if errors.Is(err, os.ErrNotExist) {
-		return WireGuardStatus{}, nil
-	}
-	if err != nil {
-		return WireGuardStatus{}, err
-	}
-	pub, err := WireGuardPublicKey(confKey(string(conf)))
-	if err != nil {
-		return WireGuardStatus{}, fmt.Errorf("%s: %w", file, err)
-	}
-	st := WireGuardStatus{Configured: true, PublicKey: pub, Address: confAddress(string(conf)), Handshakes: map[string]int64{}}
-	if out, err := exec.Command("wg", "show", iface, "latest-handshakes").Output(); err == nil {
-		st.Handshakes = parseHandshakes(string(out))
-	}
-	if out, err := exec.Command("wg", "show", iface, "endpoints").Output(); err == nil {
-		st.Endpoints = parseEndpoints(string(out))
-	}
-	return st, nil
-}
-
-// RestoreFirewall re-applies the saved ruleset at agent start, if any.
-func (h LinuxHost) RestoreFirewall() error {
-	if _, err := os.Stat(h.FirewallFile); errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if out, err := exec.Command("nft", "-f", h.FirewallFile).CombinedOutput(); err != nil {
-		return fmt.Errorf("nft restore: %w: %s", err, out)
-	}
-	return nil
 }

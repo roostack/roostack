@@ -1306,6 +1306,12 @@ ul.kept > li { flex-wrap: wrap; }
 ul.kept > li > span:first-child { flex: 1 1 14em; }
 .kept-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; align-items: center; }
 .kept-actions button { white-space: nowrap; }
+ul.kept > li > span:first-child { line-height: 1.6; }
+ul.kept .badge { margin-bottom: var(--space-1); }
+.kept-where { margin-top: var(--space-1); font-size: var(--text-sm); }
+.kept-where > summary { color: var(--muted); cursor: pointer; }
+.kept-paths { display: block; }
+.kept-where code { overflow-wrap: anywhere; }
 
 /* Migrating photos into Immich (SPEC.md §8.5, docs/mockups/immich-import). */
 

@@ -8,7 +8,8 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // Moving a service to another server (SPEC.md §10.10).
@@ -49,7 +50,7 @@ func (s *Server) renderMove(w http.ResponseWriter, r *http.Request, errMsg strin
 	}
 	data["Package"], data["Name"], data["Info"], data["Targets"], data["Error"] = p, name, info, targets, errMsg
 	data["NoBuild"] = noBuild
-	data["Size"] = sizeText(info.Size)
+	data["Size"] = units.Bytes(info.Size)
 	// The controller moves it, whichever server it was on.
 	if a := s.serviceActivity(r, activity.Move, func(t string) bool { return strings.HasPrefix(t, "Moving "+p.Title+" to ") }); a != nil {
 		data["MoveActivity"] = a
@@ -66,7 +67,7 @@ func (s *Server) renderMove(w http.ResponseWriter, r *http.Request, errMsg strin
 func (s *Server) moveSubmit(w http.ResponseWriter, r *http.Request) {
 	name, to := r.PathValue("name"), r.FormValue("to")
 	err := s.Manager.MoveService(r.Context(), name, to, r.FormValue("way"))
-	if msg, ok := userMessage(err); ok {
+	if msg, ok := usererr.Message(err); ok {
 		s.renderMove(w, r, msg)
 		return
 	}
@@ -81,6 +82,3 @@ func (s *Server) moveSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Store.Audit(r.Context(), currentUser(r), "move", name+" to "+to)
 	redirect(w, r, "/services/"+name+"/move")
 }
-
-// sizeText is a size for people (units.Bytes).
-func sizeText(b int64) string { return units.Bytes(b) }

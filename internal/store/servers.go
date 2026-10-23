@@ -38,7 +38,7 @@ type JoinCode struct {
 }
 
 // ErrJoinCode means a join code is unknown, used or expired.
-var ErrJoinCode = errors.New("the join code is unknown, already used or expired")
+var ErrJoinCode = errors.New("the join code is unknown, already used, or expired")
 
 // AddJoinCode records a new join code.
 func (s *Store) AddJoinCode(ctx context.Context, c JoinCode) error {
@@ -151,9 +151,7 @@ func (s *Store) LabID(ctx context.Context) (string, error) {
 		return id, err
 	}
 	b := make([]byte, 5)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
+	rand.Read(b) // never fails (Go 1.24)
 	id = "lab-" + hex.EncodeToString(b)
 	return id, s.SetSetting(ctx, "lab.id", id)
 }

@@ -11,6 +11,7 @@ import (
 
 	"roostack.cloud/roostack/internal/b2"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -33,8 +34,8 @@ const (
 	destS3               // S3-compatible online storage
 )
 
-// destination is a resolved backup reference.
-type destination struct {
+// resolvedDest is a resolved backup reference.
+type resolvedDest struct {
 	kind destKind
 	// id follows the reference's colon: a server, drive, folder or
 	// provider.
@@ -46,22 +47,22 @@ type destination struct {
 }
 
 // destinationOf resolves a backup reference.
-func (m *Manager) destinationOf(ctx context.Context, ref string) (destination, error) {
-	kind, id, _ := strings.Cut(ref, ":")
-	d := destination{id: id}
-	switch {
-	case kind == CloudChoice:
+func (m *Manager) destinationOf(ctx context.Context, ref string) (resolvedDest, error) {
+	r := destination.Parse(ref)
+	d := resolvedDest{id: r.ID}
+	switch r.Kind {
+	case destination.Cloud:
 		d.kind = destCloud
-	case kind == "server":
+	case destination.Server:
 		d.kind = destServer
-	case kind == "drive":
+	case destination.Drive:
 		d.kind = destDrive
-	case kind == "folder" || kind == "local":
+	case destination.Folder, destination.Local:
 		d.kind = destFolder
-	case strings.HasPrefix(ref, "setup"):
+	case destination.Setup:
 		d.kind = destSetup
-	case kind == "provider":
-		p, err := m.provider(ctx, id)
+	case destination.Provider:
+		p, err := m.provider(ctx, r.ID)
 		if err != nil {
 			return d, err
 		}
@@ -79,7 +80,7 @@ func (m *Manager) destinationOf(ctx context.Context, ref string) (destination, e
 }
 
 // isB2 reports whether the destination is Backblaze B2.
-func (d destination) isB2() bool { return d.kind == destS3 && b2.IsB2(d.s3.Endpoint) }
+func (d resolvedDest) isB2() bool { return d.kind == destS3 && b2.IsB2(d.s3.Endpoint) }
 
 // Access is what a server's own backup credential can do to its backups at
 // a destination (SPEC.md §10.10): whether they survive the server being
@@ -129,7 +130,7 @@ func (m *Manager) BackupAccess(ctx context.Context, serverID, ref string) Access
 }
 
 // access is BackupAccess for a resolved destination and its record.
-func (m *Manager) access(ctx context.Context, serverID string, d destination, t store.BackupTarget) Access {
+func (m *Manager) access(ctx context.Context, serverID string, d resolvedDest, t store.BackupTarget) Access {
 	switch d.kind {
 	case destCloud:
 		// Keys for the server's own folder, which can only add (Cloud's
@@ -181,10 +182,10 @@ func (m *Manager) targetAt(ctx context.Context, serverID, ref string) (store.Bac
 
 // hiddenCache remembers Backblaze buckets' lifecycle rules for a while, so
 // the Backups page doesn't ask Backblaze each time.
-var hiddenCache = struct {
+type hiddenCache struct {
 	sync.Mutex
 	days map[string]hiddenDays
-}{days: map[string]hiddenDays{}}
+}
 
 type hiddenDays struct {
 	days    int
@@ -195,9 +196,9 @@ type hiddenDays struct {
 // folder (b2.Client.KeepsHidden), -1 if Backblaze couldn't be asked.
 func (m *Manager) keepsHidden(ctx context.Context, s3 S3Provider, folder string) int {
 	key := strings.Join([]string{s3.Endpoint, s3.AccessKey, s3.Bucket, folder}, " ")
-	hiddenCache.Lock()
-	c, ok := hiddenCache.days[key]
-	hiddenCache.Unlock()
+	m.hidden.Lock()
+	c, ok := m.hidden.days[key]
+	m.hidden.Unlock()
 	if ok && time.Now().Before(c.expires) {
 		return c.days
 	}
@@ -209,9 +210,12 @@ func (m *Manager) keepsHidden(ctx context.Context, s3 S3Provider, folder string)
 		m.Log.Warn("reading a Backblaze bucket's lifecycle rules", "bucket", s3.Bucket, "err", err)
 		c = hiddenDays{days: -1, expires: time.Now().Add(5 * time.Minute)}
 	}
-	hiddenCache.Lock()
-	hiddenCache.days[key] = c
-	hiddenCache.Unlock()
+	m.hidden.Lock()
+	if m.hidden.days == nil {
+		m.hidden.days = map[string]hiddenDays{}
+	}
+	m.hidden.days[key] = c
+	m.hidden.Unlock()
 	return c.days
 }
 

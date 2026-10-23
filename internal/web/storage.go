@@ -11,7 +11,8 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // Storage for other labs (SPEC.md §10.10): this lab keeps other labs'
@@ -27,14 +28,14 @@ func (s *Server) storagePage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map[string]any) {
 	data := s.pageData(r)
-	guests, err := s.Manager.StorageGuests(r.Context())
+	guests, err := s.Guests.StorageGuests(r.Context())
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	left, _ := s.Manager.LeftoverGuests(r.Context())
+	left, _ := s.Guests.LeftoverGuests(r.Context())
 	endpoint, _ := s.Store.Setting(r.Context(), guestsEndpointKey)
-	hostID := s.Manager.GuestServer(r.Context())
+	hostID := s.Guests.GuestServer(r.Context())
 	hostsHere := s.Node == nil || hostID == s.Node.Identity().ID
 	if servers, err := s.Manager.Servers(); err == nil {
 		for _, sv := range servers {
@@ -63,7 +64,7 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 		hostName = hs.Name
 	}
 	data["AddressChoice"] = s.addressChoices(r, "Address their lab reaches "+hostName+" at", agent.GuestsPort, false, hostsHere, endpoint)
-	data["Offering"] = s.Manager.OfferStorage(r.Context())
+	data["Offering"] = s.Guests.OfferStorage(r.Context())
 	for _, mn := range s.serverNodes() {
 		if mn.view.ID == hostID {
 			if d := s.serverSpaces(r.Context(), mn.view, mn.node); d != nil {
@@ -73,7 +74,7 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 	}
 	data["Internet"] = hostsHere && s.onInternet()
 	data["Quota"] = "50"
-	if sp, ok := s.Manager.GuestSpaceLeft(r.Context()); ok {
+	if sp, ok := s.Guests.GuestSpaceLeft(r.Context()); ok {
 		data["Space"] = sp
 		// Never offer more than there is by default.
 		quota := max(min(50, sp.Left/units.GB), 1)
@@ -109,8 +110,8 @@ func gigabytes(v string) int64 {
 
 func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {
 	name, endpoint := r.FormValue("name"), addressFromForm(r)
-	inv, err := s.Manager.InviteGuest(r.Context(), name, gigabytes(r.FormValue("quota")), endpoint)
-	if msg, ok := userMessage(err); ok {
+	inv, err := s.Guests.InviteGuest(r.Context(), name, gigabytes(r.FormValue("quota")), endpoint)
+	if msg, ok := usererr.Message(err); ok {
 		s.renderStorage(w, r, map[string]any{"Error": msg, "Endpoint": endpoint, "Name": name, "Quota": r.FormValue("quota"), "Adding": true})
 		return
 	}
@@ -132,8 +133,8 @@ func (s *Server) guestID(r *http.Request) int64 {
 }
 
 func (s *Server) guestServerSubmit(w http.ResponseWriter, r *http.Request) {
-	err := s.Manager.SetGuestServer(r.Context(), r.FormValue("server"))
-	if msg, ok := userMessage(err); ok {
+	err := s.Guests.SetGuestServer(r.Context(), r.FormValue("server"))
+	if msg, ok := usererr.Message(err); ok {
 		s.renderStorage(w, r, map[string]any{"Error": msg})
 		return
 	}
@@ -150,7 +151,7 @@ func (s *Server) guestServerSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) removeGuestSubmit(w http.ResponseWriter, r *http.Request) {
-	if err := s.Manager.RemoveGuest(r.Context(), s.guestID(r)); err != nil {
+	if err := s.Guests.RemoveGuest(r.Context(), s.guestID(r)); err != nil {
 		s.serverError(w, err)
 		return
 	}
@@ -159,7 +160,7 @@ func (s *Server) removeGuestSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteRemovedGuestSubmit(w http.ResponseWriter, r *http.Request) {
-	err := s.Manager.DeleteRemovedGuest(r.Context(), s.guestID(r))
+	err := s.Guests.DeleteRemovedGuest(r.Context(), s.guestID(r))
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -173,8 +174,8 @@ func (s *Server) deleteRemovedGuestSubmit(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) guestQuotaSubmit(w http.ResponseWriter, r *http.Request) {
-	err := s.Manager.SetGuestQuota(r.Context(), s.guestID(r), gigabytes(r.FormValue("quota")))
-	if msg, ok := userMessage(err); ok {
+	err := s.Guests.SetGuestQuota(r.Context(), s.guestID(r), gigabytes(r.FormValue("quota")))
+	if msg, ok := usererr.Message(err); ok {
 		s.renderStorage(w, r, map[string]any{"Error": msg})
 		return
 	}
@@ -187,7 +188,7 @@ func (s *Server) guestQuotaSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteLeftoverSubmit(w http.ResponseWriter, r *http.Request) {
-	err := s.Manager.DeleteLeftoverGuest(r.Context(), r.PathValue("user"))
+	err := s.Guests.DeleteLeftoverGuest(r.Context(), r.PathValue("user"))
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
 		return

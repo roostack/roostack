@@ -12,13 +12,15 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // TestMain lets the test binary act as `roostack backup-helper ...`, so the
-// SQLite prepare and restore steps run for real without podman.
+// SQLite prepare and restore steps run for real without podman, and
+// removes restictest's template repository after the tests.
 func TestMain(m *testing.M) {
 	if os.Getenv("ROOSTACK_TEST_HELPER") == "1" {
 		args := os.Args[len(os.Args)-3:]
@@ -35,7 +37,7 @@ func TestMain(m *testing.M) {
 		}
 		os.Exit(0)
 	}
-	os.Exit(m.Run())
+	os.Exit(restictest.Run(m))
 }
 
 // helperLaunch runs "podman unshare <bin> backup-helper op a b" as this test
@@ -89,6 +91,7 @@ func sqliteRows(t *testing.T, path string) int {
 }
 
 func TestRestoreService(t *testing.T) {
+	t.Parallel()
 	repo := testRepo(t)
 	ctx := context.Background()
 	root := t.TempDir()
@@ -187,7 +190,8 @@ func TestRestoreService(t *testing.T) {
 func TestUndoFailedRestore(t *testing.T) {
 	root := t.TempDir()
 	svc := &generate.Output{Service: "app", Units: []string{"roostack-app-app.service"}}
-	const suffix = keptBefore + "20260926-120000"
+	at := time.Date(2026, 9, 26, 12, 0, 0, 0, time.Local)
+	suffix := ".before-restore-20260926-120000"
 	cause := errors.New("restic failed")
 
 	// Put back: the partial restore is kept aside, the data is back and
@@ -198,7 +202,7 @@ func TestUndoFailedRestore(t *testing.T) {
 	units := &fakeUnits{}
 	r := &Restorer{Units: units}
 	res := &RestoreResult{MovedAside: map[string]string{dir: dir + suffix}}
-	err := r.undo(context.Background(), svc, res, suffix, cause)
+	err := r.undo(context.Background(), svc, res, at, cause)
 	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "put back unchanged") {
 		t.Errorf("err = %v", err)
 	}
@@ -217,7 +221,7 @@ func TestUndoFailedRestore(t *testing.T) {
 	lost := filepath.Join(root, "lost")
 	units.calls = nil
 	res = &RestoreResult{MovedAside: map[string]string{lost: lost + suffix}}
-	err = r.undo(context.Background(), svc, res, suffix, cause)
+	err = r.undo(context.Background(), svc, res, at, cause)
 	if err == nil || strings.Contains(err.Error(), "put back unchanged") || !strings.Contains(err.Error(), lost+suffix) {
 		t.Errorf("err = %v", err)
 	}

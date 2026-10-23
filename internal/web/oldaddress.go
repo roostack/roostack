@@ -12,10 +12,6 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 )
 
-// oldWarnFor is how long before the lab's old address stops that the
-// home page's notice becomes a warning.
-const oldWarnFor = 7 * 24 * time.Hour
-
 // oldAddress is the lab's previous address while it still works, for
 // pages (SPEC.md §6.6).
 type oldAddress struct {
@@ -46,9 +42,6 @@ func (o *oldAddress) URL(u string) string {
 	p.Host = sub + "." + o.Domain
 	return p.String()
 }
-
-// Soon: it stops within oldWarnFor.
-func (o *oldAddress) Soon() bool { return time.Until(o.Until) < oldWarnFor }
 
 // oldAddressRow is one address that changed: a service's, or Roostack's.
 type oldAddressRow struct {

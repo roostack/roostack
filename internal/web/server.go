@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
@@ -91,8 +92,12 @@ type Server struct {
 	// Services lists installed services and their status. It is a function
 	// so the UI doesn't depend on systemd directly (and tests can fake it).
 	Services func(ctx context.Context) ([]ServiceView, error)
-	// Manager installs and removes services.
+	// Manager installs and removes services; Guests is its storage for
+	// other labs (manager.Guests), and Keys changes the recovery key
+	// (manager.KeyChanges).
 	Manager ServiceManager
+	Guests  StorageSharing
+	Keys    RecoveryKeys
 	// Setup is the first-run setup wizard's steps.
 	Setup LabSetup
 	// LabSettings are the lab's settings, as Roostack started with them;
@@ -148,7 +153,7 @@ type Server struct {
 	// codeMu makes two-factor checks run one at a time (checkCode).
 	codeMu     sync.Mutex
 	issues     serverIssues
-	hostChecks hostCheckCache
+	hostChecks attention.HostChecks
 	// bootID changes each time Roostack starts; the "restarting" page waits
 	// for a new one.
 	bootID string
@@ -184,9 +189,8 @@ type ServiceManager interface {
 	ServiceCatalog
 	LabServers
 	BackupPlan
-	StorageSharing
+	StorageAtOtherLabs
 	PublicAccess
-	RecoveryKeys
 	LabRestores
 	Withdrawals
 	Holds
@@ -292,9 +296,12 @@ type LabServers interface {
 	AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns
 	RemoveServer(ctx context.Context, id string) error
 	RenameServer(ctx context.Context, id, name string) error
-	KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error)
-	RemoveKeptData(ctx context.Context, serverID, path string) error
-	PutBackKeptData(ctx context.Context, serverID, path string) error
+	// KeptCopies lists the data set aside on a server (SPEC.md §8.4);
+	// PutBackKept and RemoveKept put back or delete a copy, named by one
+	// of its folders.
+	KeptCopies(ctx context.Context, serverID string) ([]manager.KeptCopy, error)
+	PutBackKept(ctx context.Context, serverID, path string) error
+	RemoveKept(ctx context.Context, serverID, path string) error
 	// Direct links between servers for backups (SPEC.md §10.10): where a
 	// server is reached directly (typed by the Owner), and how one server
 	// reaches another's backup store.
@@ -303,6 +310,11 @@ type LabServers interface {
 	LinkPath(ctx context.Context, from, to string) string
 	LinkFailed(ctx context.Context, a, b string) bool
 	ApplyBecause(reason string)
+	// Where each server is, at home or away, as the Owner says (SPEC.md
+	// §6.9), and what that makes a backup on another server.
+	ServerLocation(ctx context.Context, id string) string
+	SetServerLocation(ctx context.Context, id, loc string) error
+	ServerPlace(ctx context.Context, from, host string) (atHome, away bool, unknown []string)
 }
 
 // BackupPlan is each server's backups (SPEC.md §6.9): the main one, its
@@ -319,8 +331,7 @@ type BackupPlan interface {
 	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
 }
 
-// StorageSharing is storage for other labs, and this lab's storage at
-// other labs (SPEC.md §10.10).
+// StorageSharing is storage for other labs (SPEC.md §10.10).
 type StorageSharing interface {
 	OfferStorage(ctx context.Context) bool
 	StorageGuests(ctx context.Context) ([]manager.GuestView, error)
@@ -329,11 +340,16 @@ type StorageSharing interface {
 	DeleteRemovedGuest(ctx context.Context, id int64) error
 	GuestServer(ctx context.Context) string
 	SetGuestServer(ctx context.Context, id string) error
-	EndingStorages(ctx context.Context) []manager.EndingStorage
 	SetGuestQuota(ctx context.Context, id, quota int64) error
 	GuestSpaceLeft(ctx context.Context) (manager.GuestSpace, bool)
 	LeftoverGuests(ctx context.Context) ([]manager.LeftoverGuest, error)
 	DeleteLeftoverGuest(ctx context.Context, user string) error
+}
+
+// StorageAtOtherLabs is this lab's storage at other labs (SPEC.md
+// §10.10).
+type StorageAtOtherLabs interface {
+	EndingStorages(ctx context.Context) []manager.EndingStorage
 	AddRemoteStorage(ctx context.Context, code string) error
 	RemoteStorages(ctx context.Context) []manager.RemoteStorage
 	RemoteUsage(ctx context.Context, r manager.RemoteStorage) (labnet.GuestUsage, error)
@@ -567,7 +583,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/link-address", s.requireOwner(s.linkAddressSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
-	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
+	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptServerSubmit))
+	mux.Handle("POST /settings/servers/{server}/kept/put-back", s.requireOwner(s.putBackKeptServerSubmit))
 	mux.Handle("GET /settings/servers/{server}/gone", s.requireOwner(s.serverGonePage))
 	mux.Handle("POST /settings/servers/{server}/gone", s.requireOwner(s.serverGoneSubmit))
 	mux.Handle("POST /services/{name}/remove-waiting", s.requireOwner(s.removeWaitingSubmit))

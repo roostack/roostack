@@ -6,18 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/units"
 )
 
 // Moving a service to another server by copying its data directly
@@ -58,10 +60,7 @@ func (m *Manager) MoveInfo(ctx context.Context, name string) (MoveInfo, error) {
 	if err != nil {
 		return info, err
 	}
-	host := in.Host
-	if host == "" {
-		host = m.Lab.NodeID
-	}
+	host := in.HostOr(m.Lab.NodeID)
 	for _, mc := range servers {
 		if mc.ID == host {
 			info.From = mc
@@ -72,7 +71,7 @@ func (m *Manager) MoveInfo(ctx context.Context, name string) (MoveInfo, error) {
 			info.Size = size
 		}
 	}
-	if t, _, ok := m.BackupTargetOf(ctx, host); ok && t.Provider != "setup" {
+	if t, _, ok := m.BackupTargetOf(ctx, host); ok && t.Provider != destination.Setup {
 		info.ViaBackup = true
 	}
 	info.Suggested = MoveCopy
@@ -95,23 +94,20 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	if err != nil {
 		return err
 	}
-	from := in.Host
-	if from == "" {
-		from = m.Lab.NodeID
-	}
+	from := in.HostOr(m.Lab.NodeID)
 	if to == from {
-		return formErrorf("%s already runs there.", p.Title)
+		return usererr.New("%s is already running there.", p.Title)
 	}
 	if err := m.checkArch(ctx, p, cmp.Or(in.Title, p.Title), to); err != nil {
 		return err
 	}
 	src, dst := node.Capability(m.node(from), node.Node.Mover), node.Capability(m.node(to), node.Node.Mover)
 	if src == nil || dst == nil {
-		return formErrorf("Choose a server in this lab.")
+		return usererr.New("Choose a server in this lab.")
 	}
 	for _, id := range []string{from, to} {
 		if r, ok := m.node(id).(RemoteServer); ok && r.Settings() == nil {
-			return formErrorf("Roostack can't reach %s right now.", r.Identity().Name)
+			return usererr.New("Roostack can't reach %s right now.", r.Identity().Name)
 		}
 	}
 	var target store.BackupTarget
@@ -119,23 +115,24 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	case MoveCopy:
 	case MoveBackup:
 		t, _, ok := m.BackupTargetOf(ctx, from)
-		if !ok || t.Provider == "setup" || m.node(from).Backups() == nil {
-			return formErrorf("%s's backups aren't set up through Roostack yet, so this way isn't available. Copy it directly instead.",
+		if !ok || t.Provider == destination.Setup || m.node(from).Backups() == nil {
+			return usererr.New("%s's backups aren't set up through Roostack yet, so this way isn't available. Copy it directly instead.",
 				m.nameOf(from))
 		}
 		target = t
 	default:
-		return formErrorf("Choose how to move it.")
+		return usererr.New("Choose how to move it.")
 	}
 	m.forgetFailedMove(ctx, name)
 	act := m.Activity.Start(activity.Move, fmt.Sprintf("Moving %s to %s", p.Title, m.nameOf(to)))
+	j := &transferJob{m: m, act: act, name: name, title: p.Title, from: from, to: to, src: src, dst: dst}
 	go func() {
 		ctx := context.Background()
 		var err error
 		if way == MoveBackup {
-			err = m.moveViaBackup(ctx, act, name, p.Title, from, to, target, src, dst)
+			err = j.moveViaBackup(ctx, target)
 		} else {
-			err = m.move(ctx, act, name, p.Title, from, to, src, dst)
+			err = j.moveDirectly(ctx)
 		}
 		if err != nil {
 			m.Log.Error("moving a service", "service", name, "err", err)
@@ -145,43 +142,34 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	return nil
 }
 
-func (m *Manager) move(ctx context.Context, act *activity.Log, name, title, from, to string, src, dst node.Mover) (err error) {
-	stopped := false
-	defer func() {
-		if err != nil && stopped {
-			act.Step("Starting %s again on %s", title, m.nameOf(from))
-			if serr := src.StartService(ctx, name); serr != nil {
-				act.Printf("%v", serr)
-			}
-		}
-	}()
+// moveDirectly copies the service's data while it runs, stops it, copies
+// what changed since, and finishes the move.
+func (j *transferJob) moveDirectly(ctx context.Context) (err error) {
+	defer func() { j.startAgainIfFailed(ctx, err) }()
 	first := time.Now().Add(-mtimeMargin)
-	act.Step("Copying %s's data to %s while it keeps running", title, m.nameOf(to))
+	j.act.Step("Copying %s's data to %s while it keeps running", j.title, j.m.nameOf(j.to))
 	for dir := range dataDirs {
-		if err := copyData(ctx, src, dst, name, dir, time.Time{}); err != nil {
+		if err := copyData(ctx, j.src, j.dst, j.name, dir, time.Time{}); err != nil {
 			return err
 		}
 	}
-	act.Step("Stopping %s on %s", title, m.nameOf(from))
-	if err := src.StopService(ctx, name); err != nil {
+	if err := j.stop(ctx); err != nil {
 		return err
 	}
-	stopped = true
-	act.Step("Copying what changed since")
+	j.act.Step("Copying what changed since")
 	for dir := range dataDirs {
-		if err := copyData(ctx, src, dst, name, dir, first); err != nil {
+		if err := copyData(ctx, j.src, j.dst, j.name, dir, first); err != nil {
 			return err
 		}
-		keep, err := src.ListData(ctx, name, dir)
+		keep, err := j.src.ListData(ctx, j.name, dir)
 		if err != nil {
 			return err
 		}
-		if err := dst.PruneData(ctx, name, dir, keep); err != nil {
+		if err := j.dst.PruneData(ctx, j.name, dir, keep); err != nil {
 			return err
 		}
 	}
-	stopped, err = m.finishMove(ctx, act, name, title, from, to, src, dst, false)
-	return err
+	return j.finishMove(ctx)
 }
 
 // ownSecrets keeps only the secrets the service's generated files use. The
@@ -215,76 +203,53 @@ func (m *Manager) ownSecrets(act *activity.Log, name string, secrets map[string]
 }
 
 // finishMove brings the service's secrets, puts the copied data in place,
-// switches where it runs and sets the old copy aside. loadDumps loads its
-// databases from their dumps on the new server (after a backup).
-// It reports whether the service is still stopped on the old server.
-func (m *Manager) finishMove(ctx context.Context, act *activity.Log, name, title, from, to string,
-	src, dst node.Mover, loadDumps bool) (stillStopped bool, err error) {
-	act.Step("Copying its secrets (e.g. database passwords)")
-	secrets, err := src.ExportSecrets(ctx, name)
+// switches where it runs and sets the old copy aside. After a backup, it
+// loads its databases from their dumps on the new server, and goes back
+// if they don't load.
+func (j *transferJob) finishMove(ctx context.Context) error {
+	if err := j.bringSecrets(ctx); err != nil {
+		return err
+	}
+	if err := j.commit(ctx); err != nil {
+		return err
+	}
+	j.act.Step("Starting %s on %s", j.title, j.m.nameOf(j.to))
+	switched, err := j.switchTo()
 	if err != nil {
-		return true, err
-	}
-	if secrets, err = m.ownSecrets(act, name, secrets); err != nil {
-		return true, err
-	}
-	if err := dst.ImportSecrets(ctx, secrets); err != nil {
-		return true, err
-	}
-	act.Step("Putting the data in place on %s", m.nameOf(to))
-	kept, err := dst.CommitData(ctx, name)
-	if err != nil {
-		return true, err
-	}
-	for _, k := range kept {
-		act.Printf("Data that was already there is kept at %s", k)
-	}
-
-	act.Step("Starting %s on %s", title, m.nameOf(to))
-	switched := time.Now()
-	if err := m.switchHost(name, to); err != nil {
-		return true, err
+		return err
 	}
 	// It runs on the new server now; its old copy stays put.
-	if loadDumps {
-		act.Step("Loading its databases from the backup")
-		if err := waitApplied(ctx, m.node(to), switched); err != nil {
-			return false, err
+	if j.repo != nil {
+		j.act.Step("Loading its databases from the backup")
+		if err := j.m.waitApplied(ctx, j.m.node(j.to), switched); err != nil {
+			return err
 		}
-		if err := dst.LoadDumps(ctx, name); err != nil {
+		if err := j.dst.LoadDumps(ctx, j.name); err != nil {
 			// Its old copy is still whole: it goes back there (SPEC.md
 			// §10.10), or is held stopped here if it can't.
-			return false, m.moveBack(ctx, act, name, title, from, to, dst, err)
+			return j.moveBack(ctx, err)
 		}
 	}
 	// Moved again after a move that couldn't go back: no longer held.
-	if _, in, err := m.installedService(name); err == nil && in.Held != nil && in.Held.MovedFrom != "" {
-		if _, err := m.releaseHold(name, "Starting "+title+" on "+m.nameOf(to)+": it's moved"); err != nil {
-			act.Printf("%v", err)
+	if _, in, err := j.m.installedService(j.name); err == nil && in.Held != nil && in.Held.MovedFrom != "" {
+		if _, err := j.m.releaseHold(j.name, "Starting "+j.title+" on "+j.m.nameOf(j.to)+": it's moved"); err != nil {
+			j.act.Printf("%v", err)
 		}
 	}
-	aside, err := src.SetAsideData(ctx, name, "to-"+m.nameOf(to))
-	if err != nil {
-		act.Printf("Couldn't set the old copy aside on %s: %v", m.nameOf(from), err)
-	}
-	for _, a := range aside {
-		act.Printf("The old copy stays on %s at %s until you delete it", m.nameOf(from), a)
-	}
-	act.Step("%s now runs on %s", title, m.nameOf(to))
-	return false, nil
+	j.setAsideOld(ctx)
+	j.act.Step("%s is now running on %s", j.title, j.m.nameOf(j.to))
+	return nil
 }
 
 // waitApplied waits until a server has applied changes made after t.
-func waitApplied(ctx context.Context, n node.Node, t time.Time) error {
-	deadline := time.Now().Add(applyWait)
+func (m *Manager) waitApplied(ctx context.Context, n node.Node, t time.Time) error {
+	deadline := time.Now().Add(cmp.Or(m.waits.applyWait, applyWait))
 	for time.Now().Before(deadline) {
 		if st := n.Status(); !st.Running && st.LastRun.After(t) {
 			return st.LastErr
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 2*time.Second) {
 			return ctx.Err()
-		case <-time.After(2 * time.Second):
 		}
 	}
 	return fmt.Errorf("%s didn't finish applying in time", n.Identity().Name)
@@ -292,7 +257,7 @@ func waitApplied(ctx context.Context, n node.Node, t time.Time) error {
 
 // applyWait bounds waiting for a server to start a moved service (its
 // first start may download images).
-var applyWait = 20 * time.Minute
+const applyWait = 20 * time.Minute
 
 // moveViaBackup moves a service through a fresh backup: the old server
 // backs up, the service stops, and the controller streams its folders
@@ -300,20 +265,11 @@ var applyWait = 20 * time.Minute
 // their dumps. For large data or slow links: the backup is incremental,
 // and the controller reads the repository itself (with the recovery key),
 // so no keys are shared between servers.
-func (m *Manager) moveViaBackup(ctx context.Context, act *activity.Log, name, title, from, to string,
-	target store.BackupTarget, src, dst node.Mover) (err error) {
-	stopped := false
-	defer func() {
-		if err != nil && stopped {
-			act.Step("Starting %s again on %s", title, m.nameOf(from))
-			if serr := src.StartService(ctx, name); serr != nil {
-				act.Printf("%v", serr)
-			}
-		}
-	}()
-	b := m.node(from).Backups()
+func (j *transferJob) moveViaBackup(ctx context.Context, target store.BackupTarget) (err error) {
+	defer func() { j.startAgainIfFailed(ctx, err) }()
+	b := j.m.node(j.from).Backups()
 	started := time.Now()
-	act.Step("Backing up %s on %s (only what changed since the last backup is uploaded)", title, m.nameOf(from))
+	j.act.Step("Backing up %s on %s (only what changed since the last backup is uploaded)", j.title, j.m.nameOf(j.from))
 	if err := b.RunNow(ctx); err != nil && !errors.Is(err, backup.ErrAlreadyQueued) {
 		return err
 	}
@@ -321,38 +277,27 @@ func (m *Manager) moveViaBackup(ctx context.Context, act *activity.Log, name, ti
 	if err != nil {
 		return err
 	}
-	repo, err := m.adminRepo(ctx, target)
-	if err != nil {
+	if j.repo, err = j.m.adminRepo(ctx, target); err != nil {
 		return err
 	}
 	// The service's own snapshot from that backup.
-	snap, err := repo.ServiceSnapshot(ctx, name, "")
+	snap, err := j.repo.ServiceSnapshot(ctx, j.name, "")
 	if err != nil {
 		return err
 	}
 	if snap.Time.Before(started.Add(-time.Minute)) {
-		return fmt.Errorf("the backup at %s didn't include %s", run.Finished.Format(time.Kitchen), title)
+		return fmt.Errorf("the backup at %s didn't include %s", run.Finished.Format(time.Kitchen), j.title)
 	}
-	act.Printf("Backup %s", snap.Short)
-	act.Step("Stopping %s on %s", title, m.nameOf(from))
-	if err := src.StopService(ctx, name); err != nil {
+	j.snap = *snap
+	j.act.Printf("Backup %s", snap.Short)
+	if err := j.stop(ctx); err != nil {
 		return err
 	}
-	stopped = true
-	act.Step("Copying %s's data from the backup to %s", title, m.nameOf(to))
-	for dir, path := range []string{filepath.Join(m.Lab.Paths.ServicesDir, name), filepath.Join(m.Lab.Paths.MediaDir, name)} {
-		strip := len(strings.Split(strings.Trim(path, "/"), "/"))
-		err := pipe(ctx, func(w io.Writer) error { return repo.Dump(ctx, snap.ID, path, w) },
-			func(r io.Reader) error { return dst.ImportData(ctx, name, dir, r, strip) })
-		if errors.Is(err, backup.ErrNotInSnapshot) {
-			continue // e.g. no media folder
-		}
-		if err != nil {
-			return err
-		}
+	j.act.Step("Copying %s's data from the backup to %s", j.title, j.m.nameOf(j.to))
+	if err := j.copyFromBackup(ctx); err != nil {
+		return err
 	}
-	stopped, err = m.finishMove(ctx, act, name, title, from, to, src, dst, true)
-	return err
+	return j.finishMove(ctx)
 }
 
 // waitBackup waits for a backup that started after t, and returns it.
@@ -368,10 +313,8 @@ func waitBackup(ctx context.Context, b node.Backups, t time.Time) (*store.Backup
 			}
 			return st.Last, nil
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 5*time.Second) {
 			return nil, ctx.Err()
-		case <-time.After(5 * time.Second):
 		}
 	}
 }
@@ -427,42 +370,64 @@ func (m *Manager) switchHost(name, to string) error {
 	if err := in.Save(file); err != nil {
 		return err
 	}
-	m.applyReason = "Moving " + name + " to another server"
-	m.startApplyLocked()
+	m.startApplyLocked("Moving " + name + " to another server")
 	return m.assignErr
 }
 
-// KeptData lists folders moves left on a server.
-func (m *Manager) KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error) {
+// KeptCopy is data set aside on one of the lab's servers (SPEC.md §8.4).
+type KeptCopy struct {
+	kept.Copy
+	// Server is where it is, Host where its service runs ("" if it isn't
+	// installed any more).
+	Server, Host string
+	// CanPutBack: it can go back in place of its service's data, there.
+	CanPutBack bool
+}
+
+// KeptCopies lists the data set aside on a server, newest first.
+func (m *Manager) KeptCopies(ctx context.Context, serverID string) ([]KeptCopy, error) {
 	mv := node.Capability(m.node(serverID), node.Node.Mover)
 	if mv == nil {
 		return nil, ErrNotFound
 	}
-	return mv.KeptData(ctx)
+	copies, err := mv.KeptCopies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]KeptCopy, len(copies))
+	for i, c := range copies {
+		out[i] = KeptCopy{Copy: c, Server: serverID}
+		if _, in, err := m.installedService(c.Service); err == nil {
+			out[i].Host = in.HostOr(m.Lab.NodeID)
+		}
+		out[i].CanPutBack = out[i].Host == serverID && c.Why.CanGoBack()
+	}
+	return out, nil
 }
 
-// RemoveKeptData deletes a folder a move left on a server, for good.
-// PutBackKeptData puts a folder kept on a server back in place of its
-// service's data (node.Local.PutBackKeptData).
-func (m *Manager) PutBackKeptData(ctx context.Context, serverID, path string) error {
+// PutBackKept puts a copy kept on a server (named by one of its folders)
+// back in place of its service's data (node.Local.PutBackKept).
+func (m *Manager) PutBackKept(ctx context.Context, serverID, path string) error {
 	mv := node.Capability(m.node(serverID), node.Node.Mover)
 	if mv == nil {
 		return ErrNotFound
 	}
-	return mv.PutBackKeptData(ctx, path)
+	return mv.PutBackKept(ctx, path)
 }
 
-func (m *Manager) RemoveKeptData(ctx context.Context, serverID, path string) error {
+// RemoveKept deletes a copy kept on a server, named by one of its
+// folders, for good.
+func (m *Manager) RemoveKept(ctx context.Context, serverID, path string) error {
 	mv := node.Capability(m.node(serverID), node.Node.Mover)
 	if mv == nil {
 		return ErrNotFound
 	}
-	if err := mv.RemoveKeptData(ctx, path); err != nil {
+	if err := mv.RemoveKept(ctx, path); err != nil {
 		return err
 	}
 	// What a failed move copied is gone: so is its note.
-	if service, _, ok := strings.Cut(filepath.Base(path), node.FailedMoveSuffix); ok {
-		m.forgetFailedMove(ctx, service)
+	if f, ok := kept.Parse(path); ok && f.Why == kept.FailedMove {
+		m.forgetFailedMove(ctx, f.Service)
 	}
 	return nil
 }

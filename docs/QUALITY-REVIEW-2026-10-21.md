@@ -1176,6 +1176,15 @@ These touch many packages, so they run when wave 1 has merged and nothing else i
 2. **Roostack words:** D2. Page HTML before and after must match.
 3. **Shared with Cloud:** X1 (public `units`, then Cloud uses it), X4 (`SealFor`), X7 (the contract table in `cloudapi`, then Cloud's test and the fake). Roostack first, then Cloud against that commit, with X5's pin in place.
 
+**Wave 2 status (2026-10-22).** X4 and X7 touch none of the helpers' files, so they ran alongside step 1. All three were merged together in scratch worktrees and checked (vet, both full suites), then merged into both `main`s.
+- **Step 1** (D1, D3–D8, and wave 0's P5 follow-up; done): `fsutil.WriteFile` and `CopyFile` everywhere; one `internal/usererr`, with the five old types gone; one tested `fsutil.Within` and one service-name check; the duplicated pairs; `Paths.ServiceDataDirs`, `DatabaseFile` and `SetupTokenFile`, and `internal/destination`; `store.GetJSON` and `PutJSON`; `internal/sleep` for about 30 loops; transient units named after what they run; one parser for `/etc/fstab`'s blocks. Checked on VM 4 with an install, a backup and restore, a backup drive and media libraries. One small behaviour change: a few minute-long background checks now wait after each run rather than running on a fixed clock. TASKS.md has what was left and why.
+- **X4** (done): `SealFor`, `OpenFor` and `IsSealed` in `authkit`; Cloud's two-factor secrets use them, and its two older forms still open. Whether to reseal the older forms is the maintainer's call (TASKS).
+- **X7** (done): `cloudapi.Routes`; Cloud's `TestRoutes` checks its routes against it both ways; Roostack's fake Cloud follows it and its client is tested against suspensions and the write limit. It found a small misreport after a 429 and two test problems from before, filed in TASKS.
+- **Step 2, D2** (done, merged): `internal/words` (`Capitalise`, `And`, `Or`, `Count`, `Plural`, `FirstLine`, `RoughDuration`, `ExactDuration`) in place of about 30 copies in `web`, `manager`, `node` and `setup`; the template functions call it. Every page, activity line, audit line, user error and email the suite produces was recorded before and after: no sentence changed. One fix on purpose: `Capitalise` works on letters, not bytes, so a first letter outside ASCII ("émilie") is no longer broken. What kept its own formatter, so its output stays the same, is in TASKS.md for wave 4.
+- **X1** (done, merged): `units` is a public package, with `AsSold` (the portal's style) beside `Bytes` and `Count`; every size Roostack shows is unchanged. Cloud's own four formatters and `thousands` are gone: the portal and the owners' storage emails use `AsSold`, the console, the command line and the team's storage emails `Bytes`, so a size is written one way in each place (examples before and after in Cloud's commit `e687289`).
+
+Wave 2 is complete.
+
 ### Wave 3: structural, after the Owner decides
 
 Each its own session, in any order, once waves 1 and 2 have landed:
@@ -1187,7 +1196,31 @@ Each its own session, in any order, once waves 1 and 2 have landed:
 - **S17:** Cloud's `accounts`, `relay` and `controlplane` packages and the `cmd/cloud` tidy; T3 (template database, `t.Parallel`) and T6's tests alongside.
 - **T2:** parallel restic tests and a template repository.
 
+**Wave 3 status (2026-10-23).** The pieces overlap, so they run in rounds of sessions on separate files, each merged locally once it passes.
+- **Round 1, merged:**
+  - **D11** (one `transferJob` for every move and restore; a move through a backup now clears an earlier attempt's leftovers first, as a restore did);
+  - **D12** (`internal/kept`: one kept-copy system and one "Kept copies" list, built from a mock-up the maintainer approved; servers on older versions keep working through the old routes, which TASKS.md says to remove later);
+  - **S12** (`serve`'s controller struct; `podman.Pull`, `web.ServiceViews` and `web.SetupToken` tested);
+  - **S13** (the agent's routes as a table with shared request types; every change logged; internal failures answer 500);
+  - **D9** (each DNS provider's check through the records code; the few request details that changed are listed in TASKS.md);
+  - **S17**'s structure in Cloud (`internal/relay`, one relay-statistics function, `controlplane.New` for `serve` and the end-to-end tests, `cmd/cloud` tidied with a tested `admin.Add`; `serve`'s coverage from 2% to 76%);
+  - the websites (J2, and X6's static-site headers).
+- **Round 2, merged:**
+  - **S2** steps 2 and 4 (the backup plan's and location rules in `manager`; `internal/attention` for the attention list and the notifier; every item and email identical before and after);
+  - Cloud's helpers and tests (the rest of S16, B9, B10, T3, T6, T7, T9; Cloud's suite from about 45 s to 25 s);
+  - the portal's sidebar following Roostack's layout (the maintainer's decision, 2026-10-23).
+- **Round 2b, merged:** S8 steps 2–4 and S11: `Manager`'s fields grouped, apply reasons passed as arguments, one runtime `lab.yaml`; photo migration, storage for other labs and recovery key changes as types of their own in `manager`; `node.Local`'s photo migration and imports as types of their own. The recorded activity lines, attention items and emails match before and after.
+- **Round 3, merged:** T2, and the rest of T8 and T9: the restic tests in parallel, timing variables on structs, `b2test`, one base fake for `node.Node`, `pkgtest.Restic` and one test-store helper. The Mac suite went from 256 s to 109 s, and the VM's from 9½ to 4½ minutes.
+
+Wave 3 is complete.
+- **Found along the way, filed in TASKS.md:**
+  - two backup drives with one label get one mount point;
+  - `podman.Pull` can lose podman's reason when its error line comes first;
+  - stopping a continuity request that isn't running still says someone was told (Cloud).
+
 ### Wave 4: wording, after waves 1–3
+
+**Status (2026-10-23): complete.** All seven batches are merged into both repositories' local `main`, each with its before-and-after list for the maintainer in the shared notes. 4b also corrected four sentences it found wrong, with the maintainer's agreement. 4g listed the out-of-date facts it found in the documents without changing them; they're in TASKS.md, with the few documents it didn't cover.
 
 Added by the Owner on 2026-10-22. Across both repositories, find sentences people read that use the present simple for actions, or that are short and clipped, and rework them to sound natural.
 
@@ -1204,7 +1237,7 @@ Added by the Owner on 2026-10-22. Across both repositories, find sentences peopl
 **Why after waves 1–3:** those waves move much of this text. D2 gathers the words helpers, D3 the error type, S2 moves the attention items, and D13 the pickers. Rewording first would mean doing it twice and conflicting with every batch. Until then, new and changed wording follows the rules, which batch 1e writes into CLAUDE.md.
 
 **How:**
-1. **A sample first.** One session gathers about 30 representative sentences from every area below, with a proposed rewrite of each, for the Owner to approve. The approved pairs then become the examples in CLAUDE.md's writing rules, which the batches follow.
+1. **A sample first.** One session gathers about 30 representative sentences from every area below, with a proposed rewrite of each, for the Owner to approve. The approved pairs then become the examples in CLAUDE.md's writing rules, which the batches follow. Done (2026-10-23): 37 pairs, all approved, in [wording-examples.md](wording-examples.md). The Owner agreed that habits and standing facts stay in the present simple and that field help takes the future, and added two rules: commas go where grammar needs them, not for a pause, and a list of three or more takes the Oxford comma.
 2. **Batches by area,** in parallel since their files are disjoint:
    - **4a.** Roostack's pages: `internal/web` templates, and the Go strings web shows (attention items, errors, notices, emails from the notifier).
    - **4b.** Roostack's other messages people read: activity logs and errors people can fix, in `manager`, `node`, `backup`, `setup`, `osupdate`, `labrestore` and the rest; the CLI's output in `cmd/`.
@@ -1212,7 +1245,7 @@ Added by the Owner on 2026-10-22. Across both repositories, find sentences peopl
    - **4d.** The package editor's text (`help.yaml`, `editor.js`, `suggest.js`, `compose.js`'s notes). `pkgspec`'s check messages change with `check.js`'s, which the corpus test enforces, so the batch also covers `internal/pkgspec`.
    - **4e.** Cloud's website, console and emails (`internal/web`, `internal/admin`, the email templates and the Go strings they show).
    - **4f.** Cloud's site (`site/`) and status page (`status/`).
-   - **4g.** If the Owner wants it, the project documents (README, ARCHITECTURE, SPEC, DESIGN). These are written for contributors, so they come last.
+   - **4g.** The project documents (README, CONTRIBUTING, ARCHITECTURE, SPEC, DESIGN, in both repositories), after the other batches: decided by the maintainer on 2026-10-23. These are written for contributors, so they come last.
 3. **Checks:**
    - Tests that match exact wording are updated with the text: wave 1's helpers for finding a page's parts (T5) make this lighter.
    - The gallery and the editor's corpus regenerate.

@@ -8,11 +8,7 @@ import (
 
 func TestNewRecoveryKey(t *testing.T) {
 	form := regexp.MustCompile(`^[0-9a-f]{4}(-[0-9a-f]{4}){15}$`)
-	a, err := NewRecoveryKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, _ := NewRecoveryKey()
+	a, b := NewRecoveryKey(), NewRecoveryKey()
 	if !form.MatchString(a) || a == b {
 		t.Errorf("keys %q, %q", a, b)
 	}

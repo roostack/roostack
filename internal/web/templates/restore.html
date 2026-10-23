@@ -15,10 +15,10 @@
     {{notice "info" "A restore is in progress. This page shows how it's going."}}
   {{else if .Groups}}
   {{$m := .Chosen}}{{$p := .ChosenPlace}}
-  {{if .JustDone}}{{notice "ok" (printf "%s is restored. Check it works; its previous data is kept below until you delete it." .Service.Title)}}
+  {{if .JustDone}}{{notice "ok" (printf "%s is restored. Check it works; its previous data will be kept below until you delete it." .Service.Title)}}
   <details class="restore-again">
     <summary>Restore it again…</summary>{{end}}
-  <p>Puts {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} stops for a few minutes while this happens.</p>
+  <p>Roostack will put {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} will stop for a few minutes while this happens.</p>
   <form method="post" action="/backups/restore/{{.Service.Name}}" data-moment="{{$m.ID}}" data-label="{{$m.Label}}" data-place="{{$p.Title}}"
     x-data="{ moment: $el.dataset.moment, label: $el.dataset.label, place: $el.dataset.place }">
     <p>Restoring from <strong x-text="label">{{$m.Label}}</strong>
@@ -52,11 +52,11 @@
     {{if gt (len .Servers) 1}}
     <label>Restore onto
       <select name="to">{{range .Servers}}<option value="{{.ID}}"{{if eq .ID $.Host}} selected{{end}}>{{.Name}}{{if eq .ID $.Host}} (where it runs now){{end}}</option>{{end}}</select>
-      <small>On another server, {{.Service.Title}} moves there; its data where it ran now is kept aside.</small>
+      <small>On another server, {{.Service.Title}} will move there; its data where it ran now will be kept aside.</small>
     </label>
     {{end}}
-    <p class="notice notice-warn">Anything changed in {{.Service.Title}} since that backup will be undone. The current data isn't deleted:
-      it's kept aside, listed below, until you delete it.</p>
+    <p class="notice notice-warn">Anything changed in {{.Service.Title}} since that backup will be undone. The current data won't be deleted:
+      it will be kept aside, listed below, until you delete it.</p>
     <label class="check"><input type="checkbox" name="confirm" required>
       <span>I understand, restore {{.Service.Title}}</span></label>
     <button type="submit">Restore {{.Service.Title}}</button>
@@ -68,24 +68,11 @@
     {{range .Notes}}<p class="hint">{{.}}</p>{{end}}
   {{end}}
 
-  {{with .Kept}}
+  {{with .Kept.Copies}}
   <h2>Kept copies</h2>
-  <p class="hint">Data a restore, a move or bringing data in set aside. Put one back if you'd rather have it, or delete it once you're happy,
-    to free up space.</p>
-  <ul class="kept">
-    {{range .}}
-    <li>
-      <span><strong>{{.What}}</strong>, {{when .Time}}{{with .ServerName}} on {{.}}{{end}}<br><code>{{.Path}}</code></span>
-      <span class="kept-actions">
-        {{if .CanPutBack}}{{confirm (printf "/backups/restore/%s/kept/put-back" $.Service.Name)
-          (printf "Put back %s's data from this copy? %s stops for a moment; its data now is kept here instead, so you can change your mind again." $.Service.Title $.Service.Title)
-          "Put back…" "secondary" (printf "path=%s" .Path) (printf "server=%s" .Server)}}{{end}}
-        {{confirm (printf "/backups/restore/%s/kept/remove" $.Service.Name) "Delete this copy permanently?" "Delete" "quiet danger"
-          (printf "path=%s" .Path) (printf "server=%s" .Server)}}
-      </span>
-    </li>
-    {{end}}
-  </ul>
+  <p class="hint">Data Roostack set aside rather than deleting it: before a restore, a move or bringing data in. Each copy will stay
+    until you delete it. Put one back if you'd rather have it, or delete it once you're happy, to free up space.</p>
+  {{template "kept-copies" $.Kept}}
   {{end}}
   </div>
 </section>

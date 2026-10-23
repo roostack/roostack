@@ -268,7 +268,7 @@ func (m *Manager) RemoveOld(ctx context.Context, old config.OldAddress) (done bo
 	}
 	switch {
 	case m.Paused != nil && m.Paused():
-		o.Message = "This copy of the lab is out of date (another copy runs it now), so it leaves DNS records alone."
+		o.Message = "This copy of the lab is out of date (another copy is running it now), so it's leaving DNS records alone."
 		return false
 	case old.DNS.Provider == config.ProviderCloud:
 		m.Log.Info("the old roost.ac name's records go when Roostack Cloud releases it", "address", old.Domain)

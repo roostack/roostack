@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/monitor"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Components are called from templates as functions (docs/DESIGN.md):
@@ -350,10 +351,10 @@ func segmented(name, label, selected string, args ...any) (template.HTML, error)
 func folderCounts(folders, files int) string {
 	var parts []string
 	if folders > 0 {
-		parts = append(parts, strconv.Itoa(folders)+plural(folders, " folder", " folders"))
+		parts = append(parts, strconv.Itoa(folders)+words.Plural(folders, " folder", " folders"))
 	}
 	if files > 0 {
-		parts = append(parts, strconv.Itoa(files)+plural(files, " file", " files"))
+		parts = append(parts, strconv.Itoa(files)+words.Plural(files, " file", " files"))
 	}
 	if len(parts) == 0 {
 		return "empty"

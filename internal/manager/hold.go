@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // A restore that didn't finish (SPEC.md §6.9): a restore, or a move through
@@ -51,8 +52,7 @@ func (m *Manager) holdOn(name, to string, h instance.Hold) error {
 		return err
 	}
 	m.Log.Warn("holding a service stopped: its databases didn't load", "service", name, "err", h.Error)
-	m.applyReason = "Keeping " + name + " stopped: its databases didn't load"
-	m.startApplyLocked()
+	m.startApplyLocked("Keeping " + name + " stopped: its databases didn't load")
 	return m.assignErr
 }
 
@@ -70,8 +70,7 @@ func (m *Manager) releaseHold(name, reason string) (bool, error) {
 	if err := in.Save(file); err != nil {
 		return false, err
 	}
-	m.applyReason = reason
-	m.startApplyLocked()
+	m.startApplyLocked(reason)
 	return true, nil
 }
 
@@ -89,7 +88,7 @@ func (m *Manager) heldService(name string) (string, *instance.Hold, error) {
 		return "", nil, err
 	}
 	if in.Held == nil {
-		return "", nil, formErrorf("%s isn't stopped any more, so there's nothing to choose: reload the page to see how it's doing.", cmp.Or(in.Title, p.Title))
+		return "", nil, usererr.New("%s isn't stopped any more, so there's nothing to choose: reload the page to see how it's doing.", cmp.Or(in.Title, p.Title))
 	}
 	return cmp.Or(in.Title, p.Title), in.Held, nil
 }
@@ -114,19 +113,19 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 		return err
 	}
 	if h.Kept == "" {
-		return formErrorf("There's no data from before the restore to put back, so restore it again or start it anyway instead.")
+		return usererr.New("There's no data from before the restore to put back, so restore it again or start it anyway instead.")
 	}
 	_, in, err := m.installedService(name)
 	if err != nil {
 		return err
 	}
-	host := cmp.Or(in.Host, m.Lab.NodeID)
+	host := in.HostOr(m.Lab.NodeID)
 	if !h.KeptByRestore {
 		mv := node.Capability(m.node(host), node.Node.Mover)
 		if mv == nil {
 			return ErrNotFound
 		}
-		if err := mv.PutBackKeptData(ctx, h.Kept); err != nil {
+		if err := mv.PutBackKept(ctx, h.Kept); err != nil {
 			return err
 		}
 		_, err := m.releaseHold(name, "Starting "+title+" again: its data from before its restore is back")
@@ -136,7 +135,7 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 	// maintenance there, in the background.
 	x := m.node(host).Restores()
 	if x == nil {
-		return formErrorf("Roostack can't reach %s right now, so it can't put the data back yet: try again once %s is back on.",
+		return usererr.New("Roostack can't reach %s right now, so it can't put the data back yet: try again once %s is back on.",
 			m.nameOf(host), m.nameOf(host))
 	}
 	if err := x.PutBack(ctx, name, h.Kept); err != nil {
@@ -148,7 +147,7 @@ func (m *Manager) PutBackHeld(ctx context.Context, name string) error {
 
 // restoreWatch is how often the controller asks a server whether its own
 // restore of a service has ended, and restoreWatchFor how long it asks.
-var (
+const (
 	restoreWatch    = 2 * time.Second
 	restoreWatchFor = 24 * time.Hour
 )
@@ -164,7 +163,7 @@ func (m *Manager) watchRestore(name, host, backupID string, putBack bool) {
 	ctx := context.Background()
 	deadline := time.Now().Add(restoreWatchFor)
 	for {
-		time.Sleep(restoreWatch)
+		time.Sleep(cmp.Or(m.waits.restoreWatch, restoreWatch))
 		x := m.node(host).Restores()
 		if x == nil {
 			if time.Now().After(deadline) {
@@ -250,7 +249,7 @@ func (m *Manager) FailedMoves(ctx context.Context) map[string]FailedMove {
 			continue
 		}
 		unix, _ := strconv.ParseInt(at, 10, 64)
-		out[s.Name()] = FailedMove{To: to, ToName: m.nameOf(to), FromName: m.nameOf(cmp.Or(s.Instance.Host, m.Lab.NodeID)),
+		out[s.Name()] = FailedMove{To: to, ToName: m.nameOf(to), FromName: m.nameOf(s.Instance.HostOr(m.Lab.NodeID)),
 			At: time.Unix(unix, 0)}
 	}
 	return out
@@ -269,21 +268,19 @@ func (m *Manager) forgetFailedMove(ctx context.Context, name string) {
 // databases didn't load on the new one (cause), and sets what was copied
 // there aside. If that fails too, it's held stopped on the new server.
 // The error is the move log's last line.
-func (m *Manager) moveBack(ctx context.Context, act interface {
-	Step(string, ...any)
-	Printf(string, ...any)
-}, name, title, from, to string, dst node.Mover, cause error) error {
+func (j *transferJob) moveBack(ctx context.Context, cause error) error {
+	m, act, title, from, to := j.m, j.act, j.title, j.from, j.to
 	act.Printf("Its database didn't load on %s: %v", m.nameOf(to), cause)
 	act.Step("Moving %s back to %s", title, m.nameOf(from))
 	switched := time.Now()
-	err := m.switchHost(name, from)
+	err := m.switchHost(j.name, from)
 	if err == nil {
-		err = waitApplied(ctx, m.node(from), switched)
+		err = m.waitApplied(ctx, m.node(from), switched)
 	}
 	if err != nil {
 		act.Printf("%v", err)
 		h := instance.Hold{Error: err.Error(), MovedFrom: from}
-		if herr := m.holdOn(name, to, h); herr != nil {
+		if herr := m.holdOn(j.name, to, h); herr != nil {
 			act.Printf("Roostack couldn't record that %s should stay stopped (%v), so it may start again at the next change on %s.",
 				title, herr, m.nameOf(to))
 		}
@@ -291,10 +288,10 @@ func (m *Manager) moveBack(ctx context.Context, act interface {
 			"Roostack will keep it stopped until you choose.", title, m.nameOf(to), m.nameOf(from), err)
 	}
 	if m.Settings != nil {
-		m.Settings.SetSetting(ctx, failedMoveKey(name), to+" "+strconv.FormatInt(time.Now().Unix(), 10))
+		m.Settings.SetSetting(ctx, failedMoveKey(j.name), to+" "+strconv.FormatInt(time.Now().Unix(), 10))
 	}
 	where := ""
-	aside, aerr := dst.SetAsideData(ctx, name, node.FailedMove)
+	aside, aerr := j.dst.SetAsideData(ctx, j.name, node.FailedMove)
 	if aerr != nil {
 		act.Printf("Roostack couldn't set aside what was copied to %s (%v), so it's still in %s's usual folders there.",
 			m.nameOf(to), aerr, title)

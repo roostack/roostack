@@ -6,25 +6,25 @@ Every night, after the backup, each server installs **Debian's security and
 bug-fix updates**. **Settings → Updates and restarts** shows when it last
 ran and what it did; if it failed, **What happened** shows the details.
 
-**Check for updates now** runs it straight away.
+**Check for updates now** will run it straight away.
 
 ## Roostack's own updates
 
 Roostack updates itself the same way. Its releases come in **series**:
-0.4.0, 0.4.1 and 0.4.2 are the 0.4 series, and only fix things. Each
-server installs the fixes in its series by itself, with that night's
-updates. The page's **Roostack** line says which series the server is on.
+0.4.0, 0.4.1, and 0.4.2 are the 0.4 series and only fix things. Each server
+installs the fixes in its series by itself, with that night's updates. The
+page's **Roostack** line says which series the server is on.
 
 A new series (0.5) can bring new features and change how things work, so
-it waits for you. When one is out, **Needs attention** on the home page
-says so (and the Monday summary email, if you get it), and this page says
-**Roostack 0.5.0 is available**, with a link to [what's
+it will wait for you. When one is out, **Needs attention** on the home page
+will say so (and the Monday summary email, if you get it), and this page
+will say **Roostack 0.5.0 is available**, with a link to [what's
 new](../whats-new.md) in it. Choose **Update to Roostack 0.5.0**, and the
-server moves to it with its next updates: tonight, after the backup, or
+server will move to it with its next updates: tonight, after the backup, or
 straight away with **Check for updates now**. If the server's last backup
-didn't work, or is more than a day old, it waits for one that worked, and
-the page says so. Each server in a lab has its own Updates page; update
-each one.
+didn't work or is more than a day old, it will wait for one that worked,
+and the page will say so. Each server in a lab has its own Updates page;
+update each one.
 
 ??? note "For technical users"
 
@@ -56,18 +56,19 @@ see [Change a service](../services/settings.md#updates).
 ## Restarts
 
 Some updates, such as ones for the system's core (the *kernel*), only take
-effect after the server restarts. When one is needed, the page says so,
-and lists the updates waiting for it. You can choose **Restart now**.
+effect after the server restarts. When one is needed, the page will say so
+and list the updates waiting for it. You can choose **Restart now**.
 
 Under **When updates need a restart**:
 
 Restart automatically at *time* *(recommended)*
-:   Restarts at the time you choose (4 am unless you change it), after
-    backups have finished. Services are unavailable for a minute or two.
+:   The server will restart at the time you choose (4 am unless you change
+    it), after backups have finished. Services will be unavailable for a
+    minute or two.
 
 Only tell me
-:   Roostack waits for you to choose **Restart now**. Until then, security
-    fixes for the kernel don't take effect.
+:   Roostack will wait for you to choose **Restart now**. Until then,
+    security fixes for the kernel won't take effect.
 
 Everything starts again by itself after a restart.
 
@@ -87,25 +88,26 @@ controller, **Settings → Updates and restarts** shows:
   processors (a PC and a Raspberry Pi), a service built for only one of
   them is offered for the servers it can run on.
 
-**Check now** checks straight away.
+**Check now** will check straight away.
 
-If the list gets more than two weeks old, Roostack warns you under **Needs
-attention**: the registry publishes a new list every day, so an old one
-means Roostack can't reach it, and doesn't know about fixes or versions
+If the list gets more than two weeks old, Roostack will warn you under
+**Needs attention**: the registry publishes a new list every day, so an old
+one means Roostack can't reach it, and doesn't know about fixes or versions
 withdrawn since. You can still install services from the old list.
 
 **Check the service registry for services and fixes** is on unless you
-turn it off. Off, you can't install services from the registry, and
-Roostack doesn't hear when a version is withdrawn because it's unsafe.
-Services you've installed keep running: each runs from the lab's own copy of
-its package.
+turn it off. Off, you can't install services from the registry, and Roostack
+won't hear when a version is withdrawn because it's unsafe. Services you've
+installed will keep running: each runs from the lab's own copy of its
+package.
 
 **Let Roostack stop a service the registry says is dangerous** is on unless
-you turn it off. When a version turns out to be malicious, or is being
-attacked with no fix yet, the registry can say so, and Roostack stops any
-service running that version until you update it or start it again. It
-keeps everything the service stores. Off, Roostack only warns you, and the
-service keeps running. What each kind of withdrawal means is under
+you turn it off. When a version turns out to be malicious or is being
+attacked with no fix yet, the registry can say so, and Roostack will stop
+any service running that version until you update it or start it again. It
+will keep everything the service stores. Off, Roostack will only warn you,
+and the service will keep running. What each kind of withdrawal means is
+under
 [Change a service](../services/settings.md#when-the-registry-withdraws-a-version).
 
 ??? note "For technical users"
@@ -127,7 +129,7 @@ service keeps running. What each kind of withdrawal means is under
 ## Changes Roostack didn't make
 
 Roostack looks after the whole server. If someone changes it by hand in a
-way that could stop updates or the firewall working, the page lists it
+way that could stop updates or the firewall working, the page will list it
 under **Changes Roostack didn't make**:
 
 - software from outside Debian (extra package sources; a cloud provider's
@@ -137,7 +139,7 @@ under **Changes Roostack didn't make**:
 - Roostack's own firewall missing.
 
 If the changes were on purpose, choose **I made these changes**. Roostack
-stops warning about them, until something else changes.
+will stop warning about them until something else changes.
 
 ??? note "For technical users"
 

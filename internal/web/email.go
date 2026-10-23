@@ -11,11 +11,13 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/usererr"
 )
 
 // Email (SPEC.md §6.13): the SMTP server Roostack sends through (Settings
@@ -67,15 +69,15 @@ func (s *Server) renderEmail(w http.ResponseWriter, r *http.Request, extra map[s
 		var list []recipient
 		for i := range users {
 			u := &users[i]
-			chosen := userGroups(u)
+			chosen := attention.UserGroups(u)
 			var groups []string
-			for _, g := range groupsFor(u.Role) {
+			for _, g := range attention.GroupsFor(u.Role) {
 				if chosen[g.ID] {
 					groups = append(groups, g.Title)
 				}
 			}
 			rc := recipient{Name: u.Username, Role: u.Role, Email: u.Email, Groups: groups}
-			if cloudSt.Linked && u.Email != "" && chosen[notifyProblems] {
+			if cloudSt.Linked && u.Email != "" && chosen[attention.GroupProblems] {
 				if j := slices.IndexFunc(cloudSt.Recipients, func(c cloudapi.RecipientStatus) bool { return strings.EqualFold(c.Email, u.Email) }); j >= 0 {
 					rc.Cloud = &cloudSt.Recipients[j]
 				} else {
@@ -105,9 +107,8 @@ func (s *Server) emailSubmit(w http.ResponseWriter, r *http.Request) {
 	m := config.Mail{Host: strings.TrimSpace(r.FormValue("host")), Port: port, Security: r.FormValue("security"),
 		Username: strings.TrimSpace(r.FormValue("username")), From: strings.TrimSpace(r.FormValue("from"))}
 	err := s.Mail.Save(m, r.FormValue("password"), r.FormValue("clear_password") == "on")
-	var fe *mail.FormError
-	if errors.As(err, &fe) {
-		s.renderEmail(w, r, map[string]any{"Error": fe.Msg, "Mail": m})
+	if msg, ok := usererr.Message(err); ok {
+		s.renderEmail(w, r, map[string]any{"Error": msg, "Mail": m})
 		return
 	}
 	if err != nil {
@@ -134,11 +135,9 @@ func (s *Server) emailTestSubmit(w http.ResponseWriter, r *http.Request) {
 			"It worked: Roostack can send email through this server. Nothing else to do.\n"})
 	if err != nil {
 		msg := "Couldn't send it: " + err.Error()
-		var fe *mail.FormError
-		switch {
-		case errors.As(err, &fe):
-			msg = fe.Msg
-		case errors.Is(err, mail.ErrNotConfigured):
+		if m, ok := usererr.Message(err); ok {
+			msg = m
+		} else if errors.Is(err, mail.ErrNotConfigured) {
 			msg = "Save the SMTP server's settings first."
 		}
 		s.renderEmail(w, r, map[string]any{"TestError": msg, "TestTo": to})
@@ -193,7 +192,7 @@ func (s *Server) renderNotifications(w http.ResponseWriter, r *http.Request, ext
 		m, _ := s.Mail.Settings()
 		ready = m.Configured()
 	}
-	data := map[string]any{"User": u, "Groups": groupsFor(u.Role), "Chosen": userGroups(u), "MailReady": ready,
+	data := map[string]any{"User": u, "Groups": attention.GroupsFor(u.Role), "Chosen": attention.UserGroups(u), "MailReady": ready,
 		"Owner": auth.Can(u.Role, auth.ManageHost), "NeedEmail": ownerNeedsEmail(u),
 		"Action": withQuery("/account/notifications", nextQuery(r))}
 	for k, v := range extra {
@@ -214,7 +213,7 @@ func (s *Server) notificationsSubmit(w http.ResponseWriter, r *http.Request) {
 	msg := ""
 	switch {
 	case email == "" && u.Role == auth.RoleOwner:
-		msg = "As the Owner, you need an email address, so Roostack can tell you when the lab needs you."
+		msg = "As the Owner, you need an email address so that Roostack can tell you when the lab needs you."
 	case email != "":
 		msg = emailProblem(email)
 	}
@@ -223,7 +222,7 @@ func (s *Server) notificationsSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var chosen []string
-	for _, g := range groupsFor(u.Role) {
+	for _, g := range attention.GroupsFor(u.Role) {
 		if slices.Contains(r.Form["notify"], g.ID) {
 			chosen = append(chosen, g.ID)
 		}

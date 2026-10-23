@@ -123,11 +123,11 @@
     if (src && a.releases === "") {
       const base = a.source.replace(/\/+$/, "").replace(/\.git$/, "");
       const rel = src[1] === "gitlab.com" ? "/-/releases/" : "/releases/tag/";
-      add(make("about.releases", "Where the project says what's new in each version: a service's update links to it. Check whether the project's tags start with v.",
+      add(make("about.releases", "Where the project says what's new in each version: a service's update will link to it. Check whether the project's tags start with v.",
         [set("Use tags with v", ["about", "releases"], `${base}${rel}v{version}`), set("Use tags without v", ["about", "releases"], `${base}${rel}{version}`)]));
     }
     if (src && src[1] === "github.com" && a.support === "") {
-      add(make("about.support", `If the project takes donations, link its page: often GitHub Sponsors (https://github.com/sponsors/${src[2]}), Open Collective or Liberapay. Check it exists first.`));
+      add(make("about.support", `If the project takes donations, link its page: often GitHub Sponsors (https://github.com/sponsors/${src[2]}), Open Collective, or Liberapay. Check it exists first.`));
     }
     if (a.source === "" && a.licence !== S.words.licenceClosed) {
       const img = R.compose.imageParts(firstImage);
@@ -156,22 +156,22 @@
       if (!c) continue;
       const at = ["containers", name];
       if (c.image && !/@sha256:[0-9a-f]{64}$/.test(c.image)) {
-        add(make(`containers.${name}.image`, `Pin it by its multi-architecture digest, so every lab runs the image you tried: run skopeo inspect --raw docker://${c.image.replace(/@.*$/, "")} | sha256sum (or docker buildx imagetools inspect, the Digest line), then add @sha256: and the result after the tag. Not podman image inspect: that's only your processor's build.`));
+        add(make(`containers.${name}.image`, `Pin it by its multi-architecture digest so that every lab runs the image you tried: run skopeo inspect --raw docker://${c.image.replace(/@.*$/, "")} | sha256sum (or docker buildx imagetools inspect, the Digest line), then add @sha256: and the result after the tag. Not podman image inspect: that's only your processor's build.`));
       }
       if (c.memory === "") {
-        add(make(`containers.${name}.memory`, "Measure what it uses once it runs (podman stats as the roostack user, on a lab). As a rough start: a small Go or Rust app 30–100 MB, a Node or Python app 150–400 MB, Java 500 MB or more."));
+        add(make(`containers.${name}.memory`, "Measure what it uses once it's running (podman stats as the roostack user, on a lab). As a rough start: a small Go or Rust app 30–100 MB, a Node or Python app 150–400 MB, Java 500 MB or more."));
       }
       const route = Object.entries(pkg.routes || {}).find(([, r]) => r && r.container === name);
       if (isNil(c.health) && route) {
-        add(make(`containers.${name}.health`, `How Roostack tells it's working: an address that answers when the app works. Many apps have one (/health, /api/health, /healthz, /api/status); / works for most.`,
+        add(make(`containers.${name}.health`, `How Roostack will tell it's working: an address that answers when the app works. Many apps have one (/health, /api/health, /healthz, /api/status); / works for most.`,
           ["/health", "/"].map((p) => set(`Use ${p} on port ${route[1].port}`, at.concat("health"), { http: { port: route[1].port, path: p } }))));
       }
       for (const [k, v] of Object.entries(c.env || {})) {
         const K = k.toUpperCase();
         if (/(PASSWORD|PASSWD|SECRET|TOKEN|(^|_)KEY$|SALT|PRIVATE)/.test(K) && !/_FILE$/.test(K) && !String(v).includes("{{")) {
           const key = K.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^[^a-z]+/, "") || "secret";
-          add(make(`containers.${name}.env.${k}`, `${k} looks like a password or key. As a secret, Roostack keeps it as a Podman secret, never in a file, and can make it for you.`,
-            [{ label: "Make it a secret Roostack generates", ops: [
+          add(make(`containers.${name}.env.${k}`, `${k} looks like a password or key. As a secret, Roostack will keep it as a Podman secret, never in a file, and can make it for you.`,
+            [{ label: "Make it a secret Roostack will generate", ops: [
               { op: "append", path: ["settings"], value: { key, title: k.replace(/_/g, " ").toLowerCase().replace(/^./, (x) => x.toUpperCase()), type: "secret", generate: true } },
               { op: "delete", path: at.concat("env", k) },
               { op: "set", path: at.concat("secrets", k), value: key },
@@ -198,10 +198,10 @@
         add(make(`storage.${name}.class`, `"${name}" sounds like something the app makes again (a cache, thumbnails, converted files). If nobody would miss it, it needn't be backed up.`, [set("Mark it replaceable", at.concat("class"), "replaceable")]));
       }
       if (s.class === "replaceable" && guess.class === "critical" && guess.title !== "Its data") {
-        add(make(`storage.${name}.class`, `"${name}" sounds like something people would miss (${guess.title.toLowerCase()}). Anything people would miss must be critical, so it's backed up.`, [set("Mark it critical", at.concat("class"), "critical")]));
+        add(make(`storage.${name}.class`, `"${name}" sounds like something people would miss (${guess.title.toLowerCase()}). Anything people would miss must be critical so that it's backed up.`, [set("Mark it critical", at.concat("class"), "critical")]));
       }
       if (s.location !== "media" && guess.media) {
-        add(make(`storage.${name}.location`, "Large data such as photos, videos and uploads can go on the media disk, if the server has one.", [set("Put it on the media disk", at.concat("location"), "media")]));
+        add(make(`storage.${name}.location`, "Large data such as photos, videos, and uploads can go on the media disk, if the server has one.", [set("Put it on the media disk", at.concat("location"), "media")]));
       }
     }
 
@@ -219,7 +219,7 @@
         for (const f of frameworks) if (envNames.some((n) => f.test.test(n))) f.login.forEach((p) => offer(p, f.name));
         for (const [p, who] of commonLogins) offer(p, who);
         const unsafe = app && app.unsafe ? `${app.app}'s registry package says it shouldn't be public. ` : "";
-        add(make(`routes.${name}.public.login_paths`, `${unsafe}Name the addresses that check a password: outside visitors get a strict limit on tries there. To be sure, open the app's sign-in page with the browser's developer tools open (Network), sign in, and note where the form is sent. If the address shouldn't be public at all (an API with no login), say why under unsafe instead.`, acts.slice(0, 7)));
+        add(make(`routes.${name}.public.login_paths`, `${unsafe}Name the addresses that check a password: outside visitors will get a strict limit on tries there. To be sure, open the app's sign-in page with the browser's developer tools open (Network), sign in, and note where the form is sent. If the address shouldn't be public at all (an API with no login), say why under unsafe instead.`, acts.slice(0, 7)));
       }
       const privs = (pub.private_paths || []).map((p) => p.path);
       const wantPrivate = (app && app.private) || frameworks.filter((f) => f.private && envNames.some((n) => f.test.test(n))).flatMap((f) => f.private);
@@ -228,7 +228,7 @@
           [append(`Keep ${p} home-only`, at.concat("private_paths"), { path: p, reason: "The app's administration, which changes every account." })]));
       }
       if (r.max_body_size === "" && /photo|video|upload|document|file|media|book|music/.test(words)) {
-        add(make(`routes.${name}.max_body_size`, "People upload files to this app: Roostack's web server takes requests of any size unless told otherwise; set the largest the app accepts if it has a limit.", [set("Use 100MB", ["routes", name, "max_body_size"], "100MB")]));
+        add(make(`routes.${name}.max_body_size`, "People upload files to this app: Roostack's web server will take requests of any size unless told otherwise, so set the largest the app accepts if it has a limit.", [set("Use 100MB", ["routes", name, "max_body_size"], "100MB")]));
       }
     }
 
@@ -240,9 +240,9 @@
     const oidcEnv = envNames.find((n) => /OIDC|OAUTH|OPENID/i.test(n));
     const ssoHooks = (pkg.hooks || []).filter((h) => h && h.on === "sso");
     const how = {
-      command: (a) => `${a} takes its OIDC settings from its admin command: an sso part (oidc), and an on: sso hook that runs the command when single sign-on is turned on, changed or off (ROOSTACK_SSO=on or off), safe to run again.`,
-      api: (a) => `${a} takes its OIDC settings only through its API: an sso part (oidc), and an on: sso hook that calls it with a key ${a} makes at install and Roostack keeps (a from_hook secret setting, an install hook that saves it, and an action that makes it again for older installs).`,
-      json: (a) => `${a} takes its OIDC provider as a JSON value holding the client secret: an sso part (oidc) with that variable in sso.secret_env, a template using {{ json .SSO.ClientSecret }}, which Roostack makes as a Podman secret.`,
+      command: (a) => `${a} takes its OIDC settings from its admin command: an sso part (oidc), and an on: sso hook that will run the command when single sign-on is turned on, changed, or off (ROOSTACK_SSO=on or off), safe to run again.`,
+      api: (a) => `${a} takes its OIDC settings only through its API: an sso part (oidc), and an on: sso hook that will call it with a key that ${a} will make at install and Roostack will keep (a from_hook secret setting, an install hook that saves it, and an action that makes it again for older installs).`,
+      json: (a) => `${a} takes its OIDC provider as a JSON value holding the client secret: an sso part (oidc) with that variable in sso.secret_env, a template using {{ json .SSO.ClientSecret }}, which Roostack will make as a Podman secret.`,
     };
     if (isNil(sso) && firstRoute && app && how[app.sso]) {
       add(make("sso", how[app.sso](app.app)));
@@ -252,7 +252,7 @@
         // path, and the part isn't valid without one.
         add(make("sso", `${oidcEnv} suggests the app can sign people in through OIDC. With a single sign-on part (oidc, on the ${firstRoute} address), the Owner can let people use the lab's own sign-in for it: give the app's callback path, which its OIDC settings or docs name, then its client ID, discovery address and secret.`));
       } else if (app && app.unsafe) {
-        add(make("sso", `${app.app} has no sign-in of its own. Behind the lab's sign-in wall (forward_auth), everyone signs in on the lab's page before reaching it, once the Owner turns single sign-on on.`,
+        add(make("sso", `${app.app} has no sign-in of its own. Behind the lab's sign-in wall (forward_auth), everyone will sign in on the lab's page before reaching it once the Owner turns single sign-on on.`,
           [set("Put it behind the lab's sign-in", ["sso"], { forward_auth: { route: firstRoute } })]));
       }
     }
@@ -261,7 +261,7 @@
       // (secret_env), or through its sso hook.
       const hookGetsSecret = ssoHooks.some((h) => Object.values(h.secrets || {}).includes(S.lists.ssoClientSecret[0]));
       if (Object.keys(sso.secrets || {}).length === 0 && Object.keys(sso.secret_env || {}).length === 0 && !hookGetsSecret && firstContainer) {
-        add(make("sso.secrets", `An OIDC app needs its client secret, which Roostack makes: give it to the container under the variable the app reads (often OIDC_CLIENT_SECRET), or to its on: sso hook if a command or its API sets the app.`,
+        add(make("sso.secrets", `An OIDC app needs its client secret, which Roostack will make: give it to the container under the variable the app reads (often OIDC_CLIENT_SECRET), or to its on: sso hook if a command or its API sets the app.`,
           [set("Give it as OIDC_CLIENT_SECRET", ["sso", "secrets", firstContainer], { OIDC_CLIENT_SECRET: S.lists.ssoClientSecret[0] })]));
       }
       const usesSSO = [sso.env, sso.secret_env, ...ssoHooks.map((h) => ({ hook: h.env }))].some((byContainer) =>
@@ -272,19 +272,19 @@
       if (!usesSSO) {
         add(make("sso.env", "Tell the app where the lab's sign-in is, in the variables it reads while single sign-on is on: usually {{ .SSO.DiscoveryURL }} (or {{ .SSO.Issuer }}) and {{ .SSO.ClientID }}; {{ .SSO.AdminGroup }} if it can make the lab's Owners and Admins its admins, and {{ .SSO.ButtonText }} for its sign-in button."));
       }
-      if (sso.note === "") add(make("sso.note", "Say what still uses the app's own sign-in, such as its phone apps or API tokens: it's shown beside the switch."));
+      if (sso.note === "") add(make("sso.note", "Say what still uses the app's own sign-in, such as its phone apps or API tokens: it will be shown beside the switch."));
     }
 
     // Settings.
     for (const [i, s] of (pkg.settings || []).entries()) {
       if (s.from_hook && !(pkg.hooks || []).some((h) => h && h.on === "install" && h.saves === s.key)) {
-        add(make(`settings.${s.key}.from_hook`, "Make it at install too, with an install hook that saves it: a new service then needs nobody to type the app's password, as the action does."));
+        add(make(`settings.${s.key}.from_hook`, "Make it at install too, with an install hook that saves it: a new service will then need nobody to type the app's password, as the action does."));
       }
       if (s.type === "string" && /pass(word)?|secret|token|_key$/.test(s.key)) {
-        add(make(`${s.key ? "settings." + s.key : `settings[${i}]`}.type`, "It looks like a password or key: as a secret, it's kept as a Podman secret, never in a file, and the install form hides it.", [set("Make it a secret", ["settings", i, "type"], "secret")]));
+        add(make(`${s.key ? "settings." + s.key : `settings[${i}]`}.type`, "It looks like a password or key: as a secret, Roostack will keep it as a Podman secret, never in a file, and the install form will hide it.", [set("Make it a secret", ["settings", i, "type"], "secret")]));
       }
       if (s.type === "secret" && /admin.*pass|pass.*admin|initial/.test(s.key) && !s.install_only) {
-        add(make(`${s.key ? "settings." + s.key : `settings[${i}]`}.install_only`, "The first administrator's password is needed only to set the app up: install_only asks for it at install, and Roostack deletes it once setup has run.", [set("Ask for it only at install", ["settings", i, "install_only"], true)]));
+        add(make(`${s.key ? "settings." + s.key : `settings[${i}]`}.install_only`, "The first administrator's password is needed only to set the app up: install_only will ask for it at install, and Roostack will delete it once setup has run.", [set("Ask for it only at install", ["settings", i, "install_only"], true)]));
       }
     }
     return out;

@@ -6,7 +6,7 @@
 <div class="page-head">
   <div>
     <h1>Backups</h1>
-    <p class="lede">Each server backs up its own services, every night, encrypted with your recovery key.</p>
+    <p class="lede">Each server backs up its own services every night, encrypted with your recovery key.</p>
   </div>
 </div>
 {{if .Switcher}}
@@ -36,7 +36,7 @@
       {{/* Which server each is on, when there's more than one place. */}}
       {{$on := gt (len .) 1}}{{range .}}{{if or .Server .Waiting}}{{$on = true}}{{end}}{{end}}
       <p class="hint">Put a service's data back to how it was in a backup, from any of your lab's backups, onto any server.
-        Its current data is kept aside first; nothing is deleted.</p>
+        Its current data will be kept aside first, and nothing will be deleted.</p>
       <div class="table-wrap"><table class="list">
         <thead><tr><th>Service</th>{{if $on}}<th>On</th>{{end}}<th class="hide-phone">Its server's last backup</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>
@@ -64,7 +64,7 @@
         {{range .}}<li><strong>{{.HostName}}</strong>: {{if .Reachable}}{{if ge .Usage.Used 0}}{{size .Usage.Used}} of {{end}}{{size .Usage.Quota}} used
           {{- else}}<span class="dot dot-warn" aria-hidden="true"></span>can't reach it right now{{end}}
           <span class="hint">· {{with .UsedBy}}used by {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}no server backs up here yet{{end}}</span>
-          {{if not .Usage.DeleteOn.IsZero}}<br><span class="error">{{.HostName}} has stopped storing your backups; what's there is deleted on {{date .Usage.DeleteOn}}.
+          {{if not .Usage.DeleteOn.IsZero}}<br><span class="error">{{.HostName}} has stopped storing your backups; what's there will be deleted on {{date .Usage.DeleteOn}}.
             Choose somewhere else in the plan above.</span>{{end}}</li>{{end}}
       </ul>
     </section>
@@ -72,12 +72,12 @@
     {{if .RecoveryKey}}
     <section class="card" id="recovery-key">
       <div class="card-head"><h2>Recovery key</h2></div>
-      <p>Your backups are encrypted with your recovery key. One key opens every backup in your lab. If your servers are lost, you need it to get your data back.
-        Lost your copy? Roostack can show it again, after checking it's you.</p>
+      <p>Your backups are encrypted with your recovery key. One key opens every backup in your lab. If your servers are lost, you'll need it to get your data back.
+        Lost your copy? Roostack can show it again after checking it's you.</p>
       <p><a href="/backups/recovery-key">Show recovery key…</a> · <a href="/backups/recovery-key/change">Change recovery key…</a></p>
       {{with .KeyChange}}
       {{if eq .Phase "confirm"}}{{notice "warn" "A new recovery key is waiting for you to confirm you've saved it." "link=/backups/recovery-key/change" "linkText=Confirm or cancel"}}
-      {{else if eq .Phase "adding"}}{{notice "info" (printf "Changing the recovery key: %d of %d backups have the new key. The old key works until they all do." .Done (len .Repos)) "link=/backups/recovery-key/change" "linkText=Details"}}
+      {{else if eq .Phase "adding"}}{{notice "info" (printf "Changing the recovery key: %d of %d backups have the new key. The old key will work until they all do." .Done (len .Repos)) "link=/backups/recovery-key/change" "linkText=Details"}}
       {{else}}{{notice "info" (printf "The new recovery key is in use. Removing the old key: %d of %d backups done." .Done (len .Repos)) "link=/backups/recovery-key/change" "linkText=Details"}}{{end}}
       {{end}}
     </section>

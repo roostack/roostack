@@ -370,10 +370,10 @@
     const add = (msg) => errs.push(msg);
 
     if (p.schema !== S.schema) add(`schema: must be ${goQuote(S.schema)}, got ${goQuote(p.schema)}`);
-    if (!re.name.test(p.name)) add(`name: ${goQuote(p.name)} must be lowercase letters, digits and dashes, starting with a letter`);
+    if (!re.name.test(p.name)) add(`name: ${goQuote(p.name)} must be lowercase letters, digits, and dashes, starting with a letter`);
     if (p.title === "") add("title: required");
     if (p.version === "") add("version: required");
-    else if (!re.version.test(p.version)) add(`version: ${goQuote(p.version)} must be letters, digits, dots, dashes, underscores and plus signs, starting with a letter or digit`);
+    else if (!re.version.test(p.version)) add(`version: ${goQuote(p.version)} must be letters, digits, dots, dashes, underscores, and plus signs, starting with a letter or digit`);
     if (Object.keys(p.containers || {}).length === 0) add("containers: at least one container is required");
 
     validateAbout(p, add);
@@ -407,11 +407,11 @@
       (o.redirect_paths || []).forEach((rp, i) => {
         // A templated path is checked once it's rendered (generate).
         const templated = rp.includes("{{");
-        if ((templated && !rp.startsWith("/")) || (!templated && !validRedirectPath(rp))) add(`sso.oidc.redirect_paths[${i}]: ${goQuote(rp)} must be a path starting with /, with only letters, digits and - _ . : ~ /`);
+        if ((templated && !rp.startsWith("/")) || (!templated && !validRedirectPath(rp))) add(`sso.oidc.redirect_paths[${i}]: ${goQuote(rp)} must be a path starting with /, with only letters, digits, and - _ . : ~ /`);
       });
       const g = o.groups;
       if (!isNil(g)) {
-        if (!re.ssoGroupName.test(g.users) || !re.ssoGroupName.test(g.admins)) add("sso.oidc.groups: users and admins must each be a lowercase name (letters, digits, - and _)");
+        if (!re.ssoGroupName.test(g.users) || !re.ssoGroupName.test(g.admins)) add("sso.oidc.groups: users and admins must each be a lowercase name (letters, digits, -, and _)");
         else if (g.users === g.admins) add("sso.oidc.groups: users and admins must differ");
       }
       (o.redirect_uris || []).forEach((u, i) => {
@@ -423,7 +423,7 @@
       if (!has(p.routes, f.route)) add(`sso.forward_auth.route: unknown route ${goQuote(f.route)}`);
       const seen = new Set();
       (f.bypass_paths || []).forEach((bp, i) => {
-        if (!validPath(bp.path)) add(`sso.forward_auth.bypass_paths[${i}].path: ${goQuote(bp.path)} must start with / and have only letters, digits and - _ . : / (no * or trailing /)`);
+        if (!validPath(bp.path)) add(`sso.forward_auth.bypass_paths[${i}].path: ${goQuote(bp.path)} must start with / and have only letters, digits, and - _ . : / (no * or trailing /)`);
         if (goTrim(bp.reason) === "") add(`sso.forward_auth.bypass_paths[${i}].reason: say why it's safe without signing in`);
         if (seen.has(bp.path)) add(`sso.forward_auth.bypass_paths[${i}].path: ${goQuote(bp.path)} is listed twice`);
         seen.add(bp.path);
@@ -457,7 +457,7 @@
     const seen = new Set();
     (p.settings || []).forEach((s, i) => {
       let at = `settings[${i}]`;
-      if (!re.settingKey.test(s.key)) add(`${at}.key: ${goQuote(s.key)} must be lowercase letters, digits and underscores`);
+      if (!re.settingKey.test(s.key)) add(`${at}.key: ${goQuote(s.key)} must be lowercase letters, digits, and underscores`);
       else at = "settings." + s.key;
       if (seen.has(s.key)) add(`${at}: duplicate key`);
       seen.add(s.key);
@@ -465,7 +465,7 @@
       const d = s.default;
       switch (s.type) {
         case "bool":
-          if (!(d && d.k === "bool") && !isNil(d) && d.k !== "null" && !(d.k === "str" && d.v === S.words.defaultAuto)) add(`${at}.default: must be true, false or ${goQuote(S.words.defaultAuto)}`);
+          if (!(d && d.k === "bool") && !isNil(d) && d.k !== "null" && !(d.k === "str" && d.v === S.words.defaultAuto)) add(`${at}.default: must be true, false, or ${goQuote(S.words.defaultAuto)}`);
           break;
         case "string":
           if (!(d && d.k === "str") && !isNilVal(d)) add(`${at}.default: must be a string`);
@@ -489,7 +489,7 @@
       if (s.generate && s.install_only) add(`${at}: a generated secret can't be install_only (nobody would know it)`);
       if (s.from_hook) {
         if (s.type !== "secret") add(`${at}.from_hook: only for secrets`);
-        else if (s.generate || s.install_only || s.reveal || s.min_length !== 0) add(`${at}.from_hook: a hook makes it, so it takes no generate, install_only, reveal or min_length`);
+        else if (s.generate || s.install_only || s.reveal || s.min_length !== 0) add(`${at}.from_hook: a hook will make it, so it takes no generate, install_only, reveal, or min_length`);
         else if (!hasSavingAction(p, s.key)) add(`${at}.from_hook: needs an action that saves it (saves: ${s.key}), for services installed before it, or whose key was lost`);
       }
       if (s.required && s.type !== "string") add(`${at}.required: only for strings (secrets are always required)`);
@@ -518,7 +518,7 @@
           if ((h.inputs || []).length > 0) add(`${at}.inputs: only actions take inputs; install hooks use settings`);
           break;
         case "action":
-          if (!re.name.test(h.name)) add(`${at}.name: ${goQuote(h.name)} must be lowercase letters, digits and dashes`);
+          if (!re.name.test(h.name)) add(`${at}.name: ${goQuote(h.name)} must be lowercase letters, digits, and dashes`);
           if (actions.has(h.name)) add(`${at}.name: duplicate action ${goQuote(h.name)}`);
           actions.add(h.name);
           if (h.title === "") add(`${at}.title: required (the button's label)`);
@@ -528,7 +528,7 @@
           else if (h.name !== "" || (h.inputs || []).length > 0) add(`${at}: an sso hook takes no name or inputs`);
           break;
         default:
-          add(`${at}.on: must be "install", "action" or "sso"`);
+          add(`${at}.on: must be "install", "action", or "sso"`);
       }
       if (h.saves !== "") {
         const s = settingOf(p, h.saves);
@@ -543,7 +543,7 @@
         if (!re.settingKey.test(inp.key) || inputs.has(inp.key)) add(`${iat}.key: ${goQuote(inp.key)} must be a unique lowercase key`);
         inputs.add(inp.key);
         if (inp.type !== "string" && inp.type !== "secret") add(`${iat}.type: inputs are string or secret`);
-        if (!isNilVal(inp.default) || inp.generate || inp.install_only) add(`${iat}: inputs take no default, generate or install_only`);
+        if (!isNilVal(inp.default) || inp.generate || inp.install_only) add(`${iat}: inputs take no default, generate, or install_only`);
       });
       for (const k of sortedKeys(h.env)) if (!re.envName.test(k)) add(`${at}.env: invalid variable name ${goQuote(k)}`);
       for (const k of sortedKeys(h.secrets)) {
@@ -562,7 +562,7 @@
         }
         const s = settingOf(p, ref);
         if (!s || s.type !== "secret") add(`${at}.secrets.${k}: ${goQuote(ref)} is not a secret setting`);
-        else if (s.install_only && h.on !== "install") add(`${at}.secrets.${k}: ${goQuote(ref)} is install_only and is deleted after install`);
+        else if (s.install_only && h.on !== "install") add(`${at}.secrets.${k}: ${goQuote(ref)} is install_only and will be deleted after install`);
       }
     });
   }
@@ -586,7 +586,7 @@
         const storage = i < 0 ? d.path : d.path.slice(0, i), rel = i < 0 ? "" : d.path.slice(i + 1);
         if (i < 0 || rel === "" || isAbs(d.path) || d.path.includes("..")) add(`${at}.path: must be "<storage>/<file>", got ${goQuote(d.path)}`);
         else if (!has(p.storage, storage)) add(`${at}.path: unknown storage ${goQuote(storage)}`);
-        if (d.image !== "" || Object.keys(d.quadlet || {}).length > 0 || d.memory !== "") add(`${at}: sqlite runs inside the app; image, memory and quadlet are not allowed`);
+        if (d.image !== "" || Object.keys(d.quadlet || {}).length > 0 || d.memory !== "") add(`${at}: sqlite runs inside the app; image, memory, and quadlet are not allowed`);
         break;
       }
       case "postgres": case "redis": case "mysql": case "mariadb":
@@ -670,18 +670,18 @@
     if (r.client_ip_header !== "" && !validClientIPHeader(r.client_ip_header)) add(`${at}.client_ip_header: ${goQuote(r.client_ip_header)} must be an X- header name other than X-Forwarded-* (e.g. X-Real-IP)`);
     const m = r.monitor;
     if (!isNil(m)) {
-      if (m.path !== "" && m.path !== "/" && !validPath(m.path)) add(`${at}.monitor.path: ${goQuote(m.path)} must start with / and have only letters, digits and - _ . : /`);
+      if (m.path !== "" && m.path !== "/" && !validPath(m.path)) add(`${at}.monitor.path: ${goQuote(m.path)} must start with / and have only letters, digits, and - _ . : /`);
       (m.statuses || []).forEach((st, i) => { if (st < 100 || st > 599) add(`${at}.monitor.statuses[${i}]: ${st} isn't an HTTP status`); });
     }
     const seen = new Set();
     (r.public.private_paths || []).forEach((pp, i) => {
-      if (!validPath(pp.path)) add(`${at}.public.private_paths[${i}].path: ${goQuote(pp.path)} must start with / and have only letters, digits and - _ . : / (no * or trailing /)`);
+      if (!validPath(pp.path)) add(`${at}.public.private_paths[${i}].path: ${goQuote(pp.path)} must start with / and have only letters, digits, and - _ . : / (no * or trailing /)`);
       if (goTrim(pp.reason) === "") add(`${at}.public.private_paths[${i}].reason: say why it shouldn't be public`);
       if (seen.has(pp.path)) add(`${at}.public.private_paths[${i}].path: ${goQuote(pp.path)} is listed twice`);
       seen.add(pp.path);
     });
     (r.public.login_paths || []).forEach((lp, i) => {
-      if (!validPath(lp)) add(`${at}.public.login_paths[${i}]: ${goQuote(lp)} must start with / and have only letters, digits and - _ . : / (no * or trailing /)`);
+      if (!validPath(lp)) add(`${at}.public.login_paths[${i}]: ${goQuote(lp)} must start with / and have only letters, digits, and - _ . : / (no * or trailing /)`);
     });
   }
 
@@ -690,7 +690,7 @@
   function validatePortDef(p, add, name, r) {
     const at = "ports." + name;
     if (!re.name.test(name)) add(`${at}: invalid name`);
-    if (isNil(r)) { add(`${at}: title, container, port and host_port are required`); return; }
+    if (isNil(r)) { add(`${at}: title, container, port, and host_port are required`); return; }
     if (r.title === "") add(`${at}.title: required (shown in the UI)`);
     if (!has(p.containers, r.container)) add(`${at}.container: unknown container ${goQuote(r.container)}`);
     if (!validPort(r.port)) add(`${at}.port: must be 1-65535`);
@@ -709,7 +709,7 @@
       const d = has(p.databases, name) ? p.databases[name] : null;
       const hasPassword = d && ["postgres", "mysql", "mariadb"].includes(d.type);
       if (!hasPassword || (field !== "password" && field !== "url") || (field === "url" && d.type !== "postgres")) {
-        return `${goQuote(ref)}: only databases.<postgres, mysql or mariadb db>.password, or .url for postgres, is supported`;
+        return `${goQuote(ref)}: only databases.<postgres, mysql, or mariadb db>.password, or .url for postgres, is supported`;
       }
       return null;
     }
@@ -895,10 +895,10 @@
 
   function aboutPolicy(p, add) {
     const a = p.about, closed = S.words.licenceClosed;
-    if (a.maker === "") add("about.maker: say who makes the app, in a few words, so the catalog credits them.");
+    if (a.maker === "") add("about.maker: say who makes the app, in a few words, so that the catalog credits them.");
     if (a.licence === "") add(`about.licence: give the app's licence as an SPDX identifier (e.g. AGPL-3.0-only), or ${goQuote(closed)} if its code isn't published.`);
     else if (a.licence === closed) {
-      if (a.website === "") add("about.website: an app whose code isn't published needs its website, so people can see who makes it.");
+      if (a.website === "") add("about.website: an app whose code isn't published needs its website so that people can see who makes it.");
     } else {
       for (const id of ambiguousLicences(a.licence)) {
         const base = id.replace(/\+$/, "");
@@ -919,7 +919,7 @@
   function risks(p) {
     const out = [];
     const add = (m) => out.push(m);
-    const pin = "pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.";
+    const pin = "pin the image by digest (name:tag@sha256:…) so that every lab runs exactly the image that was reviewed.";
     for (const name of sortedKeys(p.containers)) {
       const c = p.containers[name], at = "containers." + name;
       if (!re.pinned.test(c.image)) add(`${at}.image: ${pin}`);
@@ -932,12 +932,12 @@
     }
     for (const name of sortedKeys(p.routes)) {
       const r = p.routes[name], at = "routes." + name;
-      if (r.exposure !== "private") add(`${at}.exposure: must be private; only the Owner makes an address public.`);
+      if (r.exposure !== "private") add(`${at}.exposure: must be private; only the Owner can make an address public.`);
       if (r.public.unsafe === "" && (r.public.login_paths || []).length === 0) add(`${at}.public: name the pages where people sign in (login_paths), or say why the address shouldn't be public at all (unsafe).`);
     }
     for (const name of sortedKeys(p.ports)) {
       const e = p.ports[name].exposure === "" ? "private" : p.ports[name].exposure;
-      if (e !== "private") add(`ports.${name}.exposure: must be private; only the Owner opens a connection to the internet.`);
+      if (e !== "private") add(`ports.${name}.exposure: must be private; only the Owner can open a connection to the internet.`);
     }
     return out;
   }
@@ -1015,7 +1015,7 @@
         if (!refused && !allowed.includes(key)) {
           const same = allowed.find((k) => k.toLowerCase() === key.toLowerCase());
           out.push(`${section}.${key} isn't allowed: ${same ? `write it as ${same}, as systemd and Quadlet only read it that way`
-            : "it isn't one of the keys Roostack has checked stay inside the service; a package that needs it asks for it to be added to the package policy"}.`);
+            : "it isn't one of the keys Roostack has checked stay inside the service; a package that needs it can ask for it to be added to the package policy"}.`);
         }
       }
     }
