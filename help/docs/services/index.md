@@ -10,12 +10,12 @@ The **Services** page lists them, with how each is doing:
 |---|---|
 | running | Working normally |
 | starting | Just started, or restarting after a change; give it a minute |
-| stopped | Not running. Roostack starts it again when it next applies changes |
+| stopped | Not running. Roostack will start it again when it next applies changes |
 | failed | It stopped with an error. It shows under **Needs attention** on the home page |
 | unknown | Roostack couldn't find out, for example because its server can't be reached |
 
 Everyone with an account can see the list and open the services. Owners
-and Admins can add, change and remove them.
+and Admins can add, change, and remove them.
 
 - [Add a service](add.md)
 - [Change a service](settings.md)

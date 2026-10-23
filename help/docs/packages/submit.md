@@ -11,7 +11,7 @@
 Packages are submitted as a pull request to the registry,
 [github.com/roostack/services](https://github.com/roostack/services):
 
-1. Fork the repository, and add your package as
+1. Fork the repository and add your package as
    `packages/<name>/<version>.yaml`, with the project's logo beside it as
    `icon.png`. Don't add `registry.yaml`: the registry's maintainers write
    it (the package's tier and who maintains it).
@@ -44,11 +44,12 @@ The pull request asks for:
 
 The registry checks every pull request: each package is validated,
 against the package policy too, and each image's registry is asked which
-processors it's built for. A maintainer then reviews the package against
-the same checklist. Once it's merged, the registry's signed list of
-packages is rebuilt, and every lab sees the package within a few hours.
+processors it's built for. A maintainer will then review the package
+against the same checklist. Once it's merged, the registry's signed list of
+packages will be rebuilt, and every lab will see the package within a few
+hours.
 
-You become the package's maintainer: when the app has a new release,
+You'll become the package's maintainer: when the app has a new release,
 especially a security fix, a new version of the package is needed. A
-package that falls behind on security releases is marked as unmaintained,
-and withdrawn if it becomes unsafe to run.
+package that falls behind on security releases will be marked as
+unmaintained and withdrawn if it becomes unsafe to run.

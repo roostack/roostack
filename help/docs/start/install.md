@@ -7,7 +7,7 @@
   quiet PC such as an Intel NUC is ideal. Roostack runs on x86-64
   computers (most PCs), and on 64-bit ARM computers that run Debian's own
   Debian 13, such as some ARM mini PCs and ARM cloud servers. Raspberry Pi
-  comes later.
+  will come later.
 - **Debian 13**, freshly installed. It's free, and made for computers that
   run for years without anyone looking after them.
 - **Enough disk space** for what you'll keep: your photos and videos need
@@ -30,15 +30,16 @@ short version.
     1. **Download** the installer from
        [debian.org/download](https://www.debian.org/download): the small
        "netinst" image for 64-bit PCs (`debian-13.…-amd64-netinst.iso`).
-       It downloads the rest while it installs, so the computer needs a
+       It will download the rest while it installs, so the computer needs a
        network connection.
     2. **Copy it onto a USB stick** of 1 GB or more, with a program such as
        [balenaEtcher](https://etcher.balena.io) or Rufus (on Windows).
-       Everything on the stick is erased. Debian's guide explains other ways:
+       Everything on the stick will be erased. Debian's guide explains other
+       ways:
        [Preparing a USB stick](https://www.debian.org/releases/trixie/amd64/ch04s03.en.html#usb-copy-isohybrid).
     3. **Start the computer from the stick.** Plug it in, turn the
        computer on, and press the key for its boot menu (often F12, F11,
-       F10 or Esc; it's shown briefly on the screen) to choose the stick.
+       F10, or Esc; it's shown briefly on the screen) to choose the stick.
        See [Booting from a USB stick](https://www.debian.org/releases/trixie/amd64/ch05s01.en.html#usb-boot-x86).
     4. **Answer the installer's questions.** Most defaults are right. The
        ones that matter for Roostack:
@@ -48,13 +49,13 @@ short version.
             by it (you can rename it in Roostack later).
 
         Root password
-        :   **Leave it empty.** Your own account then gets `sudo`, which is
-            how you'll install Roostack.
+        :   **Leave it empty.** Your own account will then get `sudo`,
+            which is how you'll install Roostack.
 
         Partitioning
         :   **Guided – use entire disk**, with **All files in one
-            partition**. This erases the disk. Keep a second disk or USB
-            drive for [backups](../backups/index.md) rather than
+            partition**. This will erase the disk. Keep a second disk or
+            USB drive for [backups](../backups/index.md) rather than
             splitting this one. See
             [Partitioning](https://www.debian.org/releases/trixie/amd64/ch06s03.en.html#di-partition).
 
@@ -69,17 +70,17 @@ short version.
     6. **Give it a fixed address.** Log in, and find its address on your
        home network with `ip -br addr` (such as `192.168.1.20`). In your
        router's settings, reserve that address for it (often called a
-       *DHCP reservation*), so it doesn't change.
+       *DHCP reservation*) so that it doesn't change.
 
 === "On a cloud server (VPS)"
 
-    Most cloud providers (such as Hetzner, DigitalOcean or OVHcloud) offer
+    Most cloud providers (such as Hetzner, DigitalOcean, or OVHcloud) offer
     Debian 13 when you create a server:
 
     1. **Create the server** in the provider's control panel, choosing
        **Debian 13** as its image (or operating system). A small x86-64
        server is enough to start with.
-    2. **Add your SSH key** when asked, so you can log in without a
+    2. **Add your SSH key** when asked so that you can log in without a
        password.
     3. **Log in** with SSH, as the provider shows (often as `root`, or as
        `debian`).
@@ -109,15 +110,15 @@ With Debian 13 installed, log in on the computer (or over SSH) and run:
 curl -fsSL https://dl.roostack.cloud/install.sh | sudo sh
 ```
 
-It adds Roostack's package source to Debian and installs Roostack from it,
-with what it needs (Podman, restic, WireGuard and a few others). This
-takes a few minutes. From then on, Roostack is updated with the rest of
-the system.
+It will add Roostack's package source to Debian and install Roostack from
+it, with what it needs (Podman, restic, WireGuard, and a few others), which
+will take a few minutes. From then on, Roostack will be updated with the
+rest of the system.
 
 - Logged in as `root` (as on some cloud servers)? Leave out `sudo`.
 - `curl: command not found`? Run `sudo apt install curl` first.
-- It stops without changing anything if the computer isn't running
-  Debian 13, or isn't a 64-bit PC or ARM computer.
+- It will stop without changing anything if the computer isn't running
+  Debian 13 or isn't a 64-bit PC or ARM computer.
 
 ??? note "What the command does, and doing it by hand"
 
@@ -127,7 +128,7 @@ the system.
     curl -fsSL https://dl.roostack.cloud/install.sh | less
     ```
 
-    It downloads nothing but Roostack's release key, and does the same as
+    It downloads nothing but Roostack's release key and does the same as
     these steps, which you can follow instead:
 
     1. **Get Roostack's release key and check it.** Packages from Roostack
@@ -178,9 +179,9 @@ the system.
         ```
 
         Copy it whole, comments included: the package brings the same
-        file, and apt asks about it if they differ. `Suites` is Roostack's
-        release series: Roostack installs new versions in it by itself, and
-        a new series waits until you accept it.
+        file, and apt will ask about it if they differ. `Suites` is
+        Roostack's release series: Roostack installs new versions in it by
+        itself, and a new series will wait until you accept it.
 
     3. **Install Roostack:**
 
@@ -195,7 +196,7 @@ the system.
 
 ## When it's installed
 
-At the end, the installer shows how to open Roostack's **setup page**:
+At the end, the installer will show how to open Roostack's **setup page**:
 
 - an address such as `https://192.168.1.20:8443`, to open in a browser on
   a computer or phone **on the same network** as the server;
@@ -210,16 +211,16 @@ sudo /usr/share/roostack/installed-message
 ```
 
 The setup page is only there until setup is finished, and for 24 hours at
-most once your account exists. Then it closes, and Roostack tells you
-where to find it from then on.
+most once your account exists. Then it will close, and Roostack will tell
+you where to find it from then on.
 
 ### Check the setup page's certificate
 
-Your browser warns that the connection isn't private (or that there's a
+Your browser will warn that the connection isn't private (or that there's a
 security risk). That's expected: the server has no name yet, so the page
 uses a certificate the server made for itself, which the browser can't
-check. **You** check it instead, so you know it's your server answering,
-not something else on the network:
+check. **You** check it instead so that you know it's your server
+answering, not something else on the network:
 
 1. In the warning, open its details and view the certificate (in Chrome
    and Edge, click the error code under the warning; in Firefox,
@@ -228,17 +229,17 @@ not something else on the network:
 2. Find its **SHA-256 fingerprint** and compare it with the one the
    installer showed: pairs of letters and digits, such as `3F:A2:…`.
    Checking the first and last few pairs is enough.
-3. If they're the same, go on to the page (**Proceed**, **Accept the
-   risk and continue** or **visit this website**). If they're not, don't
-   type anything there: use the SSH way below instead, and ask someone
-   technical to look at your network.
+3. If they're the same, go on to the page (**Proceed**,
+   **Accept the risk and continue**, or **visit this website**). If they're
+   not, don't type anything there: use the SSH way below instead, and ask
+   someone technical to look at your network.
 
 On a phone the certificate can be hard to find: a computer is easier.
 
 ### Not on the same network?
 
 On a cloud server, or if the page doesn't open, reach the setup page
-through SSH instead. From your computer (Windows, macOS or Linux), run
+through SSH instead. From your computer (Windows, macOS, or Linux), run
 this in a terminal and leave it open, with your own username and the
 server's address:
 
@@ -263,7 +264,7 @@ Then carry on with [First-run setup](first-run.md).
     Roostack's Caddy image. The services you can install aren't in it: Roostack
     gets them from the [service registry](../settings/updates.md#services-you-can-install). It depends on `podman (>= 5.4)`, `passt`, `nftables`,
     `uidmap`, `crun`, `catatonit`, `dbus-user-session`, `restic`,
-    `unattended-upgrades` and `wireguard-tools`.
+    `unattended-upgrades`, and `wireguard-tools`.
 
     **What installing sets up** (`postinst`, safe to run again with
     `dpkg-reconfigure roostack`):
@@ -271,8 +272,8 @@ Then carry on with [First-run setup](first-run.md).
     - a system user `roostack` (home `/var/lib/roostack/home`, no login
       shell) with subordinate IDs 200000–265535 for rootless containers,
       and in the `render` and `video` groups (for GPUs);
-    - lingering for `roostack`, so its containers start at boot with nobody
-      logged in;
+    - lingering for `roostack` so that its containers start at boot with
+      nobody logged in;
     - `/var/lib/roostack` and `/srv/roostack` (owned by `roostack`, mode
       0750) and a starting `lab.yaml`;
     - a drop-in, `/etc/systemd/system/roostack.service.d/user.conf`, giving
@@ -287,9 +288,9 @@ Then carry on with [First-run setup](first-run.md).
     (`/var/lib/roostack/setup-tls.crt`, its key `setup-tls.key`), and the
     log shows the address and fingerprint too
     (`journalctl -u roostack | grep "setup pages"`). When setup is finished,
-    or 24 hours after the Owner was made, the listener stops, the port
-    closes, the certificate is deleted and its sessions are signed out.
-    Compute the fingerprint yourself with
+    or 24 hours after the Owner was made, the listener will stop, the port
+    will close, the certificate will be deleted, and its sessions will be
+    signed out. Compute the fingerprint yourself with
     `openssl x509 -in /var/lib/roostack/setup-tls.crt -noout -fingerprint -sha256`.
 
     **Building the package** from the source: `make build`, then
@@ -298,7 +299,7 @@ Then carry on with [First-run setup](first-run.md).
     `…_arm64.deb`. Install a package file with
     `sudo apt install ./roostack_<version>_amd64.deb`. To try `install.sh`
     against a test repository, set `ROOSTACK_REPO` (its URL),
-    `ROOSTACK_SUITE` and `ROOSTACK_KEY_SHA256` (the SHA-256 of its
+    `ROOSTACK_SUITE`, and `ROOSTACK_KEY_SHA256` (the SHA-256 of its
     `roostack-archive-keyring.gpg`).
 
     See [Where files live](../reference/files.md) for everything Roostack

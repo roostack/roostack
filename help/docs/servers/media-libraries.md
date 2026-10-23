@@ -1,7 +1,7 @@
 # Media libraries
 
-Films, TV, music, books and photos you already have can be played by
-services like Plex, Jellyfin and Navidrome without copying them. A **media
+Films, TV, music, books, and photos you already have can be played by
+services like Plex, Jellyfin, and Navidrome without copying them. A **media
 library** is a folder with a name: a folder on a USB drive or second disk,
 a network share on a NAS, or a folder already on the server. Services can **read** a library but
 never change it, and Roostack **doesn't back libraries up**: they're things
@@ -16,16 +16,16 @@ On **Settings → Media libraries**, choose **Add a library…** for the server
 the files are on:
 
 1. Under **Where is it?**, choose **Drive** (a USB drive or second disk) or
-   **Folder on** the server (a folder under `/mnt`, `/media` or `/srv`).
-   For a drive, choose which one. Roostack mounts a drive **read-only**, so
-   nothing on it changes.
+   **Folder on** the server (a folder under `/mnt`, `/media`, or `/srv`).
+   For a drive, choose which one. Roostack will mount a drive
+   **read-only**, so nothing on it will change.
 2. A drive starts as the whole drive. To use one folder on it, or to choose a
    folder on the server, press **Choose a folder…**: open folders until
    you're in the one you want (each says how many folders and files it
    holds), then press **Use** with its name.
 3. Give the library a **name**. It's also the library's folder's name inside
-   services, in lower case (`Films` becomes `films`). Roostack suggests the
-   folder's name.
+   services, in lower case (`Films` becomes `films`). Roostack will suggest
+   the folder's name.
 4. Tick the **services that can read it**, then **Add library**.
 
 A drive that holds your backups can't be a library: keep media on another.
@@ -37,41 +37,43 @@ Under **Where is it?** on the same page, choose **Network share**:
 1. Choose the kind: **SMB** (Windows sharing, what most NASes offer) or
    **NFS**.
 2. Type the NAS's name or address (`nas.local`, `192.168.1.20`) and the
-   share's name as the NAS calls it. The whole share becomes the library, so
-   share just the folder you want.
+   share's name as the NAS calls it. The whole share will become the
+   library, so share just the folder you want.
 3. For SMB, a **username and password** on the NAS, or leave them empty for
    a share anyone on your network can open. An account that can only read is
    best.
 4. Give it a name, tick the services, then **Check and add the share**.
 
-Roostack first mounts the share for a moment to check it, and tells you if
-the NAS refused the login, has no such share, or didn't answer; nothing is
-saved until it works. The password is kept on that server only, in a file
-only the system can read, and Roostack's pages never show it again.
+Roostack will first mount the share for a moment to check it and tell you
+if the NAS refused the login, has no such share, or didn't answer; nothing
+will be saved until it works. The password will be kept on that server
+only, in a file only the system can read, and Roostack's pages will never
+show it again.
 
-If the NAS is switched off, services see an error instead of their files
-and the list says **Not answering**. Switch it back on and the share is
-mounted the next time a service looks.
+If the NAS is switched off, services will see an error instead of their
+files, and the list will say **Not answering**. Switch it back on and the
+share will be mounted the next time a service looks.
 
 ## Files only their owner can read
 
 On a drive formatted on Linux, some folders may be readable only by the
-person who owns them. Roostack looks at the files and says how many services
-couldn't open, and whose they are. You can then tick **Let services read
-them as …**: Roostack mounts the folder so that person's files show as its
-own, for that library only. Services can then read everything that person
-can, and still change nothing. Nothing on the drive changes, and removing
-the library undoes it. Files belonging to other people stay unreadable.
+person who owns them. Roostack will look at the files and say how many
+services couldn't open, and whose they are. You can then tick **Let services
+read them as …**: Roostack will mount the folder so that person's files show
+as its own, for that library only. Services can then read everything that
+person can, and still change nothing. Nothing on the drive will change, and
+removing the library will undo it. Files belonging to other people will stay
+unreadable.
 
 This is only offered for a folder on a drive, and only for an ordinary
 user's files, never the system's.
 
 ## Choosing what a service reads
 
-A service that plays media asks which libraries it can read when you install
-it: all of them are ticked unless you untick some. Change it later in the
-service's **Settings**, under **Media libraries**, or from a library's page
-(**Manage** on the list).
+A service that plays media will ask which libraries it can read when you
+install it: all of them are ticked unless you untick some. Change it later
+in the service's **Settings**, under **Media libraries**, or from a
+library's page (**Manage** on the list).
 
 Inside the service, each library is a folder of its name in the service's
 media folder (for most, `/media`): add them there as the service's own
@@ -79,14 +81,15 @@ libraries, e.g. Plex's *Films* library from `/media/films`.
 
 ## Unplugging a drive
 
-Services see an empty folder while a library's drive is unplugged, and the
-list says **Not connected**. Plug it back in and the next time a service
-looks, the library is there again: nothing needs restarting.
+Services will see an empty folder while a library's drive is unplugged, and
+the list will say **Not connected**. Plug it back in and the next time a
+service looks, the library will be there again: nothing will need
+restarting.
 
 ## Removing a library
 
-On the library's page, **Remove library**. Services stop seeing it; the
-files stay where they are.
+On the library's page, **Remove library**. Services will stop seeing it;
+the files will stay where they are.
 
 ## Where things are
 

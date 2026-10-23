@@ -18,8 +18,8 @@ Some settings belong to Roostack. The service's page sums them up under
 **Settings**; choose **Edit settings** to change them:
 
 Web address
-:   Changing it moves the service to the new address. Links to the old one
-    stop working.
+:   Changing it will move the service to the new address, and links to the
+    old one will stop working.
 
 The service's own options
 :   Whatever the service lets Roostack set, such as whether anyone can sign
@@ -31,11 +31,12 @@ The media libraries it reads
 How it updates
 :   See [Updating by itself](#updating-by-itself) below.
 
-One **Save** keeps all of it. It restarts the service, so it's unavailable
-for a moment, only when its address, options or libraries changed.
+One **Save** will keep all of it. It will restart the service, making it
+unavailable for a moment, only when its address, options, or libraries
+changed.
 
 Below is its **Name**: what it's called
-on your pages. Renaming it doesn't change its name in folders, containers
+on your pages. Renaming it won't change its name in folders, containers,
 and backups.
 
 ## Tokens and passwords Roostack made
@@ -48,39 +49,39 @@ recorded in the audit log.
 
 Some services offer **actions**: things you'd otherwise need a command line
 for, such as resetting someone's password in Forgejo. Open the action, fill
-in what it asks, and choose its button. Its result shows underneath.
+in what it asks, and choose its button. Its result will show underneath.
 
 ## Extra connections
 
 A few services use connections other than the web, such as git over SSH in
 Forgejo. These are off until you turn them on under **Extra connections**:
-tick it, choose the port on the server, and **Save**. The page then shows
-the address to connect to. Extra connections are open to your home network
-only.
+tick it, choose the port on the server, and **Save**. The page will then
+show the address to connect to. Extra connections are open to your home
+network only.
 
 ## Updates
 
-When the service registry has a newer version of a service, its page says
-so, with what kind of update it is (a fix release, a feature release, a new
-major version, or an improved Roostack package for the same version). Some
-updates come with **notes**: things to know before updating, such as a step
-the app takes afterwards. Read them first. Services with an update are also
-listed under **Needs attention**, and marked **Update available** on
+When the service registry has a newer version of a service, its page will
+say so, with what kind of update it is (a fix release, a feature release, a
+new major version, or an improved Roostack package for the same version).
+Some updates come with **notes**: things to know before updating, such as a
+step the app takes afterwards. Read them first. Services with an update are
+also listed under **Needs attention** and marked **Update available** on
 **Services**.
 
-Choose **Update now** to update it. Roostack:
+Choose **Update now** to update it. Roostack will:
 
-1. downloads the new version while the old one keeps running;
-2. backs up the service's server (only what changed since the last backup is
-   uploaded);
-3. switches the service to the new version, which makes it unavailable for
-   a minute or so;
-4. checks it works: it must run for a minute without stopping, and answer
-   its own health checks.
+1. download the new version while the old one keeps running;
+2. back up the service's server (only what's changed since the last backup
+   will be uploaded);
+3. switch the service to the new version, which will make it unavailable
+   for a minute or so;
+4. check it works: it must run for a minute without stopping and answer its
+   own health checks.
 
-If the new version doesn't work, Roostack goes back to the version you had,
-and says so on the page and under **Needs attention**. It doesn't try that
-version again by itself; **Try again** does. The app may already have
+If the new version doesn't work, Roostack will go back to the version you
+had and say so on the page and under **Needs attention**. It won't try that
+version again by itself; **Try again** will. The app may already have
 changed its data for the new version: if the service isn't working as it
 did, the Owner can put back the backup taken just before the update.
 
@@ -88,16 +89,16 @@ Without backups set up, you can still update, but there's no copy of the
 service's data to go back to.
 
 If your servers have different kinds of processor, the newest version may
-have no build for the one this service's server has. The page then says so
-instead of offering it; it's offered once the service registry has a build
-for that processor.
+have no build for the one this service's server has. The page will then say
+so instead of offering it; it will be offered once the service registry has
+a build for that processor.
 
 A service installed from **your own** package updates when the Owner adds a
 newer version of that package under **Add a service → Add your own**; it
 never takes a version from the service registry. If the newer version asks
 for things the one it runs didn't (such as an image that isn't pinned), the
-page lists them, and only the Owner can update it, after ticking that they've
-read them. Such an update never happens by itself.
+page will list them, and only the Owner can update it, after ticking that
+they've read them. Such an update never happens by itself.
 
 ### Updating by itself
 
@@ -105,12 +106,12 @@ On the service's page, choose **Edit settings**, then under **Updates**
 choose how it updates, and **Save**:
 
 Tell me
-:   The default. Updates are shown here and under **Needs attention**, and
-    you apply them.
+:   The default. Updates will be shown here and under **Needs attention**,
+    and you'll apply them.
 
 Fixes
-:   Fix releases go on by themselves, and improved Roostack packages for the
-    same version.
+:   Fix releases and improved Roostack packages for the same version will go
+    on by themselves.
 
 Fixes and features
 :   Not new major versions, which can change how the app works.
@@ -122,8 +123,8 @@ Automatic updates happen at night, after the server's backup. They wait for
 you when backups aren't set up, when an update has notes to read, or when
 that version didn't work before. If Roostack stopped a service because the
 registry says its version is dangerous (below), and a fix is out that the
-service's choice would take, it updates straight away instead of waiting for
-the night.
+service's choice would take, it will update straight away instead of waiting
+for the night.
 
 ??? note "For technical users"
 
@@ -132,48 +133,49 @@ the night.
     before `-roostack.`), read as major.minor.patch; a version that doesn't
     look like that only updates automatically on **Every update**. While it
     switches, the update holds the server's maintenance queue, so no backup,
-    OS update or restart starts in the middle. The check is every unit
+    OS update, or restart starts in the middle. The check is every unit
     active, `health.cmd` passing inside its container, and `health.http`
     answering below 500 through the route's port, with no restarts, for a
     minute within five. Going back uses the lab's copy of the previous
     package and the image Podman still has; data isn't rolled back. The
     service's instance file (`/var/lib/roostack/services/<name>.yaml`) holds
-    the version and the choice (`updates: notify`, `patch`, `minor` or
+    the version and the choice (`updates: notify`, `patch`, `minor`, or
     `all`), and the full log is in **Settings → History**.
 
 ## When the registry withdraws a version
 
 The service registry can withdraw a version of a service that turns out to
 be broken or unsafe, saying why, often with a link to read more. Roostack
-then says so on the service's page and under **Needs attention**. There are
-three kinds:
+will then say so on the service's page and under **Needs attention**. There
+are three kinds:
 
 Notice
 :   Something to know, such as a step to take after updating. The service
-    carries on as before.
+    will carry on as before.
 
 Warning
-:   The version shouldn't be used. The service keeps running, but that
+:   The version shouldn't be used. The service will keep running, but that
     version can't be installed any more. Update it when a fixed version is
-    out (the notice then has **Update now**), or remove it.
+    out (the notice will then have **Update now**), or remove it.
 
 Stop
 :   The version is dangerous: malicious, or being attacked with no fix yet.
-    Roostack stops the service and turns its addresses off, and says so on
-    its page, under **Needs attention** and by email. Everything it stores
-    is kept, and so are its backups. Wait for a fixed version and update
-    it (the notice then has **Update now**, and it may update by itself:
-    see [Updating by itself](#updating-by-itself)), or remove it.
+    Roostack will stop the service, turn its addresses off, and say so on
+    its page, under **Needs attention**, and by email. Everything it stores
+    will be kept, and so will its backups. Wait for a fixed version and
+    update it (the notice will then have **Update now**, and it may update
+    by itself: see [Updating by itself](#updating-by-itself)), or remove
+    it.
 
 If you understand the risk and need the service now, the Owner can open
 **Start it anyway…** on its page. **Make it private first** is ticked when
-the service is public: it keeps out whoever is attacking that version, since
-only devices at home (or on a VPN) can reach it. Roostack won't
-stop that version again, but keeps showing it under **Needs attention**
-until you update or remove it.
+the service is public: it will keep out whoever is attacking that version,
+since only devices at home (or on a VPN) can reach it. Roostack won't stop
+that version again, but will keep showing it under **Needs attention** until
+you update or remove it.
 
 The Owner can turn stops off in [Settings → Updates](../settings/updates.md#services-you-can-install):
-a stop is then shown as a warning.
+a stop will then be shown as a warning.
 
 Roostack never removes a service or deletes its data because of the
 registry.
@@ -187,11 +189,12 @@ registry.
     anyway** saves `started_anyway: <version>` in the service's instance
     file, and updating to another version ends it. When it's stopped, its
     containers' unit files and its Caddy site are removed. Its folders,
-    secrets and Podman network stay. A database on Roostack's own image
-    (Postgres, MySQL, MariaDB or Redis, when the package names no image) keeps running, so
-    backups carry on as before. A database on an image the package sets
-    runs until one more backup of the server has finished (Roostack starts
-    one straight away), then stops too. Later backups keep that last dump.
+    secrets, and Podman network stay. A database on Roostack's own image
+    (Postgres, MySQL, MariaDB, or Redis, when the package names no image)
+    keeps running, so backups carry on as before. A database on an image the
+    package sets runs until one more backup of the server has finished
+    (Roostack starts one straight away), then stops too. Later backups keep
+    that last dump.
 
 ## Moving it to another server
 
@@ -210,5 +213,5 @@ one: see [Move a service](../servers/move.md).
 
     **Actions** are package `action` hooks, run with `podman exec` in the
     service's container. Their inputs reach the command only as
-    environment variables on standard input, and aren't written to the
-    audit log (only the action's name and whether it worked).
+    environment variables on standard input and aren't written to the audit
+    log (only the action's name and whether it worked).

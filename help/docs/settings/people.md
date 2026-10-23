@@ -10,7 +10,7 @@ accounts.
 | | Owner | Admin | Member |
 |---|:-:|:-:|:-:|
 | See services and open them | ✓ | ✓ | ✓ |
-| Add, change and remove services; back up now | ✓ | ✓ | |
+| Add, change, and remove services; back up now | ✓ | ✓ | |
 | Settings, people, servers, restores, updates | ✓ | | |
 
 Keep at least one **Owner**: Roostack won't let you remove or demote the
@@ -20,24 +20,24 @@ last one. Give someone **Admin** if they help look after the services, and
 ## Adding someone
 
 On **Settings → People**, choose **Add someone…**, then type their username
-and choose what they can do (Member, Admin or Owner). Roostack
-shows a **temporary password**, once. Give it to them in person or in a
-message; they choose their own when they first log in.
+and choose what they can do (Member, Admin, or Owner). Roostack will show a
+**temporary password**, once. Give it to them in person or in a message;
+they'll choose their own when they first log in.
 
 ## Changing someone
 
 Under **Change…** next to a person:
 
 Save role
-:   Changes what they can do, straight away.
+:   It will change what they can do straight away.
 
 Give a new temporary password
-:   For a forgotten password. They're logged out everywhere, and choose a
+:   For a forgotten password. They'll be logged out everywhere and choose a
     new one when they log in.
 
 Turn off two-factor (lost phone)
-:   For a lost or replaced phone. They're logged out everywhere; an Owner
-    sets two-factor up again at their next login.
+:   For a lost or replaced phone. They'll be logged out everywhere; an
+    Owner will set two-factor up again at their next login.
 
 Remove
 :   They can't log in any more.
@@ -45,9 +45,9 @@ Remove
 ## Names, emails and groups
 
 Under **Change…**, a person's **full name** and **email address**: apps
-with single sign-on call them by the name, and find or make their account
-by the email. Their **groups** say which services with single sign-on they
-can use.
+with single sign-on call them by the name and find or make their account by
+the email. Their **groups** say which services with single sign-on they can
+use.
 
 **Groups**, such as Family or Friends, are made on the same page. A
 group's **Change…** sets who's in it and the services it can use.
@@ -55,14 +55,14 @@ group's **Change…** sets who's in it and the services it can use.
 ## Two-factor authentication
 
 Two-factor asks for a six-digit code from an app on your phone as well as
-your password. **Owners must use it**, because they can change everything.
+your password. **Owners must use it** because they can change everything.
 Admins and Members are reminded to turn it on, under **Account**.
 
 ## Your own account
 
 Under **Account**, everyone can:
 
-- **change their password** (this logs out their other devices);
+- **change their password** (this will log out their other devices);
 - **turn on two-factor**;
 - choose **light or dark**, and a **colour theme**.
 
@@ -88,12 +88,13 @@ an Owner chooses otherwise under **Signing in** at the bottom of
 sending a form counts as activity; pages refreshing themselves don't, so
 a screen left open goes back to the login page when the time's up.
 
-On the login page, **Keep me signed in** keeps that browser signed in for
-30 days, without the time limit. Use it only on a device that's yours
+On the login page, **Keep me signed in** will keep that browser signed in
+for 30 days, without the time limit. Use it only on a device that's yours
 alone. An Owner can stop offering it, under **Signing in**.
 
 Once a service uses [single sign-on](../services/single-sign-on.md),
-Roostack's pages sign in through the lab's sign-in page instead. There,
-Members stay signed in for as long as their sign-in lasts; Owners and
-Admins still have the time limit, and then enter their two-factor code to
-carry on ([Roostack's own pages](../services/single-sign-on.md#roostacks-own-pages)).
+Roostack's pages will sign in through the lab's sign-in page instead.
+There, Members stay signed in for as long as their sign-in lasts; Owners
+and Admins still have the time limit and will then enter their two-factor
+code to carry on
+([Roostack's own pages](../services/single-sign-on.md#roostacks-own-pages)).

@@ -16,9 +16,9 @@ an invite…**:
 
 1. Enter **whose lab** it is, and **how much space** they get (in GB).
 2. Choose the **address their lab reaches your server at**: best, **a name
-   from your domain** (`link.<your domain>:51821`), which Roostack keeps
-   pointing at your home's public address; or **the public address**, or
-   **another address**.
+   from your
+   domain** (`link.<your domain>:51821`), which Roostack will keep pointing at your home's public address; or **the
+   public address**, or **another address**.
 3. Choose **Make an invite**.
 4. Send them the invite privately. It works once, for 24 hours.
 
@@ -27,8 +27,8 @@ Your router must let them in: add a port forwarding rule for **UDP** port
 [Add a server](add.md#a-server-outside-your-home-port-forwarding), with
 51821 instead of 51820).
 
-If you have several servers, **Offered by** chooses which one's disk keeps
-their backups.
+If you have several servers, **Offered by** chooses which one's disk will
+keep their backups.
 
 The page lists each lab storing with you: how much it uses, when it last
 connected, and a way to change its space.
@@ -42,8 +42,9 @@ Ask them for an invite. Then, on your **Backups** page, add a backup, choose
 ## Stopping
 
 Choose **Remove** next to a lab. They can't add backups from then on.
-Roostack tells their lab, and deletes their backups here after **30 days**,
-in case it was a mistake, or sooner if you choose **Delete now**.
+Roostack will tell their lab and delete their backups here after
+**30 days**, in case it was a mistake, or sooner if you choose
+**Delete now**.
 
 ??? note "For technical users"
 

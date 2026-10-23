@@ -1,31 +1,31 @@
 # Where backups can go
 
-When you add a backup to [your plan](index.md), Roostack asks where it
+When you add a backup to [your plan](index.md), Roostack will ask where it
 should go. There are five kinds of place.
 
 ## A drive
 
 A **USB drive**, a **second disk** inside the server, or a **network share**
 (such as a folder on a NAS). Roostack lists the drives it can see, best
-first, and the list updates by itself: plug a drive in and it appears
+first, and the list updates by itself: plug a drive in and it will appear
 within a few seconds.
 
-- A drive that already has files on it can be used as it is. Roostack
-  keeps its backups in a folder named `roostack` on it, and leaves
-  everything else alone.
+- A drive that already has files on it can be used as it is. Roostack keeps
+  its backups in a folder named `roostack` on it and leaves everything else
+  alone.
 - A **new drive**, or one with nothing Roostack can use on it, can be
-  **erased and prepared**. Roostack names the drive, its model and size,
-  and asks you to confirm first: everything on it is deleted. Roostack
-  never erases a drive it could use as it is (one with files on it, say),
-  nor one that's in use. To start such a drive afresh, erase it on another
-  computer first.
+  **erased and prepared**. Roostack will name the drive, its model and
+  size, and ask you to confirm first: everything on it will be deleted.
+  Roostack never erases a drive it could use as it is (one with files on
+  it, say), nor one that's in use. To start such a drive afresh, erase it
+  on another computer first.
 - **This server's own disk** is at the end of the list. It helps if you
   delete something by mistake, but not if the disk fails, so it's never
   enough on its own.
 
-Once chosen, the drive is Roostack's backup drive for good: it's used
+Once chosen, the drive is Roostack's backup drive for good: it will be used
 again after a restart, and if you unplug it and plug it back in. If it's
-not connected when a backup is due, the backup fails with a message
+not connected when a backup is due, the backup will fail with a message
 saying so, rather than filling up the server's own disk.
 
 !!! tip "At home and quick"
@@ -45,15 +45,15 @@ company's website:
   in it;
 - an **access key** and **secret key**.
 
-Roostack remembers the account, so any of your servers can back up to it
-later, each into its own folder. It's a good **second backup**: it's away
-from home, and it's a different kind of storage from a disk.
+Roostack will remember the account, so any of your servers can back up to
+it later, each into its own folder. It's a good **second backup**: it's
+away from home, and it's a different kind of storage from a disk.
 
 ## Roostack Cloud
 
 If your lab is [linked to Roostack Cloud](../settings/cloud.md), you can
 back up to Roostack Cloud's own storage, in Australia. There's nothing to
-set up: no account, keys or address. The chooser, and then the backup in
+set up: no account, keys, or address. The chooser, and then the backup in
 the plan, show how much of your plan's space is used (as Roostack Cloud
 measured it, once a day). If your account has several labs, they share
 the space: each shows what they take together, and its own share
@@ -68,10 +68,10 @@ backup**.
 
 ## A friend's lab
 
-Space on a friend's (or a relative's) Roostack. They make an **invite
-code** on their Roostack, under **Settings → Storage for others**, and send
-it to you; you paste it in. Your backups are encrypted before they leave,
-so they can't read them.
+Space on a friend's (or a relative's) Roostack. They'll make an
+**invite code** on their Roostack, under **Settings → Storage for others**,
+and send it to you to paste in. Your backups are encrypted before they
+leave, so they can't read them.
 
 It's away from home too, and costs nothing if you do the same for them.
 See [Storage for other labs](../servers/storage-for-others.md).
@@ -87,14 +87,15 @@ where each server is.
 
     **Drives** are mounted by filesystem UUID in `/etc/fstab` (marked
     `# Added by Roostack`), with `nofail` and `x-systemd.automount`, under
-    `/mnt/roostack-<name>`. exFAT, FAT and NTFS drives are mounted so the
+    `/mnt/roostack-<name>`. exFAT, FAT, and NTFS drives are mounted so the
     `roostack` user owns their files. Erasing makes one GPT partition with
-    an ext4 filesystem labelled `ROOSTACK`. The system disk, and LVM, RAID
+    an ext4 filesystem labelled `ROOSTACK`. The system disk, and LVM, RAID,
     and encrypted disks, are never offered. Only a disk with no filesystem
-    backups could use, nothing mounted and nothing in `/etc/fstab` can be
-    erased. Instead of a drive you can type a folder under `/mnt`, `/media`
-    or `/srv` (**A folder instead**) that exists already: Roostack makes a
-    `roostack` folder inside it, owned by the `roostack` user.
+    backups could use, nothing mounted, and nothing in `/etc/fstab` can be
+    erased. Instead of a drive you can type a folder under `/mnt`,
+    `/media`, or `/srv` (**A folder instead**) that exists already:
+    Roostack makes a `roostack` folder inside it, owned by the `roostack`
+    user.
 
     **Online storage** is any S3-compatible service; each server's
     repository is `s3:<endpoint>/<bucket>/<folder>/roostack/<lab ID>/<server ID>`. For Backblaze B2, Roostack
@@ -103,9 +104,9 @@ where each server is.
 
     **Roostack Cloud** gives each server a folder of its own in an
     S3-compatible bucket. No server keeps a storage password: before each
-    backup it gets keys that last 12 hours, open only its own folder and
-    can only add backups (the controller asks Roostack Cloud; other
-    servers ask the controller). They're kept in
+    backup it gets keys that last 12 hours, open only its own folder, and
+    can only add backups (the controller asks Roostack Cloud; other servers
+    ask the controller). They're kept in
     `/var/lib/roostack/cloud-backup-keys.json`. The controller removes old
     backups weekly with the recovery key, using keys that can delete within
     your lab's folders only, and Roostack Cloud keeps deleted files for 90

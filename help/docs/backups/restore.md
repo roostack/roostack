@@ -13,23 +13,23 @@ whole service back to how it was in a backup. Only the Owner can do this.
    place, **Read it from** lets you choose a copy, for when the main backup
    can't be read.
 3. With more than one server, you can also choose which server it goes
-   onto: where it runs now, or another (it then moves there).
+   onto: where it runs now, or another (it will then move there).
 4. Read the warning: anything changed in the service since that backup
    will be undone.
-5. Tick **I understand**, and choose **Restore**.
+5. Tick **I understand** and choose **Restore**.
 
-The service stops for a few minutes while its data is put back, then starts
-again. The page shows each step as it happens.
+The service will stop for a few minutes while its data is put back, then
+start again, and the page will show each step as it happens.
 
 ## Your current data is kept
 
-Restoring never deletes anything. The data the service had before is moved
-aside, and listed on the restore page under **Kept copies**. Once you're
-happy with the restore, **Delete** the copy there to free the space.
+Restoring never deletes anything. The data the service had before will be
+moved aside and listed on the restore page under **Kept copies**. Once
+you're happy with the restore, **Delete** the copy there to free the space.
 
-If a restore can't finish (the backup can't be read, say), Roostack puts
-your current data back and starts the service again, and says so. If it
-can't even do that, it says where your data is, and leaves the service
+If a restore can't finish (the backup can't be read, say), Roostack will
+put your current data back, start the service again, and say so. If it
+can't even do that, it will say where your data is and leave the service
 stopped rather than start it on half a restore.
 
 ## Backups from anywhere in your lab
@@ -38,7 +38,7 @@ The list has every backup of the service your lab can read: those of the
 server it runs on, its extra copies, and those of any server it ran on
 before. So a service can come back on any server, even if the server that
 backed it up has stopped working. If some backups couldn't be read (a
-server that's switched off, say), the page says so under the list.
+server that's switched off, say), the page will say so under the list.
 
 ## When there's nothing to restore
 

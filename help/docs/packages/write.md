@@ -31,22 +31,22 @@ The **package editor** writes a package with you, in your browser:
   Write one in the package editor**.
 
 Start from the app's **Docker Compose file** (and its `.env`, if it has
-one), a package file, or one of the three above. From a Compose file,
-the editor converts what fits (images, ports, folders, environment,
-databases, health checks, what starts after what) and lists what it
-didn't, and why: what Roostack doesn't allow (the Docker socket, a
-privileged container), what Roostack does itself (restarts, the
-database's own password), and what's over to you (the image's digest,
-memory, where people sign in).
+one), a package file, or one of the three above. From a Compose file, the
+editor will convert what fits (images, ports, folders, environment,
+databases, health checks, what starts after what) and list what it didn't,
+and why: what Roostack doesn't allow (the Docker socket, a privileged
+container), what Roostack does itself (restarts, the database's own
+password), and what's over to you (the image's digest, memory, where people
+sign in).
 
 The form and the YAML sit side by side and follow each other; your
 comments stay. Each field has its help, with suggestions you can take
 in one click (a licence's `-only` or `-or-later`, sign-in paths, which
 folders are backed up). **Problems** lists what `roostack validate`
 would refuse (validation errors), what the service registry's package
-policy would refuse (registry errors) and the suggestions; each opens
-its field and its line. Tick **For my own lab only** for a package you'll
-only add to your own lab: registry errors are then allowed, as with
+policy would refuse (registry errors), and the suggestions; each opens its
+field and its line. Tick **For my own lab only** for a package you'll only
+add to your own lab: registry errors will then be allowed, as with
 `roostack validate -local`.
 
 The editor checks a package as `roostack validate` does, with one
@@ -64,8 +64,8 @@ description: What it does, in one line, for the list of services
 version: 2.4.1-roostack.1
 ```
 
-`name` is lowercase letters, digits and dashes. It names the service's
-folders, containers and backups, so it can't change once people use it.
+`name` is lowercase letters, digits, and dashes. It names the service's
+folders, containers, and backups, so it can't change once people use it.
 
 `version` is the app's own version, then `-roostack.` and the package's
 revision, starting at 1. A better package for the same app version is a
@@ -135,8 +135,8 @@ Give each container what the app's own documentation asks for:
   `secret` setting, at `databases.<name>.password`, or at
   `databases.<name>.url` for an app that takes its database only as one
   URL with the password in it (`postgresql://user:password@host:5432/name`,
-  as apps using Prisma do). Roostack keeps them as Podman secrets, never
-  in a file.
+  as apps using Prisma do). Roostack will keep them as Podman secrets,
+  never in a file.
 - `mounts`: the app's data folders, each one a `storage` entry (below).
 - `health`: how Roostack tells it's working, such as
   `http: { port: 8080, path: /health }`.
@@ -165,15 +165,15 @@ storage:
     class: replaceable
 ```
 
-`critical` is backed up; `replaceable` isn't, because the app makes it
+`critical` will be backed up; `replaceable` won't, because the app makes it
 again (caches, thumbnails, converted files). Getting this right is the most
 important part of a package: anything people would miss must be
 `critical`. `title` says what it holds, in a few words for people: the
 summary before installing reads "Your notes and attachments, and its
 database: backed up". Large media goes on `location: media`.
 
-For a database, don't run your own container: declare it, and Roostack
-runs it, makes its password, and backs it up consistently.
+For a database, don't run your own container: declare it, and Roostack will
+run it, make its password, and back it up consistently.
 
 ```yaml
 databases:
@@ -181,7 +181,7 @@ databases:
     type: postgres
 ```
 
-`postgres`, `mysql`, `mariadb` and `redis` run in containers of their own;
+`postgres`, `mysql`, `mariadb`, and `redis` run in containers of their own;
 the app finds them with `{{ .Databases.main.Host }}` and the rest
 (`.Port`, `.User`, `.Name`), and gets the password from
 `databases.main.password` in its `secrets`. For SQLite, give the file's
@@ -206,23 +206,23 @@ routes:
           reason: The app's admin pages, which change every account.
 ```
 
-`subdomain` is the default; people can change it. Every route starts
-`private`: only the Owner makes things public. `public` says what's safe
+`subdomain` is the default; people can change it. Every route will start
+`private`: only the Owner can make things public. `public` says what's safe
 once they do: `login_paths` are where people sign in (outside visitors get
-a strict limit on tries there), and `private_paths` stay home-only, each
-with the reason shown to the Owner. An address that shouldn't be public at
-all (an API with no login) says why, with `unsafe`.
+a strict limit on tries there), and `private_paths` will stay home-only,
+each with the reason shown to the Owner. An address that shouldn't be
+public at all (an API with no login) says why, with `unsafe`.
 
 ## Settings, setup and links
 
 `settings` are what people choose when they install, and later on the
-service's page: booleans, strings, numbers and secrets. A setting can turn
+service's page: booleans, strings, numbers, and secrets. A setting can turn
 a container on or off with `when:`, as Immich's smart search does. A
-`secret` with `generate: true` is made by Roostack; one with
-`install_only: true` is asked for at install and deleted once setup has
-run (the first administrator's password, say). A setting with an
-`install_value` takes that value until the install hooks succeed, then the
-one chosen: for an app that makes its first account only by signing up,
+`secret` with `generate: true` will be made by Roostack; one with
+`install_only: true` will be asked for at install and deleted once setup
+has run (the first administrator's password, say). A setting with an
+`install_value` will take that value until the install hooks succeed, then
+the one chosen: for an app that makes its first account only by signing up,
 sign-ups can be on while the hook signs the Owner up, and off afterwards
 (`default: false`, `install_value: true`).
 
@@ -231,7 +231,7 @@ first start, and `on: action` as a button on the service's page. Whatever
 people type reaches the command only as an environment variable, and an
 install hook must be safe to run twice. Installed again over its data from
 before, a service may be installed with its `install_only` settings left
-empty, and its install hooks don't run then. `links` point to the app's own
+empty, and its install hooks won't run then. `links` point to the app's own
 settings pages.
 
 ## Single sign-on
@@ -260,7 +260,7 @@ takes its OIDC settings decides what the part needs:
 - **No sign-in of its own** (Stirling-PDF): `forward_auth`, a wall in
   front of it.
 
-The registry's Forgejo, Immich and Paperless-ngx packages show each.
+The registry's Forgejo, Immich, and Paperless-ngx packages show each.
 [The package reference](../reference/packages.md) has every field.
 
 ## Check it
@@ -275,8 +275,8 @@ roostack validate myapp/2.4.1-roostack.1.yaml
 defaults and their opposites, checks the logo beside the file, and checks
 the [package policy](../reference/packages.md#what-a-package-may-not-do)
 every registry package follows. For a package only for your own lab, add
-`-local`: what breaks the policy is then a warning, the same list Roostack
-shows before installing it.
+`-local`: what breaks the policy will then be a warning, the same list
+Roostack shows before installing it.
 
 To see exactly what Roostack would generate:
 
@@ -284,7 +284,7 @@ To see exactly what Roostack would generate:
 roostack render -package myapp/2.4.1-roostack.1.yaml
 ```
 
-It prints the Quadlet files, the web server config, the secrets, folders
+It prints the Quadlet files, the web server config, the secrets, folders,
 and backup plan for the package with its default settings, in an example
 lab at `lab.example.com`, and changes nothing. The registry shows the same
 for every pull request. To try other settings, describe the service in a

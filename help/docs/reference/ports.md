@@ -44,7 +44,8 @@ over the lab's network they reach nothing else.
 
     The firewall is the table `inet roostack`, generated from the lab and
     its services, applied by `roostack-agent` with `nft -f` (checked with
-    `nft -c` first) and saved to `/etc/roostack/firewall.nft`. See it with:
+    `nft -c` first), and saved to `/etc/roostack/firewall.nft`. See it
+    with:
 
     ```bash
     sudo nft list table inet roostack
@@ -52,9 +53,9 @@ over the lab's network they reach nothing else.
 
     "Your home network" means these ranges, for both the firewall and
     Caddy's private check: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
-    `100.64.0.0/10` (also used by VPNs such as Tailscale), `fc00::/7` and
+    `100.64.0.0/10` (also used by VPNs such as Tailscale), `fc00::/7`, and
     `fe80::/10`, **except** your lab's servers on its network
-    (`100.96.0.0/17`), other labs storing backups here (`100.100.0.0/14`)
+    (`100.96.0.0/17`), other labs storing backups here (`100.100.0.0/14`),
     and Roostack Cloud's relay (`100.81.0.0/16`). `100.96.128.0/17` is kept
     for your own devices joining the lab's network, still to be built, and
     counts as home. The firewall settles Roostack's own interfaces first:
