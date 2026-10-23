@@ -1,6 +1,6 @@
 # The service registry's keys
 
-How the keys that sign the service registry are made, kept, used and replaced
+How the keys that sign the service registry are made, kept, used, and replaced
 (SPEC.md §8.3.3). Written 2026-10-14, before the ceremony; follow it when
 you're ready, and record the date and the public keys at the end.
 
@@ -77,10 +77,10 @@ the old signing key is useless to anyone holding it.
    secret `REGISTRY_SIGNING_KEY` with the whole contents of `signing.key`
    (the `ed25519-private:…` line). Add an environment `check` with no
    secrets, for pull requests. Then delete `signing.key`: CI holds the only
-   copy, and losing it just means steps 3, 4 and 6 again.
+   copy, and losing it just means steps 3, 4, and 6 again.
 
 7. **Commit the statement.** Copy `keys/keys.json` and `keys/keys.json.sig`
-   into the registry repository's `keys/` folder, and commit them.
+   into the registry repository's `keys/` folder and commit them.
 
 8. **Build the root key into Roostack.** In this repository, put the root
    public key into `rootKeys` in `internal/registry/rootkeys.go`, with a
@@ -105,7 +105,7 @@ the old signing key is useless to anyone holding it.
     ```
 
     It fetches the index as a lab does and prints its serial, the key
-    statement's serial and the packages it checked.
+    statement's serial, and the packages it checked.
 
 11. **Record it** at the end of this file: the date, both public keys, and
     the key statement's serial.
@@ -121,8 +121,8 @@ compromised:
    no leak, name both for a day, then sign again with only the new one.)
 3. Online: replace the `REGISTRY_SIGNING_KEY` secret, delete `signing.key`,
    commit the new `keys/` files, and let the Publish workflow run.
-4. Labs pick up the new statement within a few hours (they check every 4
-   hours); from then on, they refuse the old key.
+4. Labs will pick up the new statement within a few hours (they check
+   every 4 hours); from then on, they'll refuse the old key.
 
 ## Replacing the root key
 

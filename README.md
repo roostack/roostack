@@ -2,7 +2,7 @@
 
 *Pronounced "Roost Stack".*
 
-Roostack lets you self-host useful services (photos, passwords, git, media, and more) on your own hardware, with one-click installs, automatic HTTPS, backups and updates, managed from a simple web interface.
+Roostack lets you self-host useful services (photos, passwords, git, media, and more) on your own hardware, with one-click installs, automatic HTTPS, backups, and updates, managed from a simple web interface.
 
 > **Status: early development.** Nothing here is ready for real use yet. See [TASKS.md](TASKS.md) for progress and [SPEC.md](SPEC.md) for the design decisions and why they were made.
 
@@ -11,7 +11,7 @@ Roostack lets you self-host useful services (photos, passwords, git, media, and 
 - Every service runs in **rootless Podman containers**, managed by **systemd** through [Quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) files.
 - Roostack keeps your **desired state** (which services, which settings) as readable YAML files, generates the container and proxy config from it, and makes the host match.
 - **Caddy** serves every service on its own subdomain with a wildcard HTTPS certificate. Services are private (LAN/VPN only) unless you make them public.
-- Everything Roostack generates is plain text you can read. Roostack tells you where it lives.
+- Everything Roostack generates is plain text you can read, and Roostack tells you where it lives.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the details.
 
@@ -42,22 +42,22 @@ sudo -u roostack roostack backup snapshots
 
 Roostack runs containers through the `roostack` user's own systemd manager (rootless Podman), which `systemctl --user` finds through `XDG_RUNTIME_DIR` (`/run/user/<uid>`, where its D-Bus socket is). `sudo -u` doesn't set it, so `roostack` sets it itself when it runs as the `roostack` user. Other programs still need it, for example `sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) systemctl --user status 'roostack-*'`.
 
-`roostack user`, `backup` and `apply` can also be run with plain `sudo`: started as root, they run themselves again as the roostack user, with its systemd session, so root never opens files the roostack user could have replaced with a link. `roostack node join` runs as root, joins as roostack and only restarts the service as root. See the help's [command line page](help/docs/reference/cli.md).
+`roostack user`, `backup`, and `apply` can also be run with plain `sudo`: started as root, they run themselves again as the roostack user, with its systemd session, so root never opens files the roostack user could have replaced with a link. `roostack node join` runs as root, joins as roostack, and only restarts the service as root. See the help's [command line page](help/docs/reference/cli.md).
 
 ## Requirements
 
 - A dedicated machine running **Debian 13**, on x86_64 or ARM64 (ARM mini PCs and cloud servers that run Debian's own images). Raspberry Pi and Ubuntu 26.04 support are planned.
-- A domain you own, with a DNS provider Roostack supports, for HTTPS certificates: Cloudflare, Amazon Route 53, Porkbun, Gandi, GoDaddy, Namecheap or Spaceship.
+- A domain you own, with a DNS provider Roostack supports, for HTTPS certificates: Cloudflare, Amazon Route 53, Porkbun, Gandi, GoDaddy, Namecheap, or Spaceship.
 
 ## Installing
 
-Once Roostack is released, one command on a fresh Debian 13 installs it from Roostack's signed apt repository:
+Once Roostack is released, one command on a fresh Debian 13 will install it from Roostack's signed apt repository:
 
 ```bash
 curl -fsSL https://dl.roostack.cloud/install.sh | sudo sh
 ```
 
-[scripts/install.sh](scripts/install.sh) checks the system, fetches the release key and checks it against the SHA-256 written into the script, adds the package source (`/etc/apt/sources.list.d/roostack.sources`, signed by `/usr/share/keyrings/roostack-archive-keyring.gpg` only) and runs `apt install roostack`. The help's [Install Roostack](help/docs/start/install.md) gives the same steps by hand. At the end, the installer shows the setup page's address on the home network (`https://<server>:8443`, with its own certificate and that certificate's fingerprint to check) and the setup code; an SSH tunnel to `127.0.0.1:8480` works too (SPEC §6.3.2).
+[scripts/install.sh](scripts/install.sh) checks the system, fetches the release key and checks it against the SHA-256 written into the script, adds the package source (`/etc/apt/sources.list.d/roostack.sources`, signed by `/usr/share/keyrings/roostack-archive-keyring.gpg` only), and runs `apt install roostack`. The help's [Install Roostack](help/docs/start/install.md) gives the same steps by hand. At the end, the installer shows the setup page's address on the home network (`https://<server>:8443`, with its own certificate and that certificate's fingerprint to check) and the setup code; an SSH tunnel to `127.0.0.1:8480` works too (SPEC §6.3.2).
 
 ## Development
 
@@ -66,7 +66,7 @@ curl -fsSL https://dl.roostack.cloud/install.sh | sudo sh
 - Go 1.26 or newer (the module's minimum; CI and releases build with Go 1.27.3);
 - Node 20 or newer for the package editor's tests, which `make test` runs;
 - [uv](https://docs.astral.sh/uv/) to build the help site (without it, Roostack builds without its help pages);
-- restic, so the backup tests run rather than skip (CI uses 0.18.0).
+- restic so that the backup tests run rather than skip (CI uses 0.18.0).
 
 ```bash
 make build   # builds the help site, then bin/roostack and bin/roostack-agent
@@ -74,7 +74,7 @@ make test    # runs the editor's tests, then go test ./...
 make golden  # rewrites generator golden files after an intended change
 ```
 
-**Platforms.** Roostack runs on Debian 13 (x86_64 or ARM64), but you can work on it from Linux or a Mac: the code builds, vets and tests natively on both, and the tests that need Linux skip on a Mac and say why. `make build` always writes Linux binaries (for your machine's processor, or `GOARCH=arm64` or `amd64`), so on a Mac use `go run ./cmd/roostack …` for the commands below. Anything about Podman, systemd, networking, drives or Roostack's sandbox needs a real Debian 13 host, which `scripts/dev-vm.sh` gives you as a VM under QEMU on Linux or macOS: `scripts/dev-vm.sh up`, then `install` to build and install Roostack in it, `ui` to reach its pages, and `test` to run the whole suite there (CONTRIBUTING.md has the details).
+**Platforms.** Roostack runs on Debian 13 (x86_64 or ARM64), but you can work on it from Linux or a Mac: the code builds, vets, and tests natively on both, and the tests that need Linux skip on a Mac and say why. `make build` always writes Linux binaries (for your machine's processor, or `GOARCH=arm64` or `amd64`), so on a Mac use `go run ./cmd/roostack …` for the commands below. Anything about Podman, systemd, networking, drives, or Roostack's sandbox needs a real Debian 13 host, which `scripts/dev-vm.sh` gives you as a VM under QEMU on Linux or macOS: `scripts/dev-vm.sh up`, then `install` to build and install Roostack in it, `ui` to reach its pages, and `test` to run the whole suite there (CONTRIBUTING.md has the details).
 
 The help site is in [help/](help/): Markdown pages built with [Zensical](https://zensical.org), embedded in Roostack at `/help/`. Preview it while writing with `cd help && uv run zensical serve`.
 
@@ -91,7 +91,7 @@ bin/roostack render -package internal/testdata/packages/immich/2.1.0-roostack.1.
 
 Run the web UI locally against a throwaway state directory: point `paths` in a copy of `docs/examples/lab.yaml` at a temp dir and run `bin/roostack serve -lab <file> -listen 127.0.0.1:8480` (Linux).
 
-To try it on a Debian 13 VM, use `scripts/dev-vm.sh` as above; it runs [scripts/dev-install.sh](scripts/dev-install.sh) in the VM (development only; the real installer is [scripts/install.sh](scripts/install.sh), which can be pointed at a test repository with `ROOSTACK_REPO`, `ROOSTACK_SUITE` and `ROOSTACK_KEY_SHA256`).
+To try it on a Debian 13 VM, use `scripts/dev-vm.sh` as above; it runs [scripts/dev-install.sh](scripts/dev-install.sh) in the VM (development only; the real installer is [scripts/install.sh](scripts/install.sh), which can be pointed at a test repository with `ROOSTACK_REPO`, `ROOSTACK_SUITE`, and `ROOSTACK_KEY_SHA256`).
 
 ### Continuous integration
 
@@ -99,22 +99,22 @@ GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) checks eve
 
 - `make vet`: `go vet` and gofmt;
 - staticcheck, with its default checks less ST1005 ([staticcheck.conf](staticcheck.conf)), since errors people can fix are whole sentences;
-- `go test ./...` with restic 0.18.0 (Debian 13's, downloaded from restic's release and checked against its SHA-256), so the backup tests run rather than skip, and the package editor's JavaScript tests;
-- `make help`, the help site's strict build, so a broken link will fail a pull request rather than a release;
+- `go test ./...` with restic 0.18.0 (Debian 13's, downloaded from restic's release and checked against its SHA-256) so that the backup tests run rather than skip, and the package editor's JavaScript tests;
+- `make help`, the help site's strict build, so that a broken link will fail a pull request rather than a release;
 - the files Python generates (CONTRIBUTING.md, "Regenerating files"), made again and compared with what's committed;
-- shellcheck on every shell script, and actionlint on the workflows;
+- shellcheck on every shell script and actionlint on the workflows;
 - govulncheck, which fails only on a vulnerability the code can reach; it also runs every Monday on `main`, as new vulnerabilities are found in code that hasn't changed.
 
 It needs no secrets. The tools' versions, Go's among them, are in [.github/versions.env](.github/versions.env), which every job reads, as do the release scripts. Actions are pinned by commit, with the release beside each in a comment. Dependabot ([.github/dependabot.yml](.github/dependabot.yml)) will propose updates to the actions and Go's modules once a month, one pull request for each; the versions file is updated by hand.
 
-Pushing a tag like `v1.2.3` runs the release workflow ([.github/workflows/release.yml](.github/workflows/release.yml)): it builds the release twice, in a pinned Debian 13 image, checks both builds are identical, and, once a reviewer approves, signs `SHA256SUMS` with the release key's subkey. `make release` builds the same files from a checkout of the tag, and `make verify-release VERSION=1.2.3` checks a published release against its tag: its signature, then a rebuild in the same image, file by file. See [docs/RELEASING.md](docs/RELEASING.md).
+Pushing a tag like `v1.2.3` runs the release workflow ([.github/workflows/release.yml](.github/workflows/release.yml)): it builds the release twice in a pinned Debian 13 image, checks both builds are identical, and, once a reviewer approves, signs `SHA256SUMS` with the release key's subkey. `make release` builds the same files from a checkout of the tag, and `make verify-release VERSION=1.2.3` checks a published release against its tag: its signature, then a rebuild in the same image, file by file. See [docs/RELEASING.md](docs/RELEASING.md).
 
 The release workflow then calls [.github/workflows/apt-publish.yml](.github/workflows/apt-publish.yml), which checks the files' signature, uploads them to `dl.roostack.cloud/releases/<version>/`, and adds the packages to Roostack's apt repository at `apt.roostack.cloud` ([scripts/build-apt-repo.sh](scripts/build-apt-repo.sh), SPEC §7.2). It runs in the `release` environment too, so a reviewer approves it separately; the bucket's credentials are used nowhere else.
 
 ## Project documents
 
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to build, test and change Roostack, and what to read first
-- [SECURITY.md](SECURITY.md): how to report a vulnerability, in Roostack or Roostack Cloud
+- [SECURITY.md](SECURITY.md): how to report a vulnerability in Roostack or Roostack Cloud
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): how we treat each other
 - [PLAN.md](PLAN.md): the project brief
 - [CLAUDE.md](CLAUDE.md): how AI agents work on the project

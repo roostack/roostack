@@ -1,9 +1,9 @@
 # Single sign-on: research (2026-10-20)
 
 The background to the single sign-on proposal in SPEC.md §5.2. Two
-surveys: the identity providers a home lab could run, and how each package
+surveys: the identity providers a home lab could run and how each package
 in the registry can take single sign-on. Facts were checked on
-2026-10-20, from each project's releases, licence files and documentation
+2026-10-20 from each project's releases, licence files, and documentation
 (sources at the end of each part). **Unverified** marks what needs a
 check on a VM.
 
@@ -22,7 +22,7 @@ check on a VM.
 - **Forward auth:** for apps with no OIDC. The proxy (Caddy) asks the
   provider about every request before passing it on; someone not signed in
   is sent to the sign-in page. The app sees only requests from signed-in
-  people, and may read who they are from headers (`Remote-User`), which is
+  people and may read who they are from headers (`Remote-User`), which is
   **header login**.
 
 ## 1. Identity providers
@@ -46,13 +46,13 @@ check on a VM.
 
 **Too heavy for 4–8 GB machines:** Zitadel, Authentik, Keycloak, Logto (each
 wants Postgres, and most several hundred MB to 2 GB). **Rejected:** Casdoor
-(security record), Ory (Hydra, Kratos and our own pages: three pieces, and
+(security record), Ory (Hydra, Kratos, and our own pages: three pieces, and
 its open-source releases have slowed).
 
 ### The serious candidates
 
 **Authelia.** One small Go container, forward auth and OIDC, passwords,
-TOTP and passkeys. Every part of it is a file Roostack could write, which
+TOTP, and passkeys. Every part of it is a file Roostack could write, which
 suits Roostack's desired-state model (SPEC §1 principle 2). Its users can
 come from a file whose password hashes are argon2id PHC strings, the format
 `authkit` already writes, so **Roostack's own accounts can be the source**:
@@ -64,12 +64,12 @@ Roostack writes `users_database.yml` from its people. Its costs:
 - People enrol their second factor **in Authelia**, separately from
   Roostack's, and enrolling needs a one-time code sent by email (or written
   to a file Roostack would have to show).
-- **Theming is weak:** a logo, a favicon and light, dark or grey. No colours,
+- **Theming is weak:** a logo, a favicon, and light, dark, or grey. No colours,
   no CSS.
 - Its OIDC provider is still labelled beta; 4.40 (in progress) changes the
   consent settings.
 
-**Pocket ID.** The best API of the small ones (clients, people, groups and
+**Pocket ID.** The best API of the small ones (clients, people, groups, and
 allowed groups, all with IDs we choose) and a pleasant look. But it signs in
 **with passkeys only**, by design: no passwords. That's a hard sell for a
 family member on an old phone. It has no forward auth (a second component,
@@ -92,7 +92,7 @@ idle limits, rate limits, the audit log. What it lacks is the protocol:
 - **An OIDC provider** for the code flow is a larger but bounded piece:
   discovery, an authorise endpoint, a token endpoint (code with PKCE, refresh
   tokens), userinfo, the signing keys. It means Roostack owns exact redirect
-  matching, single-use codes, refresh-token rotation and key rotation, and
+  matching, single-use codes, refresh-token rotation, and key rotation, and
   answers for their bugs.
 - **Go libraries:**
   - `zitadel/oidc` v3 (Apache-2.0, very active, 3.51.16 on 2026-10-15): its
@@ -146,7 +146,7 @@ tag.
   after setup (`install_only`), so these need a kept key first.
 - **A wall in front (forward auth), with header login where the app has
   it:** Stirling-PDF as packaged, Uptime Kuma, Navidrome.
-- **Not sensible:** Plex, Jellyfin, ntfy, Radicale, Ghost (native clients,
+- **Not sensible:** Plex, Jellyfin, ntfy, Radicale, Ghost (native clients
   or no way to take an identity).
 - **Never wall an app whose own clients sign in themselves:** Vaultwarden,
   Immich, Forgejo, Jellyfin. They use OIDC or nothing.
