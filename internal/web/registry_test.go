@@ -199,7 +199,7 @@ func TestCatalogWaitingForRegistry(t *testing.T) {
 	reg := &fakeRegistry{on: true, status: registry.Status{Fetching: true}}
 	h.server.Registry = reg
 	_, body := h.get("/catalog")
-	if !strings.Contains(body, "This page shows them as soon as it has them") || !strings.Contains(body, `hx-get="/catalog/ready"`) {
+	if !strings.Contains(body, "This page will show them as soon as it has them") || !strings.Contains(body, `hx-get="/catalog/ready"`) {
 		t.Errorf("fetching:\n%s", body)
 	}
 	resp, err := h.client.Get(h.srv.URL + "/catalog/ready")

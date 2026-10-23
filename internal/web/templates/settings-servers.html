@@ -5,7 +5,7 @@
 <div class="page-head">
   <div>
     <h1>{{if .Only}}{{range .Servers}}{{if eq .ID $.Only}}{{.Name}}{{end}}{{end}}{{else}}Servers{{end}}</h1>
-    <p class="lede">{{if .Only}}One of the computers that run your lab.{{else}}The computers that run your lab. Each one runs its own services, backups and updates.{{end}}</p>
+    <p class="lede">{{if .Only}}One of the computers that run your lab.{{else}}The computers that run your lab. Each one runs its own services, backups, and updates.{{end}}</p>
   </div>
   {{if and .CanAdd (not .Only)}}<div class="page-head-actions"><a class="button secondary" href="#add-server">Add a server</a></div>{{end}}
 </div>
@@ -48,7 +48,7 @@
     {{if not .Reachable}}
     <dt>{{icon "server"}}Connection</dt>
     <dd><span class="dot dot-problem" aria-hidden="true"></span>Not connected{{with .UnreachableSince}} since {{when .}}{{end}}.
-      If {{.Name}} is still running, it reconnects by itself, with its services.
+      If {{.Name}} is still running, it will reconnect by itself with its services.
       {{if not (or .Services .Waiting)}}Gone for good? <a href="/servers?remove={{.ID}}#server-{{.ID}}">Remove it from the lab</a>.{{end}}
       {{if or .Services .Waiting}}<br><a href="/settings/servers/{{.ID}}/gone">{{.Name}} is gone: restore its services…</a>{{end}}</dd>
     {{end}}
@@ -84,7 +84,7 @@
       </form>
       {{if and $.LinkErrorServer (eq $.LinkErrorServer .ID)}}<p class="error" role="alert">{{$.LinkError}}</p>{{end}}
       <small>Where other servers reach {{.Name}} directly, for backups to its disk (host:port). Leave it empty and Roostack
-        works it out: its home-network address when both are at home, or its own address on the internet.</small>
+        will work it out: its home-network address when both are at home, or its own address on the internet.</small>
     </dd>
     {{end}}
     <dt>{{icon "id"}}Server ID</dt>
@@ -119,9 +119,9 @@
       <input id="name-{{.ID}}" name="name" value="{{.Name}}" maxlength="40" required>
       <button type="submit" class="secondary">Rename</button>
     </form>
-    {{if .This}}<p class="hint">Renaming this server restarts Roostack.</p>
+    {{if .This}}<p class="hint">Renaming this server will restart Roostack.</p>
     {{else}}
-    <p class="hint">Removing {{.Name}} takes it out of the lab: it leaves Roostack's network and runs on its own again.
+    <p class="hint">Removing {{.Name}} will take it out of the lab: it will leave Roostack's network and run on its own again.
       Remove or move its services first.</p>
     {{confirm (printf "/settings/servers/%s/remove" .ID) (printf "Remove %s from the lab?" .Name) (printf "Remove %s" .Name) "quiet danger"}}
     {{end}}
@@ -137,13 +137,13 @@
   <p>Open the new server's setup page (the address its installer showed), enter its setup code, choose
     <strong>Add it to a lab you already have</strong> and paste this join code. It works once, within an hour.</p>
   {{copyBox .}}
-  {{with $.JoinDials}}<p class="notice">This server connects to the new one at <code>{{.}}</code>: its UDP port has to be open
-    at its provider (a cloud firewall, if it has one). Roostack opens it in the new server's own firewall while it joins.</p>{{end}}
+  {{with $.JoinDials}}<p class="notice">This server will connect to the new one at <code>{{.}}</code>: its UDP port has to be open
+    at its provider (a cloud firewall, if it has one). Roostack will open it in the new server's own firewall while it joins.</p>{{end}}
   <details>
     <summary>Or on the new server's command line</summary>
     {{copyBox (printf "sudo roostack node join %s" .)}}
   </details>
-  <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it. It isn't shown again:
+  <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it. It won't be shown again:
     if it's lost, make another.</p>
   <p><a class="button secondary" href="/servers#add-server">Make another code</a></p>
   {{else}}
@@ -171,11 +171,11 @@
       Roostack already allows it through this server's own firewall; the router is the step it can't do for you.</p>
     <ol>
       <li>Open your router's settings page (often <code>http://192.168.1.1</code> or <code>http://192.168.0.1</code>; the address and password are usually on a sticker on the router).</li>
-      <li>Find <strong>Port forwarding</strong>. Some routers call it <em>Virtual server</em>, <em>NAT</em>, <em>Port mapping</em> or put it under <em>Advanced</em> or <em>Firewall</em>.</li>
+      <li>Find <strong>Port forwarding</strong>. Some routers call it <em>Virtual server</em>, <em>NAT</em>, or <em>Port mapping</em>, or put it under <em>Advanced</em> or <em>Firewall</em>.</li>
       <li>Add a rule: protocol <strong>UDP</strong> (not TCP), port <strong>51820</strong>, to this server{{with .LANAddr}} at <strong>{{.}}</strong>{{end}}, port 51820.</li>
-      <li>Choose <strong>A name from your domain</strong> above: Roostack keeps it pointing at your home's public address, which can change.</li>
+      <li>Choose <strong>A name from your domain</strong> above: Roostack will keep it pointing at your home's public address, which can change.</li>
     </ol>
-    <p class="hint">How to tell it worked: once the new server has joined, it shows up above as up to date.
+    <p class="hint">How to tell it worked: once the new server has joined, it will show up above as up to date.
       If joining says it can't reach the controller, the port isn't forwarded yet (or the address is wrong).
       Some internet connections (called CGNAT) can't forward ports at all. For a cloud server, there's no need: choose
       <strong>None: this server connects to the new one instead</strong> above.</p>

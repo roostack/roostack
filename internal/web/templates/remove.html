@@ -7,7 +7,7 @@
 </div>
 <section class="card narrow">
   <p>{{.Package.Title}} will be stopped and removed from your lab.</p>
-  <p><strong>Your data is kept.</strong> It stays in:</p>
+  <p><strong>Your data will be kept.</strong> It will stay in:</p>
   <ul>{{range .DataDirs}}<li><code>{{.}}</code></li>{{end}}</ul>
   <p class="hint">Installing {{.Package.Title}} again later will use this data.</p>
   <form method="post" action="/services/{{.Name}}/remove">

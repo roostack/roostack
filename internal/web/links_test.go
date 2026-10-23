@@ -61,7 +61,7 @@ func TestPlanThroughTheController(t *testing.T) {
 	fm.settings, fm.destination = &fakeSetup{}, "server:n-5555555555"
 	fm.linkPath = manager.PathHub
 	_, body := h.get("/backups?server=n-9876543210")
-	if !strings.Contains(body, "These backups go through nuc, using its connection twice") ||
+	if !strings.Contains(body, "These backups are going through nuc, which uses its connection twice") ||
 		!strings.Contains(body, `href="/servers#server-n-5555555555"`) {
 		t.Error("through the controller: say how to link directly")
 	}

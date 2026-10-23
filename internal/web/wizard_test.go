@@ -261,7 +261,7 @@ func TestDNSControls(t *testing.T) {
 	if !strings.Contains(body, "/dns/take-over") || !strings.Contains(body, "Stop managing") {
 		t.Error("conflict should offer taking over; managed mode should offer stopping")
 	}
-	if !strings.Contains(body, "Stop managing DNS records at Cloudflare? The records stay as they are") ||
+	if !strings.Contains(body, "Stop managing DNS records at Cloudflare? The records will stay as they are") ||
 		!strings.Contains(body, `name="manage" value="off"`) {
 		t.Error("stopping should ask first, saying what changes")
 	}
@@ -271,7 +271,7 @@ func TestDNSControls(t *testing.T) {
 	}
 	fd.st.Syncing = true
 	if _, body := h.get("/settings/home-network"); !strings.Contains(body, `hx-get="/settings/home-network"`) ||
-		!strings.Contains(body, "this page updates by itself") {
+		!strings.Contains(body, "this page will update by itself") {
 		t.Error("while syncing, the page should refresh itself")
 	}
 	fd.st.Syncing = false
@@ -498,7 +498,7 @@ func TestRoostackSeries(t *testing.T) {
 	}
 	fu.series.Waiting = "the last backup didn't work"
 	_, body = h.get("/settings/updates")
-	if !strings.Contains(body, "Roostack 0.5 installs with this server's next updates") || !strings.Contains(body, "waiting: the last backup didn&#39;t work.") ||
+	if !strings.Contains(body, "Roostack 0.5 will install with this server's next updates") || !strings.Contains(body, "waiting: the last backup didn&#39;t work.") ||
 		strings.Contains(body, "Update to Roostack") || !strings.Contains(body, "What's new in 0.5") {
 		t.Error("accepted: page wrong")
 	}
@@ -642,7 +642,7 @@ func TestBackupDrivePicker(t *testing.T) {
 	}
 	_, body = h.get("/setup/backup?add=2")
 	for _, want := range []string{`value="uuid:64B1" checked`, "USB drive", "Second disk", "Prepare this disk",
-		`value="disk:/dev/nvme1n1" disabled`, "it helps with mistakes, not a failed disk or ransomware", "sets it up so it's there after a restart"} {
+		`value="disk:/dev/nvme1n1" disabled`, "it helps with mistakes, not a failed disk or ransomware", "will set it up so it's there after a restart"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("picker missing %q", want)
 		}

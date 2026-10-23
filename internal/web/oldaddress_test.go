@@ -38,7 +38,7 @@ func TestOldAddress(t *testing.T) {
 		t.Error("service page: old address")
 	}
 	if _, body := h.get("/setup/domain"); !strings.Contains(body, "keep working for 30 days") ||
-		!strings.Contains(body, "old.example.net, the address before, stops at once") {
+		!strings.Contains(body, "old.example.net, the address before, will stop at once") {
 		t.Error("change form: what happens to the old address")
 	}
 	if code, _ := h.post("/settings/domain/old/end", nil, h.srv.URL); code != http.StatusOK || !fs.oldEnded {
@@ -78,7 +78,7 @@ func TestOldAddressRecords(t *testing.T) {
 	fd.st.Old.Message = "Roostack couldn't delete its records under old.example.net with that address's login at Cloudflare: 403 Forbidden"
 	fd.st.Left = []dnsrecords.Record{{Name: "vault.older.example.org", Type: "A", Value: "81.2.69.160", Via: "porkbun"}}
 	_, body := h.get("/settings/domain")
-	for _, want := range []string{`id="old-records"`, "403 Forbidden", "<code>*.old.example.net</code>", "tries again every hour",
+	for _, want := range []string{`id="old-records"`, "403 Forbidden", "<code>*.old.example.net</code>", "will try again every hour",
 		"<code>vault.older.example.org</code>", "Delete them at Porkbun", "I&#39;ve deleted them"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("ended: missing %q", want)
@@ -103,7 +103,7 @@ func TestOldAddressRecords(t *testing.T) {
 		t.Error("home: two providers, or one not known")
 	}
 	if code, body := h.post("/settings/domain/old/forget", nil, h.srv.URL); code != http.StatusOK || !fd.forgot || !fs.oldFinished ||
-		!strings.Contains(body, "no longer looks after those records") || strings.Contains(body, `id="old-records"`) {
+		!strings.Contains(body, "no longer looking after those records") || strings.Contains(body, `id="old-records"`) {
 		t.Errorf("forget: %d, forgot %v, finished %v", code, fd.forgot, fs.oldFinished)
 	}
 }

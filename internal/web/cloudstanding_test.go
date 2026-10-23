@@ -172,7 +172,7 @@ func TestCloudRecipients(t *testing.T) {
 	}
 	f.Confirm(link.Status().Waiting.Code)
 	testwait.For(t, 10*time.Second, func() bool { return link.Status().Linked })
-	if _, body := h.get("/settings/email"); !strings.Contains(body, "Roostack Cloud hears of them at the lab's next daily check-in") {
+	if _, body := h.get("/settings/email"); !strings.Contains(body, "Roostack Cloud will hear of them at the lab's next daily check-in") {
 		t.Error("not told before the first report")
 	}
 	link.Report = func(ctx context.Context) (cloudapi.LabReport, error) {

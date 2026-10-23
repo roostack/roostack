@@ -18,7 +18,7 @@
   {{with .Asked}}
   {{if $.Stage.Address}}<li class="step-done"><span class="mark" aria-hidden="true">✓</span><span>{{$.Stage.Address}} is yours</span></li>
   {{else}}<li class="{{if $.Stage.Linked}}step-now{{else}}step-todo{{end}}"><span class="mark" aria-hidden="true">{{if $.Stage.Linked}}<span class="spinner"></span>{{else}}○{{end}}</span><span>Getting {{.}}.{{$.Suffix}}</span></li>{{end}}
-  {{if $.Setup}}<li class="step-todo"><span class="mark" aria-hidden="true">○</span><span>Its web addresses start working when setup finishes</span></li>{{end}}
+  {{if $.Setup}}<li class="step-todo"><span class="mark" aria-hidden="true">○</span><span>Its web addresses will start working when setup finishes</span></li>{{end}}
   {{end}}
 </ol>
 {{- end}}

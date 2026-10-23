@@ -55,7 +55,7 @@
           <label>Username <input name="share_user" value="{{.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
             <small>Empty for a share anyone on your network can open.</small></label>
           <label>Password <input name="share_password" type="password" autocomplete="new-password">
-            <small>Kept on {{.ServerName}}, readable only by its system{{.Kept}}</small></label>
+            <small>It will be kept on {{.ServerName}}, readable only by its system{{.Kept}}</small></label>
         </div></div>{{end}}
 
 {{/* address-waiting: a service that can't be reached yet, because the lab
@@ -106,25 +106,25 @@
   </div>
   {{if .Fenced}}{{with .Fenced}}
     {{if eq .Reason "removed"}}
-    {{notice "error" "This server was removed from its lab (it couldn't be reached at the time). It no longer backs up into the lab's storage. Switch it off, or wipe it and add it to the lab again."}}
+    {{notice "error" "This server was removed from its lab (it couldn't be reached at the time). It's no longer backing up into the lab's storage. Switch it off or wipe it and add it to the lab again."}}
     {{else}}
-    {{notice "error" (printf "%s. Both copies would otherwise back up into the same storage and update the same web addresses, so this one has stopped doing both. Switch this copy off, or wipe it." .Message)}}
+    {{notice "error" (printf "%s. Both copies would otherwise back up into the same storage and update the same web addresses, so this one has stopped doing both. Switch this copy off or wipe it." .Message)}}
     {{if and $.IsOwner $.Server.This}}
     <details>
       <summary>This is the right copy</summary>
-      <p class="hint">If the other copy was only a test (a restore you tried out), keep this one: it backs up again, and the other
-        stops at its next backup. Switch the other one off first.</p>
-      {{confirm "/backups/keep-this-copy" "Keep this copy? The other copy stops backing up at its next backup." "Keep this copy" "danger"}}
+      <p class="hint">If the other copy was only a test (a restore you tried out), keep this one: it will back up again, and the other
+        will stop at its next backup. Switch the other one off first.</p>
+      {{confirm "/backups/keep-this-copy" "Keep this copy? The other copy will stop backing up at its next backup." "Keep this copy" "danger"}}
     </details>
     {{end}}
     {{end}}
   {{end}}
   {{else if .Unreachable}}
     <p class="hint"><span class="spinner" aria-hidden="true"></span> Can't reach {{.Unreachable}} right now (it may be restarting):
-      its backup status shows when it's back.</p>
+      its backup status will show when it's back.</p>
   {{else if and .SettingUp (not .Configured)}}
     <p><span class="spinner" aria-hidden="true"></span> Setting up backups: {{lowerFirst .SettingUp}}…
-      <span class="hint">The server restarts once they're ready.</span></p>
+      <span class="hint">The server will restart once they're ready.</span></p>
   {{else if not .Configured}}
     {{notice "error" "Backups are not set up yet. Until they are, a failed disk means losing everything."}}
   {{else}}
@@ -142,7 +142,7 @@
     {{end}}
     <p class="hint">Next backup: {{when .Next}}</p>
     {{if .LocalOnly}}
-      {{notice "warn" "Backups are only stored on this server. Add an off-site copy to protect against theft, fire or a failed disk."}}
+      {{notice "warn" "Backups are only stored on this server. Add an off-site copy to protect against theft, fire, or a failed disk."}}
     {{end}}
   {{end}}
 </section>
@@ -158,7 +158,7 @@
   {{else if eq .State "pending"}}{{notice "info" .Message}}
   {{else if .State}}{{notice "error" .Message}}
   {{else}}<p class="hint">Checking…</p>{{end}}
-  {{if .Syncing}}{{notice "info" "Updating DNS records and checking them… This can take a minute or two; this page updates by itself."}}{{end}}
+  {{if .Syncing}}{{notice "info" "Updating DNS records and checking them… This can take a minute or two, and this page will update by itself."}}{{end}}
   {{if not .Checked.IsZero}}<p class="hint">Last checked {{when .Checked}}.
     {{- if .Internet}} This lab's public address: {{.IP}}.{{else}} This server's home network address: {{.IP}}. Give it a fixed address in your router (a "DHCP reservation") so it doesn't change.{{end}}</p>{{end}}
   {{if eq .State "conflict"}}<p><a class="button" href="/dns/take-over">Take over this record…</a></p>{{end}}
@@ -176,15 +176,15 @@
     <p class="notice notice-error"><strong>{{.Provider}}'s API is risky for this:</strong> to change one record it rewrites
       every record on your domain. We strongly recommend moving your DNS to another provider, such as Cloudflare (free).</p>
     {{/* Confirming the dialog is accepting the risk (the handler still requires accept_risk). */}}
-    {{confirm "/dns/manage" (printf "Let Roostack manage DNS records at %s anyway? To change one record, %s rewrites every record on your domain, so a mistake there could affect your email or other sites on it. Roostack will point %s at %s now, and keep it up to date." .Provider .Provider .Record $server) "Let Roostack manage DNS records" "danger" "manage=on" "accept_risk=on"}}
+    {{confirm "/dns/manage" (printf "Let Roostack manage DNS records at %s anyway? To change one record, %s rewrites every record on your domain, so a mistake there could affect your email or other sites on it. Roostack will point %s at %s now and keep it up to date." .Provider .Provider .Record $server) "Let Roostack manage DNS records" "danger" "manage=on" "accept_risk=on"}}
     {{else}}
-    {{confirm "/dns/manage" (printf "Let Roostack manage DNS records at %s? It will point %s at %s now, so %s, and keep it up to date if that address changes. It never changes records it didn't create." .Provider .Record $server (or (and .Internet "your services' addresses lead here") "devices at home can reach your services")) "Let Roostack manage DNS records" "" "manage=on"}}
+    {{confirm "/dns/manage" (printf "Let Roostack manage DNS records at %s? It will point %s at %s now, so %s, and keep it up to date if that address changes. It will never change records it didn't create." .Provider .Record $server (or (and .Internet "your services' addresses lead here") "devices at home can reach your services")) "Let Roostack manage DNS records" "" "manage=on"}}
     {{end}}
   </div>
   {{else if .Managing}}
-  <p class="hint">Roostack manages DNS records at {{.Provider}}: {{.Record}} → {{.IP}}.</p>
-  {{confirm "/dns/manage" (printf "Stop managing DNS records at %s? The records stay as they are, but Roostack stops updating them: if this server's address changes, %s won't find your services until you change %s at %s yourself." .Provider (or (and .Internet "visitors") "devices at home") .Record .Provider) "Stop managing DNS records" "secondary" "manage=off"}}
-  <p class="hint">Records stay in place; Roostack just stops creating and updating them.</p>
+  <p class="hint">Roostack is managing DNS records at {{.Provider}}: {{.Record}} → {{.IP}}.</p>
+  {{confirm "/dns/manage" (printf "Stop managing DNS records at %s? The records will stay as they are, but Roostack will stop updating them: if this server's address changes, %s won't find your services until you change %s at %s yourself." .Provider (or (and .Internet "visitors") "devices at home") .Record .Provider) "Stop managing DNS records" "secondary" "manage=off"}}
+  <p class="hint">Records will stay in place, and Roostack will just stop creating and updating them.</p>
   {{end}}
 </section>
 {{end}}
@@ -200,15 +200,15 @@
      §6.11): here, or when installing on a lab on the internet. */}}
 {{define "sharing-question"}}
 <h2>Protection</h2>
-<p>Roostack starts <strong>CrowdSec</strong>, which spots attacks in the web log and blocks the addresses they come from,
-  and limits how fast anyone can try passwords.</p>
+<p>Roostack will start <strong>CrowdSec</strong>, which spots attacks in the web log and blocks the addresses they come from,
+  and will limit how fast anyone can try passwords.</p>
 <fieldset>
   <legend>Share attack reports with CrowdSec's community?</legend>
   <label class="check"><input type="radio" name="share" value="yes" checked>
     <span>Share them (recommended)<small>Only attackers' addresses and what they tried, never anything about you or your people.
-      In return, addresses others have seen attacking are blocked before they try.</small></span></label>
+      In return, addresses others have seen attacking will be blocked before they try.</small></span></label>
   <label class="check"><input type="radio" name="share" value="no">
-    <span>Don't share<small>Blocking attacks still works; you don't get the community's list of attackers.</small></span></label>
+    <span>Don't share<small>Blocking attacks will still work, but you won't get the community's list of attackers.</small></span></label>
 </fieldset>
 <p class="hint">You can change this later in Settings → Public access.</p>
 {{end}}
@@ -240,8 +240,8 @@
   </div>
   {{if .Dial}}
   <label class="check"><input type="radio" name="address" value="dial" x-model="choice"{{if eq .Selected "dial"}} checked{{end}}>
-    <span>None: this server connects to the new one instead<small>For a cloud server joining a lab at home, without forwarding a port on your router.
-      The new server needs a public address, with UDP port {{.Port}} open at its provider.</small></span></label>
+    <span>None: this server connects to the new one instead<small>For a cloud server joining a lab at home without forwarding a port on your router.
+      The new server needs a public address with UDP port {{.Port}} open at its provider.</small></span></label>
   <div x-show="choice === 'dial'"{{if ne .Selected "dial"}} x-cloak{{end}}>
     <label>The new server's public address <input name="address_dial" value="{{.DialAddr}}" placeholder="203.0.113.7" x-bind:required="choice === 'dial'"
       autocapitalize="off" autocomplete="off"><small>Its address or name; port {{.Port}} unless you add another, such as <code>203.0.113.7:51820</code>.</small></label>
@@ -301,8 +301,8 @@
       <span>At home, behind a router<small>Services are for your home network (or a VPN into it). Making one public means
         forwarding ports on your router.</small></span></label>
     <label class="check"><input type="radio" name="network" value="internet" x-model="network">
-      <span>On the internet (a cloud server)<small>It has a public address of its own, like a VPS. Services start public, protected
-        by CrowdSec; private ones are only reachable through an SSH tunnel.</small></span></label>
+      <span>On the internet (a cloud server)<small>It has a public address of its own, like a VPS. Services will start public, protected
+        by CrowdSec, and private ones will only be reachable through an SSH tunnel.</small></span></label>
   </fieldset>
   <p class="hint">{{if eq .Detected "internet"}}This server has a public address of its own, so it looks like a cloud server.
     {{- else}}This server's addresses are private ones, like a server at home. A cloud server behind its provider's
@@ -311,8 +311,8 @@
     <legend>Roostack's own pages</legend>
     <label class="check"><input type="radio" name="ui" value="public" {{if not .UITunnelOnly}}checked{{end}}>
       <span>At {{with .UIHost}}<code>{{.}}</code>{{else}}<code>roost.&lt;your domain&gt;</code>{{end}} (recommended)
-        <small>Anyone can reach the login page. Your password and a code from your authenticator app protect it,
-          CrowdSec blocks attackers, and password tries are limited.</small></span></label>
+        <small>Anyone can reach the login page. Your password and a code from your authenticator app will protect it,
+          CrowdSec will block attackers, and password tries will be limited.</small></span></label>
     <label class="check"><input type="radio" name="ui" value="tunnel" {{if .UITunnelOnly}}checked{{end}}>
       <span>Only through an SSH tunnel<small>For technical users: nobody else can even see the login page.</small></span></label>
   </fieldset>
@@ -339,13 +339,13 @@
       <small>{{if .Size}}{{size .Size}}{{end}}{{if ge .Free 0}}{{if .Size}} · {{end}}{{size .Free}} free{{end}}{{with .Model}}{{if ne . $d.Name}} · {{.}}{{end}}{{end}}{{with .FSType}} · {{.}}{{end}}
         {{- if eq .Kind "system"}}<br>The same disk as your data: it helps with mistakes, not a failed disk or ransomware.
         {{- else if not .Usable}}<br>Empty, or not something Roostack can use as it is: prepare it to use it.
-        {{- else if not .Mount}}<br>Roostack sets it up so it's there after a restart too.{{end}}</small></span></label>
+        {{- else if not .Mount}}<br>Roostack will set it up so it's there after a restart too.{{end}}</small></span></label>
   {{if .Erasable}}
   <div x-data class="drive-erase">
     <button type="button" class="quiet" x-on:click="$refs.erase.showModal()">Prepare this disk…</button>
     <dialog x-ref="erase" class="dialog">
-      <p><strong>Erase {{.Name}}?</strong> Everything on {{with .Model}}{{.}}, {{end}}{{size .Size}} (<code>{{.Disk}}</code>) is deleted, for good,
-        and it's prepared for Roostack's backups.</p>
+      <p><strong>Erase {{.Name}}?</strong> Everything on {{with .Model}}{{.}}, {{end}}{{size .Size}} (<code>{{.Disk}}</code>) will be deleted for good,
+        and it will be prepared for Roostack's backups.</p>
       <div class="dialog-actions">
         <button type="button" class="secondary" x-on:click="$refs.erase.close()">Cancel</button>
         <button type="submit" class="danger" formaction="/setup/backup/erase" formnovalidate name="disk" value="{{.Disk}}">Erase it</button>
@@ -386,23 +386,23 @@
       <li><strong>3 copies.</strong> Your data on {{if .Server.This}}this server{{else}}{{.Server.Name}}{{end}} is the first; two backups are the others.
         If one copy is lost, you still have two, so there's time to replace it.</li>
       <li><strong>2 kinds of storage.</strong> Copies on the same kind of storage can fail the same way. Disks count as one kind, whether
-        in the server, plugged into it or in another server; online storage or a friend's lab is another kind.</li>
+        in the server, plugged into it, or in another server; online storage or a friend's lab is another kind.</li>
       {{if .Internet}}<li><strong>1 away from this server.</strong> A cloud server can be lost with everything on it: a mistake at the
-        provider, or a problem with your account. Online storage with another company, or your own or a friend's lab, survives it.</li>
-      {{- else}}<li><strong>1 away from home.</strong> A fire, flood or burglary takes everything in the house, backups included. Online
+        provider or a problem with your account. Online storage with another company, or your own or a friend's lab, survives it.</li>
+      {{- else}}<li><strong>1 away from home.</strong> A fire, flood, or burglary takes everything in the house, backups included. Online
         storage, a friend's lab, or a server somewhere else survives it.</li>{{end}}
       <li><strong>1 safe from ransomware.</strong> Ransomware, or someone who takes over the server, can delete the backups the server
-        can delete. Backups on another server in your lab, at a friend's lab, in Roostack Cloud or on Backblaze B2 (with a key Roostack
+        can delete. Backups on another server in your lab, at a friend's lab, in Roostack Cloud, or on Backblaze B2 (with a key Roostack
         makes) can only be added to from here, so they survive it, as do backups in online storage that keeps old versions with a
         key that can't erase them.</li>
     </ul>
-    <p>Roostack backs up every night, to each backup below. Backups are encrypted, and readable with your recovery key.
+    <p>Roostack backs up every night to each backup below. Backups are encrypted and readable with your recovery key.
       Restores use the <strong>main backup</strong> first{{if not .Internet}}: it's best at home, where restoring is quickest{{end}}. Extra backups past
       the three are optional.</p>
   </details>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with .Checks.Hint}}{{notice "info" .}}{{end}}
-  {{with .Lost}}{{notice "error" (printf "The main backup was on %s's disk, and %s left the lab on %s, so nothing can reach those backups now. Choose a new place for the main backup: until then, nightly backups fail%s." .HostName .HostName (.Lost.Local.Format "2 January") (or (and $.Plan.Entries ", though the other backups still run") "")) (printf "link=%s?add=%d#plan" $.Plan.Back $.Plan.More) "linkText=Choose a new place"}}{{end}}
+  {{with .Lost}}{{notice "error" (printf "The main backup was on %s's disk, and %s left the lab on %s, so nothing can reach those backups now. Choose a new place for the main backup: until then, nightly backups will fail%s." .HostName .HostName (.Lost.Local.Format "2 January") (or (and $.Plan.Entries ", though the other backups will still run") "")) (printf "link=%s?add=%d#plan" $.Plan.Back $.Plan.More) "linkText=Choose a new place"}}{{end}}
   {{if not .BusyIn}}{{with .Busy}}{{activity .}}{{end}}{{end}}
   <ol class="plan-list">
     <li class="plan-card plan-data">
@@ -421,24 +421,24 @@
         <p class="hint">{{if .Main}}Main backup · {{end}}{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else if .AskWhere}}at home or away?{{else}}location not known{{end}}{{if .Main}} · restores use it first{{end}}
           {{- if eq .Path "direct"}} · linked directly{{else if eq .Path "hub"}} · through {{.Via}}, as they can't link directly{{end}}</p>
         {{if eq $.Plan.BusyIn .Number}}{{activity $.Plan.Busy}}{{end}}
-        {{if .LowSpace}}{{notice "warn" (printf "Nearly full: %s free on %s. When it's full, backups here fail." (size .Free) .FreeOn)}}{{end}}
+        {{if .LowSpace}}{{notice "warn" (printf "Nearly full: %s free on %s. When it's full, backups here will fail." (size .Free) .FreeOn)}}{{end}}
         {{with .Cloud}}{{with .Warning}}{{notice "warn" .}}{{end}}{{end}}
         {{if eq .Path "hub"}}{{if .LinkFailed}}
-        {{notice "warn" (printf "A direct link to %s didn't connect, so these backups go through %s, using its connection twice. Check %s can be reached at its address for direct links (UDP port 51820, or the port you entered). Roostack tries again tomorrow, or as soon as you change the address." .HostName .Via .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Check the address"}}
+        {{notice "warn" (printf "A direct link to %s didn't connect, so these backups are going through %s, which uses its connection twice. Check %s can be reached at its address for direct links (UDP port 51820 or the port you entered): Roostack will try again tomorrow or as soon as you change the address." .HostName .Via .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Check the address"}}
         {{else}}
-        {{notice "warn" (printf "These backups go through %s, using its connection twice: Roostack doesn't know where this server can reach %s directly. If both are on the same home network, set them both to At home; otherwise enter %s's address for direct links (host:port)." .Via .HostName .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Set it on Servers"}}
+        {{notice "warn" (printf "These backups are going through %s, which uses its connection twice: Roostack doesn't know where this server can reach %s directly. If both are on the same home network, set them both to At home; otherwise enter %s's address for direct links (host:port)." .Via .HostName .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Set it on Servers"}}
         {{end}}{{end}}
-        {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}
+        {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails or ransomware gets onto the server, your data and this backup will be lost together. Keep your other backups on a separate drive or away from home."}}
         {{- else if and .Access.CanDelete .Access.B2}}
-        {{- $warn := "If this server were taken over, its backups here could be deleted too: it uses the account's key, because the key Roostack was given can't make a key for each server. Give Roostack one that can, and every server backing up here gets a key of its own that can add backups but not delete them."}}
+        {{- $warn := "If this server were taken over, its backups here could be deleted too: it uses the account's key because the key Roostack was given can't make a key for each server. Give Roostack one that can, and every server backing up here will get a key of its own that can add backups but not delete them."}}
         {{- if .KeyAction}}{{notice "warn" $warn (printf "link=%s?key=%s#plan-key-%d" $.Plan.Back .Ref .Number) "linkText=Change the key"}}{{else}}{{notice "warn" $warn}}{{end}}
         <details class="plan-more">
           <summary>Tell me more</summary>
           {{template "b2-key-help" "change"}}
         </details>
         {{- else if and .Access.CanDelete .Access.Versioned (eq .Kind "online")}}{{notice "warn" "If this server were taken over, its backups here could be deleted too: the bucket keeps old versions, but the account's key, which every server here has, can erase them. Give Roostack a key that can't delete old versions (in AWS's terms, without s3:DeleteObjectVersion)."}}
-        {{- else if and .Access.CanDelete (eq .Kind "online")}}{{notice "warn" "If this server were taken over, its backups here could be deleted too: it has the account's key. To protect them, turn on versioning for the bucket with a rule that keeps old versions for 30 days, and give Roostack a key that can't delete old versions. Or use Backblaze B2, where Roostack gives each server a key that can't delete."}}
-        {{- else if .Access.CanDelete}}{{notice "warn" "If this server were taken over, its backups here could be deleted too. Keep another backup it can't delete: on another server, at a friend's lab, Roostack Cloud or Backblaze B2."}}{{end}}
+        {{- else if and .Access.CanDelete (eq .Kind "online")}}{{notice "warn" "If this server were taken over, its backups here could be deleted too: it has the account's key. To protect them, turn on versioning for the bucket with a rule that keeps old versions for 30 days, and give Roostack a key that can't delete old versions. Or use Backblaze B2, where Roostack will give each server a key that can't delete."}}
+        {{- else if .Access.CanDelete}}{{notice "warn" "If this server were taken over, its backups here could be deleted too. Keep another backup it can't delete: on another server, at a friend's lab, Roostack Cloud, or Backblaze B2."}}{{end}}
         {{with .KeyChange}}{{activity .}}{{end}}
         {{with .Access}}{{if .HidesOnly}}<p class="hint">{{if .B2}}This server's key here can add backups but not erase them{{else}}The bucket keeps old versions, and the account's key can't erase them{{end}}; anything this server deletes is only hidden.</p>
         {{if lt .KeepsHidden 0}}<p class="hint">Roostack couldn't check how long this bucket keeps hidden files.</p>
@@ -459,7 +459,7 @@
           <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span></p>
         {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{firstLine .Error}}{{retryText $e.Retry}}</p>
           {{- with otherLines .Error}}<details class="plan-error"><summary>Details</summary><pre class="output">{{.}}</pre></details>{{end}}{{end}}
-        {{- else}}<p class="hint">Not backed up here yet: the first backup runs {{if $.Plan.Next.IsZero}}tonight{{else}}{{when $.Plan.Next}}{{end}}.</p>{{end}}
+        {{- else}}<p class="hint">Not backed up here yet: the first backup will run {{if $.Plan.Next.IsZero}}tonight{{else}}{{when $.Plan.Next}}{{end}}.</p>{{end}}
         {{if or .Stored (ge .Free 0) .Lab .Cloud}}<p class="hint plan-space">
           {{- if .Stored}}Backups here take <strong>{{size .Stored}}</strong>{{end}}
           {{- if ge .Free 0}}{{if .Stored}} · {{end}}<span{{with .LowSpace}} class="space-low"{{end}}>{{size .Free}} free on {{.FreeOn}}</span>{{end}}
@@ -474,11 +474,11 @@
           {{if .KeyAction}}{{template "plan-key" .}}{{end}}
           {{if .RollbackAction}}{{template "plan-rollback" .}}{{end}}
           {{if .Main}}<p><a href="{{$.Plan.Back}}?replace=1#plan">Change where the main backup goes…</a>
-            <span class="hint">A new backup starts there; the backups here stay.</span></p>
+            <span class="hint">A new backup will start there, and the backups here will stay.</span></p>
           {{else}}
           <div class="plan-actions">
-            {{confirm (printf "%s/promote" $.Plan.Action) (printf "Make %s the main backup? Restores use it first. Both keep their backups." .Title) "Make this the main backup" "secondary" (printf "destination=%s" .Ref)}}
-            {{confirm (printf "%s/remove" $.Plan.Action) (printf "Stop backing up to %s? The backups made so far stay there." .Title) "Stop this backup" "quiet danger" (printf "destination=%s" .Ref)}}
+            {{confirm (printf "%s/promote" $.Plan.Action) (printf "Make %s the main backup? Restores will use it first, and both will keep their backups." .Title) "Make this the main backup" "secondary" (printf "destination=%s" .Ref)}}
+            {{confirm (printf "%s/remove" $.Plan.Action) (printf "Stop backing up to %s? The backups made so far will stay there." .Title) "Stop this backup" "quiet danger" (printf "destination=%s" .Ref)}}
           </div>
           {{end}}
         </details>
@@ -519,9 +519,9 @@
   your master application key:</p>
 {{copyBox "b2 account authorize"}}
 {{copyBox "b2 key create roostack listBuckets,listFiles,readFiles,writeFiles,deleteFiles,writeKeys,deleteKeys,listKeys"}}
-<p>It shows the new key's ID and key once: {{if eq . "add"}}enter them above as the access key and secret key{{else}}give them to Roostack
+<p>It will show the new key's ID and key once: {{if eq . "add"}}enter them above as the access key and secret key{{else}}give them to Roostack
   with Change the key{{end}}. The key reaches every bucket in your account (Backblaze doesn't let a key that makes keys be limited to
-  one bucket); only the controller keeps it.{{if ne . "add"}} Then delete the old key under App Keys on Backblaze's website.{{end}}</p>
+  one bucket); only the controller will keep it.{{if ne . "add"}} Then delete the old key under App Keys on Backblaze's website.{{end}}</p>
 {{end}}
 
 {{/* plan-key: a new key for an online storage account (planEntry),
@@ -531,8 +531,8 @@
   <summary>Change the key for {{.Title}}…</summary>
   <form method="post" action="{{.KeyAction}}" x-data="{ busy: false }" x-on:submit="busy = true">
     <input type="hidden" name="key" value="{{.Ref}}">
-    <p class="hint">Every server backing up to {{.Title}} uses the new key from now on. Make it with the provider first, and delete
-      the old one there once Roostack has this one.{{if .Access.B2}} If it can make keys, each server gets a key of its own that can
+    <p class="hint">Every server backing up to {{.Title}} will use the new key from now on. Make it with the provider first and delete
+      the old one there once Roostack has this one.{{if .Access.B2}} If it can make keys, each server will get a key of its own that can
       add backups but not delete them.{{end}}</p>
     <label>{{if .Access.B2}}Key ID{{else}}Access key{{end}} <input name="access_key" required autocomplete="off" autocapitalize="off"></label>
     <label>{{if .Access.B2}}Key{{else}}Secret key{{end}} <input name="secret_key" type="password" required autocomplete="off"></label>
@@ -551,7 +551,7 @@
 <details class="plan-key" id="plan-rollback-{{.Number}}"{{if .RollbackOpen}} open{{end}}>
   <summary>Bring back what was hidden or changed…</summary>
   <p class="hint">If this server was taken over, it may have hidden or overwritten its backups here. {{.Title}} keeps old versions, so
-    Roostack can put every file in this backup back as it was at a time you choose. Nothing is erased: anything added since is
+    Roostack can put every file in this backup back as it was at a time you choose. Nothing will be erased: anything added since will be
     hidden, and you can undo it by going back to a time just before. Remove a server that was taken over from the lab first, so it
     can't change anything again.</p>
   <form method="post" action="{{.RollbackAction}}" x-data="{ busy: false }" x-on:submit="busy = true">
@@ -565,13 +565,13 @@
     </fieldset>
     <div class="plan-actions">
       <button type="submit" class="secondary" x-bind:disabled="busy">Check what changes</button>
-      <span class="hint">Checking changes nothing.</span>
+      <span class="hint">Checking won't change anything.</span>
     </div>
   </form>
   {{with .RollbackLog}}{{activity .}}{{end}}
   {{with .RollbackPlan}}<div>{{noticeList "info" (printf "Going back to %s:" (.Before.Local.Format "2 January 15:04")) .Summary}}</div>{{if not .Empty}}
   <div class="plan-actions">
-    {{confirm $.RollbackAction (printf "Go back to %s in these backups? %s Nothing is erased, and you can undo it." (.Before.Local.Format "2 January 15:04") .SummaryText) "Go back to this time" "" (printf "destination=%s" $.Ref) (printf "before=%s" $.RollbackBefore) "step=run"}}
+    {{confirm $.RollbackAction (printf "Go back to %s in these backups? %s Nothing will be erased, and you can undo it." (.Before.Local.Format "2 January 15:04") .SummaryText) "Go back to this time" "" (printf "destination=%s" $.Ref) (printf "before=%s" $.RollbackBefore) "step=run"}}
   </div>
   {{end}}{{end}}
 </details>
@@ -621,18 +621,18 @@
       <div x-show="choice === 'drive'">
         <div id="drives" class="drives" hx-get="/setup/backup/drives" hx-include="#drives [name='drive']" hx-swap="innerHTML"
           hx-trigger="every 3s [document.visibilityState === 'visible' && !document.querySelector('#drives dialog[open]')], visibilitychange[document.visibilityState === 'visible'] from:document">{{template "backup-drives" .Options}}</div>
-        <p class="hint">Just plugged a drive in? It appears here within a few seconds.</p>
+        <p class="hint">Just plugged a drive in? It will appear here within a few seconds.</p>
         <details>
           <summary>A folder instead (for technical users)</summary>
           <label>Folder <input name="folder" placeholder="/mnt/backup" autocapitalize="off">
-            <small>Under /mnt, /media or /srv; Roostack keeps its backups in a roostack folder inside it. Used if no drive is chosen above.</small></label>
+            <small>Under /mnt, /media, or /srv; Roostack will keep its backups in a roostack folder inside it. It will be used if no drive is chosen above.</small></label>
         </details>
       </div>
       {{end}}
 
       {{with .Options.Cloud}}
       <div x-show="choice === 'cloud'" x-cloak>
-        <p>Backups go to Roostack Cloud's storage in Australia. {{.Note}}</p>
+        <p>Backups will go to Roostack Cloud's storage in Australia. {{.Note}}</p>
       </div>
       {{end}}
       <div x-show="choice === 'online'" x-cloak>
@@ -655,7 +655,7 @@
             <p class="hint">Any of your servers can back up to this account later, each in its own folder.</p>
             {{/* Backblaze: only once the endpoint is theirs (b2.IsB2). */}}
             <div x-show="endpoint.includes('.backblazeb2.com')" x-cloak>
-              {{notice "info" "Backblaze: give Roostack a key that can make keys, and each server gets one of its own that can add backups but not delete them. Keys from Backblaze's website can't."}}
+              {{notice "info" "Backblaze: give Roostack a key that can make keys, and each server will get one of its own that can add backups but not delete them. Keys from Backblaze's website can't."}}
               <details class="plan-more">
                 <summary>How</summary>
                 {{template "b2-key-help" "add"}}
@@ -669,7 +669,7 @@
         {{range .Options.Friends}}<label class="check"><input type="radio" name="remote" value="{{.Ref}}"><span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
         <div class="plan-invite">
           <label for="invite-{{.Adding}}">{{if .Options.Friends}}Or add another friend's lab{{else}}Their invite code{{end}}</label>
-          <p class="hint">Your friend makes it on their Roostack, under Settings → Storage for others, and sends it to you. Your backups are
+          <p class="hint">Your friend will make it on their Roostack, under Settings → Storage for others, and send it to you. Your backups are
             encrypted before they leave, so they can't read them.</p>
           <textarea id="invite-{{.Adding}}" name="invite" class="code-input" rows="6" spellcheck="false" autocapitalize="off" autocomplete="off"
             placeholder="roostack-storage-…"></textarea>
@@ -702,16 +702,16 @@
 {{- if .Waiting}}{{with .Waiting}}
 <div class="cloud-waiting">
   <p class="cloud-waiting-title with-icon">{{icon "clock"}}Waiting for you in Roostack Cloud</p>
-  <p>Roostack Cloud is waiting for you to log in or sign up there, check it shows this code, and confirm. This page carries on by itself.</p>
+  <p>Roostack Cloud is waiting for you to log in or sign up there, check it shows this code, and confirm. This page will carry on by itself.</p>
   <p class="cloud-code"><span class="link-code">{{.Code}}</span>
-    <small class="hint">{{with .Name}}For <strong>{{.}}.{{$.Suffix}}</strong> · {{end}}the code expires {{when .Expires}}</small></p>
-  {{with .Error}}<p class="hint">Roostack couldn't ask Roostack Cloud just now ({{.}}); it keeps trying.</p>{{end}}
+    <small class="hint">{{with .Name}}For <strong>{{.}}.{{$.Suffix}}</strong> · {{end}}the code will expire {{when .Expires}}</small></p>
+  {{with .Error}}<p class="hint">Roostack couldn't ask Roostack Cloud just now ({{.}}), so it will keep trying.</p>{{end}}
   <div class="actions-row">
     <a class="button secondary" href="{{.OpenURL}}">Go to Roostack Cloud</a>
     <form method="post" action="/settings/cloud/cancel">{{if $.Setup}}<input type="hidden" name="in" value="setup">{{end}}<button type="submit" class="quiet">Cancel</button></form>
   </div>
   <details class="technical" id="cloud-sent"><summary>What Roostack sends</summary>
-    <p>The lab's name, {{with .Name}}the name it asks for, {{end}}Roostack's version, and a public key, for the lab's certificate.
+    <p>The lab's name, {{with .Name}}the name it asks for, {{end}}Roostack's version, and a public key for the lab's certificate.
       The private key stays on this server. Nothing else: no email address, no list of services.</p>
   </details>
 </div>{{end}}
@@ -729,8 +729,8 @@
   <dt>Used for</dt><dd>{{if .Address}}Your lab's address, {{.Address}}{{else}}Nothing yet: <a href="/setup/domain">get a {{$.Suffix}} address</a>{{end}}
     {{- with .AddressError}}<br><small class="error">{{.}}</small>{{end}}</dd>
   <dt>Last contact</dt><dd>{{when .LastContact}}
-    {{- with .LastError}}<br><small class="hint">Couldn't reach Roostack Cloud {{when $.LastTry}} ({{.}}); Roostack tries again every hour.</small>{{end}}</dd>
-  {{with .Recipients}}<dt>Emails to</dt><dd>The account's Owner, and the people here who get the lab's problems
+    {{- with .LastError}}<br><small class="hint">Couldn't reach Roostack Cloud {{when $.LastTry}} ({{.}}), so Roostack will try again every hour.</small>{{end}}</dd>
+  {{with .Recipients}}<dt>Emails to</dt><dd>The account's Owner and the people here who get the lab's problems
     (<a href="/settings/email#who">Settings → Email</a>), once each confirms:
     <ul class="plain">{{range .}}<li>{{.Email}}<br><small class="hint">{{template "cloud-recipient" .}}</small></li>{{end}}</ul></dd>{{end}}
 </dl>
@@ -738,9 +738,9 @@
   <summary>Details</summary>
   <dl class="facts">
     <dt>Certificate</dt><dd>Fingerprint <code>{{.CertFingerprint}}</code><br>Valid from {{date .CertIssued}} to {{date .CertEnds}};
-      renewed by itself, with a new key, once two thirds of that has passed</dd>
+      Roostack will renew it by itself with a new key once two thirds of that has passed</dd>
     <dt>Kept in</dt><dd><code>{{.Dir}}</code>: the key (<code>lab.key</code>, readable only by Roostack), the certificate (<code>lab.crt</code>),
-      the link (<code>link.json</code>) and the requests below (<code>requests.log</code>). Backed up with Roostack's state.</dd>
+      the link (<code>link.json</code>), and the requests below (<code>requests.log</code>). Backed up with Roostack's state.</dd>
     <dt>Lab ID</dt><dd><code>{{.LabID}}</code></dd>
     <dt>Told Cloud</dt><dd>{{if .Reported.IsZero}}Nothing yet{{else}}{{when .Reported}}{{end}}: after each daily check-in, the email addresses
       of the people here who get this lab's problems (Roostack Cloud's emails about the lab go to them too), and each server's last backup
@@ -751,12 +751,12 @@
   {{template "cloud-requests" .}}
 </details>
   <h2 class="section-title">Unlinking</h2>
-  <p>{{if .Address}}Your lab's address, {{.Address}}, stops working, so
+  <p>{{if .Address}}Your lab's address, {{.Address}}, will stop working, so
     {{with .Services}}these services can't be reached until you give the lab another address: {{range $i, $s := .}}{{if $i}}, {{end}}{{$s}}{{end}}.{{else}}services can't be reached until you give the lab another address.{{end}}
-    The name is kept for your account for a year.{{else if not .Relayed}}Nothing on this lab uses Roostack Cloud yet.{{end}}
-    {{if .Relayed}}Public visitors stop coming in through Roostack Cloud's relay: it's turned off here, and public services can be
+    The name will be kept for your account for a year.{{else if not .Relayed}}Nothing on this lab uses Roostack Cloud yet.{{end}}
+    {{if .Relayed}}Public visitors will stop coming in through Roostack Cloud's relay: it will be turned off here, and public services can be
     reached only if your router sends visitors to this server (see Public access).{{end}}
-    Everything else on this server carries on as it is.</p>
+    Everything else on this server will carry on as it is.</p>
   {{confirm "/settings/cloud/unlink" "Unlink this lab from Roostack Cloud?" "Unlink from Roostack Cloud" "quiet danger"}}
 {{- end}}
 {{- else if not .Setup}}
@@ -768,7 +768,7 @@
 {{with .StartError}}<p class="error" role="alert">{{.}}</p>{{end}}
 <form method="post" action="/settings/cloud/link">
   <button type="submit">Link to Roostack Cloud</button>
-  <small>You'll sign up or log in there (a free account), confirm this lab, and come straight back here. No password is typed here, and nothing secret is copied by hand.</small>
+  <small>You'll sign up or log in there (a free account), confirm this lab, and come straight back here. No password will be typed here, and nothing secret will be copied by hand.</small>
 </form>
 {{template "cloud-requests" .}}
 {{- else}}
@@ -779,13 +779,13 @@
 {{/* cloud-name: one of the lab's names Roostack Cloud has on hold
      (cloudapi.NameStatus). */}}
 {{define "cloud-name"}}{{if eq .State "suspended"}}<span class="dot dot-problem" aria-hidden="true"></span><code>{{.Host}}</code> is suspended
-  {{- with .Reason}}: {{.}}{{end}}. It's out of DNS, and Roostack Cloud's relay doesn't route it; the rest of the lab carries on.
-  Roostack Cloud emailed the account's Owner why, and how to appeal.
+  {{- with .Reason}}: {{.}}{{end}}. It's out of DNS and Roostack Cloud's relay isn't routing it, but the rest of the lab is still working.
+  Roostack Cloud emailed the account's Owner why and how to appeal.
 {{- else if eq .State "refused"}}<span class="dot dot-problem" aria-hidden="true"></span><code>{{.Host}}</code> wasn't approved
   {{- with .Reason}}: {{.}}{{end}}. It isn't published or relayed: choose another name for it.
 {{- else}}<span class="dot dot-warn" aria-hidden="true"></span><code>{{.Host}}</code> is waiting for Roostack Cloud's approval
-  {{- if not .Since.IsZero}}, since {{when .Since}}{{end}}. It looks like a bank's, a government service's or a well-known brand's name,
-  so a person checks it first. Until then it isn't published or relayed; Cloud decides within 7 days, and emails the account's Owner.
+  {{- if not .Since.IsZero}}, since {{when .Since}}{{end}}. It looks like a bank's, a government service's, or a well-known brand's name,
+  so a person will check it first. Until then it isn't published or relayed, and Cloud will decide within 7 days and email the account's Owner.
 {{- end}}{{end}}
 
 {{/* cloud-recipient: how one of the addresses the lab reports stands with
@@ -891,7 +891,7 @@
   <span class="cta-icon">{{icon "warn"}}</span>
   <div class="cta-text"><h2>{{.Who}}'s migration stopped</h2>
     <p>{{with .Run}}{{if .Interrupted}}When the server restarted{{else if .Err}}With an error{{else}}It was stopped{{end}}, {{when .Finished}}. {{count (add .Migrated .HadBefore)}} are in Immich;
-      carrying on skips them, so nothing comes twice.{{end}}</p></div>
+      carrying on will skip them, so nothing will come twice.{{end}}</p></div>
   <div class="cta-actions"><form method="post" action="/immich-photos/{{$.Name}}/start"><input type="hidden" name="panel" value="1">
     <input type="hidden" name="who" value="{{.Who}}"><button type="submit">Carry on</button></form></div>
 </section>
@@ -899,7 +899,7 @@
 <section class="card cta" aria-label="Migrating photos">
   <span class="cta-icon">{{icon "import"}}</span>
   <div class="cta-text"><h2>Moving from Google Photos or iCloud?</h2>
-    <p>Migrate your photos and videos into {{.Title}}, with their dates, places and albums. Roostack walks you through it.</p></div>
+    <p>Migrate your photos and videos into {{.Title}}, with their dates, places, and albums. Roostack will walk you through it.</p></div>
   <div class="cta-actions"><a class="button" href="/services/{{.Name}}/photos">Migrate photos…</a>
     <form method="post" action="/services/{{.Name}}/photos/hide"><button type="submit" class="quiet">Hide</button></form></div>
 </section>
@@ -914,7 +914,7 @@
 <section class="card" id="photos">
   <div class="card-head"><h2>Migrate photos</h2></div>
   {{with .Saved}}{{notice "ok" .}}{{end}}
-  <p>Migrate photos and videos from Google Photos or a folder (Apple iCloud next) into {{.Title}}, with their dates, places and albums.</p>
+  <p>Migrate photos and videos from Google Photos or a folder (Apple iCloud next) into {{.Title}}, with their dates, places, and albums.</p>
   {{with .Error}}<p class="hint">{{.}}</p>{{end}}
   {{if .List}}
   <div class="table-wrap"><table class="list stack-phone">
@@ -932,14 +932,14 @@
     <div class="seg-group">
       {{segmented "who" "Who can migrate photos" (or (and .Settings.OwnersOnly "admins") "everyone") (choice "everyone" "Everyone who uses Immich" "users") (choice "admins" "Owners and Admins")}}
       <div class="seg-panel" data-seg="1">
-        <p class="hint seg-hint">Into their own Immich account, with a key they make there, from their own page. You're emailed when one starts and ends.</p>
+        <p class="hint seg-hint">Into their own Immich account, with a key they make there, from their own page. You'll be emailed when one starts and ends.</p>
         <hr class="form-rule">
         <h2 class="form-section">Where they can migrate photos from</h2>
         <label class="check"><input type="checkbox" class="switch" role="switch" name="drives"{{if not .Settings.NoDrives}} checked{{end}}><span>USB drives they plug into the server<small>Never your backups' drive, the system disk, or a drive with a media library.</small></span></label>
         <label class="check"><input type="checkbox" class="switch" role="switch" name="shares"{{if not .Settings.NoShares}} checked{{end}}><span>Network shares, with their own login</span></label>
         <hr class="form-rule">
         <h2 class="form-section">Additional locations</h2>
-        <p class="hint">Folders you set up for people to migrate from: on a drive, on the server, or on a share with your login. Everyone who can migrate photos sees what's in them, so a folder per person keeps them apart.</p>
+        <p class="hint">Folders you set up for people to migrate from: on a drive, on the server, or on a share with your login. Everyone who can migrate photos will see what's in them, so a folder per person will keep them apart.</p>
         {{if .Locations}}<div class="locations">{{range .Locations}}
           <div class="folder-choice location">{{if .ShareType}}{{icon "network"}}{{else if .Drive}}{{icon "disk"}}{{else}}{{icon "folder"}}{{end}}
             <span class="path"><strong>{{.Title}}</strong><small>{{libraryWhereText .}}</small></span>
@@ -958,7 +958,7 @@
     <h2 class="form-section">Memory for migrations</h2>
     {{segmented "memory" "Memory for migrations" (or .Settings.Memory "half") (choice "half" (printf "Half this server's · %s" (size .Memory.Half))) (choice "most" (printf "Three quarters · %s" (size .Memory.Most)))}}
     <p class="hint">The migration tool keeps a list of every photo in the export and in the account while it runs, so a large library needs more:
-      half lets it migrate roughly {{count .Memory.Photos}} photos. If one needs more, it stops and says so; what came stays in Immich, and it carries on once it has more.
+      half lets it migrate roughly {{count .Memory.Photos}} photos. If one needs more, it will stop and say so; what came will stay in Immich, and it will carry on once it has more.
       While one runs, what it uses isn't there for your other services.</p>
     <div class="actions-row"><button type="submit">Save</button></div>
   </form>

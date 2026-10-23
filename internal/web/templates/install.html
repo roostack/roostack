@@ -37,7 +37,7 @@
     {{if .Another}}
     {{/* A second copy, kept apart from the first in everything: its own
          data, database, backups, settings and address. */}}
-    <p>{{.Package.Title}} is installed already. This adds another, completely separate copy: its own data, settings, backups
+    <p>{{.Package.Title}} is installed already. This will add another, completely separate copy: its own data, settings, backups,
       and web address.</p>
     {{end}}
     <h2 class="form-section">Name and address</h2>
@@ -53,7 +53,7 @@
             x-model="sub" x-on:input="ownSub = true">
           <span>.{{or .Domain "your lab's address"}}</span>
         </span>
-        {{if not .Domain}}<small>Your lab has no address yet: the service runs, and gets this address once your lab has one.</small>
+        {{if not .Domain}}<small>Your lab has no address yet: the service will run and get this address once your lab has one.</small>
         {{- else if not .Internet}}<small>Only reachable from your home network (or VPN).</small>{{end}}
       </label>
       {{end}}
@@ -66,7 +66,7 @@
         <span class="with-prefix"><span>{{.Package.Name}}-</span>
           <input name="name_suffix" value="{{.Suffix}}" maxlength="{{.MaxSuffix}}" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocapitalize="off"
             spellcheck="false" x-model="suffix" x-on:input="suffixChanged(true)"{{if .Another}} required{{end}}></span>
-        <small>Used for its folders, containers and backups, so it can't change later{{if not .Another}}. Leave it empty for just
+        <small>It will be used for its folders, containers, and backups, so it can't change later{{if not .Another}}. Leave it empty for just
           <code>{{.Package.Name}}</code>{{end}}.</small>
       </label>
     </details>
@@ -75,14 +75,14 @@
     {{/* On a lab on the internet, private means only through an SSH
          tunnel, so services start public (SPEC.md §6.12). */}}
     {{with .Unsafe}}
-    {{notice "warn" (printf "%s's package says its address isn't safe to make public: %s It starts reachable only through an SSH tunnel; you can make it public from its page, after reading why." $.Package.Title .)}}
+    {{notice "warn" (printf "%s's package says its address isn't safe to make public: %s It will start reachable only through an SSH tunnel, and you can make it public from its page after reading why." $.Package.Title .)}}
     {{else}}{{if not .IsOwner}}
     {{/* Only an Owner makes a service public (SPEC.md §6.11). */}}
-    <p class="hint">It starts reachable only through an SSH tunnel. An Owner can make it public from its page.</p>
+    <p class="hint">It will start reachable only through an SSH tunnel. An Owner can make it public from its page.</p>
     {{else}}
     <label class="check"><input type="checkbox" name="public" {{if .Public}}checked{{end}}>
-      <span>Anyone on the internet can reach it (recommended)<small>CrowdSec blocks attackers and password tries are limited.
-        Otherwise it's only reachable through an SSH tunnel, which is for technical users.</small></span></label>
+      <span>Anyone on the internet can reach it (recommended)<small>CrowdSec will block attackers, and password tries will be limited.
+        Otherwise it will only be reachable through an SSH tunnel, which is for technical users.</small></span></label>
     {{if not .SharingAsked}}{{template "sharing-question" .}}{{end}}
     {{end}}{{end}}
     {{end}}
@@ -96,7 +96,7 @@
         {{range .}}{{$no := index $.NoBuild .ID}}<option value="{{.ID}}" {{if eq .ID $.Host}}selected{{end}}{{if $no}} disabled{{end}}>
           {{- .Name}}{{if .This}} (this server){{end}}{{if $no}}: can't run it{{end}}</option>{{end}}
       </select>
-      <small>{{with $.NoBuildText}}{{.}} {{end}}Its data stays on that server, and it's backed up there.</small>
+      <small>{{with $.NoBuildText}}{{.}} {{end}}Its data will stay on that server, and it will be backed up there.</small>
     </label>
     {{end}}
     {{with .LibraryGroups}}
@@ -123,19 +123,19 @@
     <h2 class="form-section">Its data</h2>
     <div class="seg-group" x-on:change="if ($event.target.name === 'data') bring = $event.target.value === 'bring'">
       {{segmented "data" "Its data" (or (and .BringData "bring") "afresh") (choice "afresh" "Start afresh" "spark") (choice "bring" "I'll bring its data" "import")}}
-      <p class="seg-panel hint seg-hint" data-seg="1">{{.Package.Title}} starts empty{{if .Fields}}, with what you set below{{end}}.</p>
-      <p class="seg-panel hint seg-hint" data-seg="2">From Docker Compose, another server or a backup of your own: its files and a dump of
-        its database. Roostack installs {{.Package.Title}} and leaves it stopped; then you bring your data in, and it starts with it: its
+      <p class="seg-panel hint seg-hint" data-seg="1">{{.Package.Title}} will start empty{{if .Fields}}, with what you set below{{end}}.</p>
+      <p class="seg-panel hint seg-hint" data-seg="2">From Docker Compose, another server, or a backup of your own: its files and a dump of
+        its database. Roostack will install {{.Package.Title}} and leave it stopped; then you'll bring your data in, and it will start with it: its
         accounts and settings too.</p>
     </div>
     {{end}}
     {{with .Fields}}
     <hr class="form-rule">
     <h2 class="form-section">{{$.Package.Title}}'s settings</h2>
-    {{if $.IsOwner}}<p class="hint" x-show="bring" x-cloak>What {{$.Package.Title}} needs only for its first start isn't asked for: its accounts come with
+    {{if $.IsOwner}}<p class="hint" x-show="bring" x-cloak>What {{$.Package.Title}} needs only for its first start isn't asked for: its accounts will come with
       its data.</p>{{end}}
-    {{range .}}{{if .KeepsFirst}}<p class="hint">With its data from before, leave these empty: {{$.Package.Title}} keeps what it has,
-      its accounts too. Filled in, its first-time setup runs again with them.</p>{{end}}{{end}}
+    {{range .}}{{if .KeepsFirst}}<p class="hint">With its data from before, leave these empty: {{$.Package.Title}} will keep what it has,
+      its accounts too. Filled in, its first-time setup will run again with them.</p>{{end}}{{end}}
     {{template "setting-fields" .}}
     {{end}}
     <hr class="form-rule">
@@ -162,12 +162,12 @@
   <h2>What {{.Package.Title}} sets up</h2>
   {{if .Err}}<p class="hint">It can't be worked out yet: {{.Err}}</p>{{else}}
   {{if .BringData}}<div class="notice" role="status">
-    <p><strong>{{$.Package.Title}} waits for its data.</strong> It's installed and stays stopped until you bring its data in. Nothing is
+    <p><strong>{{$.Package.Title}} will wait for its data.</strong> It will be installed and stay stopped until you bring its data in. Nothing will be
       copied until you say so.</p>
   </div>{{end}}
   {{with .LeftData}}<div class="notice" role="status">
     <p><strong>{{$.Package.Title}}'s data from before is still on {{$.Server.Name}}</strong>, from when it was installed there and removed.
-      It starts with that data, as it was: everything in it comes back, accounts and passwords too.</p>
+      It will start with that data as it was: everything in it will come back, accounts and passwords too.</p>
     <p class="hint">In {{range $i, $d := .}}{{if $i}} and {{end}}<code>{{$d}}</code>{{end}}. To start afresh instead, choose another name.</p>
   </div>{{end}}
   <dl class="facts">
@@ -175,7 +175,7 @@
     <dd>{{if .BackedUp}}{{.BackedUp}}: <strong>backed up</strong>{{else}}Nothing to back up{{end}}
       {{- with .Remade}}<br><small class="hint">Not backed up, as {{$.Package.Title}} makes them again: {{.}}.</small>{{end}}</dd>
     {{range .Addresses}}<dt>Address</dt>
-    <dd>{{if $.NoAddress}}None yet: it gets one once your lab has an address{{else}}{{.Host}}<br>
+    <dd>{{if $.NoAddress}}None yet: it will get one once your lab has an address{{else}}{{.Host}}<br>
       <small class="hint">{{if .Public}}Anyone on the internet{{else}}{{template "private-where" $.Internet}}{{end}}</small>{{end}}</dd>{{end}}
     {{range .Ports}}<dt>Connection</dt>
     <dd>{{.Title}}, port {{.HostPort}}{{if ne .Protocol "tcp"}} ({{.Protocol}}){{end}}<br>
@@ -187,9 +187,9 @@
       {{- with .Server}}<br><small class="hint">{{if .This}}This server ({{.Name}}){{else}}{{.Name}}{{end}}
       {{- if .Total}} has {{size .Total}}, and {{size .Available}} is free right now.{{else}} didn't say how much memory is free.{{end}}</small>{{end}}</dd>
   </dl>
-  {{if .TooBig}}{{notice "warn" (printf "%s needs about %s, but only %s is free on %s right now. It may be slow, or stop working. %s"
+  {{if .TooBig}}{{notice "warn" (printf "%s needs about %s, but only %s is free on %s right now. It may be slow or stop working. %s"
     .Package.Title (size .Memory) (size .Server.Available) .Server.Name
-    (or (and (gt .Server.Servers 1) "Run it on another server, or free some memory first.") "Free some memory first, for example by removing a service you don't use."))}}{{end}}
+    (or (and (gt .Server.Servers 1) "Run it on another server or free some memory first.") "Free some memory first, for example by removing a service you don't use."))}}{{end}}
   <details class="technical" id="install-summary-details">
     <summary>Details</summary>
     <dl class="facts">

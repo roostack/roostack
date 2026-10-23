@@ -11,8 +11,8 @@
     {{logo .Service.IconURL .Service.DrawnIcon}}
     <div>
       <div class="title-line"><h1>{{if $.Own}}Migrate your photos into {{.Title}}{{else}}Migrate photos into {{.Title}}{{end}}</h1></div>
-      <p class="lede">From Google Photos or a folder, with their dates, places and albums, into {{if $.Own}}your own{{else}}one person's{{end}} Immich
-        account. Roostack only reads your export: nothing there changes.</p>
+      <p class="lede">From Google Photos or a folder, with their dates, places, and albums, into {{if $.Own}}your own{{else}}one person's{{end}} Immich
+        account. Roostack will only read your export: nothing there will change.</p>
     </div>
   </div>
 </div>
@@ -55,7 +55,7 @@
   steps are theirs to change.</p></div>{{end}}
 {{with $v.Busy}}{{if or (not $v.Run) (not $v.Run.Running)}}
 <div class="notice notice-info" role="status"><p><strong>{{.Who}} is migrating their photos now.</strong> One migration runs at a time:
-  you can get everything ready, and start yours once theirs is done.</p></div>
+  you can get everything ready and start yours once theirs is done.</p></div>
 {{end}}{{end}}
 
 {{/* 1. Where from. */}}
@@ -66,8 +66,8 @@
     {{if .Panel}}<input type="hidden" name="panel" value="1">{{end}}
     <div class="seg-group">
       {{segmented "from" "Where from" (or $v.Kind "google") (choice "google" "Google Photos" "cloud") (choice "folder" "A folder of photos" "folder")}}
-      <p class="seg-panel hint seg-hint" data-seg="1">From a Google Takeout export: dates, places, albums, descriptions, favourites and archived photos.</p>
-      <p class="seg-panel hint seg-hint" data-seg="2">From a computer, a phone's backup, OneDrive, Dropbox or another app: the dates and places in the
+      <p class="seg-panel hint seg-hint" data-seg="1">From a Google Takeout export: dates, places, albums, descriptions, favourites, and archived photos.</p>
+      <p class="seg-panel hint seg-hint" data-seg="2">From a computer, a phone's backup, OneDrive, Dropbox, or another app: the dates and places in the
         files, and their XMP sidecars if there are any. Each folder can become an album.</p>
     </div>
     <p class="hint">Apple iCloud Photos is coming next.</p>
@@ -90,20 +90,20 @@
   <p>Google gives you everything in Google Photos as a few large zip files, called a <strong>Takeout</strong>.</p>
   <div class="notice notice-warn" role="note"><p><strong>This can be very slow, so it may take you several days.</strong> Google can take a day or
     more to make the files, and downloading hundreds of GB from Google is often slow and sometimes stops part-way. Take your time: Roostack
-    keeps your place, so close this page whenever you like and come back {{if .Panel}}to Migrate photos on {{.Title}}'s page{{else}}to this page{{end}}
+    will keep your place, so close this page whenever you like and come back {{if .Panel}}to Migrate photos on {{.Title}}'s page{{else}}to this page{{end}}
     when the files are ready.</p></div>
   <ol class="todo-list guide-list">
     <li>Open <a href="https://takeout.google.com" target="_blank" rel="noopener">takeout.google.com{{template "new-window"}}</a>, signed in to the
       Google account whose photos these are.</li>
     <li>Click <strong>Deselect all</strong>, then tick only <strong>Google Photos</strong>. Leave "All photo albums included" as it is.</li>
-    <li>Click <strong>Next step</strong>, and choose: <em>Send download link via email</em>, <em>Export once</em>, file type <strong>.zip</strong>,
+    <li>Click <strong>Next step</strong> and choose: <em>Send download link via email</em>, <em>Export once</em>, file type <strong>.zip</strong>,
       size <strong>50 GB</strong>. Then <strong>Create export</strong>.</li>
-    <li>Google emails you when it's ready. <strong>Download every part</strong> (each is a zip of up to 50 GB) within 7 days: Google lets you
+    <li>Google will email you when it's ready. <strong>Download every part</strong> (each is a zip of up to 50 GB) within 7 days: Google lets you
       download each one 5 times.</li>
-    <li>Copy all the parts into one folder on a USB drive or your NAS. <strong>Don't unzip them</strong>: Roostack reads them as they are. You need
+    <li>Copy all the parts into one folder on a USB drive or your NAS. <strong>Don't unzip them</strong>: Roostack will read them as they are. You need
       about as much room as Google Photos says you use, plus a tenth.</li>
   </ol>
-  <p class="hint">Your Google account isn't changed: your photos stay in Google Photos until you delete them there.
+  <p class="hint">Your Google account won't be changed: your photos will stay in Google Photos until you delete them there.
     <a href="/help/services/immich-migrate#google" target="_blank" rel="noopener">Tell me more{{template "new-window"}}</a></p>
   <form method="post" action="{{.Post}}/export">{{if .Panel}}<input type="hidden" name="panel" value="1">{{end}}
     <div class="actions-row"><button type="submit">I have the zip files</button></div></form>
@@ -125,7 +125,7 @@
   <p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Looking in {{with $v.Source}}{{.Title}}{{end}}…</p>
   {{else}}
   {{with $v.ScanErr}}<p class="error" role="alert">{{.}}</p>{{end}}
-  <p class="hint">Roostack only reads them: it mounts them read-only, so nothing there can change.</p>
+  <p class="hint">Roostack will only read them: it will mount them read-only, so nothing there can change.</p>
   {{template "photos-source" .}}
   {{end}}
 </section>
@@ -144,20 +144,20 @@
   <div class="card-head"><h2><span class="step-num">4</span>Your Immich key</h2></div>
   {{with $v.Account}}{{if .Missing}}
   <ul class="check-list">
-    <li class="check-ok">{{icon "check"}}<div><strong>{{or .Name .Email}}'s Immich account</strong>{{with .Email}} ({{.}}){{end}}: the photos go there.</div></li>
+    <li class="check-ok">{{icon "check"}}<div><strong>{{or .Name .Email}}'s Immich account</strong>{{with .Email}} ({{.}}){{end}}: the photos will go there.</div></li>
     <li class="check-bad">{{icon "close"}}<div><strong>{{len .Missing}} permission{{if ne (len .Missing) 1}}s are{{else}} is{{end}} missing:</strong>
       {{range $i, $m := .Missing}}{{if $i}}, {{end}}<code>{{$m}}</code>{{end}}. In {{if $p.KeyURL}}<a href="{{$p.KeyURL}}" target="_blank" rel="noopener">Immich's API keys{{template "new-window"}}</a>{{else}}Immich's account settings, API keys,{{end}}
       edit the key named "Roostack migration", tick {{if eq (len .Missing) 1}}it{{else}}them{{end}}, and save. The key stays the same, so check it again below.</div></li>
   </ul>
   {{end}}{{end}}
-  <p>{{if $p.Panel}}The photos go into the Immich account the key belongs to, so the person whose photos these are makes it, signed in to Immich
-    as themselves.{{else}}The photos go into the Immich account the key belongs to: yours, when you make it signed in to Immich as yourself.{{end}}
+  <p>{{if $p.Panel}}The photos will go into the Immich account the key belongs to, so the person whose photos these are should make it, signed in to Immich
+    as themselves.{{else}}The photos will go into the Immich account the key belongs to: yours, when you make it signed in to Immich as yourself.{{end}}
     Roostack never needs an Immich password.</p>
   <ol class="todo-list">
     <li>{{if .KeyURL}}<a class="button secondary" href="{{.KeyURL}}" target="_blank" rel="noopener">Make a key in Immich{{template "new-window"}}</a>
-      <small class="hint">Opens your Immich settings at API keys. Signed in to Immich as someone else? Sign out of Immich first.</small>
+      <small class="hint">It will open your Immich settings at API keys. Signed in to Immich as someone else? Sign out of Immich first.</small>
       {{else}}In Immich, open your account settings, then <strong>API keys</strong>.{{end}}</li>
-    <li><strong>New API key</strong>: name it <code>Roostack migration</code> and tick these {{len .Permissions}} permissions. Roostack says if any are missing.
+    <li><strong>New API key</strong>: name it <code>Roostack migration</code> and tick these {{len .Permissions}} permissions. Roostack will say if any are missing.
       <details class="form-more"><summary>The permissions</summary><ul class="perm-list">{{range .Permissions}}<li><code>{{.}}</code></li>{{end}}</ul></details></li>
     <li><strong>Create</strong>, then copy the key Immich shows you, and paste it here.</li>
   </ol>
@@ -165,7 +165,7 @@
     <label class="sr-only" for="photo-key">Your Immich key</label>
     <input id="photo-key" name="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste the key" required>
     <button type="submit">{{if and $v.Account $v.Account.Missing}}Check again{{else}}Check the key{{end}}</button></form>
-  {{with $v.Account}}{{if .Missing}}<p class="hint">Pasting the same key again checks it again.</p>{{end}}{{end}}
+  {{with $v.Account}}{{if .Missing}}<p class="hint">Pasting the same key again will check it again.</p>{{end}}{{end}}
 </section>
 {{else}}
 <section class="card step-card step-done" id="step-4">
@@ -225,7 +225,7 @@
     {{with $v.Scan}}{{if and (eq .Kind "google") .Parts (not .Missing) (not .Unreadable)}}<li class="check-ok">{{icon "check"}}<div><strong>{{if eq (len .Parts) 1}}One part{{else}}Parts 1 to {{len .Parts}}, none missing in between.{{end}}</strong> Google's email says how many there should be.</div></li>{{end}}
     {{if gt .Exports 1}}<li class="check-warn">{{icon "warn"}}<div><strong>{{.Exports}} different Takeouts are in this folder.</strong> Migrate one at a time: put each in a folder of its own.</div></li>{{end}}{{end}}
     {{with $v.Check}}{{if le .Needs .Free}}<li class="check-ok">{{icon "check"}}<div><strong>Room for them:</strong> about {{size .Needs}} with Immich's thumbnails, on {{.Disk}}; {{size .Free}} free.</div></li>{{end}}
-    <li class="check-info">{{icon "spark"}}<div>{{with .Account}}{{if or .Photos .Videos}}<strong>{{or .Name .Email}}'s account has {{photoTotals .Photos .Videos}} already.</strong> Photos Immich has already, from the phone app say, are skipped as they come.{{else}}<strong>{{or .Name .Email}}'s account has no photos yet.</strong>{{end}}{{end}}</div></li>{{end}}
+    <li class="check-info">{{icon "spark"}}<div>{{with .Account}}{{if or .Photos .Videos}}<strong>{{or .Name .Email}}'s account has {{photoTotals .Photos .Videos}} already.</strong> Photos Immich has already, from the phone app say, will be skipped as they come.{{else}}<strong>{{or .Name .Email}}'s account has no photos yet.</strong>{{end}}{{end}}</div></li>{{end}}
     {{with $v.Scan}}{{if eq .Kind "google"}}{{$left := leftOutText . $v.Choices}}{{with $left}}<li class="check-info">{{icon "spark"}}<div><strong>Left out, as you chose:</strong> {{.}}.</div></li>{{end}}{{end}}
     {{if .Other}}<li class="check-info">{{icon "spark"}}<div><strong>{{count .Other}} file{{if ne .Other 1}}s{{end}} that can't be migrated</strong>{{with .OtherExamples}} (such as <code>{{index . 0}}</code>){{end}}: left out.</div></li>{{end}}
     <li class="check-warn">{{icon "warn"}}<div><strong>Your next backup will be about {{size .Bytes}} larger.</strong> The photos are Immich's library, which is backed up.</div></li>{{end}}
@@ -233,7 +233,7 @@
   {{if not .Problems}}
   <form method="post" action="{{.Post}}/start">{{if .Panel}}<input type="hidden" name="panel" value="1">{{end}}
     <div class="actions-row"><button type="submit"{{if $v.Busy}} disabled{{end}}>Migrate them</button></div></form>
-  <p class="hint">{{if $v.Busy}}Once {{$v.Busy.Who}}'s migration is done.{{else}}You can close this page: it carries on, and you're emailed when it's done{{if not $v.Ready}}. The first time, Roostack gets its migration tool ready first (a minute or two){{end}}.{{end}}</p>
+  <p class="hint">{{if $v.Busy}}Once {{$v.Busy.Who}}'s migration is done.{{else}}You can close this page: it will carry on, and you'll be emailed when it's done{{if not $v.Ready}}. The first time, Roostack will get its migration tool ready first (a minute or two){{end}}.{{end}}</p>
   {{end}}
   {{end}}
 </section>
@@ -266,11 +266,11 @@
   </div>
   {{if .Running}}
   <form method="post" action="{{$p.Post}}/stop">{{if $p.Panel}}<input type="hidden" name="panel" value="1">{{end}}{{if $p.Watching}}<input type="hidden" name="who" value="{{$v.Who}}">{{end}}<div class="actions-row"><button type="submit" class="secondary">Stop</button></div></form>
-  <p class="hint">You can close this page: it carries on, and you're emailed when it's done. Immich shows the photos as they arrive.</p>
+  <p class="hint">You can close this page: it will carry on, and you'll be emailed when it's done. Immich will show the photos as they arrive.</p>
   {{else}}
   <form method="post" action="{{$p.Post}}/start">{{if $p.Panel}}<input type="hidden" name="panel" value="1">{{end}}{{if $p.Watching}}<input type="hidden" name="who" value="{{$v.Who}}">{{end}}
     <div class="actions-row"><button type="submit"{{if $v.Busy}} disabled{{end}}>Carry on</button></div></form>
-  <p class="hint">Nothing is lost: what's in Immich stays there, and carrying on skips it, so nothing comes twice.</p>
+  <p class="hint">Nothing is lost: what's in Immich will stay there, and carrying on will skip it, so nothing will come twice.</p>
   {{end}}
 </section>
 {{else}}
@@ -289,7 +289,7 @@
       <details class="form-more"><summary>Which</summary><ul class="plain code-list">{{range $t.NoDates}}<li><code>{{.File}}</code></li>{{end}}</ul></details></div></li>{{end}}
     {{if gt .LibraryAfter 0}}<li class="check-info">{{icon "spark"}}<div><strong>Uses {{size (sub .LibraryAfter .LibraryBefore)}}</strong>{{if gt .FreeAfter 0}}; {{size .FreeAfter}} free{{end}}.</div></li>{{end}}
   </ul>
-  <p><strong>What happens now:</strong> Immich is making thumbnails and finding faces. For many photos that takes a day or two; photos show up in
+  <p><strong>What happens now:</strong> Immich is making thumbnails and finding faces. For many photos that will take a day or two, and photos will show up in
     search as it goes.{{if eq $v.Kind "google"}} Everything migrated is tagged with the Takeout's date in Immich, so you can find it.{{end}}</p>
   <p class="hint">Roostack has forgotten your key.{{if $p.KeyURL}} You can <a href="{{$p.KeyURL}}" target="_blank" rel="noopener">delete it in Immich{{template "new-window"}}</a>.{{end}}
     {{with $v.Source}}{{if eq .Kind "drive"}}Your export isn't needed any more: unplug the drive whenever you like.{{else}}Your export isn't needed any more.{{end}}{{end}}</p>
@@ -358,7 +358,7 @@
       </div>
     </div>{{end}}
     {{with $f.Seg "folder"}}<div class="{{if $ctl}}seg-panel{{end}}" data-seg="{{.}}">
-      <p class="hint seg-hint">A folder already on {{or $f.ServerName "the server"}}, under /mnt, /media or /srv.</p>
+      <p class="hint seg-hint">A folder already on {{or $f.ServerName "the server"}}, under /mnt, /media, or /srv.</p>
       <input type="hidden" name="folder" value="{{$f.Folder}}">
       <div class="folder-choice{{if not $f.FolderLabel}} empty{{end}}">{{icon "folder"}}<span class="path"><strong>{{or $f.FolderLabel "No folder chosen yet"}}</strong></span>
         <a class="button secondary" href="{{or $f.FolderPickHref (printf "%s/folders" $p.Base)}}">Choose a folder…</a></div>

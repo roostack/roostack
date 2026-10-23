@@ -102,7 +102,7 @@ func TestJoinDial(t *testing.T) {
 	if len(fn.dials) != 1 || fn.dials[0] != "203.0.113.7:51820" || fn.endpoints[0] != "" {
 		t.Fatalf("dial %v, endpoints %v", fn.dials, fn.endpoints)
 	}
-	if !strings.Contains(made, "Join code for a new server") || !strings.Contains(made, "connects to the new one at <code>203.0.113.7:51820</code>") {
+	if !strings.Contains(made, "Join code for a new server") || !strings.Contains(made, "will connect to the new one at <code>203.0.113.7:51820</code>") {
 		t.Error("the code doesn't say this server will connect")
 	}
 	h.post("/settings/servers/join", url.Values{"address": {"dial"}, "address_dial": {"vps.example.com:61820"}}, h.srv.URL)
