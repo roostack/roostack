@@ -68,6 +68,11 @@ type Fake struct {
 	// pilot grant. Relayed is each relayed lab's request, by lab ID.
 	NoRelay bool
 	Relayed map[string]cloudapi.RelayRequest
+	// Registry is the newest registry index's serial the fake says it has
+	// seen, in the relay's answer and News (0: unknown). NoNews answers
+	// News 404, as a Cloud from before it.
+	Registry int64
+	NoNews   bool
 	// Suspended answers every lab request 423 Locked, as Cloud did
 	// before 2026-10-16 while the account was suspended.
 	Suspended bool
@@ -91,9 +96,11 @@ type Fake struct {
 	NameStates []cloudapi.NameStatus
 	// RelayOff is when the account turned the relay off at Cloud (zero:
 	// it's on), until the lab asks to turn it on; RelaySuspended why
-	// it's suspended.
+	// it's suspended; RelayPaused when the account paused public access
+	// at the edges, until the lab asks to resume.
 	RelayOff       time.Time
 	RelaySuspended string
+	RelayPaused    time.Time
 	// Reports are each lab's last report, by lab ID; NoReports answers
 	// them 404, as a Cloud from before them does.
 	Reports   map[string]cloudapi.LabReport
@@ -388,7 +395,8 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			reply(w, cloudapi.NameAvailability{Available: true})
 		}
-	case known && rt.Lab && !(rt.Path == cloudapi.PathLabReport && f.NoReports) && !(rt.Path == cloudapi.PathLabNameRelease && f.NoKeep):
+	case known && rt.Lab && !(rt.Path == cloudapi.PathLabReport && f.NoReports) && !(rt.Path == cloudapi.PathLabNameRelease && f.NoKeep) &&
+		!(rt.Path == cloudapi.PathLabNews && f.NoNews):
 		f.labAPI(w, r, rt)
 	case r.Method == http.MethodPost && (r.URL.Path == cloudapi.PathRestoreChallenge || r.URL.Path == cloudapi.PathRestoreAccess ||
 		r.URL.Path == cloudapi.PathRestoreRelink):
@@ -542,6 +550,9 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request, rt cloudapi.Route)
 		if req.TurnOn {
 			f.RelayOff = time.Time{}
 		}
+		if req.Resume {
+			f.RelayPaused = time.Time{}
+		}
 		reply(w, f.relay(req))
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabRelay:
 		req, ok := f.Relayed[id]
@@ -550,6 +561,8 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request, rt cloudapi.Route)
 			return
 		}
 		reply(w, f.relay(req))
+	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabNews:
+		reply(w, cloudapi.News{Registry: f.Registry})
 	case r.Method == http.MethodDelete && r.URL.Path == cloudapi.PathLabRelay:
 		delete(f.Relayed, id)
 		delete(f.Bans, id)
@@ -846,7 +859,8 @@ func Start(t testing.TB) (*Fake, config.Cloud) {
 func (f *Fake) relay(req cloudapi.RelayRequest) cloudapi.Relay {
 	r := cloudapi.Relay{Addr: "100.81.1.1", Prefix: 16, Name: "r-test.relay.roost.test", Edges: []cloudapi.RelayEdge{{Name: "syd-1",
 		Endpoint: "198.51.100.10:51830", PublicKey: "ZWRnZWVkZ2VlZGdlZWRnZWVkZ2VlZGdlZWRnZWVkZ2U=", Addr: "100.81.0.1",
-		PublicIPv4: "198.51.100.10"}}, TurnedOff: f.RelayOff, Suspended: f.RelaySuspended, Names: f.NameStates}
+		PublicIPv4: "198.51.100.10"}}, TurnedOff: f.RelayOff, Suspended: f.RelaySuspended, Names: f.NameStates, Registry: f.Registry,
+		Paused: f.RelayPaused}
 	if f.RelayEdges != nil {
 		r.Edges = f.RelayEdges
 	}

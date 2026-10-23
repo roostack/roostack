@@ -100,6 +100,11 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 	if cur != nil && !slices.Equal(cur.Relay.Edges, relay.Edges) {
 		s.edgesChanged()
 	}
+	var paused time.Time
+	if cur != nil {
+		paused = cur.Relay.Paused
+	}
+	s.pausedChanged(paused, relay.Paused)
 	return err
 }
 
@@ -118,6 +123,30 @@ func (s *Service) edgesChanged() {
 // asked, with TurnOn. Only the Owner asks this: the lab's own updates
 // leave it off (Roostack Cloud's DESIGN §3f).
 func (s *Service) TurnRelayOn(ctx context.Context) error {
+	return s.askRelayAgain(ctx, "turned on", func(r *cloudapi.RelayRequest) { r.TurnOn = true }, func(r cloudapi.Relay) string {
+		if !r.TurnedOff.IsZero() {
+			return "Roostack Cloud kept the relay off"
+		}
+		return ""
+	})
+}
+
+// ResumeRelay lifts a pause the lab's account placed at the relay's edges
+// from Cloud's website (Relay.Paused; SPEC.md §6.16), with Resume: only
+// when the lab's Owner asks.
+func (s *Service) ResumeRelay(ctx context.Context) error {
+	return s.askRelayAgain(ctx, "opened again", func(r *cloudapi.RelayRequest) { r.Resume = true }, func(r cloudapi.Relay) string {
+		if !r.Paused.IsZero() {
+			return "Roostack Cloud kept public access paused at the relay"
+		}
+		return ""
+	})
+}
+
+// askRelayAgain asks for the relay as last asked, changed by ask (TurnOn,
+// Resume), and keeps Cloud's answer unless refused says why it didn't
+// take ("": it did); done is what the log says happened.
+func (s *Service) askRelayAgain(ctx context.Context, done string, ask func(*cloudapi.RelayRequest), refused func(cloudapi.Relay) string) error {
 	s.relayMu.Lock()
 	defer s.relayMu.Unlock()
 	s.mu.Lock()
@@ -131,17 +160,17 @@ func (s *Service) TurnRelayOn(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("setting up the relay's network: %w", err)
 	}
-	req := cloudapi.RelayRequest{PublicKey: pub, Hosts: cur.Hosts, Countries: cur.Countries, TimeZone: cur.TimeZone,
-		Domain: cur.Domain, TurnOn: true}
+	req := cloudapi.RelayRequest{PublicKey: pub, Hosts: cur.Hosts, Countries: cur.Countries, TimeZone: cur.TimeZone, Domain: cur.Domain}
+	ask(&req)
 	var relay cloudapi.Relay
 	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, req, &relay); err != nil {
 		return err
 	}
-	if !relay.TurnedOff.IsZero() {
-		return errors.New("Roostack Cloud kept the relay off")
+	if why := refused(relay); why != "" {
+		return errors.New(why)
 	}
 	if relay.Addr != cur.Relay.Addr {
-		return errors.New("the relay changed while it was being turned on: try again")
+		return errors.New("the relay changed meanwhile: try again")
 	}
 	// Edges changed meanwhile (one rebuilt) are dialled before they're
 	// kept; otherwise the next refresh would see nothing to change.
@@ -158,16 +187,38 @@ func (s *Service) TurnRelayOn(ctx context.Context) error {
 	s.mu.Lock()
 	if s.st.Relay == nil {
 		s.mu.Unlock()
-		return errors.New("the relay changed while it was being turned on: try again")
+		return errors.New("the relay changed meanwhile: try again")
 	}
 	s.st.Relay.Relay, s.st.Names = relay, relay.Names
-	s.log.Info("Roostack Cloud: the relay was turned on again")
+	s.log.Info("Roostack Cloud: the relay was " + done + " again")
 	err = s.save()
 	s.mu.Unlock()
 	if changed {
 		s.edgesChanged()
 	}
 	return err
+}
+
+// RelayPaused is when the lab's account paused public access at the
+// relay's edges from Cloud's website, as Cloud last said (zero: it isn't,
+// or the lab isn't relayed).
+func (s *Service) RelayPaused() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.st.Relay == nil {
+		return time.Time{}
+	}
+	return s.st.Relay.Relay.Paused
+}
+
+// pausedChanged tells RelayPausedChanged when Cloud's answer paused the
+// relay's edges or lifted their pause (not when the lab asked to resume:
+// the Owner's page records that).
+func (s *Service) pausedChanged(was, now time.Time) {
+	if was.IsZero() == now.IsZero() || s.RelayPausedChanged == nil {
+		return
+	}
+	s.RelayPausedChanged(!now.IsZero())
 }
 
 // RelayStanding is when the lab's account turned the relay off at Cloud
@@ -338,7 +389,8 @@ func (s *Service) refreshRelay(ctx context.Context) error {
 		return nil
 	}
 	cur.Relay.Domain, cur.Relay.Name = relay.Domain, relay.Name
-	cur.Relay.TurnedOff, cur.Relay.Suspended = relay.TurnedOff, relay.Suspended
+	paused := cur.Relay.Paused
+	cur.Relay.TurnedOff, cur.Relay.Suspended, cur.Relay.Paused = relay.TurnedOff, relay.Suspended, relay.Paused
 	s.st.Names = relay.Names
 	changed := len(relay.Edges) > 0 && !slices.Equal(cur.Relay.Edges, relay.Edges) && s.WireGuard != nil
 	next := *cur
@@ -348,6 +400,8 @@ func (s *Service) refreshRelay(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("saving how the relay stands: %w", err)
 	}
+	s.heardRegistry(relay.Registry)
+	s.pausedChanged(paused, relay.Paused)
 	if !changed {
 		return nil
 	}

@@ -115,6 +115,25 @@ func TestCloudStanding(t *testing.T) {
 		}
 	}
 
+	// Public access paused at the relay's edges from Cloud's website
+	// (SPEC.md §6.16): said on both pages; the Owner opens it again.
+	f.RelayPaused = time.Now()
+	link.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}, "", "")
+	if _, body := h.get("/settings/public"); !strings.Contains(body, "Public access was paused at Roostack Cloud's relay today") ||
+		!strings.Contains(body, `action="/settings/public/relay-resume#way-in"`) {
+		t.Errorf("Public access paused at the relay: %s", body)
+	}
+	if _, home := h.get("/"); !strings.Contains(home, "Public access is paused at Roostack Cloud&#39;s relay, since today") {
+		t.Error("Home doesn't say the relay is paused")
+	}
+	if code, _ := m.post("/settings/public/relay-resume", nil, m.srv.URL); code == 200 || f.RelayPaused.IsZero() {
+		t.Errorf("a Member opening it again: %d", code)
+	}
+	if _, body := h.post("/settings/public/relay-resume", nil, h.srv.URL); !strings.Contains(body, "Public access through the relay is open again") ||
+		strings.Contains(body, "Public access was paused at") || !f.RelayPaused.IsZero() {
+		t.Errorf("after opening it again: %s", body)
+	}
+
 	// Suspended: said, and no button.
 	f.RelaySuspended = "Phishing through the relay"
 	link.Relay(ctx, []string{"smiths.roost.test"}, config.Countries{}, "", "")

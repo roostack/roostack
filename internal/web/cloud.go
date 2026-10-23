@@ -37,6 +37,11 @@ type CloudLink interface {
 	// it on again (the Owner's choice: the lab's updates leave it off).
 	RelayStanding() (turnedOff time.Time, suspended string)
 	TurnRelayOn(ctx context.Context) error
+	// RelayPaused is when the account paused public access at the relay's
+	// edges from Cloud's website (zero: it isn't); ResumeRelay lifts it
+	// (the Owner's choice, SPEC.md §6.16).
+	RelayPaused() time.Time
+	ResumeRelay(ctx context.Context) error
 }
 
 // cloudSuffix is the suffix the lab's Cloud gives names, for the pages.

@@ -118,6 +118,20 @@ func (m *Manager) advisories(ctx context.Context, lab config.Lab, services []sta
 		m.Log.Error("reading the registry's index", "err", err)
 		return nil
 	}
+	out := AdvisoriesOf(lab, ix, services)
+	for name, advs := range out {
+		for _, a := range advs {
+			a.Since = m.advisorySeen(ctx, name, a.ID)
+		}
+	}
+	return out
+}
+
+// AdvisoriesOf are the advisories in ix affecting each of services, by
+// service name, and whether each pauses it under lab's policy: what the
+// controller works out at each apply, shared with the command line
+// (Since is left out: the controller's settings have it).
+func AdvisoriesOf(lab config.Lab, ix *registry.Index, services []state.Service) map[string][]*ServiceAdvisory {
 	if ix == nil || len(ix.Advisories) == 0 {
 		return nil
 	}
@@ -133,7 +147,7 @@ func (m *Manager) advisories(ctx context.Context, lab config.Lab, services []sta
 			for _, a := range ix.Possibly(s.Package.BuiltWithNames()) {
 				found = append(found, &ServiceAdvisory{Advisory: a, Version: in.Version, Possibly: true})
 			}
-		} else if file, err := os.ReadFile(m.Lab.Paths.LabPackageFile(in.Package, in.Version)); err == nil {
+		} else if file, err := os.ReadFile(lab.Paths.LabPackageFile(in.Package, in.Version)); err == nil {
 			for _, a := range ix.Affecting(in.Package, in.Version, file) {
 				found = append(found, &ServiceAdvisory{Advisory: a, Version: in.Version, Fixed: a.Affects[in.Package].Fixed})
 			}
@@ -145,7 +159,6 @@ func (m *Manager) advisories(ctx context.Context, lab config.Lab, services []sta
 		for _, a := range found {
 			a.Public, a.KeptPublic = public, in.KeptPublicFor(a.ID)
 			a.Paused = a.pauses(policy)
-			a.Since = m.advisorySeen(ctx, s.Name(), a.ID)
 		}
 		out[s.Name()] = found
 	}

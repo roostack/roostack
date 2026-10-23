@@ -156,6 +156,11 @@ func TestSecurityEvents(t *testing.T) {
 			"", "The service registry warns of a security problem in Ghost (5 October at 09:30): Ghost leaks drafts (2026-0008, high).", ""},
 		{store.AuditEntry{Action: AuditPublicOpened, Username: "system", Detail: "everything via command line", At: at},
 			"", "Public access to everything was opened again from the server's command line (5 October at 09:30).", ""},
+		{store.AuditEntry{Action: AuditPublicPaused, Username: "system", Detail: RelayPauseWhat + ViaCloud, At: at},
+			"", "Public access to everything coming through Roostack Cloud's relay was paused from Roostack Cloud's website (5 October at 09:30). " +
+				"Visitors from the internet are getting a connection error, and everything is still working at home.", ""},
+		{store.AuditEntry{Action: AuditPublicOpened, Username: "tom", Detail: RelayPauseWhat, At: at},
+			"", "Public access to everything coming through Roostack Cloud's relay was opened again by tom (5 October at 09:30).", ""},
 	} {
 		own, labWide, whose := securityEvent(c.e)
 		if own != c.own || labWide != c.labWide || whose != c.whoseAcc {

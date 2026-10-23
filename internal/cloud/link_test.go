@@ -672,3 +672,38 @@ func TestRelay(t *testing.T) {
 		t.Errorf("stop: %v %v %v", err, f.Relayed, wg.removed)
 	}
 }
+
+// TestRelayPaused: a pause the account placed at the relay's edges from
+// Cloud's website (SPEC.md §6.16) reaches the lab at its next refresh and
+// is said once; the Owner lifts it from the lab with Resume, which the
+// page records rather than the link.
+func TestRelayPaused(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	s.WireGuard = &fakeWG{}
+	var changes []bool
+	s.RelayPausedChanged = func(paused bool) { changes = append(changes, paused) }
+	ctx := context.Background()
+	link(t, f, s, "")
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if !s.RelayPaused().IsZero() || len(changes) != 0 {
+		t.Fatal("not paused yet")
+	}
+	at := time.Now().UTC().Truncate(time.Second)
+	f.RelayPaused = at
+	for range 2 {
+		if err := s.refreshRelay(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !s.RelayPaused().Equal(at) || !slices.Equal(changes, []bool{true}) {
+		t.Fatalf("paused at the edges: %v %v", s.RelayPaused(), changes)
+	}
+	if err := s.ResumeRelay(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !s.RelayPaused().IsZero() || !f.RelayPaused.IsZero() || !slices.Equal(changes, []bool{true}) {
+		t.Errorf("resumed: %v %v", s.RelayPaused(), changes)
+	}
+}

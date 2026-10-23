@@ -283,10 +283,13 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
   - [ ] `words.And` has no Oxford comma ("a, b and c"), which the writing rules now ask for (2026-10-23); it's shared, so for wave 4
 - [ ] Phase 1, in the registry: `built_with:` for every package, and the list of names (title, a line, and the purls and CPEs the watcher will map from) in the index
 - [x] Phase 2, advisories (built 2026-10-23, SPEC §6.16 "As built, phase 2"): `advisories/` in the registry and the index's field, with the build's checks; matching on the controller; the automation setting; worked out each time and lifting by themselves; **Keep it public anyway**; updating at once; hourly fetching; emails. Checked on VM7 (docs/ASSUMPTIONS.md P16)
-  - [ ] A line in the lab's report to Cloud (Cloud's repository has the report)
-  - [ ] `roostack public status` doesn't list advisory pauses: it reads `lab.yaml` only, and they're worked out from the index
+  - [x] A line in the lab's report to Cloud: how many public services are paused and since when (2026-10-23; Cloud's repository shows it)
+  - [x] `roostack public status` lists advisory pauses (2026-10-23)
   - [ ] The registry repository: an `advisories/` folder, its CI running the build's checks, and a short guide for writing one
 - [ ] Phase 3: Cloud's nudge; pausing at the relay's edges from Cloud's website (Cloud's repository); the "closed" level (firewall, edge, relay) for problems in Caddy or Roostack
+  - [x] The lab's side of the nudge (`Relay.Registry`, `GET /v1/lab/news`) and of pausing at the relay's edges (`Relay.Paused`, shown, emailed, and lifted with `RelayRequest.Resume`), tested against the fake Cloud (2026-10-23, SPEC §6.16)
+  - [ ] Cloud's side of both, and showing the report's `paused` line on the lab's page (Cloud's repository)
+  - [ ] The closed level: waiting for the maintainer's answers to docs/RED-BUTTON-PLAN.md §2.6 (questions 18–22)
 - [ ] Phase 4, the watcher (docs/RED-BUTTON-PLAN.md §10.1; can start alongside phase 2): `roostack registry watch` in the registry's CI reading OSV, GitHub's advisories, both KEV lists, EPSS, oss-security, projects' notices and new CrowdSec patch rules; matching on `built_with:`; draft advisory pull requests, a weekly digest, ntfy notifications for critical exploited matches; Syft bills of materials for exact matches, and its findings compared with `built_with:` in the registry's pull-request checks; then an AI first pass once the watcher works without it. Publishing with nobody around: not now, revisit after a few months of accurate drafts
 
 ## Single sign-on: what's next (SPEC §5.2)

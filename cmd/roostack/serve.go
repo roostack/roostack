@@ -387,13 +387,23 @@ func (c *controller) wireCloud() error {
 		link.EdgesChanged = func() {
 			mgr.ApplyBecause("Roostack Cloud's relay changed its edges: changing how public visitors reach the lab")
 		}
+		// A pause at the relay's edges placed or lifted on Roostack
+		// Cloud's website (SPEC.md §6.16) is recorded, so the Owners will
+		// hear of it by email as of any pause.
+		link.RelayPausedChanged = func(paused bool) {
+			action := attention.AuditPublicOpened
+			if paused {
+				action = attention.AuditPublicPaused
+			}
+			c.st.Audit(context.Background(), nil, action, attention.RelayPauseWhat+attention.ViaCloud)
+		}
 		go link.RefreshRelay(c.ctx, 5*time.Minute)
 		// Roostack Cloud backup as a destination (SPEC.md §6.9).
 		mgr.CloudBackup = link
 		// What the lab tells Cloud after each check-in (SPEC.md §6.6): who
 		// gets its problems by email, whom Cloud's emails about the lab go
-		// to too, and each server's last backup there (link adds the lab's
-		// name).
+		// to too, each server's last backup there, and how much public
+		// access is paused (link adds the lab's name).
 		link.Report = func(ctx context.Context) (cloudapi.LabReport, error) {
 			emails, err := attention.ProblemRecipients(ctx, c.st)
 			if err != nil {
@@ -403,7 +413,12 @@ func (c *controller) wireCloud() error {
 			if err != nil {
 				return cloudapi.LabReport{}, err
 			}
-			return cloudapi.LabReport{Emails: emails, Backups: backups}, nil
+			report := cloudapi.LabReport{Emails: emails, Backups: backups}
+			if report.Paused, err = mgr.CloudPaused(); err != nil {
+				// Unknown this time: Cloud will keep what it had.
+				c.log.Warn("Roostack Cloud's report: what's paused", "err", err)
+			}
+			return report, nil
 		}
 		// The lab's own CrowdSec bans, refused at the relay's edges too.
 		go link.SendBans(c.ctx, 5*time.Minute, func(ctx context.Context) ([]string, error) {
@@ -600,6 +615,23 @@ func (c *controller) wireCatalog() error {
 	}, c.log)
 	c.srv.Registry = updater
 	go updater.Run(c.ctx)
+	// Roostack Cloud's nudge (SPEC.md §6.16): when Cloud has seen a newer
+	// index of the service registry than the lab's, the lab fetches it now
+	// rather than at its next hourly check. Only for Roostack's own
+	// registry, whose serials Cloud follows, not a mirror or another.
+	if c.link != nil && cmp.Or(lab.Registry.URL, registry.DefaultURL) == registry.DefaultURL {
+		c.link.OnRegistry(func(serial int64) {
+			if serial <= updater.Status().Serial {
+				return
+			}
+			go func() {
+				if err := updater.Check(c.ctx); err != nil {
+					c.log.Warn("fetching the service registry after Roostack Cloud's nudge", "err", err)
+				}
+			}()
+		})
+		go c.link.WatchNews(c.ctx, cloud.NewsEvery)
+	}
 	return nil
 }
 

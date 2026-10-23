@@ -51,6 +51,10 @@ const (
 	// tells Cloud about itself. A Cloud from before it answers 404, and
 	// the lab carries on without it.
 	PathLabReport = "/v1/lab/report"
+	// GET → News (mutual TLS), every few minutes from a linked lab that
+	// isn't relayed (a relayed one hears the same in Relay). A Cloud
+	// from before it answers 404, and the lab asks again a day later.
+	PathLabNews = "/v1/lab/news"
 
 	// Proving the recovery key, for a lab that has lost its controller
 	// (no certificate): POST RestoreChallengeRequest → RestoreChallenge,
@@ -109,6 +113,7 @@ var Routes = []Route{
 	{Method: "GET", Path: PathLabStorage, Lab: true, WhileSuspended: true},
 	{Method: "PUT", Path: PathLabRecoveryIdentity, Lab: true, Writes: true},
 	{Method: "PUT", Path: PathLabReport, Lab: true, WhileSuspended: true, Writes: true},
+	{Method: "GET", Path: PathLabNews, Lab: true, WhileSuspended: true},
 	{Method: "POST", Path: PathRestoreChallenge},
 	{Method: "POST", Path: PathRestoreAccess},
 	{Method: "POST", Path: PathRestoreRelink},
@@ -294,6 +299,18 @@ type LabReport struct {
 	// Backups are the lab's servers backing up to Roostack Cloud, each
 	// with its last backup there. At most MaxReportServers.
 	Backups []ServerBackup `json:"backups"`
+	// Paused is how much of the lab's public access is paused (Roostack's
+	// SPEC.md §6.16), never which services or why: Cloud doesn't learn
+	// what the lab runs.
+	Paused *PublicPaused `json:"paused,omitempty"`
+}
+
+// PublicPaused is how many of a lab's public services have their public
+// access paused (0: none), and since when the earliest of those pauses
+// has been in place.
+type PublicPaused struct {
+	Services int       `json:"services"`
+	Since    time.Time `json:"since,omitzero"`
 }
 
 // The most a LabReport carries.
@@ -337,6 +354,10 @@ type RelayRequest struct {
 	// the lab's own updates leave it off. A Cloud from before it ignores
 	// it (and never says the relay is off).
 	TurnOn bool `json:"turn_on,omitempty"`
+	// Resume lifts a pause the account placed at the relay's edges from
+	// Cloud's website (Relay.Paused): only when the lab's Owner asks. A
+	// Cloud from before it ignores it (and never pauses there).
+	Resume bool `json:"resume,omitempty"`
 }
 
 // RelayDomain is how the lab's own domain stands: the TXT record that
@@ -489,9 +510,28 @@ type Relay struct {
 	// Suspended is why Cloud suspended the relay after an abuse report
 	// ("": it isn't): visitors don't come through it until it's lifted.
 	Suspended string `json:"suspended,omitempty"`
+	// Paused is when the lab's account paused public access at the
+	// relay's edges from Cloud's website (zero: it isn't, or a Cloud from
+	// before it doesn't say; Roostack's SPEC.md §6.16): the edges close
+	// connections for the lab's names, which still point at them, even
+	// while the lab is down. It lasts until the account lifts it, or the
+	// lab asks with RelayRequest.Resume.
+	Paused time.Time `json:"paused,omitzero"`
 	// Names are the lab's names that don't work because of Cloud, as in
 	// LabInfo.Names.
 	Names []NameStatus `json:"names,omitempty"`
+	// Registry is as in News.
+	Registry int64 `json:"registry,omitempty"`
+}
+
+// News is what a linked lab hears from Cloud every few minutes (Roostack's
+// SPEC.md §6.16). Registry is the serial of the newest signed index of the
+// service registry Cloud has seen (0: unknown): when it's newer than the
+// lab's own, the lab fetches the registry at once, rather than at its
+// next hourly check. Cloud only says when to look: the lab fetches the
+// index from the registry and checks its signature as always.
+type News struct {
+	Registry int64 `json:"registry,omitempty"`
 }
 
 // RelayEdge is one of Cloud's edges, as a lab dials it.

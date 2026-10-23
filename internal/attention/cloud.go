@@ -7,6 +7,7 @@ import (
 
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/cloud"
+	"roostack.cloud/roostack/internal/words"
 	"roostack.cloud/roostack/units"
 )
 
@@ -108,6 +109,14 @@ func (lab *Lab) cloudStanding(l *List) {
 		l.add(Item{Key: "cloud-relay-off", Level: Warning,
 			Text: "Public services aren't coming through Roostack Cloud's relay: it was turned off in Roostack Cloud.",
 			Link: "/settings/public#way-in", LinkText: "Turn it on"})
+	}
+	// A pause placed from Cloud's website (SPEC.md §6.16): information, as
+	// a person chose it, like a pause placed here.
+	if at := lab.Cloud.RelayPaused(); !at.IsZero() {
+		l.add(Item{Key: "cloud-relay-paused", Level: Info,
+			Text: "Public access is paused at Roostack Cloud's relay, since " + words.When(at) + ", from Roostack Cloud's website. " +
+				"Visitors coming through the relay are getting a connection error, and everything is working at home as usual.",
+			Link: "/settings/public#way-in", LinkText: "Public access"})
 	}
 }
 

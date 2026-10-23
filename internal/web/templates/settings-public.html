@@ -83,6 +83,7 @@
   <h2>How people reach your public services</h2>
   {{if eq .Saved "edge"}}<p class="notice notice-ok" role="status">Saved. Public addresses will follow within a few minutes as DNS updates.</p>{{end}}
   {{if eq .Saved "relay-on"}}<p class="notice notice-ok" role="status">The relay is on again. Public addresses will point at it within a few minutes as DNS updates.</p>{{end}}
+  {{if eq .Saved "relay-resumed"}}<p class="notice notice-ok" role="status">Public access through the relay is open again: visitors will come through within about 20 seconds.</p>{{end}}
   {{with .RelayError}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with .RelaySuspended}}<p class="notice notice-error" role="alert"><strong>Roostack Cloud has suspended this lab's relay:</strong> {{.}}.
     Public services won't come through it until Cloud lifts the suspension. Roostack Cloud emailed the account's Owner why and how to appeal.</p>
@@ -91,6 +92,12 @@
     Roostack won't turn it on by itself.</p>
     <form method="post" action="/settings/public/relay-on#way-in"><button type="submit" class="secondary">Turn the relay on</button></form></div>
   {{end}}{{end}}
+  {{with .RelayPaused}}<div class="notice notice-warn" role="status" id="relay-paused"><p><strong>Public access was paused at Roostack Cloud's relay {{when .}}</strong>,
+    from Roostack Cloud's website. The relay's edges are closing connections for this lab's addresses, so visitors from the internet are
+    getting a connection error rather than a page, and everything is working at home as usual. It will stay paused until you open it again,
+    here or in Roostack Cloud.</p>
+    <form method="post" action="/settings/public/relay-resume#way-in">{{confirmSubmit "Open public access through Roostack Cloud's relay again? Visitors from the internet will reach every public service that nothing else pauses within about 20 seconds." "Open it again" ""}}</form></div>
+  {{end}}
   {{with .RelayDomain}}
   {{if and .Verified (not .Missing)}}<p class="notice notice-ok" role="status">Roostack Cloud has checked that {{.Domain}} is this lab's: its public addresses are coming through the relay.</p>
   {{else if .Verified}}<p class="notice notice-error" role="alert"><strong>The record proving {{.Domain}} is this lab's has gone.</strong> Public services will stop coming through the relay a day after it went. Put it back: <code>{{.ProofName}}</code> TXT <code>{{.ProofValue}}</code>.</p>

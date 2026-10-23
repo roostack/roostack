@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // Every field of every request the lab sends to Cloud is decided: shown
@@ -104,6 +105,9 @@ func TestLoggedBody(t *testing.T) {
 func TestRequestLogLeavesOutSecrets(t *testing.T) {
 	f, s, state := fakeCloud(t)
 	link(t, f, s, "smiths")
+	// The name's claim runs on after linking, and fails here (nothing
+	// uses the name): wait for it, so it doesn't write after the test.
+	testwait.For(t, 10*time.Second, func() bool { return s.Status().AddressError != "" })
 	data, err := os.ReadFile(filepath.Join(Dir(state), "requests.log"))
 	if err != nil {
 		t.Fatal(err)

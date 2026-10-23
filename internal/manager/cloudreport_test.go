@@ -46,3 +46,35 @@ func TestCloudBackups(t *testing.T) {
 		t.Errorf("vps, its copy in Cloud: %+v", b)
 	}
 }
+
+// TestCloudPaused: the lab tells Cloud how many public services are
+// paused and since the earliest pause, never which.
+func TestCloudPaused(t *testing.T) {
+	m, _ := newManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if err := m.SetPublic(ctx, "vaultwarden", PublicRequest{Route: "web", Public: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if p, err := m.CloudPaused(); err != nil || p == nil || p.Services != 0 || !p.Since.IsZero() {
+		t.Fatalf("nothing paused: %+v %v", p, err)
+	}
+	before := time.Now().Add(-time.Second)
+	if err := m.PausePublic("tom", PauseRequest{Services: []string{"vaultwarden"}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	own, _ := m.CloudPaused()
+	if err := m.PausePublic("tom", PauseRequest{All: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	p, err := m.CloudPaused()
+	if err != nil || p.Services != 1 || p.Since.Before(before) || !p.Since.Equal(own.Since) {
+		t.Errorf("paused twice, counted once since the first: %+v %v (first %v)", p, err, own.Since)
+	}
+}
