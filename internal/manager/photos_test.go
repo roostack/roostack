@@ -2,7 +2,6 @@ package manager
 
 import (
 	"context"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/photoimport"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 // sentMail records the emails sent.
@@ -39,10 +39,7 @@ func TestPhotoEmails(t *testing.T) {
 	if err := (&instance.Instance{Package: "immich", Version: p.Version, Title: "Family photos"}).Save(state.InstanceFile(m.Lab, "immich")); err != nil {
 		t.Fatal(err)
 	}
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	st := storetest.Open(t)
 	for _, u := range []store.User{{Username: "sam", Email: "sam@example.com", Role: auth.RoleOwner},
 		{Username: "kim", Email: "kim@example.com", Role: auth.RoleMember}} {
 		u.PasswordHash = "x"

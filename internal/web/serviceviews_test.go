@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 // fakeServiceSource is what the servers report, and what the controller
@@ -121,11 +122,7 @@ func TestServiceViews(t *testing.T) {
 
 // The setup code is kept until an account exists, and goes then.
 func TestSetupToken(t *testing.T) {
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	path := filepath.Join(t.TempDir(), "setup-token")
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	token, err := SetupToken(t.Context(), st, path, log)

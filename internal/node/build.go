@@ -2,6 +2,7 @@ package node
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"io"
@@ -18,8 +19,9 @@ import (
 // CaddyBuildUnit builds Roostack's Caddy image (generate.System).
 const CaddyBuildUnit = generate.CaddyUnit + "-build.service"
 
-// How often the build log and its unit's state are read (tests shorten it).
-var buildPoll = 2 * time.Second
+// How often the build log and its unit's state are read, unless the
+// node's buildPoll says otherwise.
+const buildPoll = 2 * time.Second
 
 // caddyBuilding reports whether Caddy's image is being built.
 func (n *Local) caddyBuilding(ctx context.Context) bool {
@@ -107,8 +109,9 @@ func (n *Local) copyBuildLog(ctx context.Context, logFile string, w io.Writer) e
 		w.Write(data[:i+1])
 		partial = append([]byte(nil), data[i+1:]...)
 	}
+	poll := cmp.Or(n.buildPoll, buildPoll)
 	started := false
-	for waited := time.Duration(0); ; waited += buildPoll {
+	for waited := time.Duration(0); ; waited += poll {
 		copyNew()
 		st, err := n.Units.Status(ctx, CaddyBuildUnit)
 		if err == nil && len(st) == 1 {
@@ -132,7 +135,7 @@ func (n *Local) copyBuildLog(ctx context.Context, logFile string, w io.Writer) e
 				}
 			}
 		}
-		if !sleep.For(ctx, buildPoll) {
+		if !sleep.For(ctx, poll) {
 			return ctx.Err()
 		}
 	}

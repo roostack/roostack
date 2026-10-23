@@ -47,11 +47,9 @@ func random(n int) func() []byte {
 }
 
 func TestCleanJunk(t *testing.T) {
+	t.Parallel()
 	r := testRepo(t)
 	ctx := context.Background()
-	if err := r.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
 	src := t.TempDir()
 	writeFile(t, filepath.Join(src, "a.txt"), "hello")
 	if _, err := r.Backup(ctx, BackupOptions{Paths: []string{src}}); err != nil {
@@ -73,8 +71,7 @@ func TestCleanJunk(t *testing.T) {
 		t.Fatalf("with junk: %v, want restic to fail on it", err)
 	}
 
-	defer func(d time.Duration) { JunkRecheck = d }(JunkRecheck)
-	JunkRecheck = 0
+	r.JunkRecheck = time.Millisecond
 	files := FilesOf(r)
 	if files == nil {
 		t.Fatal("no direct access to a folder repository")

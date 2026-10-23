@@ -1210,7 +1210,9 @@ Each its own session, in any order, once waves 1 and 2 have landed:
   - Cloud's helpers and tests (the rest of S16, B9, B10, T3, T6, T7, T9; Cloud's suite from about 45 s to 25 s);
   - the portal's sidebar following Roostack's layout (the maintainer's decision, 2026-10-23).
 - **Round 2b, merged:** S8 steps 2–4 and S11: `Manager`'s fields grouped, apply reasons passed as arguments, one runtime `lab.yaml`; photo migration, storage for other labs and recovery key changes as types of their own in `manager`; `node.Local`'s photo migration and imports as types of their own. The recorded activity lines, attention items and emails match before and after.
-- **Still to do:** T2 with the rest of T8 and T9 (Roostack's test speed and helpers).
+- **Round 3, merged:** T2, and the rest of T8 and T9: the restic tests in parallel, timing variables on structs, `b2test`, one base fake for `node.Node`, `pkgtest.Restic` and one test-store helper. The Mac suite went from 256 s to 109 s, and the VM's from 9½ to 4½ minutes.
+
+Wave 3 is complete.
 - **Found along the way, filed in TASKS.md:**
   - two backup drives with one label get one mount point;
   - `podman.Pull` can lose podman's reason when its error line comes first;

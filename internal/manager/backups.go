@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -670,7 +671,7 @@ func (m *Manager) PruneJob() maintenance.Job { return m.pruneJob(nil, 1) }
 
 // pruneTries is how often a locked repository is tried in a week, and
 // pruneRetry how long apart.
-var (
+const (
 	pruneTries = 3
 	pruneRetry = time.Hour
 )
@@ -684,6 +685,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 	if try > 1 {
 		title = "Removing old backups that were busy last time"
 	}
+	retry := cmp.Or(m.waits.pruneRetry, pruneRetry)
 	return maintenance.Job{
 		Name: "removing old backups of every server",
 		Run: func(ctx context.Context, h *maintenance.Handle) (err error) {
@@ -723,7 +725,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 				err = repo.Forget(ctx, backup.DefaultRetention)
 				switch {
 				case errors.Is(err, backup.ErrLocked) && try < pruneTries && m.Submit != nil:
-					act.Printf("Busy (a backup is running there): Roostack will try again in %s", pruneRetry)
+					act.Printf("Busy (a backup is running there): Roostack will try again in %s", retry)
 					locked[pruneKey(t)] = true
 				case err != nil:
 					act.Printf("%v", err)
@@ -731,7 +733,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 				}
 			}
 			if len(locked) > 0 {
-				time.AfterFunc(pruneRetry, func() { m.Submit(m.pruneJob(locked, try+1)) })
+				time.AfterFunc(retry, func() { m.Submit(m.pruneJob(locked, try+1)) })
 			}
 			return errors.Join(errs...)
 		},

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -17,12 +16,15 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/kept"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
+	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -209,13 +211,13 @@ func setUpMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 
 func waitMove(t *testing.T, m *Manager) activity.Snapshot {
 	t.Helper()
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
-		if l, ok := m.Activity.Latest(activity.Move); ok && !l.Running() {
-			return l
-		}
-	}
-	t.Fatal("move didn't finish")
-	return activity.Snapshot{}
+	var l activity.Snapshot
+	testwait.For(t, 10*time.Second, func() bool {
+		var ok bool
+		l, ok = m.Activity.Latest(activity.Move)
+		return ok && !l.Running()
+	})
+	return l
 }
 
 func TestMoveService(t *testing.T) {
@@ -341,17 +343,10 @@ func (b *realBackups) Status(context.Context) (backup.Status, error) {
 // repository, and vps applying at once.
 func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 	t.Helper()
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+	bin := restictest.Bin(t)
 	m, a, b := setUpMove(t)
 	ctx := context.Background()
-	applyWait = 5 * time.Second
-	t.Cleanup(func() { applyWait = 20 * time.Minute })
+	m.waits.applyWait = 5 * time.Second
 	svcDir := filepath.Join(m.Lab.Paths.ServicesDir, "forgejo")
 	os.MkdirAll(filepath.Join(svcDir, "data"), 0o755)
 	os.WriteFile(filepath.Join(svcDir, "data", "app.ini"), []byte("from the backup"), 0o644)
@@ -366,11 +361,7 @@ func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 		t.Fatal(err)
 	}
 	a.backups = &realBackups{repo: repo, dir: svcDir}
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	m.BackupStore, m.Settings = st, st
 	m.OpenRepo = func(string, []string) *backup.Repo { return repo }
 	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "local:" + repo.URL,
@@ -381,6 +372,7 @@ func setUpBackupMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 }
 
 func TestMoveThroughBackup(t *testing.T) {
+	t.Parallel()
 	m, a, b := setUpBackupMove(t)
 	ctx := context.Background()
 
@@ -413,6 +405,7 @@ func TestMoveThroughBackup(t *testing.T) {
 // is set aside; if going back fails too, it's held stopped on the new
 // server (SPEC.md §6.9, §10.10).
 func TestMoveThroughBackupGoesBack(t *testing.T) {
+	t.Parallel()
 	m, a, b := setUpBackupMove(t)
 	ctx := context.Background()
 	b.failOn = "load dumps"

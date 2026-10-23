@@ -2,7 +2,6 @@ package manager
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 // TestCloudBackups: the servers the lab reports to Roostack Cloud are
@@ -21,11 +21,7 @@ func TestCloudBackups(t *testing.T) {
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
 	vps := &fakeRemote{settings: &fakeServerSettings{}}
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	m.BackupStore = st
 	if got, err := m.CloudBackups(ctx); err != nil || len(got) != 0 {
 		t.Fatalf("nothing in Cloud: %+v %v", got, err)

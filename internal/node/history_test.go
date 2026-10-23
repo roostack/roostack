@@ -3,23 +3,19 @@ package node
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/internal/testwait"
 )
 
 // Finished logs become history, with their output; routine ones (nothing
 // changed) don't, unless they failed; old ones can be deleted.
 func TestKeepHistory(t *testing.T) {
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
+	st := storetest.Open(t)
 	n := &Local{Activity: activity.New(), Events: st}
 	n.KeepHistory()
 	ctx := context.Background()

@@ -14,6 +14,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -121,6 +122,7 @@ func TestInstallHook(t *testing.T) {
 }
 
 func TestInstallHookFailsThenRetry(t *testing.T) {
+	t.Parallel()
 	m, secrets, _, ex := newHookManager(t)
 	ctx := context.Background()
 	failing := true
@@ -150,6 +152,7 @@ func TestInstallHookFailsThenRetry(t *testing.T) {
 // A hook that failed on what was typed runs again with corrected values:
 // new settings, and a new password replacing the one kept.
 func TestRetryInstallWithNewValues(t *testing.T) {
+	t.Parallel()
 	m, secrets, _, ex := newHookManager(t)
 	ctx := context.Background()
 	ex.fail = func(int) bool { return true }
@@ -325,17 +328,11 @@ func TestInstallHookStoppedByRemoval(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	for start := time.Now(); ; time.Sleep(time.Millisecond) {
+	testwait.For(t, 5*time.Second, func() bool { // the setup has run
 		ex.mu.Lock()
-		n := len(ex.calls)
-		ex.mu.Unlock()
-		if n > 0 {
-			break
-		}
-		if time.Since(start) > 5*time.Second {
-			t.Fatal("the setup never ran")
-		}
-	}
+		defer ex.mu.Unlock()
+		return len(ex.calls) > 0
+	})
 	if err := m.Remove(ctx, "forgejo"); err != nil {
 		t.Fatal(err)
 	}
@@ -431,6 +428,7 @@ func TestSSOHook(t *testing.T) {
 // A failed sso hook says why on the service's page, and Try again runs it
 // once more.
 func TestSSOHookFailsThenRetry(t *testing.T) {
+	t.Parallel()
 	m, _, _, ex := newHookManager(t)
 	ctx := context.Background()
 	failing := false

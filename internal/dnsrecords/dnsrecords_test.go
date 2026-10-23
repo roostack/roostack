@@ -5,13 +5,12 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns/dnstest"
-	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/store/storetest"
 )
 
 type fakeSecrets map[string]string
@@ -24,11 +23,7 @@ func (f fakeSecrets) Read(_ context.Context, name string) ([]byte, error) {
 // (dnstest), with fake LAN IP and DNS lookups.
 func newManager(t *testing.T, dnsCfg config.DNS, local, public []string) (*Manager, gandi) {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	g := gandi{dnstest.Start(t)}
 	lab := config.Default()
 	lab.Domain = "lab.example.com"

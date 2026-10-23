@@ -502,7 +502,7 @@ func TestStartSettles(t *testing.T) {
 		wantErr bool
 	}{{"active", false}, {"failed", true}} {
 		f := &flakySystemd{state: c.state}
-		r := &Reconciler{Systemd: f, Settle: 3 * time.Second}
+		r := &Reconciler{Systemd: f, Settle: 100 * time.Millisecond}
 		err := r.start(context.Background(), nil, "roostack-crowdsec.service")
 		if (err != nil) != c.wantErr {
 			t.Errorf("%s: err %v", c.state, err)
