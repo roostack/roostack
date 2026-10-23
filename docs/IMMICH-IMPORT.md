@@ -266,7 +266,7 @@ read it.
 
 On Immich's page in Roostack, a card **Migrate photos**: "Migrate photos
 and videos from Google Photos or a folder (Apple iCloud next) into Immich,
-with their dates, places and albums." **Migrate photos from…** opens the
+with their dates, places, and albums." **Migrate photos from…** opens the
 steps. **The wording is "migrate"** (the Owner, 2026-10-21), not "bring
 in", which keeps it apart from §8.4's "Bring in data from elsewhere…".
 People who aren't Owners or Admins reach the same steps from a page of
@@ -296,11 +296,10 @@ forms' design (docs/DESIGN.md "Forms"), with Continue. Mock-ups:
 5. **What to migrate** (the Owner, 2026-10-21: a step of its own, before
    the check, which it changes): the choices of §8 as switches, Roostack's
    suggestions set, with counts from a quick look in the zips.
-6. **Check** (the dry run, §7): Roostack reads the zips and asks immich-go
-   what it would do, without uploading anything. The result:
+6. **Check** (§7): Roostack takes a quick look in the zips and at Immich,
+   without uploading anything. The result:
    - "Parts 1 to 9 of 9, 412 GB. 61,204 photos and 3,977 videos from
      March 2009 to October 2026, 214 albums."
-   - "Already in Immich: 8,912 (skipped)."
    - What won't come, with counts and why: as chosen in step 5, files
      Immich can't read, sidecars without a photo.
    - Space: "Needs about 395 GB on <disk>; 1.2 TB free."
@@ -510,7 +509,7 @@ store, like a backup's result), shown on Immich's page and in History.
 
 | What | How | Checked |
 |---|---|---|
-| Date taken | From the sidecar, set after upload (UTC); a file's own date otherwise | Dry run reports photos without a date; VM: a photo whose EXIF date differs from the sidecar's shows the sidecar's |
+| Date taken | From the sidecar, set after upload (UTC); a file's own date otherwise | The summary counts photos without Google's date; VM: a photo whose EXIF date differs from the sidecar's shows the sidecar's |
 | Time zone | Takeout has none; the file's own offset if it has one, else the place's time zone if Immich derives it, else UTC | **Unverified:** what Immich shows for a sidecar-only date; the VM test says, and the help says it plainly |
 | Place | Sidecar (`geoDataExif`, else `geoData`), 0,0 ignored; a photo without one takes its album's place | VM: a photo with a sidecar-only place shows on the map |
 | Albums | One Immich album per album folder, with the album's title; untitled albums left out by default | Counts before and after |
@@ -561,7 +560,7 @@ store, like a backup's result), shown on Immich's page and in History.
 - From a drive, a share, or a folder on the server.
 - Into one Immich account per import, with a key the person makes.
 - For Owners and Admins, and for everyone else the Owner allows (§6.1).
-- The pre-check, dry run, import, progress, summary, and help page above.
+- The check, import, progress, summary, and help page above.
 - The Immich package unchanged (no format change, so nothing for the
   package editor): Roostack recognises the `immich` package and reaches
   its `server` container by the route's port.
@@ -696,7 +695,7 @@ across two zips, album folders with `metadata.json` in English and German,
 trash, archive, a partner's photo, an untitled album, a Locked Folder;
 split into several zips, one left out to test the missing-part check, and
 a large run for memory. Then: a key with permissions missing and one with
-all of them; the check, the dry run, the import, a stop and carry-on, a
+all of them; the check, the import, a stop and carry-on, a
 second run (nothing new), and Immich's own pages and API to confirm every
 row of §8. As an Owner and as a Member (the Owner's switch both ways, a
 backup drive refused to the Member), desktop and phone width. Apple's

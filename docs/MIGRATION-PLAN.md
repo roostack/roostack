@@ -1,7 +1,8 @@
 # Bringing your own data: moving from Docker Compose (decided 2026-10-20)
 
-The details behind SPEC.md §8.4. **Decided, not built:** the maintainer chose
-every recommendation in §11 on 2026-10-20.
+The details behind SPEC.md §8.4. **Decided and built:** the maintainer chose
+every recommendation in §11 on 2026-10-20, and it was built on 2026-10-21
+(SPEC.md §8.4, "As built").
 
 Many people who'd use Roostack already run their services with Docker
 Compose, the maintainer included (Immich and Plex). They want to move a
