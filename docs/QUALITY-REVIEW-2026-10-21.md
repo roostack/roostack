@@ -1232,7 +1232,7 @@ Added by the Owner on 2026-10-22. Across both repositories, find sentences peopl
 **Why after waves 1–3:** those waves move much of this text. D2 gathers the words helpers, D3 the error type, S2 moves the attention items, and D13 the pickers. Rewording first would mean doing it twice and conflicting with every batch. Until then, new and changed wording follows the rules, which batch 1e writes into CLAUDE.md.
 
 **How:**
-1. **A sample first.** One session gathers about 30 representative sentences from every area below, with a proposed rewrite of each, for the Owner to approve. The approved pairs then become the examples in CLAUDE.md's writing rules, which the batches follow.
+1. **A sample first.** One session gathers about 30 representative sentences from every area below, with a proposed rewrite of each, for the Owner to approve. The approved pairs then become the examples in CLAUDE.md's writing rules, which the batches follow. Done (2026-10-23): 37 pairs, all approved, in [wording-examples.md](wording-examples.md). The Owner agreed that habits and standing facts stay in the present simple and that field help takes the future, and added two rules: commas go where grammar needs them, not for a pause, and a list of three or more takes the Oxford comma.
 2. **Batches by area,** in parallel since their files are disjoint:
    - **4a.** Roostack's pages: `internal/web` templates, and the Go strings web shows (attention items, errors, notices, emails from the notifier).
    - **4b.** Roostack's other messages people read: activity logs and errors people can fix, in `manager`, `node`, `backup`, `setup`, `osupdate`, `labrestore` and the rest; the CLI's output in `cmd/`.
