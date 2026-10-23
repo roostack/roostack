@@ -42,96 +42,24 @@ read.
   and link. The first run looks back 30 days (`-since`), and later runs
   look back to the run before.
 
-## The workflow for roostack/services
+## The workflow in roostack/services
 
-Copy this to `.github/workflows/watch.yml` in the registry repository.
-It uses the same `ROOSTACK_BINARY_URL` and `ROOSTACK_BINARY_SHA256`
-variables as `publish.yml`, and a secret `NTFY_URL` (the maintainers'
-topic, such as `https://ntfy.sh/<a long random name>`). The watcher
-commits its state to `main`, so the workflow's token must be allowed to
-push there.
+The registry runs it with `.github/workflows/watch.yml` (on the branch
+`watch-workflow` in the maintainer's checkout, 2026-10-23, not pushed
+yet). Every hour it runs the watcher, opens a pull request for each draft
+from its own branch (`watch/<id>`), and pushes an urgent one to ntfy;
+each Monday it opens the digest as an issue instead. Then it commits
+`watch/state.json` to `main`. Its header says how to set it up:
 
-```yaml
-# Watches for security problems in the registry's packages and drafts
-# advisories as pull requests (Roostack's docs/REGISTRY-WATCH.md).
-name: Watch
-
-on:
-  schedule:
-    - cron: "41 * * * *"   # every hour
-    - cron: "5 8 * * 1"    # the digest, Mondays
-  workflow_dispatch:
-
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-
-concurrency:
-  group: watch
-  cancel-in-progress: false
-
-jobs:
-  watch:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          path: services
-      - name: Get roostack (a release, checked by its SHA-256)
-        env:
-          URL: ${{ vars.ROOSTACK_BINARY_URL }}
-          SHA256: ${{ vars.ROOSTACK_BINARY_SHA256 }}
-        run: |
-          curl -fsSL --retry 3 -o roostack-bin "$URL"
-          echo "$SHA256  roostack-bin" | sha256sum -c -
-          chmod +x roostack-bin
-      - name: Watch, or write the digest
-        id: run
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          if [ "${{ github.event.schedule }}" = "5 8 * * 1" ]; then
-            ./roostack-bin registry watch -repo services -digest digest.md
-          else
-            ./roostack-bin registry watch -repo services -summary summary.json
-          fi
-      - name: Open a pull request for each draft
-        if: hashFiles('summary.json') != ''
-        working-directory: services
-        env:
-          GH_TOKEN: ${{ github.token }}
-          NTFY_URL: ${{ secrets.NTFY_URL }}
-        run: |
-          git config user.name "Roostack watcher"
-          git config user.email "watcher@users.noreply.github.com"
-          jq -c '.drafts[]' ../summary.json | while read -r d; do
-            id=$(jq -r .advisory <<<"$d"); branch=$(jq -r .branch <<<"$d")
-            mv "advisories/$id.yaml" "../$id.yaml"
-            git worktree add "../pr-$id" -b "$branch" origin/main
-            mkdir -p "../pr-$id/advisories" && mv "../$id.yaml" "../pr-$id/advisories/"
-            git -C "../pr-$id" add advisories
-            git -C "../pr-$id" commit -m "$(jq -r .pr_title <<<"$d")"
-            git -C "../pr-$id" push origin "$branch"
-            url=$(gh pr create --head "$branch" --title "$(jq -r .pr_title <<<"$d")" --body "$(jq -r .pr_body <<<"$d")")
-            if [ "$(jq -r .urgent <<<"$d")" = true ] && [ -n "$NTFY_URL" ]; then
-              curl -fsS -H "Title: Roostack: an urgent advisory to review" -H "Priority: urgent" \
-                -H "Click: $url" -d "$(jq -r .title <<<"$d")" "$NTFY_URL"
-            fi
-          done
-      - name: Open the digest
-        if: hashFiles('digest.md') != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh issue create -R "$GITHUB_REPOSITORY" --title "Security digest, $(date +%F)" --body-file digest.md
-      - name: Keep the watcher's state
-        working-directory: services
-        run: |
-          git config user.name "Roostack watcher"
-          git config user.email "watcher@users.noreply.github.com"
-          git add watch/state.json
-          git diff --cached --quiet || { git commit -m "Watcher: state" && git push origin HEAD:main; }
-```
+- the variables `ROOSTACK_BINARY_URL` and `ROOSTACK_BINARY_SHA256`, as for
+  Publish, naming a Roostack release that has `roostack registry watch`;
+- the secret `NTFY_URL`, the maintainers' topic, such as
+  `https://ntfy.sh/<a long random name>`;
+- the secret `WATCH_TOKEN`: a fine-grained token for the repository with
+  contents, pull requests and issues write. Pull requests opened with the
+  workflow's own token don't start other workflows, so without it
+  Publish's checks won't run on the drafts;
+- `main` accepting the state's commit from that token.
 
 ## Bills of materials (next)
 
