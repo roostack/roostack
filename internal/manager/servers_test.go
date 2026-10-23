@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/node/nodetest"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
@@ -22,6 +22,7 @@ import (
 
 // fakeRemote is another server that records its assignments.
 type fakeRemote struct {
+	nodetest.Base
 	guestLink []agent.WireGuard
 	media     node.Media
 	deleted   []string
@@ -74,33 +75,14 @@ func (f *fakeRemote) ServiceDetails(context.Context) (map[string]node.ServiceDet
 func (f *fakeRemote) BuiltIns(context.Context) ([]node.BuiltIn, error) {
 	return []node.BuiltIn{{Name: "roostack", Kind: "network", Status: "up"}}, nil
 }
-func (f *fakeRemote) InstallStatus(context.Context, string) node.HookStatus { return node.HookStatus{} }
-func (f *fakeRemote) RetryInstall(context.Context, string) error            { return nil }
-func (f *fakeRemote) RunAction(context.Context, string, string, map[string]string) (string, error) {
-	return "", errors.New("unused")
-}
-func (f *fakeRemote) RevealSecret(context.Context, string, string) (string, error) { return "", nil }
-func (f *fakeRemote) LatestActivity(string) (activity.Snapshot, bool) {
-	return activity.Snapshot{}, false
-}
-func (f *fakeRemote) Backups() node.Backups   { return f.backups }
-func (f *fakeRemote) Restores() node.Restores { return nil }
-func (f *fakeRemote) Updates() node.Updates   { return nil }
-func (f *fakeRemote) Media() node.Media       { return f.media }
-func (f *fakeRemote) Imports() node.Imports   { return nil }
+func (f *fakeRemote) Backups() node.Backups { return f.backups }
+func (f *fakeRemote) Media() node.Media     { return f.media }
 
 // Capabilities: it hosts guests, says its processor and its links, and
-// moves, updates and reports nothing else.
-func (f *fakeRemote) Mover() node.Mover         { return nil }
-func (f *fakeRemote) Updater() node.Updater     { return nil }
-func (f *fakeRemote) Disks() node.Disks         { return nil }
-func (f *fakeRemote) Memory() node.Memory       { return nil }
-func (f *fakeRemote) LeftData() node.LeftData   { return nil }
-func (f *fakeRemote) History() node.History     { return nil }
+// has its backups and media if set; nothing else (nodetest.Base).
 func (f *fakeRemote) Linked() node.Linked       { return f }
 func (f *fakeRemote) GuestHost() node.GuestHost { return f }
 func (f *fakeRemote) Processor() node.Processor { return f }
-func (f *fakeRemote) Photos() node.Photos       { return nil }
 
 func (f *fakeRemote) Settings() node.Settings {
 	f.mu.Lock()

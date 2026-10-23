@@ -804,7 +804,8 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-// bareNode is a node with no capabilities.
+// bareNode is a node with no capabilities; fakes embed it for those they
+// lack (nodetest.Base, which other packages use, imports node).
 type bareNode struct{ Node }
 
 func (bareNode) Backups() Backups     { return nil }

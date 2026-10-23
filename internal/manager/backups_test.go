@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/b2"
+	"roostack.cloud/roostack/internal/b2/b2test"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/destination"
@@ -129,32 +128,11 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 
 func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	bin := restictest.Bin(t)
-	// A fake Backblaze: authorises the account key, makes and deletes keys.
-	var created map[string]any
-	var deleted []string
-	mux := http.NewServeMux()
-	var api *httptest.Server
-	mux.HandleFunc("GET /b2api/v2/b2_authorize_account", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"accountId": "acct", "apiUrl": api.URL, "authorizationToken": "tok",
-			"allowed": map[string]any{"capabilities": []string{"writeKeys", "deleteKeys", "listBuckets"}}})
-	})
-	// The bucket erases hidden files a day after they're hidden.
-	mux.HandleFunc("POST /b2api/v2/b2_list_buckets", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]any{"bucketId": "bkt1",
-			"lifecycleRules": []any{map[string]any{"fileNamePrefix": "", "daysFromHidingToDeleting": 1}}}}})
-	})
-	mux.HandleFunc("POST /b2api/v2/b2_create_key", func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&created)
-		json.NewEncoder(w).Encode(map[string]string{"applicationKeyId": "scoped-id", "applicationKey": "scoped-secret"})
-	})
-	mux.HandleFunc("POST /b2api/v2/b2_delete_key", func(w http.ResponseWriter, r *http.Request) {
-		var in map[string]string
-		json.NewDecoder(r.Body).Decode(&in)
-		deleted = append(deleted, in["applicationKeyId"])
-		w.Write([]byte("{}"))
-	})
-	api = httptest.NewServer(mux)
-	defer api.Close()
+	// A fake Backblaze: the account key can make and delete keys, and the
+	// bucket erases hidden files a day after they're hidden.
+	api := b2test.New(t)
+	api.Keys["master-id master-key"] = []string{"writeKeys", "deleteKeys", "listBuckets"}
+	api.Buckets["backups"] = b2test.Bucket{ID: "bkt1", Rules: []map[string]any{{"fileNamePrefix": "", "daysFromHidingToDeleting": 1}}}
 
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
@@ -184,10 +162,11 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	}
 	d := vps.settings.dest
 	env := strings.Join(d.Env, " ")
-	if d == nil || !strings.Contains(env, "AWS_ACCESS_KEY_ID=scoped-id") || strings.Contains(env, "master") {
+	if d == nil || !strings.Contains(env, "AWS_ACCESS_KEY_ID=scoped-1") || strings.Contains(env, "master") {
 		t.Fatalf("the vps must get only its scoped key: %+v", d)
 	}
 	labID, _ := st.LabID(ctx)
+	created := api.Created()[0]
 	if created["namePrefix"] != "roostack/"+labID+"/n-0000000002/" || created["bucketId"] != "bkt1" {
 		t.Errorf("key made with %v", created)
 	}
@@ -237,7 +216,7 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil {
 		t.Fatal(err)
 	}
-	if len(deleted) != 1 || deleted[0] != "scoped-id" {
+	if deleted := api.Deleted(); len(deleted) != 1 || deleted[0] != "scoped-1" {
 		t.Errorf("deleted = %v", deleted)
 	}
 	removal, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002"))

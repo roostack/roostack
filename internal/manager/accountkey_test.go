@@ -2,10 +2,7 @@ package manager
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,6 +12,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/b2"
+	"roostack.cloud/roostack/internal/b2/b2test"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/store"
@@ -29,38 +27,10 @@ func TestChangeS3Key(t *testing.T) {
 	bin := restictest.Bin(t)
 	// A fake Backblaze: the old key came from the website (it can't make
 	// keys), the new one from the command-line tool.
-	var created, deleted []string
-	mux := http.NewServeMux()
-	var api *httptest.Server
-	mux.HandleFunc("GET /b2api/v2/b2_authorize_account", func(w http.ResponseWriter, r *http.Request) {
-		caps := map[string][]string{"old-id old-key": {"listBuckets", "listFiles", "readFiles", "writeFiles", "deleteFiles"},
-			"new-id new-key": {"listBuckets", "listFiles", "readFiles", "writeFiles", "deleteFiles", "writeKeys", "deleteKeys", "listKeys"}}
-		id, key, _ := r.BasicAuth()
-		c, ok := caps[id+" "+key]
-		if !ok {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"code": "unauthorized", "message": "wrong key"})
-			return
-		}
-		json.NewEncoder(w).Encode(map[string]any{"accountId": "acct", "apiUrl": api.URL, "authorizationToken": "tok",
-			"allowed": map[string]any{"capabilities": c}})
-	})
-	mux.HandleFunc("POST /b2api/v2/b2_list_buckets", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]any{"bucketId": "bkt1", "lifecycleRules": []any{}}}})
-	})
-	mux.HandleFunc("POST /b2api/v2/b2_create_key", func(w http.ResponseWriter, r *http.Request) {
-		id := "scoped-" + string(rune('0'+len(created)+1))
-		created = append(created, id)
-		json.NewEncoder(w).Encode(map[string]string{"applicationKeyId": id, "applicationKey": id + "-secret"})
-	})
-	mux.HandleFunc("POST /b2api/v2/b2_delete_key", func(w http.ResponseWriter, r *http.Request) {
-		var in map[string]string
-		json.NewDecoder(r.Body).Decode(&in)
-		deleted = append(deleted, in["applicationKeyId"])
-		w.Write([]byte("{}"))
-	})
-	api = httptest.NewServer(mux)
-	defer api.Close()
+	api := b2test.New(t)
+	api.Keys["old-id old-key"] = []string{"listBuckets", "listFiles", "readFiles", "writeFiles", "deleteFiles"}
+	api.Keys["new-id new-key"] = []string{"listBuckets", "listFiles", "readFiles", "writeFiles", "deleteFiles", "writeKeys", "deleteKeys", "listKeys"}
+	api.Buckets["backups"] = b2test.Bucket{ID: "bkt1"}
 
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
@@ -130,7 +100,7 @@ func TestChangeS3Key(t *testing.T) {
 	if l := wait(activity.BackupKeyFor("1")); !strings.Contains(l.Err, "couldn't reach vps, which still has the old key") {
 		t.Errorf("err = %q", l.Err)
 	}
-	if !slices.Equal(deleted, []string{"scoped-1"}) {
+	if deleted := api.Deleted(); !slices.Equal(deleted, []string{"scoped-1"}) {
 		t.Errorf("deleted = %v", deleted)
 	}
 	if tg, _ := m.targetAt(ctx, "n-0000000002", "provider:1"); tg.ScopedKey != "" {
@@ -170,8 +140,8 @@ func TestChangeS3Key(t *testing.T) {
 		t.Fatal(err)
 	}
 	l = wait(activity.BackupKeyFor("1"))
-	if log := strings.Join(l.Lines, "\n"); !strings.Contains(log, "vps keeps the key of its own it has") || len(created) != 2 {
-		t.Errorf("created %v; log:\n%s", created, log)
+	if log := strings.Join(l.Lines, "\n"); !strings.Contains(log, "vps keeps the key of its own it has") || len(api.Created()) != 2 {
+		t.Errorf("created %v; log:\n%s", api.Created(), log)
 	}
 
 	// A copy at another provider: the vps gets the new key itself, and
