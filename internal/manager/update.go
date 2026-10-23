@@ -622,7 +622,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 	if backup && !st.Backup.IsZero() {
 		act.Printf("Backed up at %s.", st.Backup.Format(time.Kitchen))
 	} else if !backup {
-		act.Printf("No backup first: %s.", map[bool]string{true: "it follows the nightly backup", false: "backups aren't set up"}[automatic])
+		act.Printf("No backup first: %s.", map[bool]string{true: "automatic updates run straight after the nightly backup", false: "backups aren't set up"}[automatic])
 	}
 	// Keep the hold while switching and checking.
 	stop := make(chan struct{})

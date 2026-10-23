@@ -420,6 +420,15 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 	return l
 }
 
+// nextRun says when the next nightly backup will run, as the backup plan
+// does: "tonight" when the server hasn't said.
+func nextRun(t time.Time) string {
+	if t.IsZero() {
+		return "tonight"
+	}
+	return words.When(t)
+}
+
 // certWarning is how close to expiry a lab certificate is flagged.
 const certWarning = 30 * 24 * time.Hour
 
@@ -502,7 +511,7 @@ func (lab *Lab) backups(ctx context.Context, m Server, n Node, owner bool, l *Li
 			Link: link, LinkText: "View backups"})
 	case st.LastOK == nil:
 		l.add(Item{Key: "backup-first:" + m.ID, Level: Info,
-			Text: "The first backup" + m.on() + " will run " + words.When(st.Next) + ". You can also back up now.",
+			Text: "The first backup" + m.on() + " will run " + nextRun(st.Next) + ". You can also back up now.",
 			Link: link, LinkText: "Back up now"})
 	case manager.BackupStale(st.LastOK.Finished):
 		l.add(Item{Key: "backup-stale:" + m.ID, Level: Warning,
