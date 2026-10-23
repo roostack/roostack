@@ -330,7 +330,7 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 func TestTwoFactorWizardStep(t *testing.T) {
 	h := newHarness(t, "")
 	fm := &fakeManager{}
-	h.server.Manager, h.server.Node = fm, fm
+	h.server.Manager, h.server.Guests, h.server.Keys, h.server.Node = fm, fm, fm, fm
 	fs := &fakeSetup{zone: "Etc/UTC"}
 	h.setSetup(fs)
 	ctx := context.Background()

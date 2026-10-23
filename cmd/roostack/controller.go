@@ -64,7 +64,7 @@ func controllerAPI(hub *labnet.Hub, guestHub *labnet.GuestHub, mgr *manager.Mana
 	// Guests' requests, forwarded by the server offering storage for others.
 	guestAPI := http.StripPrefix("/v1/guest-api", guestHub.Handler())
 	api.Handle("/v1/guest-api/", hub.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if labnet.Caller(r) != mgr.GuestServer(r.Context()) {
+		if labnet.Caller(r) != mgr.Guests().GuestServer(r.Context()) {
 			labnet.WriteError(w, http.StatusForbidden, errors.New("this server doesn't offer storage for others"))
 			return
 		}
@@ -113,12 +113,12 @@ func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maint
 		for {
 			// A recovery key change waiting for a backup that couldn't be
 			// reached (SPEC.md §6.9) tries again.
-			mgr.ResumeKeyChange()
+			mgr.KeyChanges().ResumeKeyChange()
 			mgr.CheckRemotes(ctx)
 			// A backup that failed as junk in its repository makes it fail
 			// gets that repository checked now, not at the weekly check.
 			mgr.CheckForJunk(ctx)
-			if err := mgr.PurgeRemovedGuests(ctx, time.Now()); err != nil {
+			if err := mgr.Guests().PurgeRemovedGuests(ctx, time.Now()); err != nil {
 				log.Error("deleting removed guest labs' backups", "err", err)
 			}
 			if !sleep.For(ctx, time.Hour) {

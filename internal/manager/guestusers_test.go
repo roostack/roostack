@@ -112,8 +112,9 @@ func TestRemoteStorageServerUsers(t *testing.T) {
 		t.Errorf("the host's user for the vps doesn't match: %v", hostUsers())
 	}
 	// The host runs the guest's store with that user.
-	hm := &Manager{GuestHub: hub, GuestRecords: hst, Log: m.Log}
-	if stores, _ := hm.guestStores(ctx); len(stores) != 1 || stores[0].Users["n-0000000002"] == "" || stores[0].StoreHash != "" {
+	hm := &Manager{Log: m.Log}
+	hm.Guests().Hub, hm.Guests().Records = hub, hst
+	if stores, _ := hm.Guests().guestStores(ctx); len(stores) != 1 || stores[0].Users["n-0000000002"] == "" || stores[0].StoreHash != "" {
 		t.Errorf("host's stores: %+v", stores)
 	}
 	// The controller creates and prunes it with the lab's admin access.

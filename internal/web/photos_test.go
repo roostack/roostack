@@ -41,7 +41,8 @@ func newFakePhotos() *fakePhotos {
 func (f *fakePhotos) PhotoServices(context.Context) []manager.PhotoService {
 	return []manager.PhotoService{{Name: "immich", Title: "Immich", Host: "nuc"}}
 }
-func (f *fakePhotos) PhotosOf(string) (node.Photos, error) { return f, nil }
+func (f *fakePhotos) PhotosOf(string) (node.Photos, error)                  { return f, nil }
+func (f *fakePhotos) MigrationStarted(context.Context, string, *store.User) {}
 func (f *fakePhotos) PhotoSettings(context.Context, string) manager.PhotoSettings {
 	return f.settings
 }

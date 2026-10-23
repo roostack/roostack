@@ -40,7 +40,7 @@ func (n *Notifier) weeklySummary(ctx context.Context, lab *Lab, u *store.User, n
 		} else if err == nil {
 			b.WriteString("- Backups aren't set up\n")
 		}
-		if d := ServerDisks(ctx, lab.Manager, mn.view, mn.node.Disks()); d != nil {
+		if d := ServerDisks(ctx, lab.Guests, mn.view, mn.node.Disks()); d != nil {
 			for _, v := range d {
 				fmt.Fprintf(&b, "- %s: %s free of %s\n", v.Title, units.Bytes(v.Free), units.Bytes(v.Total))
 			}

@@ -14,11 +14,13 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // A lab's servers (SPEC.md §10): this one, the controller, which keeps
@@ -117,6 +119,61 @@ func (m *Manager) node(id string) node.Node {
 	return nil
 }
 
+// addressOf is a server's address on Roostack's network, or "".
+func (m *Manager) addressOf(id string) string {
+	if id == m.Lab.NodeID {
+		if m.Lab.OverlayAddr != "" {
+			return m.Lab.OverlayAddr
+		}
+		return labnet.ControllerAddr.String()
+	}
+	for _, r := range m.others() {
+		if r.Identity().ID == id {
+			return r.Address()
+		}
+	}
+	return ""
+}
+
+func (m *Manager) nameOf(id string) string {
+	if n := m.node(id); n != nil {
+		return n.Identity().Name
+	}
+	return id
+}
+
+// alone says whether the lab has one server. Its pages and logs don't name
+// it: the name is the host's, which the Owner may never have chosen
+// (found 2026-10-18).
+func (m *Manager) alone() bool { return len(m.others()) == 0 }
+
+// serverName is a server's name in a sentence, or "this server" in a lab
+// of one.
+func (m *Manager) serverName(id string) string {
+	if id == m.Lab.NodeID && m.alone() {
+		return "this server"
+	}
+	return m.nameOf(id)
+}
+
+// onServer is " on <server>" after a step that happens on one, or nothing
+// in a lab of one.
+func (m *Manager) onServer(id string) string {
+	if id == m.Lab.NodeID && m.alone() {
+		return ""
+	}
+	return " on " + m.nameOf(id)
+}
+
+// aboutServer starts a line about one server with its name ("nas:
+// keeping …"), or, in a lab of one, is the line alone ("Keeping …").
+func (m *Manager) aboutServer(id, line string) string {
+	if id == m.Lab.NodeID && m.alone() {
+		return words.Capitalise(line)
+	}
+	return m.nameOf(id) + ": " + line
+}
+
 // NodeByID returns a server by its node ID, or nil.
 func (m *Manager) NodeByID(id string) node.Node { return m.node(id) }
 
@@ -181,15 +238,14 @@ func (m *Manager) Apply() { m.ApplyBecause("") }
 func (m *Manager) ApplyBecause(reason string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.applyReason = reason
-	m.startApplyLocked()
+	m.startApplyLocked(reason)
 }
 
-// startApplyLocked builds each server's assignment and hands it over;
-// servers apply in the background.
-func (m *Manager) startApplyLocked() {
-	reason := cmp.Or(m.applyReason, "A change to backups, storage or the lab's servers")
-	m.applyReason = ""
+// startApplyLocked builds each server's assignment and hands it over,
+// saying why in the servers' logs ("" for a change to backups, storage or
+// the lab's servers); servers apply in the background. Callers hold mu.
+func (m *Manager) startApplyLocked(reason string) {
+	reason = cmp.Or(reason, "A change to backups, storage or the lab's servers")
 	services, err := state.LoadServices(m.Lab)
 	if err == nil {
 		err = m.allocateAndSave(services)
@@ -208,7 +264,7 @@ func (m *Manager) startApplyLocked() {
 	// CrowdSec shares nothing until the Owner has answered (SPEC.md §6.11):
 	// on a lab on the internet it can start with the public UI, before
 	// anything asks.
-	pub := m.publicLocked()
+	pub := m.labNow().Public
 	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked,
 		StatusPage: m.StatusPageOn()}
 	nodes := []node.Node{m.Node}
@@ -245,8 +301,8 @@ func (m *Manager) startApplyLocked() {
 			a.ProxyPorts = m.proxyPorts(context.Background())
 		}
 		// Other labs' stores live on the server offering storage.
-		if n.Identity().ID == m.GuestServer(context.Background()) {
-			a.Guests, a.GuestAddr = m.guestStores(context.Background())
+		if n.Identity().ID == m.Guests().GuestServer(context.Background()) {
+			a.Guests, a.GuestAddr = m.Guests().guestStores(context.Background())
 		}
 		a.Storage = m.storageFor(context.Background(), id)
 		a.Libraries = m.librariesFor(context.Background(), id)

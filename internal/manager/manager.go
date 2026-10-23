@@ -49,14 +49,13 @@ var ErrNotFound = node.ErrNotFound
 // hands that to the server as an Assignment. Server work (applying,
 // install hooks, actions) happens in the Node.
 type Manager struct {
+	// The lab and its servers.
 	Lab config.Lab
 	Log *slog.Logger
 	// Version is the running Roostack's (main.version), checked against
 	// the requires.roostack of a package the Owner adds (SPEC.md §8.3.5);
 	// empty is a development build, which runs everything.
 	Version string
-	// Relay is Roostack Cloud's relay, a way in for public visitors.
-	Relay Relay
 	// Node is this server (the controller).
 	Node node.Node
 	// Others lists the lab's other servers (SPEC.md §10); nil if none.
@@ -65,39 +64,6 @@ type Manager struct {
 	Registry ServerRegistry
 	// RenameSelf renames this server (optional).
 	RenameSelf func(name string) error
-	// BackupStore records backup providers and targets, and OpenRepo opens
-	// a repository with the recovery key (backups.go; optional).
-	BackupStore BackupStore
-	// Libraries keeps the servers' media libraries (store.Store; SPEC.md
-	// §8.1, "Media libraries"). Nil: none.
-	Libraries LibraryStore
-	OpenRepo  func(url string, env []string) *backup.Repo
-	// CloudBackup is Roostack Cloud backup, when the lab is linked (nil:
-	// none): its short-lived keys and the lab's usage (SPEC.md §6.9).
-	CloudBackup CloudBackup
-	// HasRecoveryKey reports whether the lab has its recovery key yet;
-	// EnsureRecoveryKey makes it when the first backup is set up (optional).
-	HasRecoveryKey    func() bool
-	EnsureRecoveryKey func() error
-	// Drives are this server's drives, for backups on them (roostack-agent).
-	Drives DriveAgent
-	// Storage for other labs (guests.go; optional): the host's hub and
-	// records, how much a guest stores here, the agent for links between
-	// labs, and a hook when this lab starts storing at another.
-	GuestHub     *labnet.GuestHub
-	GuestRecords GuestRecords
-
-	LinkAgent   LinkAgent
-	RemoteAdded func(RemoteStorage)
-
-	// remoteSeen is each storage at another lab's latest answer (by Ref).
-	remoteMu   sync.Mutex
-	remoteSeen map[string]labnet.GuestUsage
-	// NewB2 makes a Backblaze client (tests; nil uses the real service).
-	NewB2 func(keyID, key string) *b2.Client
-	// NewS3 makes an S3 client for an online storage account (tests; nil
-	// uses the account's endpoint).
-	NewS3 func(s3 S3Provider) *s3api.Client
 	// Activity shows problems building an assignment (optional).
 	Activity *activity.Registry
 	// UpdateLab saves a change to lab.yaml (config.Update), for settings
@@ -111,13 +77,46 @@ type Manager struct {
 	// Audit records what Roostack did by itself in the audit log, such as
 	// a restore that worked ending a hold (hold.go; optional).
 	Audit func(ctx context.Context, action, detail string)
-	// RegistryIndex is the newest index the controller has fetched from
-	// the service registry (registry.Fetcher.Index; nil before the first),
+
+	// Services: the newest index the controller has fetched from the
+	// service registry (registry.Fetcher.Index; nil before the first),
 	// for withdrawals of installed services (withdrawals.go; optional).
 	RegistryIndex func() (*registry.Index, error)
+	// Public access: Roostack Cloud's relay, a way in for public visitors
+	// (edge.go).
+	Relay Relay
+	// Media libraries: the servers' libraries (store.Store; SPEC.md §8.1,
+	// "Media libraries"). Nil: none.
+	Libraries LibraryStore
 
-	// mu guards state changes (install/remove) and what is still to hand
-	// over to the node.
+	// Backups (backups.go; optional). BackupStore records backup
+	// providers and targets, and OpenRepo opens a repository with the
+	// recovery key.
+	BackupStore BackupStore
+	OpenRepo    func(url string, env []string) *backup.Repo
+	// CloudBackup is Roostack Cloud backup, when the lab is linked (nil:
+	// none): its short-lived keys and the lab's usage (SPEC.md §6.9).
+	CloudBackup CloudBackup
+	// HasRecoveryKey reports whether the lab has its recovery key yet;
+	// EnsureRecoveryKey makes it when the first backup is set up (optional).
+	HasRecoveryKey    func() bool
+	EnsureRecoveryKey func() error
+	// Drives are this server's drives, for backups on them (roostack-agent).
+	Drives DriveAgent
+	// NewB2 makes a Backblaze client (tests; nil uses the real service).
+	NewB2 func(keyID, key string) *b2.Client
+	// NewS3 makes an S3 client for an online storage account (tests; nil
+	// uses the account's endpoint).
+	NewS3 func(s3 S3Provider) *s3api.Client
+
+	// Storage at other labs (remotestorage.go; optional): the agent for
+	// links between labs, and a hook when this lab starts storing at
+	// another.
+	LinkAgent   LinkAgent
+	RemoteAdded func(RemoteStorage)
+
+	// Applying (servers.go). mu guards state changes (install, remove)
+	// and what is still to hand over to the servers.
 	mu sync.Mutex
 	// secrets holds values typed into install forms, by service, until
 	// the next assignment hands them to the service's server. Never
@@ -128,47 +127,81 @@ type Manager struct {
 	setUp []string
 	// assignErr is why the last assignment couldn't be built, if it failed.
 	assignErr error
-	// applyReason says why the next apply starts, for the servers' logs
-	// (ApplyBecause); callers hold mu.
-	applyReason string
-	// restoring are the services the controller is restoring (restore.go).
+	// pulls are when each server last fetched its assignment.
+	pulls pullTimes
+	// saved is lab.yaml as last saved while running (saveLab); nil until
+	// the first change, when it's Lab.
+	saved atomic.Pointer[config.Lab]
+
+	// Services: those the controller is restoring (restore.go), those
+	// updating (update.go) and those being switched to their brought data
+	// (import.go).
 	restoring map[string]bool
-	// links are direct links between servers (links.go).
-	links linkState
-	// keyMu makes recovery key changes one at a time (keychange.go).
-	keyMu sync.Mutex
+	upd       updates
+	switching switchingSet
 	// ssoClients are the services the sign-in page knows, as last read
 	// (at ssoAt), guarded by ssoMu (sso.go).
 	ssoMu      sync.Mutex
 	ssoClients []sso.Client
 	ssoAt      time.Time
-	// junk is what the junk checks remember (quarantine.go).
-	junk junkState
-	// statusPage is the public status page's switch as last set (nil:
-	// lab.yaml's at start; monitor.go).
-	statusPage atomic.Pointer[bool]
-	// public is the lab's public access settings as changed at runtime
-	// (public.go); nil until first used, then read from Lab. Kept apart
-	// from Lab, which is read without the lock.
-	public *config.Public
-	// noStops is the Owner's opt-out from registry stops as changed at
-	// runtime (withdrawals.go); nil until first used, then read from Lab.
-	noStops *bool
 	// stopsKey is what the last assignment stopped (markStops), and
-	// awaiting the servers whose last backup a stop waits for.
+	// awaiting the servers whose last backup a stop waits for
+	// (withdrawals.go).
 	stopsKey string
 	awaiting map[string]bool
-	// upd are services updating (update.go).
-	upd updates
-	// relayMu makes updates to Roostack Cloud's relay one at a time, so an
-	// older one can't reach Cloud after a newer one (edge.go). relayGen
-	// counts updates (under mu), so a background one gives way to any
-	// newer; relayWG is the background ones still running.
+
+	// Public access: relayMu makes updates to Roostack Cloud's relay one
+	// at a time, so an older one can't reach Cloud after a newer one
+	// (edge.go). relayGen counts updates (under mu), so a background one
+	// gives way to any newer; relayWG is the background ones still
+	// running.
 	relayMu  sync.Mutex
 	relayGen uint64
 	relayWG  sync.WaitGroup
-	// pulls are when each server last fetched its assignment (servers.go).
-	pulls pullTimes
+
+	// Servers: direct links between them (links.go).
+	links linkState
+
+	// Backups: what the junk checks remember (quarantine.go), Backblaze
+	// buckets' lifecycle rules (destination.go) and the latest rollback
+	// checks (rollback.go).
+	junk      junkState
+	hidden    hiddenCache
+	rollbacks rollbackChecks
+	// Storage at other labs: each one's latest answer, by Ref (remoteMu),
+	// and changes to their records one at a time (servers' users are
+	// added as their backups are set up; remotestorage.go).
+	remoteMu       sync.Mutex
+	remoteSeen     map[string]labnet.GuestUsage
+	remoteConfigMu sync.Mutex
+
+	// feats are the features with types of their own (core.go).
+	feats features
+}
+
+// labNow is lab.yaml as it is now: Lab with the settings changed while
+// running (saveLab). Its public access settings, the status page's switch
+// and the registry's stops are read from here; Lab's other settings change
+// only with a restart.
+func (m *Manager) labNow() config.Lab {
+	if l := m.saved.Load(); l != nil {
+		return *l
+	}
+	return m.Lab
+}
+
+// saveLab saves a change to lab.yaml (UpdateLab, if set) and makes it
+// labNow's. Callers hold mu, so changes don't overlap.
+func (m *Manager) saveLab(change func(*config.Lab)) error {
+	if m.UpdateLab != nil {
+		if err := m.UpdateLab(change); err != nil {
+			return err
+		}
+	}
+	l := m.labNow()
+	change(&l)
+	m.saved.Store(&l)
+	return nil
 }
 
 // CatalogItem is one package in the catalog.
@@ -365,11 +398,8 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		if v == "" {
 			return usererr.New("%s is required.", s.Title)
 		}
-		if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
-			return usererr.New("%s must be at least %d characters.", s.Title, s.MinLength)
-		}
-		if strings.ContainsAny(v, "\n\r\x00") {
-			return usererr.New("%s can't contain line breaks.", s.Title)
+		if err := checkSecret(s, v); err != nil {
+			return err
 		}
 		secrets[node.SecretName(id, s.Key)] = []byte(v)
 	}
@@ -418,8 +448,19 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		m.secrets = map[string]map[string][]byte{}
 	}
 	m.secrets[id] = secrets
-	m.applyReason = "Installing " + id
-	m.startApplyLocked()
+	m.startApplyLocked("Installing " + id)
+	return nil
+}
+
+// checkSecret checks a value typed for a secret setting: long enough, and
+// on one line.
+func checkSecret(s pkgspec.Setting, v string) error {
+	if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
+		return usererr.New("%s must be at least %d characters.", s.Title, s.MinLength)
+	}
+	if strings.ContainsAny(v, "\n\r\x00") {
+		return usererr.New("%s can't contain line breaks.", s.Title)
+	}
 	return nil
 }
 
@@ -696,8 +737,7 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
-	m.applyReason = "Changing " + name + "'s connections"
-	m.startApplyLocked()
+	m.startApplyLocked("Changing " + name + "'s connections")
 	return nil
 }
 
@@ -870,8 +910,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
-	m.applyReason = "Changing " + name + "'s settings"
-	m.startApplyLocked()
+	m.startApplyLocked("Changing " + name + "'s settings")
 	return nil
 }
 
@@ -890,8 +929,7 @@ func (m *Manager) Remove(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	m.applyReason = "Removing " + name
-	m.startApplyLocked()
+	m.startApplyLocked("Removing " + name)
 	return nil
 }
 

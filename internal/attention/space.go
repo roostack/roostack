@@ -66,9 +66,9 @@ func diskTitle(d node.DiskSpace) string {
 }
 
 // ServerDisks asks server m for its disks (d, its Disks; nil if it can't
-// say), with the space promised to other labs on the disk holding the
-// backup store, and a warning for each disk running low.
-func ServerDisks(ctx context.Context, mgr Manager, m Server, d node.Disks) []Disk {
+// say), with the space promised to other labs (guests) on the disk
+// holding the backup store, and a warning for each disk running low.
+func ServerDisks(ctx context.Context, guests Guests, m Server, d node.Disks) []Disk {
 	if d == nil {
 		return nil
 	}
@@ -81,9 +81,9 @@ func ServerDisks(ctx context.Context, mgr Manager, m Server, d node.Disks) []Dis
 	var out []Disk
 	var promised, promisedLeft int64
 	// Other labs' quotas count on the server that stores their backups.
-	if mgr.GuestServer(ctx) == m.ID {
-		if guests, err := mgr.StorageGuests(ctx); err == nil {
-			for _, g := range guests {
+	if guests.GuestServer(ctx) == m.ID {
+		if labs, err := guests.StorageGuests(ctx); err == nil {
+			for _, g := range labs {
 				if g.Removed.IsZero() {
 					promised += g.Quota
 					promisedLeft += max(0, g.Quota-max(g.Used, 0))
@@ -129,7 +129,7 @@ func ServerDisks(ctx context.Context, mgr Manager, m Server, d node.Disks) []Dis
 // space flags servers running out of space.
 func (lab *Lab) space(ctx context.Context, l *List) {
 	for _, mn := range lab.servers() {
-		if d := ServerDisks(ctx, lab.Manager, mn.view, mn.node.Disks()); d != nil {
+		if d := ServerDisks(ctx, lab.Guests, mn.view, mn.node.Disks()); d != nil {
 			for _, v := range d {
 				if v.Level != "" {
 					l.add(Item{Key: "space:" + mn.view.ID + ":" + v.Mount + ":" + v.Level, Level: v.Level,

@@ -329,11 +329,12 @@ func (c *controller) wireWeb() error {
 	}
 	srv.Version = version
 	srv.Node = c.local
+	srv.Guests, srv.Keys = c.mgr.Guests(), c.mgr.KeyChanges()
 	srv.Libraries = c.mgr
 	// Migrating photos into Immich (SPEC.md §8.5): its pages, and the
-	// email when one ends.
-	srv.Photos = c.mgr
-	c.local.OnPhotos = srv.PhotosEnded
+	// email when one ends (sent once the notifier has the mail server).
+	srv.Photos = c.mgr.Photos()
+	c.local.OnPhotos = c.mgr.Photos().MigrationEnded
 	if err := startSignIn(c.ctx, lab, c.st, srv, c.mgr, c.local, c.log); err != nil {
 		return err
 	}
@@ -516,13 +517,14 @@ func (c *controller) wireNetwork() {
 	// The guests' link and stores are on whichever server offers the
 	// storage; the controller keeps the records and answers guests (on
 	// that server's link, forwarded here when it's another server).
-	c.guestHub = &labnet.GuestHub{LabName: c.labName, Store: st, Agent: mgr.GuestLinkAgent(), Log: log, Now: time.Now,
-		Usage:  func(ctx context.Context, g store.Guest) (int64, error) { return mgr.GuestUsage(ctx, g.User()) },
+	guests := mgr.Guests()
+	c.guestHub = &labnet.GuestHub{LabName: c.labName, Store: st, Agent: guests.GuestLinkAgent(), Log: log, Now: time.Now,
+		Usage:  func(ctx context.Context, g store.Guest) (int64, error) { return guests.GuestUsage(ctx, g.User()) },
 		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, attention.AuditGuestJoined, name) },
 		// A guest server's store user added or removed: the guest's store
 		// follows (its password file).
 		Changed: func() { mgr.Apply() }}
-	mgr.GuestHub, mgr.GuestRecords, mgr.LinkAgent = c.guestHub, st, c.agent
+	guests.Hub, guests.Records, mgr.LinkAgent = c.guestHub, st, c.agent
 	c.guestHub.Start(ctx)
 	go c.guestHub.ServeGuests(ctx)
 	mgr.RemoteAdded = func(r manager.RemoteStorage) { go forwardToRemote(ctx, lab, r, log) }
@@ -660,6 +662,9 @@ func (c *controller) startCloud() {
 func (c *controller) wireNotifier() {
 	m := &mail.Service{LabPath: c.labPath, PasswordFile: c.lab.Paths.MailPasswordFile()}
 	c.srv.Mail = m
+	// The photo migration emails (SPEC.md §8.5).
+	photos := c.mgr.Photos()
+	photos.Mail, photos.Users = m, c.st
 	n := &attention.Notifier{Store: c.st, Log: c.log, Mail: m, Lab: c.srv.AttentionLab}
 	go n.Run(c.ctx)
 }

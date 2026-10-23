@@ -51,16 +51,16 @@ func (m *Manager) ImportsOf(service string) (node.Imports, error) {
 }
 
 // switching are the services being switched to brought data.
-var switching = struct {
+type switchingSet struct {
 	sync.Mutex
 	m map[string]bool
-}{m: map[string]bool{}}
+}
 
 // Switching says whether a service is being switched to its data.
 func (m *Manager) Switching(service string) bool {
-	switching.Lock()
-	defer switching.Unlock()
-	return switching.m[service]
+	m.switching.Lock()
+	defer m.switching.Unlock()
+	return m.switching.m[service]
 }
 
 // SwitchImport starts switching a service to the data brought, in the
@@ -89,13 +89,16 @@ func (m *Manager) SwitchImport(ctx context.Context, service string) error {
 	if up == nil {
 		return usererr.New("Roostack can't reach %s's server.", p.Title)
 	}
-	switching.Lock()
-	if switching.m[service] {
-		switching.Unlock()
+	m.switching.Lock()
+	if m.switching.m[service] {
+		m.switching.Unlock()
 		return usererr.New("%s is being switched already.", p.Title)
 	}
-	switching.m[service] = true
-	switching.Unlock()
+	if m.switching.m == nil {
+		m.switching.m = map[string]bool{}
+	}
+	m.switching.m[service] = true
+	m.switching.Unlock()
 	title := cmp.Or(in.Title, p.Title)
 	act := m.Activity.Start(activity.ImportFor(service), "Switching "+title+" to your data")
 	go func() {
@@ -104,9 +107,9 @@ func (m *Manager) SwitchImport(ctx context.Context, service string) error {
 		if err != nil {
 			m.Log.Error("switching a service to its data", "service", service, "err", err)
 		}
-		switching.Lock()
-		delete(switching.m, service)
-		switching.Unlock()
+		m.switching.Lock()
+		delete(m.switching.m, service)
+		m.switching.Unlock()
 		act.Finish(err)
 	}()
 	return nil
@@ -290,7 +293,6 @@ func (m *Manager) saveInstance(in *instance.Instance, reason string) error {
 	if err := in.Save(state.InstanceFile(m.Lab, in.ID())); err != nil {
 		return err
 	}
-	m.applyReason = reason
-	m.startApplyLocked()
+	m.startApplyLocked(reason)
 	return nil
 }

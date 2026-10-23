@@ -535,7 +535,7 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	// this page).
 	data["RecoveryKey"] = owner && s.hasRecoveryKey()
 	if data["RecoveryKey"] == true {
-		if k, err := s.Manager.KeyChangeStatus(); err == nil {
+		if k, err := s.Keys.KeyChangeStatus(); err == nil {
 			data["KeyChange"] = k
 		}
 	}

@@ -90,7 +90,7 @@ type serverDisks struct {
 // serverSpaces asks a server for its disks (nil if it can't say), each
 // with how low its space is (attention.ServerDisks).
 func (s *Server) serverSpaces(ctx context.Context, m serverRef, n ServiceNode) *serverDisks {
-	disks := attention.ServerDisks(ctx, s.Manager, attention.Server{ID: m.ID, Name: m.Name, This: m.This}, n.Disks())
+	disks := attention.ServerDisks(ctx, s.Guests, attention.Server{ID: m.ID, Name: m.Name, This: m.This}, n.Disks())
 	if disks == nil {
 		return nil
 	}

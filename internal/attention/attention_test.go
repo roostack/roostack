@@ -132,7 +132,7 @@ func newLab() (*Lab, *fakeManager, *fakeNode) {
 	ok := &store.BackupRun{OK: true, Finished: time.Now()}
 	fn := &fakeNode{id: nodeid.Identity{ID: "n-1", Name: "nuc"},
 		backups: &fakeBackups{st: backup.Status{Configured: true, Progress: -1, Last: ok, LastOK: ok}}}
-	lab := &Lab{Manager: fm, Node: fn, Setup: &fakeSetup{}, Domain: "lab.example.com",
+	lab := &Lab{Manager: fm, Guests: fm, Node: fn, Setup: &fakeSetup{}, Domain: "lab.example.com",
 		Services: func(context.Context) ([]Service, error) { return nil, nil }, HostChecks: &HostChecks{}}
 	return lab, fm, fn
 }

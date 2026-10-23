@@ -92,8 +92,12 @@ type Server struct {
 	// Services lists installed services and their status. It is a function
 	// so the UI doesn't depend on systemd directly (and tests can fake it).
 	Services func(ctx context.Context) ([]ServiceView, error)
-	// Manager installs and removes services.
+	// Manager installs and removes services; Guests is its storage for
+	// other labs (manager.Guests), and Keys changes the recovery key
+	// (manager.KeyChanges).
 	Manager ServiceManager
+	Guests  StorageSharing
+	Keys    RecoveryKeys
 	// Setup is the first-run setup wizard's steps.
 	Setup LabSetup
 	// LabSettings are the lab's settings, as Roostack started with them;
@@ -185,9 +189,8 @@ type ServiceManager interface {
 	ServiceCatalog
 	LabServers
 	BackupPlan
-	StorageSharing
+	StorageAtOtherLabs
 	PublicAccess
-	RecoveryKeys
 	LabRestores
 	Withdrawals
 	Holds
@@ -328,8 +331,7 @@ type BackupPlan interface {
 	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
 }
 
-// StorageSharing is storage for other labs, and this lab's storage at
-// other labs (SPEC.md §10.10).
+// StorageSharing is storage for other labs (SPEC.md §10.10).
 type StorageSharing interface {
 	OfferStorage(ctx context.Context) bool
 	StorageGuests(ctx context.Context) ([]manager.GuestView, error)
@@ -338,11 +340,16 @@ type StorageSharing interface {
 	DeleteRemovedGuest(ctx context.Context, id int64) error
 	GuestServer(ctx context.Context) string
 	SetGuestServer(ctx context.Context, id string) error
-	EndingStorages(ctx context.Context) []manager.EndingStorage
 	SetGuestQuota(ctx context.Context, id, quota int64) error
 	GuestSpaceLeft(ctx context.Context) (manager.GuestSpace, bool)
 	LeftoverGuests(ctx context.Context) ([]manager.LeftoverGuest, error)
 	DeleteLeftoverGuest(ctx context.Context, user string) error
+}
+
+// StorageAtOtherLabs is this lab's storage at other labs (SPEC.md
+// §10.10).
+type StorageAtOtherLabs interface {
+	EndingStorages(ctx context.Context) []manager.EndingStorage
 	AddRemoteStorage(ctx context.Context, code string) error
 	RemoteStorages(ctx context.Context) []manager.RemoteStorage
 	RemoteUsage(ctx context.Context, r manager.RemoteStorage) (labnet.GuestUsage, error)

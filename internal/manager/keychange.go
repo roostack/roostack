@@ -9,14 +9,13 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
-	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/maintenance"
-	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
 	"roostack.cloud/roostack/internal/words"
 )
@@ -32,6 +31,36 @@ import (
 // This replaces the key; it doesn't change the repositories' master key,
 // so it protects against a leaked key, not against someone who also
 // copied the backups (SPEC.md §6.9 says why that's left, for now).
+
+// KeyChanges is changing the recovery key (Manager.KeyChanges).
+type KeyChanges struct {
+	core keyCore
+	// mu makes changes one at a time.
+	mu sync.Mutex
+}
+
+// keyCore is what key changes use of the Manager: besides the core, the
+// activity logs and maintenance jobs, Roostack Cloud backup, every
+// repository the recovery key opens, and servers' names in sentences.
+type keyCore interface {
+	core
+	activities() *activity.Registry
+	submit(j maintenance.Job)
+	cloudBackup() CloudBackup
+	keyRepos(ctx context.Context) ([]keyRepo, error)
+	serverName(id string) string
+	aboutServer(id, line string) string
+}
+
+func (m *Manager) activities() *activity.Registry { return m.Activity }
+func (m *Manager) cloudBackup() CloudBackup       { return m.CloudBackup }
+
+// submit queues a job with the maintenance coordinator, if there is one.
+func (m *Manager) submit(j maintenance.Job) {
+	if m.Submit != nil {
+		m.Submit(j)
+	}
+}
 
 // Key change phases.
 const (
@@ -73,15 +102,15 @@ func (k *KeyChange) Done() int {
 
 // Files: the change's state, and the new and old keys next to the
 // recovery key (backup.KeyFile), all 0600.
-func (m *Manager) keyChangeFile() string {
-	return filepath.Join(m.Lab.Paths.StateDir, "backup-key.change.json")
+func (x *KeyChanges) keyChangeFile() string {
+	return filepath.Join(x.core.labConfig().Paths.StateDir, "backup-key.change.json")
 }
-func (m *Manager) newKeyFile() string { return backup.KeyFile(m.Lab.Paths) + ".new" }
-func (m *Manager) oldKeyFile() string { return backup.KeyFile(m.Lab.Paths) + ".old" }
+func (x *KeyChanges) newKeyFile() string { return backup.KeyFile(x.core.labConfig().Paths) + ".new" }
+func (x *KeyChanges) oldKeyFile() string { return backup.KeyFile(x.core.labConfig().Paths) + ".old" }
 
 // KeyChangeStatus returns the change in progress, or nil.
-func (m *Manager) KeyChangeStatus() (*KeyChange, error) {
-	data, err := os.ReadFile(m.keyChangeFile())
+func (x *KeyChanges) KeyChangeStatus() (*KeyChange, error) {
+	data, err := os.ReadFile(x.keyChangeFile())
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -90,114 +119,110 @@ func (m *Manager) KeyChangeStatus() (*KeyChange, error) {
 	}
 	var k KeyChange
 	if err := json.Unmarshal(data, &k); err != nil {
-		return nil, fmt.Errorf("%s: %w", m.keyChangeFile(), err)
+		return nil, fmt.Errorf("%s: %w", x.keyChangeFile(), err)
 	}
 	return &k, nil
 }
 
-func (m *Manager) saveKeyChange(k *KeyChange) error {
+func (x *KeyChanges) saveKeyChange(k *KeyChange) error {
 	data, err := json.MarshalIndent(k, "", "  ")
 	if err != nil {
 		return err
 	}
-	return fsutil.WritePrivate(m.keyChangeFile(), data)
+	return fsutil.WritePrivate(x.keyChangeFile(), data)
 }
 
 // StartKeyChange makes a new recovery key, to be shown and confirmed.
-func (m *Manager) StartKeyChange(ctx context.Context) error {
-	m.keyMu.Lock()
-	defer m.keyMu.Unlock()
-	if k, err := m.KeyChangeStatus(); err != nil || k != nil {
+func (x *KeyChanges) StartKeyChange(ctx context.Context) error {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	if k, err := x.KeyChangeStatus(); err != nil || k != nil {
 		return cmpErr(err, usererr.New("A recovery key change is already under way."))
 	}
-	if _, err := os.Stat(backup.KeyFile(m.Lab.Paths)); err != nil {
+	if _, err := os.Stat(backup.KeyFile(x.core.labConfig().Paths)); err != nil {
 		return usererr.New("The lab has no recovery key yet: it's made with the first backup.")
 	}
 	key := backup.NewRecoveryKey()
-	if err := fsutil.WritePrivate(m.newKeyFile(), []byte(key+"\n")); err != nil {
+	if err := fsutil.WritePrivate(x.newKeyFile(), []byte(key+"\n")); err != nil {
 		return err
 	}
-	return m.saveKeyChange(&KeyChange{Phase: KeyConfirm, Started: time.Now()})
+	return x.saveKeyChange(&KeyChange{Phase: KeyConfirm, Started: time.Now()})
 }
 
 // NewRecoveryKey is the new key, while it waits to be confirmed.
-func (m *Manager) NewRecoveryKey() (string, error) {
-	k, err := m.KeyChangeStatus()
+func (x *KeyChanges) NewRecoveryKey() (string, error) {
+	k, err := x.KeyChangeStatus()
 	if err != nil || k == nil || k.Phase != KeyConfirm {
 		return "", cmpErr(err, ErrNotFound)
 	}
-	data, err := os.ReadFile(m.newKeyFile())
+	data, err := os.ReadFile(x.newKeyFile())
 	return strings.TrimSpace(string(data)), err
 }
 
 // CancelKeyChange drops a new key that wasn't confirmed yet.
-func (m *Manager) CancelKeyChange() error {
-	m.keyMu.Lock()
-	defer m.keyMu.Unlock()
-	k, err := m.KeyChangeStatus()
+func (x *KeyChanges) CancelKeyChange() error {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	k, err := x.KeyChangeStatus()
 	if err != nil || k == nil || k.Phase != KeyConfirm {
 		return cmpErr(err, usererr.New("Only a change that hasn't started can be cancelled."))
 	}
-	os.Remove(m.newKeyFile())
-	return os.Remove(m.keyChangeFile())
+	os.Remove(x.newKeyFile())
+	return os.Remove(x.keyChangeFile())
 }
 
 // ConfirmKeyChange starts changing the key, once the Owner saved the new
 // one: the job runs through the maintenance coordinator, one job at a
 // time with backups. The backups to change are listed now, so progress
 // shows straight away.
-func (m *Manager) ConfirmKeyChange(ctx context.Context) error {
-	m.keyMu.Lock()
-	k, err := m.KeyChangeStatus()
+func (x *KeyChanges) ConfirmKeyChange(ctx context.Context) error {
+	x.mu.Lock()
+	k, err := x.KeyChangeStatus()
 	if err == nil && (k == nil || k.Phase != KeyConfirm) {
 		err = usererr.New("There's no new recovery key waiting to be confirmed.")
 	}
 	var repos []keyRepo
 	if err == nil {
-		repos, err = m.keyRepos(ctx)
+		repos, err = x.core.keyRepos(ctx)
 	}
 	if err == nil {
 		k.Phase = KeyAdding
 		for _, r := range repos {
 			k.Repos = append(k.Repos, KeyRepo{Ref: r.Ref, ServerID: r.ServerID, Repository: r.Repository})
 		}
-		err = m.saveKeyChange(k)
+		err = x.saveKeyChange(k)
 	}
-	m.keyMu.Unlock()
+	x.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	m.submitKeyChange()
+	x.submitKeyChange()
 	return nil
 }
 
 // ResumeKeyChange queues the job again if a change is waiting for a
 // repository (hourly, and at start).
-func (m *Manager) ResumeKeyChange() {
-	if k, err := m.KeyChangeStatus(); err == nil && k != nil && k.Phase != KeyConfirm {
-		m.submitKeyChange()
+func (x *KeyChanges) ResumeKeyChange() {
+	if k, err := x.KeyChangeStatus(); err == nil && k != nil && k.Phase != KeyConfirm {
+		x.submitKeyChange()
 	}
 }
 
-func (m *Manager) submitKeyChange() {
-	if m.Submit != nil {
-		m.Submit(m.KeyChangeJob())
-	}
-}
+func (x *KeyChanges) submitKeyChange() { x.core.submit(x.KeyChangeJob()) }
 
 // KeyChangeJob adds the new key everywhere, makes it the lab's key, then
 // removes the old one everywhere.
-func (m *Manager) KeyChangeJob() maintenance.Job {
+func (x *KeyChanges) KeyChangeJob() maintenance.Job {
 	return maintenance.Job{Name: "changing the recovery key", Run: func(ctx context.Context, _ *maintenance.Handle) (err error) {
-		act := m.Activity.Start(activity.Backup, "Changing the recovery key")
+		act := x.core.activities().Start(activity.Backup, "Changing the recovery key")
 		defer func() { act.Finish(err) }()
-		m.keyMu.Lock()
-		defer m.keyMu.Unlock()
-		k, err := m.KeyChangeStatus()
+		x.mu.Lock()
+		defer x.mu.Unlock()
+		k, err := x.KeyChangeStatus()
 		if err != nil || k == nil || k.Phase == KeyConfirm {
 			return err
 		}
-		repos, err := m.keyRepos(ctx)
+		repos, err := x.core.keyRepos(ctx)
 		if err != nil {
 			return err
 		}
@@ -208,11 +233,11 @@ func (m *Manager) KeyChangeJob() maintenance.Job {
 					k.Repos = append(k.Repos, KeyRepo{Ref: r.Ref, ServerID: r.ServerID, Repository: r.Repository})
 				}
 			}
-			m.addNewKey(ctx, act, k, repos)
+			x.addNewKey(ctx, act, k, repos)
 			if k.Done() < len(k.Repos) {
-				return m.keyWaiting(k)
+				return x.keyWaiting(k)
 			}
-			if err := m.swapKeys(); err != nil {
+			if err := x.swapKeys(); err != nil {
 				return err
 			}
 			k.Phase = KeyRemoving
@@ -220,28 +245,28 @@ func (m *Manager) KeyChangeJob() maintenance.Job {
 			// Restoring from Roostack Cloud then needs the new key, not
 			// the old (SPEC.md §6.9); if Cloud can't be reached, the next
 			// check-in tells it.
-			if m.CloudBackup != nil {
-				if err := m.CloudBackup.RegisterIdentity(ctx); err != nil {
+			if cb := x.core.cloudBackup(); cb != nil {
+				if err := cb.RegisterIdentity(ctx); err != nil {
 					act.Printf("Roostack Cloud couldn't be told about the new key yet (%v); Roostack tries again at its next daily check.", err)
 				}
 			}
-			if err := m.saveKeyChange(k); err != nil {
+			if err := x.saveKeyChange(k); err != nil {
 				return err
 			}
 		}
-		m.removeOldKey(ctx, act, k, repos)
+		x.removeOldKey(ctx, act, k, repos)
 		if k.Done() < len(k.Repos) {
-			return m.keyWaiting(k)
+			return x.keyWaiting(k)
 		}
 		act.Step("The old recovery key no longer opens any backup")
-		os.Remove(m.oldKeyFile())
-		return os.Remove(m.keyChangeFile())
+		os.Remove(x.oldKeyFile())
+		return os.Remove(x.keyChangeFile())
 	}}
 }
 
 // keyWaiting saves progress, and says what's left.
-func (m *Manager) keyWaiting(k *KeyChange) error {
-	if err := m.saveKeyChange(k); err != nil {
+func (x *KeyChanges) keyWaiting(k *KeyChange) error {
+	if err := x.saveKeyChange(k); err != nil {
 		return err
 	}
 	return fmt.Errorf("%d of %d backups done; the rest are tried again every hour", k.Done(), len(k.Repos))
@@ -249,7 +274,7 @@ func (m *Manager) keyWaiting(k *KeyChange) error {
 
 // addNewKey adds the new key to each repository that hasn't got it,
 // noting the old key's ID there, and checks the new key opens it.
-func (m *Manager) addNewKey(ctx context.Context, act *activity.Log, k *KeyChange, repos []keyRepo) {
+func (x *KeyChanges) addNewKey(ctx context.Context, act *activity.Log, k *KeyChange, repos []keyRepo) {
 	for i := range k.Repos {
 		kr := &k.Repos[i]
 		if kr.Added {
@@ -261,16 +286,16 @@ func (m *Manager) addNewKey(ctx context.Context, act *activity.Log, k *KeyChange
 			kr.Added, kr.Removed = true, true // the backup was removed since
 			continue
 		}
-		act.Step("Adding the new key to %s's backup", m.serverName(kr.ServerID))
+		act.Step("Adding the new key to %s's backup", x.core.serverName(kr.ServerID))
 		err := func() error {
-			old, err := r.open(backup.KeyFile(m.Lab.Paths))
+			old, err := r.open(backup.KeyFile(x.core.labConfig().Paths))
 			if err != nil {
 				return err
 			}
 			if kr.OldKey, err = old.CurrentKey(ctx); err != nil {
 				return err
 			}
-			next, err := r.open(m.newKeyFile())
+			next, err := r.open(x.newKeyFile())
 			if err != nil {
 				return err
 			}
@@ -278,7 +303,7 @@ func (m *Manager) addNewKey(ctx context.Context, act *activity.Log, k *KeyChange
 			if _, err := next.Keys(ctx); err == nil {
 				return nil
 			}
-			key, err := os.ReadFile(m.newKeyFile())
+			key, err := os.ReadFile(x.newKeyFile())
 			if err != nil {
 				return err
 			}
@@ -292,17 +317,17 @@ func (m *Manager) addNewKey(ctx context.Context, act *activity.Log, k *KeyChange
 		}()
 		if err != nil {
 			kr.Error = words.FirstLine(strings.TrimSpace(err.Error()))
-			act.Printf("%s", m.aboutServer(kr.ServerID, kr.Error))
+			act.Printf("%s", x.core.aboutServer(kr.ServerID, kr.Error))
 			continue
 		}
 		kr.Added = true
-		m.saveKeyChange(k)
+		x.saveKeyChange(k)
 	}
 }
 
 // removeOldKey removes the old key from each repository, opening it with
 // the new one (now the lab's key).
-func (m *Manager) removeOldKey(ctx context.Context, act *activity.Log, k *KeyChange, repos []keyRepo) {
+func (x *KeyChanges) removeOldKey(ctx context.Context, act *activity.Log, k *KeyChange, repos []keyRepo) {
 	for i := range k.Repos {
 		kr := &k.Repos[i]
 		if kr.Removed {
@@ -314,9 +339,9 @@ func (m *Manager) removeOldKey(ctx context.Context, act *activity.Log, k *KeyCha
 			kr.Removed = true
 			continue
 		}
-		act.Step("Removing the old key from %s's backup", m.serverName(kr.ServerID))
+		act.Step("Removing the old key from %s's backup", x.core.serverName(kr.ServerID))
 		err := func() error {
-			repo, err := r.open(backup.KeyFile(m.Lab.Paths))
+			repo, err := r.open(backup.KeyFile(x.core.labConfig().Paths))
 			if err != nil {
 				return err
 			}
@@ -331,88 +356,27 @@ func (m *Manager) removeOldKey(ctx context.Context, act *activity.Log, k *KeyCha
 		}()
 		if err != nil {
 			kr.Error = words.FirstLine(strings.TrimSpace(err.Error()))
-			act.Printf("%s", m.aboutServer(kr.ServerID, kr.Error))
+			act.Printf("%s", x.core.aboutServer(kr.ServerID, kr.Error))
 			continue
 		}
 		kr.Removed = true
-		m.saveKeyChange(k)
+		x.saveKeyChange(k)
 	}
 }
 
 // swapKeys makes the new key the lab's, keeping the old one until it's
 // removed everywhere. Safe to run again after an interruption.
-func (m *Manager) swapKeys() error {
-	key := backup.KeyFile(m.Lab.Paths)
-	if _, err := os.Stat(m.oldKeyFile()); errors.Is(err, os.ErrNotExist) {
-		if err := os.Rename(key, m.oldKeyFile()); err != nil {
+func (x *KeyChanges) swapKeys() error {
+	key := backup.KeyFile(x.core.labConfig().Paths)
+	if _, err := os.Stat(x.oldKeyFile()); errors.Is(err, os.ErrNotExist) {
+		if err := os.Rename(key, x.oldKeyFile()); err != nil {
 			return err
 		}
 	}
-	if _, err := os.Stat(m.newKeyFile()); err == nil {
-		return os.Rename(m.newKeyFile(), key)
+	if _, err := os.Stat(x.newKeyFile()); err == nil {
+		return os.Rename(x.newKeyFile(), key)
 	}
 	return nil
-}
-
-// keyRepo is a repository the recovery key opens, and how to open it
-// with a given key file.
-type keyRepo struct {
-	Ref, ServerID, Repository string
-	open                      func(keyFile string) (*backup.Repo, error)
-}
-
-func findRepo(repos []keyRepo, ref string) (keyRepo, bool) {
-	i := slices.IndexFunc(repos, func(r keyRepo) bool { return r.Ref == ref })
-	if i < 0 {
-		return keyRepo{}, false
-	}
-	return repos[i], true
-}
-
-// keyRepos lists every repository the recovery key opens: each server's
-// backup and extra copies, through the controller's admin access (as for
-// pruning), and this server's own main backup.
-func (m *Manager) keyRepos(ctx context.Context) ([]keyRepo, error) {
-	if m.BackupStore == nil {
-		return nil, nil
-	}
-	targets, err := m.BackupStore.BackupTargets(ctx)
-	if err != nil {
-		return nil, err
-	}
-	copies, err := m.BackupStore.BackupCopies(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var out []keyRepo
-	add := func(ref string, t store.BackupTarget) {
-		out = append(out, keyRepo{Ref: ref, ServerID: t.ServerID, Repository: t.Repository,
-			open: func(keyFile string) (*backup.Repo, error) {
-				var r *backup.Repo
-				if destination.Parse(t.Provider).Kind == destination.Setup {
-					// Set up by this server's wizard: its own main backup.
-					if t.ServerID != m.Lab.NodeID {
-						return nil, fmt.Errorf("%s's backup was set up on that server", m.nameOf(t.ServerID))
-					}
-					r = m.OpenRepo(t.Repository, m.Lab.Backup.Env)
-				} else {
-					var err error
-					if r, err = m.adminRepo(ctx, t); err != nil {
-						return nil, err
-					}
-				}
-				withKey := *r
-				withKey.PasswordFile = keyFile
-				return &withKey, nil
-			}})
-	}
-	for _, t := range targets {
-		add("backup:"+t.ServerID, t)
-	}
-	for _, t := range copies {
-		add("copy:"+t.ServerID+":"+t.Provider, t)
-	}
-	return out, nil
 }
 
 // cmpErr returns err if set, else fallback.

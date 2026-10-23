@@ -97,8 +97,8 @@ func immichPackage(t *testing.T) *pkgspec.Package {
 // waitImport waits until a service's check or copy has finished.
 func waitImport(t *testing.T, n *Local, service string) ImportState {
 	t.Helper()
-	testwait.For(t, 30*time.Second, func() bool { return !n.importBusy(service) })
-	return n.loadImport(t.Context(), service)
+	testwait.For(t, 30*time.Second, func() bool { return !n.imports().importBusy(service) })
+	return n.imports().loadImport(t.Context(), service)
 }
 
 // Bringing Immich's data in: the files mounted, the old setup read and
@@ -138,7 +138,7 @@ func TestImportImmich(t *testing.T) {
 	os.WriteFile(filepath.Join(lab.Paths.ServicesDir, "immich", "db", "main", "PG_VERSION"), []byte("14\n"), 0o600)
 	os.MkdirAll(filepath.Join(lab.Paths.MediaDir, "immich", "library"), 0o750)
 
-	if err := n.SetImportSource(ctx, "immich", ImportSource{Kind: "drive", Title: "T7 Shield › immich",
+	if err := n.imports().SetImportSource(ctx, "immich", ImportSource{Kind: "drive", Title: "T7 Shield › immich",
 		Library: agent.Library{Drive: "1111-2222", Sub: "immich"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -147,19 +147,19 @@ func TestImportImmich(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := n.SetImportSetup(ctx, "immich", &setup); err != nil {
+	if err := n.imports().SetImportSetup(ctx, "immich", &setup); err != nil {
 		t.Fatal(err)
 	}
-	v, err := n.Import(ctx, "immich")
+	v, err := n.imports().Import(ctx, "immich")
 	if err != nil || !v.Mounted || !v.Guessed || len(v.Prefixes) != 1 || v.Prefixes[0] != (importer.Prefix{Old: "/opt", Now: "."}) &&
 		v.Prefixes[0] != (importer.Prefix{Old: "/opt/immich", Now: "immich"}) {
 		t.Fatalf("import %+v %v", v.ImportState, err)
 	}
-	if err := n.CopyImport(ctx, "immich"); err == nil {
+	if err := n.imports().CopyImport(ctx, "immich"); err == nil {
 		t.Error("copied before checking")
 	}
 
-	if err := n.CheckImport(ctx, "immich"); err != nil {
+	if err := n.imports().CheckImport(ctx, "immich"); err != nil {
 		t.Fatal(err)
 	}
 	st := waitImport(t, n, "immich")
@@ -178,7 +178,7 @@ func TestImportImmich(t *testing.T) {
 		}
 	}
 
-	if err := n.CopyImport(ctx, "immich"); err != nil {
+	if err := n.imports().CopyImport(ctx, "immich"); err != nil {
 		t.Fatal(err)
 	}
 	st = waitImport(t, n, "immich")
@@ -197,7 +197,7 @@ func TestImportImmich(t *testing.T) {
 
 	step := func(name string) ImportState {
 		t.Helper()
-		if err := n.SwitchImport(ctx, "immich", name); err != nil {
+		if err := n.imports().SwitchImport(ctx, "immich", name); err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
 		st := waitImport(t, n, "immich")
@@ -233,10 +233,10 @@ func TestImportImmich(t *testing.T) {
 		t.Errorf("what was brought isn't kept: %+v", copies)
 	}
 
-	if err := n.CancelImport(ctx, "immich"); err != nil || len(ag.unmounted) != 1 {
+	if err := n.imports().CancelImport(ctx, "immich"); err != nil || len(ag.unmounted) != 1 {
 		t.Errorf("cancel %v %v", err, ag.unmounted)
 	}
-	if st := n.loadImport(ctx, "immich"); st.Source != nil {
+	if st := n.imports().loadImport(ctx, "immich"); st.Source != nil {
 		t.Errorf("forgotten? %+v", st)
 	}
 }

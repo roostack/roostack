@@ -620,61 +620,6 @@ func (m *Manager) provider(ctx context.Context, id string) (store.BackupProvider
 	return store.BackupProvider{}, errors.New("no such provider")
 }
 
-// addressOf is a server's address on Roostack's network, or "".
-func (m *Manager) addressOf(id string) string {
-	if id == m.Lab.NodeID {
-		if m.Lab.OverlayAddr != "" {
-			return m.Lab.OverlayAddr
-		}
-		return labnet.ControllerAddr.String()
-	}
-	for _, r := range m.others() {
-		if r.Identity().ID == id {
-			return r.Address()
-		}
-	}
-	return ""
-}
-
-func (m *Manager) nameOf(id string) string {
-	if n := m.node(id); n != nil {
-		return n.Identity().Name
-	}
-	return id
-}
-
-// alone says whether the lab has one server. Its pages and logs don't name
-// it: the name is the host's, which the Owner may never have chosen
-// (found 2026-10-18).
-func (m *Manager) alone() bool { return len(m.others()) == 0 }
-
-// serverName is a server's name in a sentence, or "this server" in a lab
-// of one.
-func (m *Manager) serverName(id string) string {
-	if id == m.Lab.NodeID && m.alone() {
-		return "this server"
-	}
-	return m.nameOf(id)
-}
-
-// onServer is " on <server>" after a step that happens on one, or nothing
-// in a lab of one.
-func (m *Manager) onServer(id string) string {
-	if id == m.Lab.NodeID && m.alone() {
-		return ""
-	}
-	return " on " + m.nameOf(id)
-}
-
-// aboutServer starts a line about one server with its name ("nas:
-// keeping …"), or, in a lab of one, is the line alone ("Keeping …").
-func (m *Manager) aboutServer(id, line string) string {
-	if id == m.Lab.NodeID && m.alone() {
-		return words.Capitalise(line)
-	}
-	return m.nameOf(id) + ": " + line
-}
-
 // BackupTargetOf is where a server backs up, if the controller set it up
 // (ok false: not yet, or set up before servers chose destinations).
 func (m *Manager) BackupTargetOf(ctx context.Context, serverID string) (t store.BackupTarget, title string, ok bool) {
@@ -936,4 +881,65 @@ func (m *Manager) recheckS3(ctx context.Context, act *activity.Log, targets []st
 		act.Step("Checking whether %s keeps what's deleted", d.provider.Name)
 		sayS3Check(act, m.checkS3(ctx, d.s3))
 	}
+}
+
+// keyRepo is a repository the recovery key opens, and how to open it
+// with a given key file.
+type keyRepo struct {
+	Ref, ServerID, Repository string
+	open                      func(keyFile string) (*backup.Repo, error)
+}
+
+func findRepo(repos []keyRepo, ref string) (keyRepo, bool) {
+	i := slices.IndexFunc(repos, func(r keyRepo) bool { return r.Ref == ref })
+	if i < 0 {
+		return keyRepo{}, false
+	}
+	return repos[i], true
+}
+
+// keyRepos lists every repository the recovery key opens: each server's
+// backup and extra copies, through the controller's admin access (as for
+// pruning), and this server's own main backup.
+func (m *Manager) keyRepos(ctx context.Context) ([]keyRepo, error) {
+	if m.BackupStore == nil {
+		return nil, nil
+	}
+	targets, err := m.BackupStore.BackupTargets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	copies, err := m.BackupStore.BackupCopies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []keyRepo
+	add := func(ref string, t store.BackupTarget) {
+		out = append(out, keyRepo{Ref: ref, ServerID: t.ServerID, Repository: t.Repository,
+			open: func(keyFile string) (*backup.Repo, error) {
+				var r *backup.Repo
+				if destination.Parse(t.Provider).Kind == destination.Setup {
+					// Set up by this server's wizard: its own main backup.
+					if t.ServerID != m.Lab.NodeID {
+						return nil, fmt.Errorf("%s's backup was set up on that server", m.nameOf(t.ServerID))
+					}
+					r = m.OpenRepo(t.Repository, m.Lab.Backup.Env)
+				} else {
+					var err error
+					if r, err = m.adminRepo(ctx, t); err != nil {
+						return nil, err
+					}
+				}
+				withKey := *r
+				withKey.PasswordFile = keyFile
+				return &withKey, nil
+			}})
+	}
+	for _, t := range targets {
+		add("backup:"+t.ServerID, t)
+	}
+	for _, t := range copies {
+		add("copy:"+t.ServerID+":"+t.Provider, t)
+	}
+	return out, nil
 }
