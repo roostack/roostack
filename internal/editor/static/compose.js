@@ -285,7 +285,7 @@
     const title = titleOf(compose.name || (mainImage ? mainImage.base : mainEntry[0])).replace(/\b\w/g, (c) => c.toUpperCase());
     let version = mainImage ? versionFromTag(mainImage.tag) : "";
     if (!version) {
-      im.say("overToYou", `Give the app's version: the image's tag (\`${mainImage ? mainImage.tag || "latest" : "none"}\`) isn't one. Use a release's own tag, so every lab runs the same version.`);
+      im.say("overToYou", `Give the app's version: the image's tag (\`${mainImage ? mainImage.tag || "latest" : "none"}\`) isn't one. Use a release's own tag so that every lab runs the same version.`);
       version = "0.1.0";
     }
     im.pkg = {
@@ -339,9 +339,9 @@
         im.comments.push([["databases", d.name, "backup"], " a queue or cache: check it's safe to lose"]);
       }
       pkg.databases[d.name] = entry;
-      say("converted", `\`${svc}\` as the ${d.kind === "redis" ? "Redis" : d.kind === "postgres" ? "Postgres" : d.kind === "mysql" ? "MySQL" : "MariaDB"} database \`${d.name}\`, which Roostack runs${d.kind === "redis" ? "" : ", makes a password for and backs up"}.`);
+      say("converted", `\`${svc}\` as the ${d.kind === "redis" ? "Redis" : d.kind === "postgres" ? "Postgres" : d.kind === "mysql" ? "MySQL" : "MariaDB"} database \`${d.name}\`, which Roostack will run${d.kind === "redis" ? "" : ", make a password for, and back up"}.`);
       const dropped = ["volumes", "environment", "healthcheck", "ports", "command"].filter((k) => d.service[k]);
-      if (dropped.length) say("notNeeded", `\`${svc}\`'s ${dropped.map((k) => "`" + k + "`").join(", ")}: Roostack keeps the database's data, makes its user and password, and checks it itself.`);
+      if (dropped.length) say("notNeeded", `\`${svc}\`'s ${dropped.map((k) => "`" + k + "`").join(", ")}: Roostack will keep the database's data, make its user and password, and check it itself.`);
     }
 
     im.dbFacts = {};
@@ -479,7 +479,7 @@
     if (K === "TZ") { say("notNeeded", "`TZ`: containers already run in the server's time zone."); return; }
     if (/TIME_?ZONE$/.test(K)) { cenv[k] = "{{ .Lab.TimeZone }}"; say("converted", `\`${k}\` as the server's time zone, \`{{ .Lab.TimeZone }}\`.`); return; }
     if (userIDs.test(K)) {
-      say("notNeeded", `\`${k}\`: Roostack runs the app as its own user. If the app's files must belong to a user inside the container, add \`UserNS=keep-id:uid=…,gid=…\` under its Quadlet lines.`);
+      say("notNeeded", `\`${k}\`: Roostack will run the app as its own user. If the app's files must belong to a user inside the container, add \`UserNS=keep-id:uid=…,gid=…\` under its Quadlet lines.`);
       return;
     }
     if (ownURLName.test(K) || /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|example\.(com|org)|[^/]*\.example\.com)(:\d+)?\/?$/.test(v)) {
@@ -495,8 +495,8 @@
         : { key: nm.key, title: nm.title, type: "secret", generate: true }, v.startsWith("${") ? ` was ${v}` : ` was ${k}`);
       secrets[k] = key;
       say("converted", adminSecret.test(K)
-        ? `\`${k}\` as a secret asked for at install (\`${key}\`): it looks like the first administrator's password, which Roostack deletes once setup has run. It only works if the app reads it on its first start; if not, a setup step (\`hooks\`) can make the account.`
-        : `\`${k}\` as a secret Roostack generates, \`${key}\`${v && !v.startsWith("${") ? " (the Compose file's own value is left out)" : ""}.`);
+        ? `\`${k}\` as a secret asked for at install (\`${key}\`): it looks like the first administrator's password, which Roostack will delete once setup has run. It will only work if the app reads it on its first start; if not, a setup step (\`hooks\`) can make the account.`
+        : `\`${k}\` as a secret Roostack will generate, \`${key}\`${v && !v.startsWith("${") ? " (the Compose file's own value is left out)" : ""}.`);
       return;
     }
     const unresolved = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/.exec(v);
@@ -529,7 +529,7 @@
       }
       if (d.kind === "postgres" && /:\/\/[^@/]*:[^@/]*@/.test(v)) {
         secrets[k] = `databases.${d.name}.url`;
-        say("converted", `\`${k}\`, the database's whole address with its password, as \`databases.${d.name}.url\`, which Roostack makes from the password it keeps.`);
+        say("converted", `\`${k}\`, the database's whole address with its password, as \`databases.${d.name}.url\`, which Roostack will make from the password it keeps.`);
         return true;
       }
       if (d.kind === "redis") {
@@ -545,7 +545,7 @@
       const [dsvc, f] = factHit, d = dbs[dsvc];
       if (f.password && v === f.password && /PASS/.test(K)) {
         secrets[k] = `databases.${d.name}.password`;
-        say("converted", `\`${k}\` as the password Roostack makes for the database.`);
+        say("converted", `\`${k}\` as the password Roostack will make for the database.`);
       } else if (f.user && v === f.user && /USER/.test(K)) {
         cenv[k] = `{{ .Databases.${d.name}.User }}`;
         say("converted", `\`${k}\` as the database's user.`);
@@ -585,7 +585,7 @@
       const absolute = source.startsWith("/");
       if (absolute && (ro || /^\/(media|mnt|music|movies|tv|photos|pictures|videos|books|data\/media)/.test(source)) && /media|mnt|music|movie|tv|photo|picture|video|book|librar/.test(lower(source + target))) {
         mounts.push({ libraries: true, path: target });
-        say("converted", `\`${source}\` as the media libraries the Owner chooses for the service, under \`${target}\` (read-only, never backed up).`);
+        say("converted", `\`${source}\` as the media libraries the Owner will choose for the service, under \`${target}\` (read-only, never backed up).`);
         continue;
       }
       if (source === "") { ql("Volume", target); say("converted", `the anonymous volume at \`${target}\`, as the Quadlet line \`Volume\` (it isn't kept: use storage for what should be).`); continue; }
@@ -646,18 +646,18 @@
     c.depends_on = deps.map((d) => (dbs[d] ? `databases.${dbs[d].name}` : containerName[d] ? `containers.${containerName[d]}` : null)).filter(Boolean);
     if (!c.depends_on.length) delete c.depends_on;
     say("converted", `\`depends_on\`, as what each container starts after.`);
-    if (!Array.isArray(s.depends_on)) say("notNeeded", "`depends_on`'s conditions: Roostack starts what a container depends on first, and waits for databases.");
+    if (!Array.isArray(s.depends_on)) say("notNeeded", "`depends_on`'s conditions: Roostack will start what a container depends on first and wait for databases.");
   }
 
   // containerUser: its user, as Quadlet lines, unless it's root.
   function containerUser(im, { s, ql }) {
     if (s.user === undefined) return;
     const u = String(im.I(s.user));
-    if (/^(root|0)(:|$)/.test(u)) { im.say("notAllowed", `\`user: ${u}\`: containers don't run as root. The image's own user is used.`); return; }
+    if (/^(root|0)(:|$)/.test(u)) { im.say("notAllowed", `\`user: ${u}\`: containers don't run as root, so Roostack will use the image's own user.`); return; }
     ql("User", u);
     const [uid, gid] = u.split(":");
     if (/^\d+$/.test(uid)) ql("UserNS", `keep-id:uid=${uid},gid=${/^\d+$/.test(gid || "") ? gid : uid}`);
-    im.say("converted", `\`user: ${u}\`, as the Quadlet lines \`User\` and \`UserNS=keep-id\`, so the app's files belong to Roostack's user on the server.`);
+    im.say("converted", `\`user: ${u}\`, as the Quadlet lines \`User\` and \`UserNS=keep-id\` so that the app's files belong to Roostack's user on the server.`);
   }
 
   // containerMemory: a limit or reservation is the best guess there is.
@@ -666,8 +666,8 @@
     if (limit && memoryOf(limit)) {
       c.memory = memoryOf(limit);
       im.comments.push([at("memory"), " the Compose file's limit: measure what it really uses"]);
-      im.say("converted", `\`${svc}\`'s memory limit (${limit}), as its memory estimate, \`${c.memory}\`. Measure what it really uses once it runs.`);
-    } else im.say("overToYou", `Say how much memory \`${cname}\` typically uses (\`memory\`): measure it once it runs.`);
+      im.say("converted", `\`${svc}\`'s memory limit (${limit}), as its memory estimate, \`${c.memory}\`. Measure what it really uses once it's running.`);
+    } else im.say("overToYou", `Say how much memory \`${cname}\` typically uses (\`memory\`): measure it once it's running.`);
   }
 
   // containerQuadlet: Quadlet lines from the rest.
@@ -704,7 +704,7 @@
     if (s.privileged) say("notAllowed", `\`${svc}\`'s \`privileged\`: it would give the container the whole server. Containers keep Podman's protections; if the app needs this, it can't run in Roostack yet.`);
     if (s.cap_add) say("notAllowed", `\`cap_add\` (${[].concat(s.cap_add).join(", ")}): containers keep Podman's default capabilities.`);
     if (s.network_mode) say("notAllowed", `\`network_mode: ${s.network_mode}\`: each service has its own network. An app that needs the server's network (to find devices at home) can't run in Roostack yet.`);
-    if (s.pid || s.ipc || s.userns_mode) say("notAllowed", "`pid`, `ipc` or `userns_mode`: each container keeps its own.");
+    if (s.pid || s.ipc || s.userns_mode) say("notAllowed", "`pid`, `ipc`, or `userns_mode`: each container keeps its own.");
     if (s.group_add) say("notAllowed", "`group_add`: use `devices` for a GPU.");
     for (const k of ["restart", "container_name", "networks", "logging", "stdin_open", "tty", "platform", "pull_policy"]) {
       if (s[k] !== undefined) say("notNeeded", {
@@ -727,7 +727,7 @@
     if (traefik) portList.unshift({ target: traefik, published: null, protocol: "tcp", fromLabel: true });
     for (const e of [].concat(s.expose || [])) portList.push({ target: Number(String(e).split("/")[0]), published: null, protocol: "tcp", exposed: true });
     if (s.labels && Object.keys(labelMap(s.labels)).length) {
-      say("notNeeded", traefik ? "Labels: Roostack's own web server gives the app its address and HTTPS (Traefik's port was read from them)." : "Labels: Roostack doesn't need them.");
+      say("notNeeded", traefik ? "Labels: Roostack's own web server will give the app its address and HTTPS (Traefik's port was read from them)." : "Labels: Roostack doesn't need them.");
     }
     const seen = new Set();
     for (const p of portList) {
@@ -736,8 +736,8 @@
       const looksWeb = p.protocol === "tcp" && !nonWeb[p.target] && (webPorts.has(p.target) || p.fromLabel || (!p.exposed && p.target >= 1024));
       if (looksWeb && !pkg.routes.web) {
         pkg.routes.web = { container: cname, port: p.target, subdomain: safeName(pkg.name, "app").slice(0, 63), exposure: "private" };
-        say("converted", `Port ${p.target}${p.published && p.published !== p.target ? ` (published as ${p.published})` : ""} as the web address \`web\`, at \`${pkg.routes.web.subdomain}.\`*your lab*. Roostack gives it HTTPS.`);
-        if (p.target === 443) say("overToYou", "The web address is the app's port 443: Roostack gives the address HTTPS itself, so use the app's plain HTTP port if it has one.");
+        say("converted", `Port ${p.target}${p.published && p.published !== p.target ? ` (published as ${p.published})` : ""} as the web address \`web\`, at \`${pkg.routes.web.subdomain}.\`*your lab*. Roostack will give it HTTPS.`);
+        if (p.target === 443) say("overToYou", "The web address is the app's port 443: Roostack will give the address HTTPS itself, so use the app's plain HTTP port if it has one.");
         continue;
       }
       if (looksWeb) {
@@ -771,12 +771,12 @@
     // Routes: what's safe once public, for the person to say.
     if (pkg.routes.web) {
       pkg.routes.web.public = {};
-      say("overToYou", "Say where people sign in (`login_paths`), so the address can be made public safely, or why it shouldn't be (`unsafe`).");
+      say("overToYou", "Say where people sign in (`login_paths`) so that the address can be made public safely, or why it shouldn't be (`unsafe`).");
       for (const [cn, c] of Object.entries(pkg.containers)) {
         if (!c.health && pkg.routes.web.container === cn) say("overToYou", `Give \`${cn}\` a health check: an address that answers when the app works, such as \`/health\`.`);
       }
     } else say("overToYou", "No port looked like a web page: add a web address under `routes` if the app has one.");
-    say("overToYou", "The facts about the project: who makes it, where its code is, its licence, logo and categories.");
+    say("overToYou", "The facts about the project: who makes it, where its code is, its licence, logo, and categories.");
     if (mainImage && /^ghcr\.io$/.test(mainImage.registry)) {
       pkg.about.source = `https://github.com/${mainImage.repo.split("/").slice(0, 2).join("/")}`;
       im.comments.push([["about", "source"], " a guess from the image's address: check it"]);
@@ -815,7 +815,7 @@
     }
 
     const apps1 = apps.map(([n]) => `\`${n}\``), dbs1 = Object.keys(dbs).map((n) => `\`${n}\``);
-    const summary = `${services.length === 1 ? "One service" : `${services.length} services`}: ${apps1.join(", ")} became ${apps.length === 1 ? "the container" : "the containers"} ${apps.map(([n]) => "`" + containerName[n] + "`").join(", ")}${dbs1.length ? `, and ${dbs1.join(", ")} ${dbs1.length === 1 ? "a database" : "databases"} Roostack runs for it and backs up` : ""}.`;
+    const summary = `${services.length === 1 ? "One service" : `${services.length} services`}: ${apps1.join(", ")} became ${apps.length === 1 ? "the container" : "the containers"} ${apps.map(([n]) => "`" + containerName[n] + "`").join(", ")}${dbs1.length ? `, and ${dbs1.join(", ")} ${dbs1.length === 1 ? "a database" : "databases"} Roostack will run for it and back up` : ""}.`;
     return { yaml: out.toString({ flowCollectionPadding: false, lineWidth: 0 }), report: im.report, summary, name: pkg.name, version: pkg.version };
   }
 

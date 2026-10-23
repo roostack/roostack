@@ -10,8 +10,8 @@
   <div class="pe-head">
     <div class="pe-head-title">
       <h1>Package editor</h1>
-      <p class="pe-lede pe-only-roostack">Write a package for a service of your own. It all happens in your browser: nothing is sent to your lab until you choose <strong>Check with this Roostack</strong> or <strong>Add to this lab</strong>.</p>
-      <p class="pe-lede pe-only-standalone">Write a package for Roostack: a service for your own lab, or for the <a href="https://github.com/roostack/services" rel="noopener">service registry</a>. It all happens in your browser, and nothing you type is sent anywhere.</p>
+      <p class="pe-lede pe-only-roostack">Write a package for a service of your own. It all happens in your browser: nothing will be sent to your lab until you choose <strong>Check with this Roostack</strong> or <strong>Add to this lab</strong>.</p>
+      <p class="pe-lede pe-only-standalone">Write a package for Roostack: a service for your own lab, or for the <a href="https://github.com/roostack/services" rel="noopener">service registry</a>. It all happens in your browser, and nothing you type will be sent anywhere.</p>
     </div>
     <div class="pe-head-actions pe-only-edit">
       <button type="button" class="pe-button secondary" data-act="start">Start again</button>
@@ -30,7 +30,7 @@
     <div class="pe-starts">
       <button type="button" class="pe-start" data-act="import-view">
         <span class="pe-icon" data-icon="import"></span><strong>Import from Docker Compose</strong>
-        <span>Paste or open the app's <code>compose.yaml</code>. What fits Roostack comes across; the rest is listed, with why.</span>
+        <span>Paste or open the app's <code>compose.yaml</code>. What fits Roostack will come across, and the rest will be listed with why.</span>
       </button>
       <button type="button" class="pe-start" data-act="open">
         <span class="pe-icon" data-icon="documents"></span><strong>Open a package file</strong>
@@ -56,7 +56,7 @@
     <div class="pe-import">
       <div class="pe-card">
         <h2>The app's Compose file</h2>
-        <p class="pe-hint">Paste it below, or <button type="button" class="pe-link" data-act="open-compose">open a file</button>. Only this file is read: an <code>env_file</code> or <code>.env</code> isn't, so paste what's in it in the second box if you want its values.</p>
+        <p class="pe-hint">Paste it below, or <button type="button" class="pe-link" data-act="open-compose">open a file</button>. The editor will read only this file and not an <code>env_file</code> or <code>.env</code>, so paste what's in it in the second box if you want its values.</p>
         <label class="pe-label" for="pe-compose">compose.yaml</label>
         <textarea id="pe-compose" class="pe-code pe-textarea" rows="18" spellcheck="false" autocomplete="off" data-compose placeholder="services:
   app:
@@ -107,13 +107,13 @@
     <div class="pe-panes">
       <div class="pe-form" data-pane="form">
         <nav class="pe-index" aria-label="Parts of the package" data-index></nav>
-        <p class="pe-note pe-stale" data-stale hidden>The YAML doesn't read as YAML just now, so the form shows it as it last was. Fix the line the problems name, and the form follows again.</p>
+        <p class="pe-note pe-stale" data-stale hidden>The YAML doesn't read as YAML just now, so the form is showing it as it last was. Fix the line the problems name, and the form will follow again.</p>
         <div data-form></div>
       </div>
       <div class="pe-yaml" data-pane="yaml">
         <div class="pe-yaml-head">
           <strong data-file>package.yaml</strong>
-          <span class="pe-hint">Edit either side; comments are kept.</span>
+          <span class="pe-hint">Edit either side, and comments will be kept.</span>
         </div>
         <div class="pe-editor">
           <div class="pe-gutter" aria-hidden="true" data-gutter></div>

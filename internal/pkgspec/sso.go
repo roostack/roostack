@@ -124,12 +124,12 @@ func (p *Package) validateSSO(v *validator) {
 			// A templated path is checked once it's rendered (generate).
 			if templated := strings.Contains(rp, "{{"); templated && !strings.HasPrefix(rp, "/") ||
 				!templated && !ValidRedirectPath(rp) {
-				v.addf("sso.oidc.redirect_paths[%d]: %q must be a path starting with /, with only letters, digits and - _ . : ~ /", i, rp)
+				v.addf("sso.oidc.redirect_paths[%d]: %q must be a path starting with /, with only letters, digits, and - _ . : ~ /", i, rp)
 			}
 		}
 		if g := o.Groups; g != nil {
 			if !groupNameRe.MatchString(g.Users) || !groupNameRe.MatchString(g.Admins) {
-				v.addf("sso.oidc.groups: users and admins must each be a lowercase name (letters, digits, - and _)")
+				v.addf("sso.oidc.groups: users and admins must each be a lowercase name (letters, digits, -, and _)")
 			} else if g.Users == g.Admins {
 				v.addf("sso.oidc.groups: users and admins must differ")
 			}
@@ -147,7 +147,7 @@ func (p *Package) validateSSO(v *validator) {
 		seen := map[string]bool{}
 		for i, bp := range f.BypassPaths {
 			if !ValidPath(bp.Path) {
-				v.addf("sso.forward_auth.bypass_paths[%d].path: %q must start with / and have only letters, digits and - _ . : / (no * or trailing /)", i, bp.Path)
+				v.addf("sso.forward_auth.bypass_paths[%d].path: %q must start with / and have only letters, digits, and - _ . : / (no * or trailing /)", i, bp.Path)
 			}
 			if strings.TrimSpace(bp.Reason) == "" {
 				v.addf("sso.forward_auth.bypass_paths[%d].reason: say why it's safe without signing in", i)
