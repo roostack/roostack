@@ -7,30 +7,31 @@ retiring.
 1. Open the service's page and choose **Move to another server…**.
 2. The page shows where it runs now and how much data it has. Choose the
    server to **move it to**. A server whose kind of processor the service
-   has no version for is listed, but can't be chosen, and says so.
+   has no version for is listed but can't be chosen, and says so.
 3. Choose **how**:
 
     Copy directly
-    :   Copies its data while it keeps running, then stops it for a final
-        copy of what changed. Quickest when both servers are on the same
-        network, or the data is small.
+    :   Roostack will copy its data while it keeps running, then stop it
+        for a final copy of what's changed. Quickest when both servers are
+        on the same network or the data is small.
 
     Through a backup
-    :   Backs it up (only what changed since the last backup), stops it,
-        and restores it on the new server. Better for lots of data or a
-        slow link. It needs the old server's backups set up in Roostack.
+    :   Roostack will back it up (only what's changed since the last
+        backup), stop it, and restore it on the new server. Better for lots
+        of data or a slow link. It needs the old server's backups set up in
+        Roostack.
 
-    Roostack suggests one, from how much data there is.
+    Roostack will suggest one, from how much data there is.
 
 4. Choose **Move**.
 
-The page shows each step. The service is unavailable only while it's
-stopped for the last part. Its **web address stays the same**.
+The page will show each step. The service will be unavailable only while
+it's stopped for the last part. Its **web address will stay the same**.
 
 ## The old copy
 
-The service's data stays on the old server, in case you need it. It's
-listed on that server's card in **Servers**, under **Kept
+The service's data will stay on the old server in case you need it. It will
+be listed on that server's card in **Servers**, under **Kept
 copies**, with its size. **Delete** it once you're sure you don't.
 
 ??? note "For technical users"

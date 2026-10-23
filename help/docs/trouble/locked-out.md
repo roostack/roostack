@@ -6,15 +6,15 @@
 **Settings → People**, **Change…** next to you, **Give a new temporary
 password**.
 
-**If you're the only Owner**, you reset it on the server itself. Log in to
-the server (over SSH, or with a keyboard and screen plugged in), then:
+**If you're the only Owner**, you'll reset it on the server itself. Log in
+to the server (over SSH, or with a keyboard and screen plugged in), then:
 
 ```bash
 sudo roostack user reset-password <your username>
 ```
 
-It prints a temporary password. Log in with it, and Roostack asks you to
-choose a new one. You're logged out everywhere else.
+It will print a temporary password. Log in with it, and Roostack will ask
+you to choose a new one. You'll be logged out everywhere else.
 
 ## You lost your phone (two-factor)
 
@@ -39,18 +39,18 @@ lab's address) for Roostack's own login page, or use the
 
 ## "Too many wrong two-factor codes"
 
-After five wrong two-factor codes in a row, Roostack accepts no code for
-your account for 15 minutes, even the right one. The message says when
-codes work again. If it happens again, the wait doubles each time, up to a
-day. The right code starts the count again.
+After five wrong two-factor codes in a row, Roostack will accept no code
+for your account for 15 minutes, even the right one. The message says when
+codes will work again. If it happens again, the wait will double each time,
+up to a day. The right code starts the count again.
 
 Check your phone's clock is right: authenticator codes depend on it.
 
 If you didn't enter those codes, someone else knows your password. Change
 it once you're back in (**Account → Change password**).
 
-To get in sooner, `sudo roostack user reset-2fa <your username>` turns
-two-factor off for your account (and ends the wait). Set it up again
+To get in sooner, `sudo roostack user reset-2fa <your username>` will turn
+two-factor off for your account (and end the wait). Set it up again
 straight after logging in.
 
 ??? note "For technical users"

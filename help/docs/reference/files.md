@@ -7,9 +7,9 @@ lists where each thing is. The folders under `/var/lib/roostack` and
 
 !!! warning "Read, don't edit"
 
-    Roostack writes most of these files from its own settings, and
+    Roostack writes most of these files from its own settings and
     overwrites changes made by hand. Change things through Roostack's pages
-    (or the files marked *desired state*), and it rewrites the rest.
+    (or the files marked *desired state*), and it will rewrite the rest.
 
 ## Settings and state: `/var/lib/roostack`
 
@@ -18,16 +18,16 @@ Owned by the `roostack` user, and readable only by it (and root).
 | Path | What it is |
 |---|---|
 | `lab.yaml` | Lab settings: domain, DNS provider, paths, backups, restart window. *Desired state* |
-| `services/<name>.yaml` | Each installed service: its package version, web address, ports, settings and server. *Desired state* |
+| `services/<name>.yaml` | Each installed service: its package version, web address, ports, settings, and server. *Desired state* |
 | `packages/<name>/<version>.yaml` | The [package](packages.md) file each installed service runs from, copied from the catalog when it was installed. A newer Roostack's catalog doesn't change it, and it's backed up with the lab, so a restore brings back exactly what ran. Copies no service uses are deleted. *Desired state* |
-| `catalog/` | The services you can install, on the controller: for each, the [package](packages.md) file Roostack would install and the project's logo (`<name>/<version>.yaml`, `icon.png`), fetched from the [service registry](../settings/updates.md#services-you-can-install) with its signed list (`index.json`, `keys.json` and their `.sig` files) and `status.json` (the last check). Not backed up: it's fetched again |
+| `catalog/` | The services you can install, on the controller: for each, the [package](packages.md) file Roostack would install and the project's logo (`<name>/<version>.yaml`, `icon.png`), fetched from the [service registry](../settings/updates.md#services-you-can-install) with its signed list (`index.json`, `keys.json`, and their `.sig` files) and `status.json` (the last check). Not backed up: it's fetched again |
 | `roostack.db` | Roostack's database (SQLite): people and their sessions, the audit log, the lab's servers, backup destinations (with online storage accounts' keys) and results |
 | `node.json` | This server's ID and name |
-| `backup-key` | On the controller, the [recovery key](../start/recovery-key.md), which encrypts every backup (keep a copy elsewhere); on another server, its own key to its main backup. `backup-key.new`, `.old` and `.change.json` while the key is changed. Never backed up |
+| `backup-key` | On the controller, the [recovery key](../start/recovery-key.md), which encrypts every backup (keep a copy elsewhere); on another server, its own key to its main backup. `backup-key.new`, `.old`, and `.change.json` while the key is being changed. Never backed up |
 | `backup-copies/<name>.key` | On a server other than the controller, its key to each extra backup |
 | `backup-key-hints.json` | Which key file in each backup a key opens (no keys in it) |
 | `mail-password` | The password for sending email |
-| `cloud/` | The link to [Roostack Cloud](../settings/cloud.md): the lab's key and certificate, `link.json` and `requests.log` |
+| `cloud/` | The link to [Roostack Cloud](../settings/cloud.md): the lab's key and certificate, `link.json`, and `requests.log` |
 | `cloud-backup-keys.json`, `cloud-prune-keys.json` | Roostack Cloud's short-lived storage keys, while backups go there. Never backed up |
 | `setup-token` | The first-run setup code; deleted once the Owner exists |
 | `setup-tls.crt`, `setup-tls.key` | The [setup page](../start/install.md#check-the-setup-pages-certificate)'s self-signed certificate and its key, for the home network during first-run setup; deleted when setup is finished |
@@ -41,7 +41,7 @@ Owned by the `roostack` user, and readable only by it (and root).
 | `wireguard-keys.json` | A copy of the lab network's WireGuard keys, for backups |
 | `maintenance-journal.json` | The maintenance job running now, so an interrupted backup resumes after a restart |
 | `db-dump/` | The consistent copy of `roostack.db` taken before each backup |
-| `home/` | The `roostack` user's home folder: containers, images and generated units (below) |
+| `home/` | The `roostack` user's home folder: containers, images, and generated units (below) |
 
 ### Generated units: `/var/lib/roostack/home/.config/containers/systemd`
 
@@ -76,8 +76,8 @@ sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) systemctl --user st
 
 A folder named `<folder>.before-restore-<time>` is the data a restore
 replaced, and one ending `.before-move-`, `.moved-to-<server>-`,
-`.before-import-` or `.before-put-back-` and a time is data a move,
-bringing data in or a put back set aside. Each is listed under **Kept
+`.before-import-`, or `.before-put-back-` and a time is data a move,
+bringing data in, or a put back set aside. Each is listed under **Kept
 copies**, on the **Servers** page and the service's restore page, with why
 it's there, until you delete it.
 
@@ -95,7 +95,7 @@ it's there, until you delete it.
 ## Changes to the host
 
 `roostack-agent` is the only part of Roostack that runs as root. Besides
-setting the time zone, installing OS updates and restarting the server, it
+setting the time zone, installing OS updates, and restarting the server, it
 changes only these:
 
 | Path | What it is |

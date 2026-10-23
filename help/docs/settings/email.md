@@ -19,8 +19,8 @@ Connection
 Username and password
 :   Usually your email address, and an **app password**: a separate
     password your provider makes for one app, which you can cancel without
-    changing your main one. The password is kept on the server, readable
-    only by Roostack, and never shown again.
+    changing your main one. The password will be kept on the server,
+    readable only by Roostack, and never shown again.
 
 Send from
 :   The address emails come from. Many providers only allow addresses you
@@ -28,16 +28,16 @@ Send from
 
 Choose **Save**, then **Send a test email** to check it works. If it
 doesn't arrive, look in your spam folder; if Roostack shows an error, it
-says which step failed (reaching the server, the password, or the sender
-address).
+will say which step failed (reaching the server, the password, or the
+sender address).
 
 ## Who gets email
 
 Each person adds their own address on their account's **Email and
 notifications** page (click your name at the top). Leave it empty to get
-no email, except as an Owner: every Owner has an address, so the lab can
-reach them. Someone made an Owner without one is asked for it before
-anything else.
+no email, except as an Owner: every Owner has an address so that the lab
+can reach them. Someone made an Owner without one will be asked for it
+before anything else.
 
 ## Notifications
 
@@ -46,9 +46,9 @@ emails you about:
 
 Problems
 :   Backups failing, a disk running low, a service or server that stopped
-    working, updates that failed. Sent once a problem has lasted ten
-    minutes (a blip that fixes itself sends nothing), then once a day while
-    it lasts, and once more when it's fixed.
+    working, or updates that failed. Roostack will email you once a problem
+    has lasted ten minutes (a blip that fixes itself sends nothing), then
+    once a day while it lasts, and once more when it's fixed.
 
 Waiting for you
 :   Something Roostack can't finish without you, such as a restart to
@@ -56,7 +56,7 @@ Waiting for you
 
 Security for the lab (Owners)
 :   A new Owner or Admin, someone's password or two-factor reset, a server
-    joining the lab, another lab starting to store backups here.
+    joining the lab, or another lab starting to store backups here.
 
 Weekly summary
 :   On Monday mornings: each server's backups and disk space, the attacks

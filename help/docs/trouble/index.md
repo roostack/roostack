@@ -35,11 +35,11 @@ Devices at home can't find your services yet
 :   See [Reaching your services from home](../settings/domain.md#reaching-your-services-from-home).
 
 Your lab has no address yet
-:   Its services run, but can't be reached on the web until it has one: see
-    [Your lab's address](../settings/domain.md).
+:   Its services are running but can't be reached on the web until it has
+    one: see [Your lab's address](../settings/domain.md).
 
 *Server*'s firewall is off until you choose who can log in to it over SSH
-:   Choose, and the firewall comes on: see
+:   Choose, and the firewall will come on: see
     [First-run setup](../start/first-run.md#4-who-can-log-in-to-this-server).
 
 Roostack removed files it can't read from *server*'s backups
@@ -56,11 +56,11 @@ explanation instead. What they mean:
 
 Asleep on the job (502)
 :   The service isn't answering: it's stopped, or still starting after a
-    restart. Check it on its page in Roostack (the link is on the page,
-    when you're at home); **Restart** often helps.
+    restart. Check it on its page in Roostack (the link is on the page when
+    you're at home); **Restart** often helps.
 
 Still hatching (503)
-:   It's starting up. The page tries again by itself.
+:   It's starting up. The page will try again by itself.
 
 Taking its sweet time (504)
 :   It took too long to answer, often because it's busy with something big.
@@ -81,7 +81,7 @@ what went wrong. Visitors from outside see only the picture and the words.
 ## Other problems
 
 - [Locked out](locked-out.md): a forgotten password or a lost phone.
-- [Restore a whole lab](restore-lab.md): the server died, or was lost.
+- [Restore a whole lab](restore-lab.md): the server died or was lost.
 - [Files removed from backups](backup-junk.md): junk a server added.
 - A service's data is broken: [Get something back](../backups/restore.md).
 

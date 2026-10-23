@@ -2,8 +2,8 @@
 
 Roostack installs services from **packages**: a file that says how to run
 one app well inside Roostack. Its containers, where its data lives, its
-databases, its web address and its settings. Roostack generates the rest:
-the containers' units, the web server config, secrets, folders and the
+databases, its web address, and its settings. Roostack generates the rest:
+the containers' units, the web server config, secrets, folders, and the
 backup plan.
 
 If the app you want isn't in the list of services, you can write its
@@ -12,7 +12,7 @@ three in Roostack's [service registry](https://github.com/roostack/services)
 make good starting points.
 
 This section is for technical users: you'll need to be at home with
-containers, YAML and a terminal.
+containers, YAML, and a terminal.
 
 ## Just for your lab
 
@@ -25,8 +25,8 @@ containers, YAML and a terminal.
    and install it like any other service.
 
 Nobody reviews a package you add yourself, so it can do things a
-registry package can't (an image that isn't pinned, say). Roostack lists
-those before installing it.
+registry package can't (an image that isn't pinned, say). Roostack will
+list those before installing it.
 
 ## For everyone
 
@@ -36,9 +36,9 @@ goes through more:
 1. [Write the package](write.md), following the
    [package policy](../reference/packages.md#what-a-package-may-not-do).
 2. [Try it on a lab](try.md): install it, use it, back it up, restore it
-   onto a fresh server and remove it, noting what you did.
+   onto a fresh server, and remove it, noting what you did.
 3. [Submit it](submit.md) to the registry as a pull request, with what you
-   tested. A maintainer reviews it, and once it's merged, every lab can
+   tested. A maintainer will review it, and once it's merged, every lab can
    install it within a few hours.
 
 The exact format of every field is in the

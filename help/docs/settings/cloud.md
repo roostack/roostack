@@ -14,17 +14,17 @@ wizard's address step.
 ## Linking your lab
 
 1. Choose **Link to Roostack Cloud** (or **Continue to Roostack Cloud**,
-   with the name you'd like). Roostack Cloud opens in the same tab.
+   with the name you'd like). Roostack Cloud will open in the same tab.
 2. Sign up or log in there, check it names your lab, then confirm. Roostack
-   Cloud brings you back to your lab.
-3. Your lab's page shows the steps as they finish, then moves on by itself.
-   The link expires after 10 minutes; if it does, start again.
+   Cloud will bring you back to your lab.
+3. Your lab's page will show the steps as they finish, then move on by
+   itself. The link expires after 10 minutes; if it does, start again.
 
 No password is typed into your lab, and nothing secret is copied by hand.
 
-If you chose a name, your lab then sets it up as its address by itself
-and restarts. A lab that's already linked gets a name straight away:
-choose **Use this address** in **Settings → Your lab's address**.
+If you chose a name, your lab will then set it up as its address by itself
+and restart. A lab that's already linked gets a name straight away: choose
+**Use this address** in **Settings → Your lab's address**.
 
 ## Your roost.ac address
 
@@ -60,10 +60,10 @@ itself with a new key.
 
 For technical users, **Details** on the page shows the certificate's
 fingerprint and dates, Roostack Cloud's address, and the lab's recent
-requests to it: when, what, what it sent (with secrets left out) and the
-answer. [Your data and your keys](../your-data.md#what-roostack-sends)
-says what each request is for, and how to watch them yourself. The files
-are in `/var/lib/roostack/cloud/`:
+requests to it: when, what, what it sent (with secrets left out), and the
+answer. [Your data and your keys](../your-data.md#what-roostack-sends) says
+what each request is for, and how to watch them yourself. The files are in
+`/var/lib/roostack/cloud/`:
 
 | File | Holds |
 |---|---|
@@ -84,9 +84,9 @@ is now, in Settings → Lab name) and two more things, and nothing else:
   (each person's address on their account page, if they get **Problems**:
   see [Email](email.md)). Roostack Cloud's emails about your lab then go to
   them too, not only to the account's Owner: a name approved or refused, a
-  suspension, the lab not heard from for days, its recovery key used.
-  Roostack Cloud first emails each address once, asking whether it may;
-  nothing more goes to an address until its owner says yes. Each email
+  suspension, the lab not heard from for days, or its recovery key used.
+  Roostack Cloud will first email each address once, asking whether it may;
+  nothing more will go to an address until its owner says yes. Each email
   after that says why that person is getting it, with a link to stop them.
   Roostack Cloud keeps 10 addresses per lab.
 - **Each server's last backup to Roostack Cloud**, if it backs up there,
@@ -97,8 +97,8 @@ is now, in Settings → Lab name) and two more things, and nothing else:
 Roostack Cloud's emails, not confirmed yet (and when Roostack Cloud emailed
 the link), turned down, or past the 10 it keeps. **Settings → Email** says
 the same under each person. **Details** says when your lab last told
-Roostack Cloud. Someone who stops getting Problems emails, or removes their
-address, drops off at the next day's report.
+Roostack Cloud. Someone who stops getting Problems emails or removes their
+address will drop off at the next day's report.
 
 ## When Roostack Cloud holds something back
 
@@ -106,44 +106,44 @@ Roostack Cloud tells your lab what it's holding back, and **Settings →
 Roostack Cloud** and Home show it:
 
 - **A name waiting for approval:** a name that looks like a bank's, a
-  government service's or a well-known brand's (`paypal.smiths.roost.ac`)
-  waits until a person at Roostack Cloud checks it, within 7 days. Until
-  then it isn't published or relayed.
+  government service's, or a well-known brand's (`paypal.smiths.roost.ac`)
+  will wait until a person at Roostack Cloud checks it, within 7 days.
+  Until then it won't be published or relayed.
 - **A name that wasn't approved:** it doesn't work, with the reason. Choose
   another name for that service.
 - **A name or the whole account suspended,** after an abuse report: with
   the reason. A suspended name is out of DNS; a suspended account's names
-  don't work and the relay is off, though your lab itself carries on and
-  stays linked. Roostack Cloud emails the account's Owner how to appeal.
+  don't work and the relay is off, though your lab itself will carry on and
+  stay linked. Roostack Cloud will email the account's Owner how to appeal.
 
-While something waits on Roostack Cloud, your lab checks every hour instead
-of once a day, so it shows the answer soon after.
+While something is waiting on Roostack Cloud, your lab checks every hour
+instead of once a day, so it will show the answer soon after.
 
 ## Unlinking
 
-**Unlink from Roostack Cloud** tells Roostack Cloud and deletes the lab's
-key. If your lab's address is a roost.ac name, it stops working at once
-and your lab goes back to having no address, so your services can't be
-reached until you give it another. The name
-is kept for your account for a year. If public visitors come in through
-Roostack Cloud's relay, the relay is turned off too: your public services
-can then be reached only if your router sends visitors to your server (see
-Public access). If Roostack Cloud can't be reached at
-the time, the lab is unlinked anyway: remove it on your account's page too.
+**Unlink from Roostack Cloud** will tell Roostack Cloud and delete the
+lab's key. If your lab's address is a roost.ac name, it will stop working
+at once, and your lab will go back to having no address, so your services
+can't be reached until you give it another. The name will be kept for your
+account for a year. If public visitors come in through Roostack Cloud's
+relay, the relay will be turned off too: your public services can then be
+reached only if your router sends visitors to your server (see Public
+access). If Roostack Cloud can't be reached at the time, the lab will be
+unlinked anyway: remove it on your account's page too.
 
 ## "No longer linked"
 
-If Roostack Cloud stops accepting your lab's certificate, your lab forgets
-the link and the home page says so. That happens when:
+If Roostack Cloud stops accepting your lab's certificate, your lab will
+forget the link, and the home page will say so. That happens when:
 
 - the lab was removed from your account on Roostack Cloud;
 - you restored the lab from a backup made before it was unlinked; or
 - the lab was switched off for so long that its certificate expired.
 
 Link it again if you still want it. If Roostack Cloud just can't be reached
-(your internet connection, or Roostack Cloud itself), the link is kept: the
-page says when it last got through, and the home page mentions it after
-three days.
+(your internet connection, or Roostack Cloud itself), the link will be
+kept: the page will say when it last got through, and the home page will
+mention it after three days.
 
 ## Turning Roostack Cloud off
 
@@ -155,5 +155,5 @@ cloud:
   disabled: true
 ```
 
-Nothing about Roostack Cloud is offered then. This is deliberately only in
-the file, not in Settings.
+Nothing about Roostack Cloud will be offered then. This is deliberately
+only in the file, not in Settings.

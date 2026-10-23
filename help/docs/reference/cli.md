@@ -21,7 +21,7 @@ roostack user, `roostack` finds that user's systemd itself (it sets
 `systemctl --user` or `podman`, still need it given:
 `sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) systemctl --user …`.
 
-`roostack user`, `roostack backup` and `roostack apply` can also be run
+`roostack user`, `roostack backup`, and `roostack apply` can also be run
 with plain `sudo`: started as root, they run themselves again as the
 roostack user, with its systemd session, before they read anything. Root
 never opens Roostack's files, because the roostack user owns that folder
@@ -69,12 +69,12 @@ roostack apply             # make the server match its settings
 Roostack applies changes by itself whenever you change something on its
 pages. `apply` does the same by hand: it regenerates the unit files and
 web server config from `lab.yaml` and `services/*.yaml`, then starts,
-restarts or stops what changed, and applies the firewall. `-dry-run` shows
+restarts, or stops what changed, and applies the firewall. `-dry-run` shows
 the plan without changing anything.
 
 ## Looking at packages
 
-These change nothing, and don't need a Roostack server:
+These change nothing and don't need a Roostack server:
 
 ```bash
 roostack validate [-local] <package.yaml>...

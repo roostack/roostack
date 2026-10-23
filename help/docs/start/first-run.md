@@ -1,8 +1,9 @@
 # First-run setup
 
-The first time you open Roostack, it asks a few questions to get your
-server ready. It takes about ten minutes. You can leave your lab's address and the
-backups for later, but Roostack will remind you until they're done.
+The first time you open Roostack, it will ask a few questions to get your
+server ready, which will take about ten minutes. You can leave your lab's
+address and the backups for later, but Roostack will remind you until they're
+done.
 
 ## Before you start
 
@@ -24,40 +25,40 @@ You'll need:
 
 Open the address the installer showed, such as
 `https://192.168.1.20:8443`, in a browser on a computer or phone on the
-**same network** as the server. Your browser warns that the connection
+**same network** as the server. Your browser will warn that the connection
 isn't private: compare the certificate's fingerprint with the installer's
 first, as [Check the setup page's certificate](install.md#check-the-setup-pages-certificate)
 explains, then go on to the page.
 
-Setup stays on this page until it's finished, all seven steps. Then the
-page closes for good and tells you where Roostack is from then on: at
+Setup will stay on this page until it's finished, all seven steps. Then the
+page will close for good and tell you where Roostack is from then on: at
 your lab's address if you gave it one (step 5), otherwise through SSH.
 
-Once your account exists, the page asks you to log in if you come back
-to it later, and it closes **24 hours** after your account was made,
+Once your account exists, the page will ask you to log in if you come back
+to it later, and it will close **24 hours** after your account was made,
 finished or not, to keep your server safe. If that happens, carry on
 through SSH ([Not on the same network?](install.md#not-on-the-same-network)):
-setup continues where you left it.
+setup will continue where you left it.
 
 On a cloud server, or if the page doesn't open, use SSH instead:
 [Not on the same network?](install.md#not-on-the-same-network)
 
 ## 1. Create your account
 
-Enter the setup code and choose **Continue**. Roostack then asks
+Enter the setup code and choose **Continue**. Roostack will then ask
 **What's this server for?**:
 
 A new lab
-:   Choose a username, your email address and a password of at least 12
-    characters. Roostack emails you there when the lab needs you, once
+:   Choose a username, your email address, and a password of at least 12
+    characters. Roostack will email you there when the lab needs you, once
     email is set up (see [Email](../settings/email.md)). You can
     also give your lab a name, like "The Smiths' lab". This account is the
     **Owner**: the one person who can change everything. Carry on below.
 
 Add it to a lab you already have
 :   For a second server: paste a join code from your lab, and this server
-    joins it. See [Add a server](../servers/add.md). The rest of this page
-    doesn't apply: you manage it from your lab.
+    will join it. See [Add a server](../servers/add.md). The rest of this
+    page doesn't apply: you manage it from your lab.
 
 Restore a lab from its backups
 :   If you're rebuilding a lab you had before (see
@@ -67,9 +68,9 @@ Nothing is chosen for you, since each is hard to undo.
 
 ## 2. Turn on two-factor authentication
 
-From here until setup is finished, the page shows only setup: where you
+From here until setup is finished, the page will show only setup: where you
 are (Step 1 of 5 is this one), the help, and **Log out** at the top.
-The rest of Roostack appears once you're done.
+The rest of Roostack will appear once you're done.
 
 The Owner can change everything, so Roostack asks for a second proof that
 it's you each time you log in: a six-digit code from your phone.
@@ -85,10 +86,10 @@ Keep your phone safe. If you lose it, see
 
 Choose the server's time zone. Roostack uses it for everything it shows and
 schedules, such as the nightly backup at 2 am. If your device is in a
-different time zone, Roostack points it out.
+different time zone, Roostack will point it out.
 
 Then say whether the server is **at home**, behind a router, or **on the
-internet**, like a cloud server (a VPS). Roostack suggests an answer: a
+internet**, like a cloud server (a VPS). Roostack will suggest an answer: a
 server with a public address of its own looks like a cloud server. On the
 internet, services start public and Roostack's own pages are at
 `roost.<your domain>`; [Where your lab is](../settings/domain.md#where-your-lab-is)
@@ -114,23 +115,24 @@ Nobody
 :   If something goes wrong that Roostack can't fix, you'll need a keyboard
     and screen plugged into the server.
 
-If you're connected over SSH right now, Roostack shows it, and warns you if
-your choice would cut that connection.
+If you're connected over SSH right now, Roostack will show it and warn you
+if your choice would cut that connection.
 
 Then choose **how they log in** (not asked for "Nobody", or on a server
 with no SSH server):
 
 With an SSH key only *(recommended)*
-:   Passwords are refused, so nobody can guess one, and nobody can log in as
-    `root`: log in as yourself and use `sudo`. Roostack offers this once
-    it has seen someone log in with a key, as an account that can use
-    `sudo`, so turning passwords off can't lock you out. Until then, see
-    [Set up an SSH key](#set-up-an-ssh-key), then choose **check again**.
+:   Passwords will be refused, so nobody can guess one, and nobody can log
+    in as `root`: log in as yourself and use `sudo`. Roostack will offer
+    this once it has seen someone log in with a key, as an account that can
+    use `sudo`, so that turning passwords off can't lock you out. Until
+    then, see [Set up an SSH key](#set-up-an-ssh-key), then choose
+    **check again**.
 
 With a key or a password
-:   SSH works as before. Anyone who can reach it can try to guess a
-    password, so Roostack shows a warning on the home page until it's keys
-    only.
+:   SSH will work as before. Anyone who can reach it can try to guess a
+    password, so Roostack will show a warning on the home page until it's
+    keys only.
 
 With "Nobody", it's keys only straight away: nothing can reach SSH, so
 there's nobody to lock out, and if you open SSH later passwords are
@@ -146,7 +148,7 @@ already off. Change any of this later in **Settings → Remote access**
     your own that turns passwords back on shows up too. A `Match` block
     overrides that file for the connections it matches, so Roostack also
     asks `sshd -T -C` about connections from your home network, your other
-    servers and the internet, and from the addresses and users your
+    servers, and the internet, and from the addresses and users your
     `Match` blocks name; the page names a block that turns passwords back
     on. With socket-activated SSH (`ssh.socket`), Roostack restarts
     `ssh.service` instead of reloading it.
@@ -197,11 +199,11 @@ certificate. Choose one of:
 
 - **A free roost.ac address**: type a name, such as `smiths`, and choose
   **Continue to Roostack Cloud**. Sign up or log in there and confirm; it
-  brings you back, and setup carries on by itself. Services are at
+  will bring you back, and setup will carry on by itself. Services are at
   `photos.smiths.roost.ac`.
 - **Your own domain**, such as `smith.family`: Roostack needs to prove to
-  the certificate company that the domain is yours, so it asks for a login
-  to your DNS provider and checks it works before saving it.
+  the certificate company that the domain is yours, so it will ask for a
+  login to your DNS provider and check it works before saving it.
 
 Choose **Set this up later** to skip this for now. Your services will still
 run, but they can't be reached on the web until your lab has an address.
@@ -210,23 +212,23 @@ See [Your lab's address](../settings/domain.md).
 ## 6. Your backup plan
 
 Choose where your backups go: a USB drive, a second disk, online storage,
-or a friend's Roostack. Roostack lists the drives it can see, best first.
-[Your backup plan](../backups/index.md) explains the choices.
+or a friend's Roostack. Roostack will list the drives it can see, best
+first. [Your backup plan](../backups/index.md) explains the choices.
 
 Choose **Set up backups later** to skip this for now.
 
 ## 7. Save your recovery key
 
-If you set up backups, Roostack shows your **recovery key**. It's the only
-way to open your backups if this server is lost. Write it down or save it
-in your password manager, then confirm you have. See
+If you set up backups, Roostack will show your **recovery key**. It's the
+only way to open your backups if this server is lost. Write it down or save
+it in your password manager, then confirm you have. See
 [Your recovery key](recovery-key.md).
 
 ## When you finish
 
-Roostack restarts once to use your new settings: this takes a few seconds,
-and the page carries on by itself. Then you'll see the home page, ready for
-[your first service](../services/add.md).
+Roostack will restart once to use your new settings: this will take a few
+seconds, and the page will carry on by itself. Then you'll see the home
+page, ready for [your first service](../services/add.md).
 
 ??? note "For technical users"
 
@@ -241,11 +243,12 @@ and the page carries on by itself. Then you'll see the home page, ready for
     exists, everything there needs the Owner signed in there; a session
     from there doesn't work on Roostack's other pages, nor the other way
     round. When setup is finished, or 24 hours after the Owner was made,
-    the listener stops (when setup is finished, a few seconds later, so
-    the page saying so loads in full; reloading it after that doesn't
-    work), the firewall closes the port, the certificate is
-    deleted and everything signed in there is signed out. Until the lab has an address, the UI is then
-    reached with an SSH tunnel from your computer, then
+    the listener will stop (when setup is finished, a few seconds later so
+    that the page saying so loads in full; reloading it after that won't
+    work), the firewall will close the port, the certificate will be deleted,
+    and everything signed in there will be signed out. Until the lab has an
+    address, the UI will then be reached with an SSH tunnel from your
+    computer, then
     <http://127.0.0.1:8480>, which works during setup too:
 
     ```bash
@@ -269,11 +272,11 @@ and the page carries on by itself. Then you'll see the home page, ready for
     | Domain | `/var/lib/roostack/lab.yaml`; the DNS credentials as Podman secrets |
     | Backups | The recovery key in `/var/lib/roostack/backup-key`; where backups go in `/var/lib/roostack/lab.yaml` (`backup:`; each server has its own) |
 
-    Settings from steps 3 to 6 take effect together at the restart at the
-    end, so you don't watch Roostack restart after every step.
+    Settings from steps 3 to 6 will take effect together at the restart at
+    the end so that you don't watch Roostack restart after every step.
 
     **Keys only** is one file, `/etc/ssh/sshd_config.d/10-roostack.conf`,
-    with `PasswordAuthentication no`, `KbdInteractiveAuthentication no`
+    with `PasswordAuthentication no`, `KbdInteractiveAuthentication no`,
     and `PermitRootLogin no`. Debian's `sshd_config` reads that folder
     first and sshd keeps the first value it reads, so it wins over later
     files such as cloud images' `50-cloud-init.conf`. `roostack-agent`
