@@ -1,7 +1,7 @@
 # Taking services off the internet quickly: the "big red button" (2026-10-22)
 
-**Decided by the Owner the same day. Not built:** building waits until the code-quality
-review is completely finished (the Owner, 2026-10-22). The short version
+**Decided by the maintainer the same day. Not built:** building waits until the code-quality
+review is completely finished (the maintainer, 2026-10-22). The short version
 is SPEC.md §6.16; this document has the reasoning, the formats and the
 questions with their answers (§12). Where the text below says
 "proposed" or "recommended", §12 says what was chosen. Mock-ups are in [docs/mockups/red-button/](mockups/red-button/README.md).
@@ -297,9 +297,9 @@ public_block:
    - a person still reviews the names.
    - Agreed by the Owner (2026-10-22, question 10). Labs never scan.
 
-### 4.1 The shape of `built_with:` — Decided (2026-10-22), the Owner
+### 4.1 The shape of `built_with:` — Decided (2026-10-22), the maintainer
 
-The Owner asked for the pros and cons before deciding (question 12),
+The maintainer asked for the pros and cons before deciding (question 12),
 then took the recommendation for all five choices (below, "Recommended
 together").
 
@@ -364,7 +364,7 @@ hand would duplicate it.
 | Worked out from Syft only, with no field | No upkeep | Syft misses some things: bundled JavaScript, some static binaries, apps that vendor their libraries. It gives nothing for packages of your own, and the mapping from Syft's findings to names needs keeping anyway |
 | The package file, plus corrections in `registry.yaml` | Correct quickly, and own packages still work | Two places, and the index has to say which won |
 
-**Recommended together, and decided (the Owner, 2026-10-22):**
+**Recommended together, and decided (the maintainer, 2026-10-22):**
 
 - `built_with:` as a list of names, per package, in the package file,
   with names only.
@@ -660,11 +660,11 @@ it. The report says only "paused since …, N services".
   - Syft in CI for exact versions (§4), which the watcher's exact
     matches depend on.
 
-### 10.1 Raising advisories without a full-time team: the watcher — Decided (2026-10-22), the Owner's answers to questions 14–17
+### 10.1 Raising advisories without a full-time team: the watcher — Decided (2026-10-22), the maintainer's answers to questions 14–17
 
 Advisories only help if someone writes them within hours of a zero-day.
 The project has no security team, so most of the work has to be done by
-a scheduled job, with a person only approving. **Decided (the Owner,
+a scheduled job, with a person only approving. **Decided (the maintainer,
 2026-10-22): a watcher in the registry's own GitHub Actions that drafts
 advisories for a maintainer to approve**, written in Go as `roostack
 registry watch`, beside `roostack registry index`. Labs never read the
@@ -748,7 +748,7 @@ From that:
 #### 10.1.4 Reaching a person quickly
 
 - **A critical match that's being used in attacks** sends a push
-  notification to the maintainers' phones through **ntfy** (the Owner,
+  notification to the maintainers' phones through **ntfy** (the maintainer,
   2026-10-22; open source, and it could be self-hosted on a lab),
   linking to the pull request. *Considered:* Pushover (a small fee per
   device), GitHub's own notifications only (easy to miss at night).
@@ -762,7 +762,7 @@ From that:
 
 #### 10.1.5 Optional, later
 
-- **An AI first pass** (the Owner, 2026-10-22: yes, once the watcher
+- **An AI first pass** (the maintainer, 2026-10-22: yes, once the watcher
   works without it): for each strong match, Claude
   reads the advisory and the app's notes. It writes the plain-English
   summary that the lab will show, and suggests an answer to "can someone
@@ -770,7 +770,7 @@ From that:
   - A maintainer still approves the draft.
   - It saves the most time per alert, at a few cents each.
   - The project's API key goes in the registry's CI secrets.
-- **Publishing with nobody around** (the Owner, 2026-10-22: not now;
+- **Publishing with nobody around** (the maintainer, 2026-10-22: not now;
   revisit once drafts have been accurate for a few months): only for the
   narrowest case. The case is:
   - an exact version match;
@@ -860,9 +860,9 @@ second phase, since advisories need someone to write them:
 - later, if agreed: the AI first pass, then publishing with nobody
   around.
 
-## 12. Questions for the Owner
+## 12. Questions for the maintainer
 
-All answered by the Owner on 2026-10-22, each taking the
+All answered by the maintainer on 2026-10-22, each taking the
 recommendation; question 12 after its options were set out (§4.1).
 
 1. **Answered: yes.** **Who:** Admins may pause, only the Owner lifts or keeps something

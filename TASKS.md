@@ -271,7 +271,7 @@ Nothing at the moment.
 
 ## The big red button (SPEC §6.16, decided 2026-10-22)
 
-Waited for the code-quality review to finish (the Owner, 2026-10-22); the Owner started the build on 2026-10-23. Everything is decided, `built_with:`'s shape included (docs/RED-BUTTON-PLAN.md §4.1).
+Waited for the code-quality review to finish (the maintainer, 2026-10-22); the maintainer started the build on 2026-10-23. Everything is decided, `built_with:`'s shape included (docs/RED-BUTTON-PLAN.md §4.1).
 
 - [ ] Phase 1, the button: `public.block` and `public_block`; Caddy's page for outside visitors (first in the route block), the error page, public ports home-only, the sign-in page following its services, Paused in monitoring and the status page; `built_with:` in pkgspec, its policy, the editor (`check.js`, schema, corpus) and the format reference; Home's **Pause public access…** page, the service page, Settings → Public access, lifting; roles, audit, Security emails, the weekly summary; `roostack public pause | resume | status`; checked on a VM through port forwarding, the lab's edge and the relay
 - [ ] Phase 1, in the registry: `built_with:` for every package, and the list of names (title, a line, and the purls and CPEs the watcher will map from) in the index
