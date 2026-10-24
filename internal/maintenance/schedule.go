@@ -2,6 +2,7 @@ package maintenance
 
 import (
 	"context"
+	"hash/fnv"
 	"time"
 )
 
@@ -12,6 +13,23 @@ const (
 	DefaultMaintenanceAt = 3 * time.Hour
 	DefaultMaintenanceOn = time.Sunday
 )
+
+// Spread is how far Offset spreads servers' nightly work past the
+// schedule's times.
+const Spread = 30 * time.Minute
+
+// Offset is how long after the schedule's times (the backup, the weekly
+// maintenance, and the restart window) the server with node ID id starts
+// them: a whole number of minutes under Spread, the same for that server
+// every night. Many labs share a time zone, and without it every one of
+// them would reach shared services (backup storage, Roostack Cloud, the
+// service registry, and Debian's mirrors) in the same minute, and restart
+// together.
+func Offset(id string) time.Duration {
+	h := fnv.New32a()
+	h.Write([]byte(id))
+	return time.Duration(h.Sum32()%uint32(Spread/time.Minute)) * time.Minute
+}
 
 // NextDaily returns the next time of day `at` (local time) after now.
 // Using time.Date keeps it at the same wall-clock time across DST changes.

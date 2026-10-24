@@ -266,6 +266,17 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
   - [x] S8 step 4, recovery key changes: `manager.KeyChanges` (`Manager.KeyChanges()`, `keychange.go`) through the same `core`, with the activity logs, maintenance jobs, Roostack Cloud backup and `keyRepos`, which stays on `Manager` in `backups.go` because restores use it too. In web, `RecoveryKeys` is `Server.Keys`. `Manager` now has 140 exported methods, from 168 before step 4 (2026-10-23)
   - [x] S11: `node.Local`'s photo migration and imports are types of their own, `localPhotos` and `localImports` (`Local.Photos()` and `Imports()` return them, no longer the Local), as `Remote`'s capabilities are; each is a view of the Local, whose `pho` and `imp` keep what they share while it runs. `Local` has 138 methods, from 210 (2026-10-23)
 
+## Load review of the repeating jobs (2026-10-24)
+
+What every repeating job in Roostack, Cloud, and the registry asks of shared services, reviewed with the maintainer; the fixes they chose:
+
+- [x] The watcher's hourly commit would have started Publish every hour once `WATCH_TOKEN` is set (a new index each hour, every lab nudged): Publish skips pushes that change only `watch/` or `boms/`, and the watcher commits its state only when more than the time of the run changed, or once a day (registry branch `watch-workflow`, not pushed)
+- [x] Every server's nightly work started in the same minute: the backup, the weekly maintenance, and the restart window now start at the server's own minute in the half hour after (`maintenance.Offset`, SPEC §6.9 "Each server at its own minute"); Settings → Updates shows the exact time
+- [x] The registry's key statement was downloaded every hour: it's asked for with `If-None-Match`, as the index is
+- [x] Cloud's name suffix was asked for every few seconds while Cloud was out of reach and a page was open: not again for a minute after a failure
+- [x] In Cloud (branch `red-button`): edges' config pulls rewrite only the rows that changed; Cloudflare is asked only about the names a small change touches, and its Retry-After is honoured; so is Cert Spotter's
+- [ ] Left: the watcher's feeds have no conditional requests (CISA's list is over 1 MB an hour), which needs somewhere to keep their ETags; logging in to Docker Hub in the registry's workflows if they meet its anonymous limit; the edges' config could carry a version so that an unchanged pull costs nothing
+
 ## To discuss with the user
 
 Nothing at the moment.
@@ -288,9 +299,9 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
   - [ ] The registry repository: an `advisories/` folder, its CI running the build's checks, and a short guide for writing one
 - [ ] Phase 3: Cloud's nudge; pausing at the relay's edges from Cloud's website (Cloud's repository); the "closed" level (firewall, edge, relay) for problems in Caddy or Roostack
   - [x] The lab's side of the nudge (`Relay.Registry`, `GET /v1/lab/news`) and of pausing at the relay's edges (`Relay.Paused`, shown, emailed, and lifted with `RelayRequest.Resume`), tested against the fake Cloud (2026-10-23, SPEC §6.16)
-  - [ ] Cloud's side of both, and showing the report's `paused` line on the lab's page (Cloud's repository)
+  - [x] Cloud's side of both, and showing the report's `paused` line on the lab's page (Cloud's repository: built on its branch `red-button`, 2026-10-24, not pushed; checked with VM7, docs/ASSUMPTIONS.md P19)
   - [x] The closed level (2026-10-23, SPEC §6.16 "As built, the closed level"): every server's firewall, the relay asked with `RelayRequest.Pause`, advisories naming Roostack releases asking on Home and lifting by themselves, `/pause/close`, `roostack public pause|resume -closed`. Checked on VM7 (docs/ASSUMPTIONS.md P18)
-  - [ ] Cloud's side of `RelayRequest.Pause`: close the edges for the lab's names while its requests say so (Cloud's repository)
+  - [x] Cloud's side of `RelayRequest.Pause`: close the edges for the lab's names while its requests say so (Cloud's branch `red-button`, 2026-10-24, P19)
   - [ ] `TestRestoreFromCloud` (internal/cloud) has data races under `go test -race`, on main too (found 2026-10-23, not from this change)
 - [ ] Phase 4, the watcher (docs/RED-BUTTON-PLAN.md §10.1; can start alongside phase 2; first part built 2026-10-23, SPEC §6.16, docs/REGISTRY-WATCH.md): `roostack registry watch` in the registry's CI reading OSV, GitHub's advisories, both KEV lists, EPSS, oss-security, projects' notices and new CrowdSec patch rules; matching on `built_with:`; draft advisory pull requests, a weekly digest, ntfy notifications for critical exploited matches; Syft bills of materials for exact matches, and its findings compared with `built_with:` in the registry's pull-request checks; then an AI first pass once the watcher works without it. Publishing with nobody around: not now, revisit after a few months of accurate drafts
   - [x] `roostack registry watch`: GitHub's advisories (packages' sources and Roostack's parts), CISA's list, CrowdSec's rules, EPSS, OSV for bills of materials; drafts, the digest, the state; a dry run with the real feeds (2026-10-23)

@@ -92,17 +92,21 @@ func repoOpener(lab config.Lab) func(url string, env []string) *backup.Repo {
 }
 
 // startControllerJobs runs the controller's recurring work until ctx ends.
-func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maintenance.Coordinator, st *store.Store, log *slog.Logger) {
+func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maintenance.Coordinator, st *store.Store, nodeID string, log *slog.Logger) {
 	// Weekly, the controller removes old backups from every server's
 	// repository (servers may only add backups), first removing files
-	// there restic can't read, which would stop the prune (quarantine.go).
+	// there restic can't read, which would stop the prune (quarantine.go),
+	// at its own few minutes past the hour (maintenance.Offset).
 	go maintenance.Every(ctx,
 		func(now time.Time) time.Time {
-			return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn, maintenance.DefaultMaintenanceAt)
+			return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn,
+				maintenance.DefaultMaintenanceAt+maintenance.Offset(nodeID))
 		},
 		func() { coord.Submit(mgr.JunkJob(nil), mgr.PruneJob()) })
 	// Nightly, after each server's backup: services whose update policy
-	// takes their update (SPEC.md §3.2, §7).
+	// takes their update (SPEC.md §3.2, §7). At 02:00 itself, before any
+	// server's backup starts (each starts within maintenance.Spread), since
+	// it waits for backups started after it.
 	go maintenance.Every(ctx,
 		func(now time.Time) time.Time { return maintenance.NextDaily(now, maintenance.DefaultBackupAt) },
 		func() { go mgr.AutoUpdate(ctx, time.Now().Add(-time.Minute)) })

@@ -110,8 +110,10 @@ type Status struct {
 	// key ceremony, docs/REGISTRY-KEYS.md). Neither is kept.
 	Fetching  bool `json:"-"`
 	NoRootKey bool `json:"-"`
-	// ETag is the index's, to ask whether it changed.
-	ETag string `json:"etag,omitempty"`
+	// ETag is the index's, to ask whether it changed; KeysETag the key
+	// statement's.
+	ETag     string `json:"etag,omitempty"`
+	KeysETag string `json:"keys_etag,omitempty"`
 	// Skipped are packages with no version this lab can install, and why.
 	Skipped map[string]string `json:"skipped,omitempty"`
 	// Arches are the lab's processors the last fetch kept versions for: a
@@ -264,13 +266,28 @@ func (f *Fetcher) fetch(ctx context.Context, st *Status) error {
 	if err := os.MkdirAll(f.Dir, 0o755); err != nil {
 		return err
 	}
-	// The key statement, by a root key.
-	keysData, _, err := f.get(ctx, KeysFile, maxSmall, "")
+	// The key statement, by a root key. Unchanged (304), the copy on disk
+	// is checked again, as the index's is: every lab asks every hour, so
+	// an unchanged statement shouldn't be downloaded again.
+	keysTag := st.KeysETag
+	for _, name := range []string{KeysFile, KeysSigFile} {
+		if _, err := os.Stat(filepath.Join(f.Dir, name)); err != nil {
+			keysTag = ""
+		}
+	}
+	keysData, newKeysTag, err := f.get(ctx, KeysFile, maxSmall, keysTag)
 	if err != nil {
 		return err
 	}
-	keysSig, _, err := f.get(ctx, KeysSigFile, maxSmall, "")
-	if err != nil {
+	var keysSig []byte
+	if keysData == nil {
+		if keysData, err = os.ReadFile(filepath.Join(f.Dir, KeysFile)); err == nil {
+			keysSig, err = os.ReadFile(filepath.Join(f.Dir, KeysSigFile))
+		}
+		if err != nil {
+			return err
+		}
+	} else if keysSig, _, err = f.get(ctx, KeysSigFile, maxSmall, ""); err != nil {
 		return err
 	}
 	statement, err := ParseKeys(keysData, keysSig, f.Roots)
@@ -378,7 +395,7 @@ func (f *Fetcher) fetch(ctx context.Context, st *Status) error {
 		errs = append(errs, err)
 	}
 	st.Serial, st.Date, st.Commit, st.Packages = ix.Serial, ix.Date, ix.Commit, offered
-	st.KeysSerial, st.ETag, st.Skipped, st.Arches = statement.Serial, newTag, skipped, arches
+	st.KeysSerial, st.ETag, st.KeysETag, st.Skipped, st.Arches = statement.Serial, newTag, newKeysTag, skipped, arches
 	return errors.Join(errs...)
 }
 

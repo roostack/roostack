@@ -2,6 +2,7 @@ package maintenance
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -91,5 +92,31 @@ func TestEveryChecksTheClock(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatalf("fire %d didn't come", i+1)
 		}
+	}
+}
+
+// TestOffset: each server gets the same whole minute under Spread every
+// time, and servers spread over the half hour rather than all taking a
+// few minutes.
+func TestOffset(t *testing.T) {
+	if Offset("n-0123456789") != Offset("n-0123456789") {
+		t.Error("a server's offset changed")
+	}
+	minutes := map[time.Duration]bool{}
+	for i := range 300 {
+		d := Offset(fmt.Sprintf("n-%010d", i))
+		if d < 0 || d >= Spread || d%time.Minute != 0 {
+			t.Fatalf("offset %v", d)
+		}
+		minutes[d] = true
+	}
+	if len(minutes) != int(Spread/time.Minute) {
+		t.Errorf("300 servers took %d of the %d minutes", len(minutes), int(Spread/time.Minute))
+	}
+	// With the offset, 02:00 becomes this server's own minute.
+	loc := time.FixedZone("AEST", 10*3600)
+	now := time.Date(2026, 10, 24, 12, 0, 0, 0, loc)
+	if got, want := NextDaily(now, DefaultBackupAt+17*time.Minute), time.Date(2026, 10, 25, 2, 17, 0, 0, loc); !got.Equal(want) {
+		t.Errorf("NextDaily = %v, want %v", got, want)
 	}
 }

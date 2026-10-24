@@ -420,8 +420,9 @@ func TestBuildCheckOnly(t *testing.T) {
 	}
 }
 
-// An unchanged index is one small request (If-None-Match), and the copy on
-// disk is checked again against the current key statement.
+// An unchanged index and key statement are a small request each
+// (If-None-Match), and the copy on disk is checked again against the
+// current key statement.
 func TestFetchUnchanged(t *testing.T) {
 	r := newTestRegistry(t)
 	r.build()
@@ -445,7 +446,7 @@ func TestFetchUnchanged(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if notModified != 1 || f.Status().ETag == "" {
+	if notModified != 2 || f.Status().ETag == "" || f.Status().KeysETag == "" {
 		t.Errorf("%d unchanged answers; status %+v", notModified, f.Status())
 	}
 	// The signing key replaced, the index not yet rebuilt: the copy the
@@ -457,7 +458,7 @@ func TestFetchUnchanged(t *testing.T) {
 	if err := f.Fetch(context.Background()); err == nil || !strings.Contains(err.Error(), "index.json: not signed") {
 		t.Errorf("got %v", err)
 	}
-	if notModified != 2 {
+	if notModified != 3 { // the index, not the new key statement
 		t.Errorf("%d unchanged answers", notModified)
 	}
 }

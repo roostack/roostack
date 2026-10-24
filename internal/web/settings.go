@@ -205,7 +205,11 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		case rs.Needed && s.Maintenance.Restart == config.RestartNotify:
 			set("updates", "A restart is needed to finish installing updates", "warn")
 		case rs.Needed:
-			set("updates", fmt.Sprintf("Restarting around %02d:00 to finish updates", s.Maintenance.Hour()), "ok")
+			minute := 0
+			if s.Node != nil {
+				minute = restartMinute(s.Node.Identity().ID)
+			}
+			set("updates", fmt.Sprintf("Restarting around %02d:%02d to finish updates", s.Maintenance.Hour(), minute), "ok")
 		case last != nil:
 			set("updates", "Up to date · checked "+words.When(last.At), "ok")
 		default:

@@ -637,7 +637,7 @@ func (c *controller) wireCatalog() error {
 
 // startJobs starts the controller's recurring jobs, and the first apply.
 func (c *controller) startJobs() {
-	startControllerJobs(c.ctx, c.mgr, c.coord, c.st, c.log)
+	startControllerJobs(c.ctx, c.mgr, c.coord, c.st, c.lab.NodeID, c.log)
 	c.srv.RunningJob = func() string {
 		if st := c.coord.Status(); st.Running != nil {
 			return st.Running.Name

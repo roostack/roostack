@@ -18,7 +18,7 @@
     <dd>{{with .Last}}{{when .At}}: {{.Summary}}{{else}}Not run yet; the first will run tonight.{{end}}</dd>
     <dt>Restart</dt>
     <dd>{{if .Restart.Needed}}<span class="dot dot-warn" aria-hidden="true"></span>Needed{{if not .Restart.Since.IsZero}} since {{when .Restart.Since}}{{end}}
-      {{- if eq .Mode "notify"}}: waiting for you{{else}}: automatic at {{printf "%02d:00" .Hour}}{{end}}
+      {{- if eq .Mode "notify"}}: waiting for you{{else}}: automatic at {{printf "%02d:%02d" .Hour .Minute}}{{end}}
       {{- else}}Not needed{{end}}
       {{- if not .Restart.LastBoot.IsZero}} <span class="hint">· last restarted {{when .Restart.LastBoot}}</span>{{end}}</dd>
     {{with .Series}}
@@ -65,8 +65,8 @@
       <legend class="sr-only">When updates need a restart</legend>
       <label class="check"><input type="radio" name="restart" value="auto" {{if eq .Mode "auto"}}checked{{end}}>
         <span>Restart automatically at
-          <select name="hour" class="inline" aria-label="Hour">{{range .Hours}}<option value="{{.}}" {{if eq . $.Updates.Hour}}selected{{end}}>{{printf "%02d:00" .}}</option>{{end}}</select>
-          <small>Recommended. It will wait for backups to finish, and services will be unavailable for a minute or two.</small></span></label>
+          <select name="hour" class="inline" aria-label="Hour">{{range .Hours}}<option value="{{.}}" {{if eq . $.Updates.Hour}}selected{{end}}>{{printf "%02d:%02d" . $.Updates.Minute}}</option>{{end}}</select>
+          <small>Recommended. It will wait for backups to finish, and services will be unavailable for a minute or two. Each server has its own minute past the hour so that labs in the same time zone don't all restart at once.</small></span></label>
       <label class="check"><input type="radio" name="restart" value="notify" {{if eq .Mode "notify"}}checked{{end}}>
         <span>Only tell me<small>Security fixes for the system's core (the kernel) won't take effect until you restart.</small></span></label>
     </fieldset>

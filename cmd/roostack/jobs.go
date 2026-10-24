@@ -67,7 +67,7 @@ func (j *serverJobs) start(ctx context.Context) (node.Maintenance, error) {
 func (j *serverJobs) newCoordinator() {
 	j.ticker = time.NewTicker(time.Minute)
 	policy := maintenance.DefaultPolicy()
-	policy.WindowStart = time.Duration(j.lab.Maintenance.Hour()) * time.Hour
+	policy.WindowStart = time.Duration(j.lab.Maintenance.Hour())*time.Hour + maintenance.Offset(j.lab.NodeID)
 	if j.lab.Maintenance.Restart == config.RestartNotify {
 		policy.Mode = maintenance.RebootNotify
 	}
@@ -99,7 +99,7 @@ func (j *serverJobs) newBackups(ctx context.Context) error {
 		Repository: lab.Backup.Repository,
 		// Set up by the controller: it removes old backups (SPEC.md §10.10).
 		PrunedElsewhere: lab.Backup.PrunedByController,
-		NextRun:         func() time.Time { return maintenance.NextDaily(time.Now(), maintenance.DefaultBackupAt) },
+		NextRun:         func() time.Time { return maintenance.NextDaily(time.Now(), j.backupAt()) },
 		Activity:        j.acts,
 	}
 	j.backups = svc
@@ -178,7 +178,7 @@ func (j *serverJobs) run(ctx context.Context) {
 	// Nightly: backup, then OS updates (SPEC.md §3.2). Updates are queued
 	// separately, so a failing backup doesn't hold back security fixes.
 	go maintenance.Every(ctx,
-		func(now time.Time) time.Time { return maintenance.NextDaily(now, maintenance.DefaultBackupAt) },
+		func(now time.Time) time.Time { return maintenance.NextDaily(now, j.backupAt()) },
 		func() {
 			if svc.Configured() {
 				if err := svc.Submit(); err != nil {
@@ -203,10 +203,17 @@ func (j *serverJobs) run(ctx context.Context) {
 	if svc.Configured() {
 		go maintenance.Every(ctx,
 			func(now time.Time) time.Time {
-				return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn, maintenance.DefaultMaintenanceAt)
+				return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn,
+					maintenance.DefaultMaintenanceAt+maintenance.Offset(j.lab.NodeID))
 			},
 			func() { j.coord.Submit(svc.MaintenanceJob()) })
 	}
+}
+
+// backupAt is this server's time for its nightly backup: 02:00, plus its
+// own few minutes (maintenance.Offset).
+func (j *serverJobs) backupAt() time.Duration {
+	return maintenance.DefaultBackupAt + maintenance.Offset(j.lab.NodeID)
 }
 
 // catchUp catches up a night the server was off, and makes a new lab's

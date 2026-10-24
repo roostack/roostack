@@ -4,10 +4,12 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/usererr"
@@ -15,12 +17,15 @@ import (
 
 // updatesView is the Settings page's "Updates and restarts" card.
 type updatesView struct {
-	Last     *osupdate.Result
-	Pending  bool
-	Restart  osupdate.RestartStatus
-	Mode     string // config.RestartAuto or RestartNotify
-	Hour     int
-	Hours    []int
+	Last    *osupdate.Result
+	Pending bool
+	Restart osupdate.RestartStatus
+	Mode    string // config.RestartAuto or RestartNotify
+	Hour    int
+	Hours   []int
+	// Minute is how far past the hour this server restarts
+	// (maintenance.Offset).
+	Minute   int
 	ErrorMsg string
 	// Activity is the live (or last) update run.
 	Activity *activityView
@@ -81,8 +86,15 @@ func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
 	for h := range 24 {
 		v.Hours = append(v.Hours, h)
 	}
+	if n := s.serverOf(r); n != nil {
+		v.Minute = restartMinute(n.Identity().ID)
+	}
 	return v
 }
+
+// restartMinute is how far past the chosen hour the server with node ID
+// id restarts (maintenance.Offset).
+func restartMinute(id string) int { return int(maintenance.Offset(id) / time.Minute) }
 
 func (s *Server) updateNowSubmit(w http.ResponseWriter, r *http.Request) {
 	if s.updates(r) == nil {

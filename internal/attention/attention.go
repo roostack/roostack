@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
@@ -582,7 +583,8 @@ func (lab *Lab) hostUpdates(ctx context.Context, m Server, n Node, l *List) {
 			Link: m.updates(), LinkText: "Restart"})
 	} else {
 		l.add(Item{Key: "restart-planned:" + m.ID, Level: Info,
-			Text: fmt.Sprintf("%s will restart around %02d:00 to finish installing updates.", m.Label(), hour),
+			Text: fmt.Sprintf("%s will restart around %02d:%02d to finish installing updates.", m.Label(), hour,
+				int(maintenance.Offset(m.ID)/time.Minute)),
 			Link: m.updates(), LinkText: "Details"})
 	}
 }

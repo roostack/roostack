@@ -423,14 +423,15 @@ func TestUpdatesCard(t *testing.T) {
 	h.node().updates = fu
 
 	_, body := h.get("/settings/updates")
-	for _, want := range []string{`id="updates"`, "Could not get lock", "linux-image-amd64", "Restart now", `<option value="4" selected>04:00</option>`,
-		"Needed", "automatic at 04:00"} {
+	at := fmt.Sprintf("04:%02d", restartMinute("n-0123456789"))
+	for _, want := range []string{`id="updates"`, "Could not get lock", "linux-image-amd64", "Restart now", `<option value="4" selected>` + at + `</option>`,
+		"Needed", "automatic at " + at} {
 		if !strings.Contains(body, want) {
 			t.Errorf("settings missing %q", want)
 		}
 	}
 	_, home := h.get("/")
-	if !strings.Contains(home, "OS updates didn&#39;t finish") || !strings.Contains(home, "will restart around 04:00") {
+	if !strings.Contains(home, "OS updates didn&#39;t finish") || !strings.Contains(home, "will restart around "+at) {
 		t.Error("home: want the failed update and the planned restart")
 	}
 	fs.restartMode = config.RestartNotify

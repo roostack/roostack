@@ -60,16 +60,17 @@ type Service struct {
 	// LookupTXT reads a name's TXT records for checking a claimed name
 	// (tests replace it; nil asks the zone's own name servers).
 	LookupTXT func(ctx context.Context, name string) ([]string, error)
-	// suffix is Cloud's name suffix as it last said, and when (NameSuffix).
-	suffix   string
-	suffixAt time.Time
-	dir      string
-	cfg      config.Cloud
-	version  string
-	labName  func() string
-	log      *slog.Logger
-	client   *client
-	now      func() time.Time
+	// suffix is Cloud's name suffix as it last said, and when (NameSuffix);
+	// suffixFailed when asking last failed.
+	suffix                 string
+	suffixAt, suffixFailed time.Time
+	dir                    string
+	cfg                    config.Cloud
+	version                string
+	labName                func() string
+	log                    *slog.Logger
+	client                 *client
+	now                    func() time.Time
 
 	mu sync.Mutex
 	st linkState
@@ -293,18 +294,26 @@ func (s *Service) Status() Status {
 
 // NameSuffix is the suffix Cloud's names have (roost.ac, or a test
 // Cloud's own), asked once a day and kept; roost.ac until Cloud has said.
-// It never waits more than a few seconds, for the pages that show it.
+// It never waits more than a few seconds, for the pages that show it, and
+// after a failure it doesn't ask again for a minute (suffixRetry), since a
+// page asks every few seconds while it's open.
 func (s *Service) NameSuffix(ctx context.Context) string {
 	s.mu.Lock()
-	suffix, at := s.suffix, s.suffixAt
+	suffix, at, failed := s.suffix, s.suffixAt, s.suffixFailed
 	s.mu.Unlock()
 	if suffix != "" && time.Since(at) < 24*time.Hour {
 		return suffix
+	}
+	if time.Since(failed) < suffixRetry {
+		return cmp.Or(suffix, cloudapi.DefaultNameSuffix)
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	var info cloudapi.Info
 	if err := s.client.do(ctx, false, http.MethodGet, cloudapi.PathInfo, nil, &info); err != nil || info.NameSuffix == "" {
+		s.mu.Lock()
+		s.suffixFailed = time.Now()
+		s.mu.Unlock()
 		return cmp.Or(suffix, cloudapi.DefaultNameSuffix)
 	}
 	s.mu.Lock()
@@ -312,6 +321,9 @@ func (s *Service) NameSuffix(ctx context.Context) string {
 	s.mu.Unlock()
 	return info.NameSuffix
 }
+
+// suffixRetry is how long NameSuffix waits after failing to ask.
+const suffixRetry = time.Minute
 
 // NameAvailable asks Cloud whether a roost.ac name can be had.
 func (s *Service) NameAvailable(ctx context.Context, name string) (cloudapi.NameAvailability, error) {

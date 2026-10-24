@@ -281,6 +281,11 @@ func TestNameSuffix(t *testing.T) {
 	if got := gone.NameSuffix(ctx); got != cloudapi.DefaultNameSuffix {
 		t.Errorf("Cloud never reached: %q", got)
 	}
+	// Not asked again for a minute (a page asks every few seconds).
+	failed := gone.suffixFailed
+	if got := gone.NameSuffix(ctx); got != cloudapi.DefaultNameSuffix || failed.IsZero() || !gone.suffixFailed.Equal(failed) {
+		t.Errorf("asked again at once: %q, failed at %v, then %v", got, failed, gone.suffixFailed)
+	}
 }
 
 // TestCheckClaim: a claimed name's login must write a challenge value,
