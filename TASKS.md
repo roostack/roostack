@@ -275,6 +275,7 @@ What every repeating job in Roostack, Cloud, and the registry asks of shared ser
 - [x] The registry's key statement was downloaded every hour: it's asked for with `If-None-Match`, as the index is
 - [x] Cloud's name suffix was asked for every few seconds while Cloud was out of reach and a page was open: not again for a minute after a failure
 - [x] In Cloud (branch `red-button`): edges' config pulls rewrite only the rows that changed; Cloudflare is asked only about the names a small change touches, and its Retry-After is honoured; so is Cert Spotter's
+- [x] Roostack Cloud backup's 12-hour keys could run out during a long upload, and a 403 then counted as a failure that needs someone: keys are renewed once they're an hour old, and a command that fails once its keys have run out runs again at once with new ones (SPEC §6.9, docs/ASSUMPTIONS.md N10)
 - [ ] Left: the watcher's feeds have no conditional requests (CISA's list is over 1 MB an hour), which needs somewhere to keep their ETags; logging in to Docker Hub in the registry's workflows if they meet its anonymous limit; the edges' config could carry a version so that an unchanged pull costs nothing
 
 ## To discuss with the user

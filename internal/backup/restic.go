@@ -20,6 +20,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/cloudkeys"
 )
 
 // ErrNoRepository means the repository hasn't been initialised.
@@ -42,10 +45,12 @@ type Repo struct {
 	PasswordFile string
 	// Env adds backend credentials, e.g. AWS_ACCESS_KEY_ID=...
 	Env []string
-	// Credentials adds credentials that expire, fetched before each
-	// command (Roostack Cloud backup's short-lived keys:
-	// internal/cloudkeys). A failure stops the command before it starts.
-	Credentials func(ctx context.Context) ([]string, error)
+	// Credentials are keys that expire, fetched before each command
+	// (Roostack Cloud backup's short-lived keys: internal/cloudkeys). A
+	// failure stops the command before it starts; a command that fails
+	// once its keys have run out runs again at once with new ones
+	// (keysRanOut).
+	Credentials func(ctx context.Context) (cloudapi.StorageKeys, error)
 	// LimitUploadKiB caps upload speed (0 = unlimited), so a first
 	// off-site backup doesn't swamp a home connection.
 	LimitUploadKiB int
@@ -117,6 +122,13 @@ func (s Snapshot) Size() int64 {
 }
 
 func (r *Repo) command(ctx context.Context, args ...string) *exec.Cmd {
+	cmd, _ := r.commandUntil(ctx, args...)
+	return cmd
+}
+
+// commandUntil is command, and when the keys it runs with expire (zero
+// without Credentials).
+func (r *Repo) commandUntil(ctx context.Context, args ...string) (*exec.Cmd, time.Time) {
 	env := []string{
 		"RESTIC_REPOSITORY=" + r.URL,
 		"RESTIC_PASSWORD_FILE=" + r.PasswordFile,
@@ -131,9 +143,12 @@ func (r *Repo) command(ctx context.Context, args ...string) *exec.Cmd {
 		env = append(env, "RESTIC_KEY_HINT="+hint)
 	}
 	var keysErr error
+	var until time.Time
 	if r.Credentials != nil {
-		creds, err := r.Credentials(ctx)
-		env, keysErr = append(env, creds...), err
+		var k cloudapi.StorageKeys
+		if k, keysErr = r.Credentials(ctx); keysErr == nil {
+			env, until = append(env, cloudkeys.Env(k)...), k.Expires
+		}
 	}
 	var cmd *exec.Cmd
 	if r.Launch != nil {
@@ -145,7 +160,17 @@ func (r *Repo) command(ctx context.Context, args ...string) *exec.Cmd {
 		// exec.Cmd's Start returns Err: the command never runs.
 		cmd.Err = fmt.Errorf("getting this backup's keys: %w", keysErr)
 	}
-	return cmd
+	return cmd, until
+}
+
+// keysRanOut reports whether a command that failed at now ran with keys
+// that expire at until and had run out (or were about to): it failed
+// because of them, whatever the storage said (S3 answers 400 or 403), so
+// new keys put it right at once, without waiting for the next try. A
+// refusal while the keys are still good (a suspended account, a full
+// quota) isn't this.
+func keysRanOut(until, now time.Time) bool {
+	return !until.IsZero() && !now.Before(until.Add(-time.Minute))
 }
 
 // DirectLaunch runs a command as the current user. On cancel it sends
@@ -159,13 +184,19 @@ func DirectLaunch(ctx context.Context, env []string, name string, args ...string
 	return cmd
 }
 
-// run runs a restic command and returns stdout.
+// run runs a restic command and returns stdout. One that failed because
+// its keys ran out runs again at once, with new ones.
 func (r *Repo) run(ctx context.Context, args ...string) ([]byte, error) {
-	cmd := r.command(ctx, args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	return out, r.wrap(args[0], err, stderr.String())
+	for try := 0; ; try++ {
+		cmd, until := r.commandUntil(ctx, args...)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		if err != nil && try == 0 && ctx.Err() == nil && keysRanOut(until, time.Now()) {
+			continue
+		}
+		return out, r.wrap(args[0], err, stderr.String())
+	}
 }
 
 func (r *Repo) wrap(verb string, err error, stderr string) error {
@@ -322,6 +353,9 @@ type BackupOptions struct {
 	Host string
 	// OnProgress is called with progress updates (may be nil).
 	OnProgress func(Progress)
+	// OnNewKeys is called when the backup's keys ran out while it ran and
+	// it's carrying on with new ones (may be nil).
+	OnNewKeys func()
 }
 
 // Backup takes a snapshot. Cancelling ctx stops it cleanly; running it
@@ -346,31 +380,47 @@ func (r *Repo) Backup(ctx context.Context, o BackupOptions) (*Summary, error) {
 	args = append(args, "--")
 	args = append(args, o.Paths...)
 
-	cmd := r.command(ctx, args...)
+	for try := 0; ; try++ {
+		summary, until, err := r.backupOnce(ctx, args, o.OnProgress)
+		if err != nil && try == 0 && ctx.Err() == nil && keysRanOut(until, time.Now()) {
+			// A long upload outlasted its keys: what's uploaded is kept
+			// (restic saves its index as it goes), so carry on now.
+			if o.OnNewKeys != nil {
+				o.OnNewKeys()
+			}
+			continue
+		}
+		return summary, err
+	}
+}
+
+// backupOnce runs restic backup once, and says when its keys expire.
+func (r *Repo) backupOnce(ctx context.Context, args []string, onProgress func(Progress)) (*Summary, time.Time, error) {
+	cmd, until := r.commandUntil(ctx, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return nil, until, err
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return nil, until, err
 	}
-	summary, parseErr := parseBackupOutput(stdout, o.OnProgress)
+	summary, parseErr := parseBackupOutput(stdout, onProgress)
 	err = cmd.Wait()
 	if err := r.wrap("backup", err, stderr.String()); err != nil {
 		if ctx.Err() != nil {
-			return nil, ctx.Err()
+			return nil, until, ctx.Err()
 		}
-		return nil, err
+		return nil, until, err
 	}
 	if parseErr != nil {
-		return nil, parseErr
+		return nil, until, parseErr
 	}
 	if summary == nil {
-		return nil, errors.New("restic backup: no summary in output")
+		return nil, until, errors.New("restic backup: no summary in output")
 	}
-	return summary, nil
+	return summary, until, nil
 }
 
 // parseBackupOutput reads restic's JSON lines ("status" and "summary").

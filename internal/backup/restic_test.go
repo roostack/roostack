@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/testwait"
 )
@@ -221,16 +222,68 @@ func TestAddKeyFileVisibleOutsideSandbox(t *testing.T) {
 // it runs (restic never starts without its keys); those that can are in
 // its environment.
 func TestCredentials(t *testing.T) {
-	r := &Repo{Bin: "/bin/sh", URL: "/nowhere", Credentials: func(context.Context) ([]string, error) {
-		return nil, errors.New("Cloud is out of reach")
+	r := &Repo{Bin: "/bin/sh", URL: "/nowhere", Credentials: func(context.Context) (cloudapi.StorageKeys, error) {
+		return cloudapi.StorageKeys{}, errors.New("Cloud is out of reach")
 	}}
 	if _, err := r.run(context.Background(), "-c", "echo ran"); err == nil || !strings.Contains(err.Error(), "getting this backup's keys") {
 		t.Errorf("without keys: %v", err)
 	}
-	r.Credentials = func(context.Context) ([]string, error) { return []string{"AWS_SESSION_TOKEN=tok"}, nil }
+	r.Credentials = func(context.Context) (cloudapi.StorageKeys, error) {
+		return cloudapi.StorageKeys{SessionToken: "tok", Expires: time.Now().Add(time.Hour)}, nil
+	}
 	out, err := r.run(context.Background(), "-c", "echo $AWS_SESSION_TOKEN")
 	if err != nil || strings.TrimSpace(string(out)) != "tok" {
 		t.Errorf("with keys: %q %v", out, err)
+	}
+}
+
+// TestKeysRanOut: a command that fails once its keys have run out runs
+// again at once with new ones, a backup saying so; one that fails while
+// its keys are still good, or fails again, doesn't.
+func TestKeysRanOut(t *testing.T) {
+	// A pretend restic: refused with the old keys, a backup's summary with
+	// new ones.
+	bin := filepath.Join(t.TempDir(), "restic")
+	os.WriteFile(bin, []byte("#!/bin/sh\n[ \"$AWS_SESSION_TOKEN\" = new ] || { echo 'Forbidden: 403' >&2; exit 1; }\n"+
+		"echo '{\"message_type\":\"summary\",\"snapshot_id\":\"abc\",\"files_new\":2}'\n"), 0o755)
+	// The keys fetched, in turn: first those given, then new ones.
+	var fetched []string
+	var source func() cloudapi.StorageKeys
+	keys := func(token string, expires time.Time) {
+		fetched = nil
+		source = func() cloudapi.StorageKeys {
+			if len(fetched) > 0 {
+				token, expires = "new", time.Now().Add(12*time.Hour)
+			}
+			fetched = append(fetched, token)
+			return cloudapi.StorageKeys{SessionToken: token, Expires: expires}
+		}
+	}
+	repo := &Repo{Bin: bin, URL: "/nowhere", Credentials: func(context.Context) (cloudapi.StorageKeys, error) { return source(), nil }}
+	ctx := context.Background()
+
+	keys("old", time.Now().Add(-time.Second)) // ran out
+	newKeys := 0
+	sum, err := repo.Backup(ctx, BackupOptions{Paths: []string{"/x"}, OnNewKeys: func() { newKeys++ }})
+	if err != nil || sum.SnapshotID != "abc" || newKeys != 1 || len(fetched) != 2 {
+		t.Errorf("a backup whose keys ran out: %+v %v, told %d times, keys %v", sum, err, newKeys, fetched)
+	}
+	keys("old", time.Now().Add(30*time.Second)) // about to
+	if _, err := repo.run(ctx, "snapshots"); err != nil || len(fetched) != 2 {
+		t.Errorf("a command whose keys were about to run out: %v, keys %v", err, fetched)
+	}
+	keys("old", time.Now().Add(time.Hour)) // still good: a real refusal
+	if _, err := repo.Backup(ctx, BackupOptions{Paths: []string{"/x"}}); err == nil || len(fetched) != 1 {
+		t.Errorf("refused with good keys: %v, keys %v", err, fetched)
+	}
+	// New keys refused too: tried only once more.
+	fetched = nil
+	source = func() cloudapi.StorageKeys {
+		fetched = append(fetched, "old")
+		return cloudapi.StorageKeys{SessionToken: "old", Expires: time.Now().Add(-time.Second)}
+	}
+	if _, err := repo.run(ctx, "snapshots"); err == nil || len(fetched) != 2 {
+		t.Errorf("new keys refused too: %v, keys %v", err, fetched)
 	}
 }
 

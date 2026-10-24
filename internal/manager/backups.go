@@ -316,7 +316,7 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		target.Repository = keys.Repository
 		dest = node.BackupDestination{Repository: keys.Repository, Cloud: true}
 		admin = m.OpenRepo(keys.Repository, nil)
-		admin.Credentials = m.cloudPruneKeys().Env
+		admin.Credentials = m.cloudPruneKeys().Keys
 	case destination.Server:
 		host := id
 		addr := m.addressOf(host)
@@ -753,7 +753,7 @@ func (m *Manager) adminRepo(ctx context.Context, t store.BackupTarget) (*backup.
 		return m.OpenRepo(t.Repository, nil), nil
 	case destCloud:
 		r := m.OpenRepo(t.Repository, nil)
-		r.Credentials = m.cloudPruneKeys().Env
+		r.Credentials = m.cloudPruneKeys().Keys
 		return r, nil
 	case destServer:
 		pw, _, ok, err := m.BackupStore.StoreAdmin(ctx, t.StoreHost)

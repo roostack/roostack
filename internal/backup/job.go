@@ -474,6 +474,10 @@ func upload(ctx context.Context, d JobDeps, repo *Repo, to string, snaps []snaps
 						Bytes(p.TotalBytes), (time.Duration(p.SecondsRemaining) * time.Second).String())
 				}
 			},
+			OnNewKeys: func() {
+				lastTen = -1
+				d.Log.Printf("The keys for Roostack Cloud backup ran out during the upload, so Roostack is carrying on with new ones: what was uploaded is kept")
+			},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("backing up %s: %w", what, err)

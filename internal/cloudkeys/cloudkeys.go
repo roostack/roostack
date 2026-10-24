@@ -1,8 +1,9 @@
 // Package cloudkeys keeps Roostack Cloud backup's short-lived keys on a
 // server (Cloud's DESIGN §6(b), "Keys and layout"; SPEC.md §6.9): a backup
-// asks for fresh ones when those it has expire within the hour, and uses
-// what it has (still valid for a few minutes) if Cloud can't be reached
-// meanwhile. Kept 0600 in the state folder, never logged.
+// asks for fresh ones once those it has are an hour old, so that each
+// command starts with nearly all of their 12 hours, or expire within the
+// hour, and uses what it has (still valid for a few minutes) if Cloud
+// can't be reached meanwhile. Kept 0600 in the state folder, never logged.
 package cloudkeys
 
 import (
@@ -39,13 +40,21 @@ type Cache struct {
 	mu sync.Mutex
 }
 
-// Refresh and lastUse: keys are renewed when they have less than an hour
-// left, and not used with under five minutes (a restic command must
-// finish before they expire; backups are many short commands).
+// keepFor, refresh and lastUse: keys are renewed once they're an hour old
+// or have less than an hour left, and not used with under five minutes. A
+// restic command can outlast them (a long first upload); it then runs
+// again with new ones (backup.Repo.Credentials).
 const (
+	keepFor = time.Hour
 	refresh = time.Hour
 	lastUse = 5 * time.Minute
 )
+
+// kept is the keys as kept, with when they were fetched.
+type kept struct {
+	cloudapi.StorageKeys
+	Fetched time.Time `json:"fetched"`
+}
 
 // Keys are the keys to use now: those kept, while fresh enough, or new
 // ones.
@@ -56,29 +65,20 @@ func (c *Cache) Keys(ctx context.Context) (cloudapi.StorageKeys, error) {
 	if c.Now != nil {
 		now = c.Now()
 	}
-	kept, keptErr := c.read()
-	if keptErr == nil && kept.Expires.Sub(now) > refresh {
-		return kept, nil
+	have, keptErr := c.read()
+	if keptErr == nil && now.Sub(have.Fetched) < keepFor && have.Expires.Sub(now) > refresh {
+		return have.StorageKeys, nil
 	}
 	fresh, err := c.Source(ctx)
 	if err == nil {
 		// Kept for next time; if that fails, these still work now.
-		_ = c.write(fresh)
+		_ = c.write(kept{fresh, now})
 		return fresh, nil
 	}
-	if keptErr == nil && kept.Expires.Sub(now) > lastUse {
-		return kept, nil // Cloud out of reach: carry on with what's kept
+	if keptErr == nil && have.Expires.Sub(now) > lastUse {
+		return have.StorageKeys, nil // Cloud out of reach: carry on with what's kept
 	}
 	return cloudapi.StorageKeys{}, fmt.Errorf("asking for Roostack Cloud backup's keys: %w", err)
-}
-
-// Env is restic's environment for the keys.
-func (c *Cache) Env(ctx context.Context) ([]string, error) {
-	k, err := c.Keys(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return Env(k), nil
 }
 
 // Env is restic's environment for keys.
@@ -87,8 +87,8 @@ func Env(k cloudapi.StorageKeys) []string {
 		"AWS_SESSION_TOKEN=" + k.SessionToken, "AWS_DEFAULT_REGION=" + k.Region}
 }
 
-func (c *Cache) read() (cloudapi.StorageKeys, error) {
-	var k cloudapi.StorageKeys
+func (c *Cache) read() (kept, error) {
+	var k kept
 	data, err := os.ReadFile(c.Path)
 	if err != nil {
 		return k, err
@@ -99,7 +99,7 @@ func (c *Cache) read() (cloudapi.StorageKeys, error) {
 	return k, nil
 }
 
-func (c *Cache) write(k cloudapi.StorageKeys) error {
+func (c *Cache) write(k kept) error {
 	data, _ := json.Marshal(k)
 	if err := os.MkdirAll(filepath.Dir(c.Path), 0o700); err != nil {
 		return err
