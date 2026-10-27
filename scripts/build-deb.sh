@@ -35,9 +35,9 @@ export SOURCE_DATE_EPOCH
 # A package trusts the registry's real root key, and no development key
 # (SPEC.md §8.3.3, docs/REGISTRY-KEYS.md), whatever its version, unless
 # it says it's a development build (ROOSTACK_DEV_BUILD=1, as
-# dev-install.sh does): those can't fetch the real registry until the key
-# ceremony. The keys are the ones make build compiled in, which it
-# records in bin/registry-keys, not a search of the source.
+# dev-install.sh does), which may trust a development key too. The keys
+# are the ones make build compiled in, which it records in
+# bin/registry-keys, not a search of the source.
 if [[ ${ROOSTACK_DEV_BUILD:-} != 1 ]]; then
     [[ -s bin/registry-keys && ! bin/roostack -nt bin/registry-keys ]] ||
         { echo "bin/registry-keys is missing or older than bin/roostack: make build again" >&2; exit 1; }
@@ -80,7 +80,8 @@ if [[ ${ROOSTACK_DEV_BUILD:-} == 1 ]]; then
     printf '# A development build: it follows no repository.\nEnabled: no\n' >> "$ROOT/etc/apt/sources.list.d/roostack.sources"
 fi
 chmod 0644 "$ROOT/etc/apt/sources.list.d/roostack.sources"
-# Until the key ceremony the file is a placeholder (docs/RELEASING.md).
+# The release key's public part, from its ceremony (docs/RELEASING.md); a
+# placeholder before that, which only a development build accepts.
 RELEASE_KEY=packaging/keys/roostack-release.asc
 if grep -qx -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$RELEASE_KEY" 2>/dev/null; then
     install -d "$ROOT/usr/share/keyrings"

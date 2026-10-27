@@ -8,11 +8,11 @@ import (
 // rootKeys are the public halves of the registry's root keys, held
 // offline by the Owner (SPEC.md §8.3.3, docs/REGISTRY-KEYS.md). They sign
 // only keys.json. More than one while a new root key replaces an old one.
-//
-// Empty until the key ceremony: until then labs can fetch only from a
-// registry signed with a development key (devRootKey), and a package
-// can be made only of a development build (scripts/build-deb.sh).
-var rootKeys = []string{}
+var rootKeys = []string{
+	// The first root key, made at the key ceremony on 2026-10-27
+	// (docs/REGISTRY-KEYS.md, "Record").
+	"ed25519:ZSncwJZokBFW2y3wavo7k83oRmB6+T05lOenU4cLs6A=",
+}
 
 // devRootKey is a root key for development and testing, given at build
 // time: make build REGISTRY_DEV_KEY=ed25519:… (the -X linker flag). Never

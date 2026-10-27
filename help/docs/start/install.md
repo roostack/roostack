@@ -144,7 +144,7 @@ rest of the system.
         fingerprint. It must be exactly:
 
         ```text
-        RELEASE-KEY-FINGERPRINT
+        1B4886384AFA7B40AE9E3B556B8866892781939E
         ```
 
         If it isn't, stop: that file isn't Roostack's key. If it is,
@@ -171,7 +171,7 @@ rest of the system.
         # change both together, or dpkg asks about this file on a fresh install.
         Types: deb
         URIs: https://apt.roostack.cloud
-        Suites: SUITE
+        Suites: 0.1
         Components: main
         Architectures: amd64 arm64
         Signed-By: /usr/share/keyrings/roostack-archive-keyring.gpg

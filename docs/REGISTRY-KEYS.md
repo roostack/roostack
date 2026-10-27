@@ -1,8 +1,8 @@
 # The service registry's keys
 
 How the keys that sign the service registry are made, kept, used, and replaced
-(SPEC.md §8.3.3). Written 2026-10-14, before the ceremony; follow it when
-you're ready, and record the date and the public keys at the end.
+(SPEC.md §8.3.3). Written 2026-10-14, before the ceremony, which was held
+on 2026-10-27 (see "Record", at the end); follow it again for a new key.
 
 ## What there is
 
@@ -147,4 +147,5 @@ real root key is in `rootKeys`; a development package is made with
 
 | Date | What | Public key | Statement serial |
 |---|---|---|---|
-| | | | |
+| 2026-10-27 | Root key | `ed25519:ZSncwJZokBFW2y3wavo7k83oRmB6+T05lOenU4cLs6A=` | |
+| 2026-10-27 | Signing key | `ed25519:op8d9o2Ewz54+y8FUr+yZ6SLbmUFAQ3gv8Qh39wPcSU=` | 1 |

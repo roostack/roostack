@@ -20,8 +20,8 @@ set -eu
 # Set at release (SPEC.md §6.3.2): the suite is the current minor series,
 # and the SHA-256 is of the key file published in the repository.
 REPO=${ROOSTACK_REPO:-https://apt.roostack.cloud}
-SUITE=${ROOSTACK_SUITE:-@SUITE@}
-KEY_SHA256=${ROOSTACK_KEY_SHA256:-@KEY_SHA256@}
+SUITE=${ROOSTACK_SUITE:-0.1}
+KEY_SHA256=${ROOSTACK_KEY_SHA256:-5f5dd315ecd363938ec2da9175286f852001aeef1a0ff9b2aee436f9322f27bc}
 PROTO='=https'
 [ -z "${ROOSTACK_REPO:-}" ] || PROTO='=https,http'
 

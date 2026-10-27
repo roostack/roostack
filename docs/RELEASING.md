@@ -2,12 +2,14 @@
 
 How a Roostack release is built, signed, and checked, and the ceremony for
 the key that signs it (TASKS 1.12, "Encryption anyone can check"). Written
-2026-10-18, before the first release and before the ceremony. The service
-registry's keys are separate: [REGISTRY-KEYS.md](REGISTRY-KEYS.md).
+2026-10-18, before the first release; the ceremony was held on 2026-10-27
+(its key is in "Record", at the end). The service registry's keys are
+separate: [REGISTRY-KEYS.md](REGISTRY-KEYS.md).
 
 The names and addresses below (file names, `dl.roostack.cloud`,
-`apt.roostack.cloud`, the key's user ID) are placeholders until the maintainer
-confirms them.
+`apt.roostack.cloud`, the key's user ID `Roostack releases
+<releases@roostack.cloud>`) were confirmed by the maintainer on 2026-10-27,
+with the first series, `0.1`.
 
 ## What a release is
 
@@ -363,4 +365,5 @@ Extending a subkey instead (`gpg --quick-set-expire <fingerprint> 2y
 
 | Date | What | Fingerprint |
 |---|---|---|
-| | | |
+| 2026-10-27 | Primary key (certifies only; never expires) | `1B4886384AFA7B40AE9E3B556B8866892781939E` |
+| 2026-10-27 | Signing subkey (expires 2029-10-26) | `499CF799D33E7FAECA30283F4E9F3178A1510B41` |

@@ -106,8 +106,8 @@ type Status struct {
 	// KeysSerial is the newest key statement's serial seen.
 	KeysSerial int64 `json:"keys_serial"`
 	// Fetching: a fetch is running now. NoRootKey: this build has no
-	// registry root key, so it can't check what it fetches (until the
-	// key ceremony, docs/REGISTRY-KEYS.md). Neither is kept.
+	// registry root key, so it can't check what it fetches (a build from
+	// before the key ceremony, docs/REGISTRY-KEYS.md). Neither is kept.
 	Fetching  bool `json:"-"`
 	NoRootKey bool `json:"-"`
 	// ETag is the index's, to ask whether it changed; KeysETag the key

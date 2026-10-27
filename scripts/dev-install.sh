@@ -10,8 +10,8 @@ set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo "run as root" >&2; exit 1; }
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 
-# A development build: it may trust a development registry key, and no
-# real one until the key ceremony (scripts/build-deb.sh).
+# A development build: it may trust a development registry key as well
+# as the real one (scripts/build-deb.sh).
 deb=$(ROOSTACK_DEV_BUILD=1 "$REPO/scripts/build-deb.sh")
 arch=$(dpkg --print-architecture)
 [[ $deb == *_"$arch".deb ]] || { echo "$deb isn't for this server ($arch): build with GOARCH=$arch make build" >&2; exit 1; }
