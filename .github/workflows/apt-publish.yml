@@ -79,12 +79,29 @@ jobs:
           echo "$VERSION" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+' ||
             { echo "version must be major.minor.patch, without a v: $VERSION" >&2; exit 1; }
 
-      # Snapshots' Release files have long expired; their signatures are
-      # still checked.
+      # From Debian's snapshot, over plain HTTP: the slim image has no CA
+      # certificates for HTTPS (apt's --snapshot uses https and failed at
+      # the first release), and apt checks every index against the image's
+      # Debian keyring whatever the transport, as the image's own sources
+      # do. Snapshots' Release files have long expired; their signatures
+      # are still checked.
       - name: Install the tools
         run: |
-          apt-get update -q --snapshot "$DEBIAN_SNAPSHOT" -o Acquire::Check-Valid-Until=false
-          apt-get install -y -q --no-install-recommends --snapshot "$DEBIAN_SNAPSHOT" \
+          cat > /etc/apt/sources.list.d/debian.sources <<SOURCES
+          Types: deb
+          URIs: http://snapshot.debian.org/archive/debian/$DEBIAN_SNAPSHOT
+          Suites: trixie trixie-updates
+          Components: main
+          Signed-By: /usr/share/keyrings/debian-archive-keyring.pgp
+
+          Types: deb
+          URIs: http://snapshot.debian.org/archive/debian-security/$DEBIAN_SNAPSHOT
+          Suites: trixie-security
+          Components: main
+          Signed-By: /usr/share/keyrings/debian-archive-keyring.pgp
+          SOURCES
+          apt-get update -q -o Acquire::Check-Valid-Until=false
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
             apt-utils gnupg gpgv awscli ca-certificates
           apt-ftparchive --version | head -1; gpg --version | head -1; aws --version
 
