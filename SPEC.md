@@ -33,7 +33,7 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
   - [6.5 Reverse Proxy & TLS](#65-reverse-proxy--tls--locked)
   - [6.5.1 DNS Records & Local Access](#651-dns-records--local-access--locked-2026-09-26)
   - [6.6 A lab's address (domains)](#66-a-labs-address-domains--locked-changed-2026-10-06)
-  - [6.7 Storage Layout](#67-storage-layout--locked-defaults-may-change-before-launch)
+  - [6.7 Storage Layout](#67-storage-layout--locked)
   - [6.8 Databases](#68-databases--locked)
   - [6.9 Backups](#69-backups--locked)
   - [6.10 Host Security](#610-host-security--locked)
@@ -1031,7 +1031,7 @@ Roostack manages the DNS records its services need, through the same DNS provide
 - **Open:** a lab with neither (no domain, not linked to Cloud) beyond "no address yet". Options: stay as it is (services wait for an address) or HTTPS by IP address (§6.3.2, later).
 - **Rejected for v1:** a local CA (a root certificate on every device is bad UX); plain HTTP (browser warnings, and some clients such as Bitwarden require HTTPS).
 
-### 6.7 Storage Layout — Locked (defaults may change before launch)
+### 6.7 Storage Layout — Locked
 
 Default paths:
 
@@ -1043,7 +1043,7 @@ Default paths:
 /srv/roostack/media/               # large shared media; can be a separate disk
 ```
 
-- **Paths are configurable**, and all defaults are defined in **one central place** in the code so they can be changed easily. No migration support is needed before launch; the defaults will be locked before release.
+- **Paths are configurable**, and all defaults are defined in **one central place** in the code so they can be changed easily. **The defaults are locked (the Owner, 2026-10-28, before the first release):** `/var/lib/roostack` (state, with `catalog/` and `home/`), `/srv/roostack/services` and `/srv/roostack/media`, and the agent's mount roots `/mnt/roostack-library` and `/mnt/roostack-import` (`internal/config`), as they were: Debian's conventions (`/var/lib` for a program's state, `/srv` for data a server serves), already named on every page and in the help. Changing one now needs a migration for existing servers. Considered: keeping them open until more people had used them, which would have meant migration code after release instead.
 - **Bind mounts, not Podman named volumes.** Data sits in a visible, predictable location (Principle 4), and it's easy to back up and move (Principle 1).
 - The media location can be configured separately, e.g. a small system SSD plus a large data drive.
 - **Open / to prototype early:** rootless user ID mapping. Files owned by UIDs inside containers appear as mapped IDs (e.g. 100000+) on the host. We need to settle how this affects browsing, backups, and media shared between services (e.g. Jellyfin and Immich), and where Podman's `keep-id` option helps.
