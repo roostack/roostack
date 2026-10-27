@@ -119,8 +119,8 @@ jobs:
       - name: Check the installer
         run: |
           suite=${VERSION%.*}
-          named=$(sed -n 's/^SUITE=${ROOSTACK_SUITE:-\(.*\)}$/\1/p' scripts/install.sh)
-          sha=$(sed -n 's/^KEY_SHA256=${ROOSTACK_KEY_SHA256:-\(.*\)}$/\1/p' scripts/install.sh)
+          named=$(sed -n "s/^SUITE=\${ROOSTACK_SUITE:-\(.*\)}\$/\1/p" scripts/install.sh)
+          sha=$(sed -n "s/^KEY_SHA256=\${ROOSTACK_KEY_SHA256:-\(.*\)}\$/\1/p" scripts/install.sh)
           want=$(gpg --batch --dearmor < packaging/keys/roostack-release.asc | sha256sum | cut -d' ' -f1)
           [ "$sha" = "$want" ] ||
             { echo "scripts/install.sh has the key SHA-256 $sha, but the keyring's is $want" >&2; exit 1; }

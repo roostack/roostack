@@ -103,7 +103,7 @@ func TestEveryChecksTheClock(t *testing.T) {
 // time, and servers spread over the half hour rather than all taking a
 // few minutes.
 func TestOffset(t *testing.T) {
-	if Offset("n-0123456789") != Offset("n-0123456789") {
+	if first := Offset("n-0123456789"); Offset("n-0123456789") != first {
 		t.Error("a server's offset changed")
 	}
 	minutes := map[time.Duration]bool{}

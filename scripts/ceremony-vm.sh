@@ -68,7 +68,8 @@ grep " $ISO\$" SHA512SUMS | sha512sum -c --quiet || die "$ISO doesn't match Debi
 echo "$ISO: checked (signed by $signer)"
 ISO=$CACHE/$ISO
 
-mkdir -p -m 700 "$WORK"
+mkdir -p "$WORK"
+chmod 700 "$WORK"
 cd "$WORK"
 
 # The tools disk, read-only.
@@ -113,8 +114,10 @@ In the VM (it boots to a console as the user "user"; press Enter at the menu):
   bash /mnt/tools/ceremony.sh
 
 EOF
-# QEMU_EXTRA: more options, for testing this script (e.g. -display none).
-qemu-system-x86_64 ${QEMU_EXTRA:--display gtk} -enable-kvm -cpu host -smp 2 -m 4096 \
+# QEMU_EXTRA: more options, for testing this script (e.g. -display none),
+# split into words.
+read -ra extra <<<"${QEMU_EXTRA:--display gtk}"
+qemu-system-x86_64 "${extra[@]}" -enable-kvm -cpu host -smp 2 -m 4096 \
 	-nic none \
 	-cdrom "$ISO" -boot d \
 	-drive file=tools.img,format=raw,if=virtio,readonly=on \
