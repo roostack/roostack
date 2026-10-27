@@ -4,7 +4,7 @@
 
 Roostack lets you self-host useful services (photos, passwords, git, media, and more) on your own hardware, with one-click installs, automatic HTTPS, backups, and updates, managed from a simple web interface.
 
-> **Status: early development.** Nothing here is ready for real use yet. See [TASKS.md](TASKS.md) for progress and [SPEC.md](SPEC.md) for the design decisions and why they were made.
+> **Status: early access (0.1).** Roostack works, but expect rough edges; back up anything you can't lose elsewhere too. See [TASKS.md](TASKS.md) for progress and [SPEC.md](SPEC.md) for the design decisions and why they were made.
 
 ## How it works
 
@@ -51,7 +51,7 @@ Roostack runs containers through the `roostack` user's own systemd manager (root
 
 ## Installing
 
-Once Roostack is released, one command on a fresh Debian 13 will install it from Roostack's signed apt repository:
+One command on a fresh Debian 13 installs it from Roostack's signed apt repository:
 
 ```bash
 curl -fsSL https://dl.roostack.cloud/install.sh | sudo sh
