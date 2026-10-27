@@ -281,6 +281,9 @@ type Local struct {
 	// (firewallNow).
 	fwMu   sync.Mutex
 	lastFW *agent.Firewall
+	// nowWG is the firewall and Caddy changes Apply makes at once, in
+	// the background, so Wait covers them too.
+	nowWG sync.WaitGroup
 
 	hooksBusy, hooksAgain bool
 	hooksRunning          map[string]bool
@@ -394,13 +397,17 @@ func (n *Local) Apply(a Assignment) {
 	ch := Change{Reason: cmp.Or(a.Reason, startedReason), Early: a.CaddyFirst}
 	// Closing public access completely, or opening it again, reaches the
 	// firewall at once, on every server (SPEC.md §6.16).
+	n.nowWG.Add(1)
 	go func() {
+		defer n.nowWG.Done()
 		if err := n.firewallNow(context.Background()); err != nil {
 			n.Log.Error("closing or opening public access at the firewall at once", "reason", ch.Reason, "err", err)
 		}
 	}()
 	if a.CaddyFirst {
+		n.nowWG.Add(1)
 		go func() {
+			defer n.nowWG.Done()
 			if err := n.caddyNow(context.Background()); err != nil {
 				n.Log.Error("applying web address changes at once", "reason", ch.Reason, "err", err)
 			}
@@ -519,7 +526,8 @@ func (n *Local) Status() ApplyStatus {
 	return st
 }
 
-// Wait blocks until the current apply finishes (for tests and tools).
+// Wait blocks until the current apply finishes, and the changes Apply
+// made at once (for tests and tools).
 func (n *Local) Wait() {
 	n.mu.Lock()
 	done := n.done
@@ -527,6 +535,7 @@ func (n *Local) Wait() {
 	if done != nil {
 		<-done
 	}
+	n.nowWG.Wait()
 }
 
 func (n *Local) applyLoop(done chan struct{}) {

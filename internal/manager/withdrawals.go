@@ -300,7 +300,9 @@ func (m *Manager) RegistryChanged() {
 	// A stopped service whose fix is out may update now (update.go), and
 	// so may one paused for a security advisory (advisories.go).
 	defer func() {
+		m.registryWG.Add(1)
 		go func() {
+			defer m.registryWG.Done()
 			m.UpdateStopped(context.Background())
 			m.UpdateAdvised(context.Background())
 		}()

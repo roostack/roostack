@@ -162,6 +162,10 @@ type Manager struct {
 	relayGen uint64
 	relayWG  sync.WaitGroup
 
+	// registryWG is RegistryChanged's background updates still running
+	// (withdrawals.go), so Wait covers them too.
+	registryWG sync.WaitGroup
+
 	// Servers: direct links between them (links.go).
 	links linkState
 
@@ -996,9 +1000,11 @@ func setupLeftEmpty(p *pkgspec.Package, req InstallRequest) bool {
 	return len(settings) > 0
 }
 
-// Wait blocks until the current apply finishes, and the relay update it
-// started (for tests and tools).
+// Wait blocks until the updates a registry check started, the current
+// apply, and the relay update it started have finished (for tests and
+// tools). The registry's first: they may start an apply.
 func (m *Manager) Wait() {
+	m.registryWG.Wait()
 	if w, ok := m.Node.(interface{ Wait() }); ok {
 		w.Wait()
 	}
