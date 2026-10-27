@@ -77,7 +77,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] **Owner, before the first release:** apply roostack-cloud's `ops/tofu/releases` and put its outputs in the GitHub `release` environment (roostack-cloud `docs/RUNBOOK-RELEASES.md`) (the names `dl.`/`apt.roostack.cloud` confirmed 2026-10-18; the bucket's still to confirm)
   - [ ] One acceptance of a new series for the whole lab (today each server's Updates page), and the order a controller and its nodes move in, once it's known what a lab API change between series needs
   - [ ] Pre-releases, if wanted: a suite of their own (e.g. `0.6-beta`) a server opts into; `build-apt-repo.sh` refuses them today
-  - [ ] At the first release: publish `install.sh` at `https://dl.roostack.cloud/install.sh` (R2's apt-publish publishes the keyring at `https://apt.roostack.cloud/roostack-archive-keyring.gpg`)
+  - [ ] At the first release: check that `https://dl.roostack.cloud/install.sh` and `https://apt.roostack.cloud/roostack-archive-keyring.gpg` are there (apt-publish publishes both since 2026-10-28), and install with them on a fresh Debian 13
   - [ ] Roostack Cloud's pages could use the cloud scenes in `assets/errors` (Cloud's repository)
   - [ ] Later: HTTPS by IP address (Let's Encrypt IP certificates) for a cloud server's setup page (SPEC §6.3.2)
   - [ ] To discuss: serving the UI at `roost.<domain>` as an explicit choice instead of automatically, at home (SPEC §6.3.2 has the questions; on the internet it's decided)

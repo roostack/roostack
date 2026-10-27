@@ -40,7 +40,10 @@ For the registry's Publish workflow (REGISTRY-KEYS.md, step 9):
    up to date. For a new series (a `.0` release), write its section in
    [help/docs/whats-new.md](../help/docs/whats-new.md), with the id
    `roostack-<series>`, and publish the help: servers on an older series
-   link to it when they offer the new one.
+   link to it when they offer the new one. Change the suite too, where
+   people install from: `SUITE` in `scripts/install.sh`, `Suites:` in
+   help/docs/start/install.md, and Cloud's get-started page (the publish
+   job refuses a new series whose installer names an older one).
 2. Tag the commit and push the tag:
 
    ```sh
@@ -64,7 +67,10 @@ For the registry's Publish workflow (REGISTRY-KEYS.md, step 9):
    - and hands the files on as the artifact `release-files`;
    - **publish:** `apt-publish.yml`, called with the version, publishes them
      at dl.roostack.cloud and in the apt repository (in the `release`
-     environment too, so a reviewer approves it as well).
+     environment too, so a reviewer approves it as well), and
+     `scripts/install.sh` at `dl.roostack.cloud/install.sh` when the
+     release is in the newest series, once it's checked that the
+     installer names that series and the keyring's SHA-256.
 
 A release refuses to be made:
 

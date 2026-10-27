@@ -8,7 +8,10 @@
 #   3. adds the packages to the apt repository at apt.roostack.cloud
 #      (scripts/build-apt-repo.sh), signed with the release key's signing
 #      subkey, rebuilt from what's already published there, and puts the
-#      keyring beside it (apt.roostack.cloud/roostack-archive-keyring.gpg).
+#      keyring beside it (apt.roostack.cloud/roostack-archive-keyring.gpg);
+#   4. publishes scripts/install.sh at dl.roostack.cloud/install.sh, when
+#      this release is in the newest series (checked first: the installer
+#      must name this release's series and the keyring's SHA-256).
 #
 # release.yml calls it as a job of the same run, after the job that
 # uploads the artifact "release-files":
@@ -110,6 +113,26 @@ jobs:
             [ -f "roostack_${VERSION}_${arch}.deb" ] || { echo "roostack_${VERSION}_${arch}.deb is missing" >&2; exit 1; }
           done
 
+      # The installer is published at the end, for the newest series only
+      # (an older series' patch release leaves it alone). A release that
+      # starts a series must come with an installer naming it.
+      - name: Check the installer
+        run: |
+          suite=${VERSION%.*}
+          named=$(sed -n 's/^SUITE=${ROOSTACK_SUITE:-\(.*\)}$/\1/p' scripts/install.sh)
+          sha=$(sed -n 's/^KEY_SHA256=${ROOSTACK_KEY_SHA256:-\(.*\)}$/\1/p' scripts/install.sh)
+          want=$(gpg --batch --dearmor < packaging/keys/roostack-release.asc | sha256sum | cut -d' ' -f1)
+          [ "$sha" = "$want" ] ||
+            { echo "scripts/install.sh has the key SHA-256 $sha, but the keyring's is $want" >&2; exit 1; }
+          if [ "$named" = "$suite" ]; then
+            echo "INSTALLER=yes" >> "$GITHUB_ENV"
+          elif dpkg --compare-versions "$suite" gt "$named"; then
+            echo "scripts/install.sh names suite $named, but $VERSION starts series $suite: change its SUITE (docs/RELEASING.md)" >&2
+            exit 1
+          else
+            echo "INSTALLER=no" >> "$GITHUB_ENV"
+          fi
+
       - name: Import the signing subkey
         env:
           SIGNING_KEY: ${{ secrets.ROOSTACK_RELEASE_SIGNING_KEY }}
@@ -188,3 +211,20 @@ jobs:
           gpg --batch --dearmor < packaging/keys/roostack-release.asc > "$RUNNER_TEMP/roostack-archive-keyring.gpg"
           s3 s3 cp --no-progress --content-type application/pgp-keys \
             "$RUNNER_TEMP/roostack-archive-keyring.gpg" "$bucket/roostack-archive-keyring.gpg"
+
+      # Not locked (unlike pool/ and releases/): each new series replaces it.
+      - name: Publish the installer
+        if: env.INSTALLER == 'yes'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          . scripts/r2-put-once.sh
+          newest=$(grep -v '^#' "$RUNNER_TEMP/repo/series" | tail -1 | cut -d' ' -f1)
+          if [ "$newest" != "${VERSION%.*}" ]; then
+            echo "series $newest is newer: the installer stays as it is"
+            exit 0
+          fi
+          s3 s3 cp --no-progress --content-type text/plain scripts/install.sh "s3://$R2_BUCKET/install.sh"
