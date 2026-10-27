@@ -82,7 +82,6 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Later: HTTPS by IP address (Let's Encrypt IP certificates) for a cloud server's setup page (SPEC §6.3.2)
   - [ ] To discuss: serving the UI at `roost.<domain>` as an explicit choice instead of automatically, at home (SPEC §6.3.2 has the questions; on the internet it's decided)
   - [ ] **The release key's ceremony** (the Owner): held 2026-10-27 (docs/RELEASING.md, "Record"): the key, its subkey, the public key in `packaging/keys/roostack-release.asc`, the fingerprint in the help and on Cloud's get-started page. Left: the `release` environment (a required reviewer, tags `v*` only) with the secret `ROOSTACK_RELEASE_SIGNING_KEY`, once roostack/roostack is public
-  - [ ] The ceremony VM (QEMU, no network device or disk, Debian's live image, the ceremony scripted) was written for 2026-10-27 outside the repository; to decide with the Owner whether it belongs in `scripts/` for renewing the subkey and rotations
   - [ ] `registry.Status.NoRootKey` and the catalog's "no root key" message can't happen in a build from this repository now that `rootKeys` has a key; keep them (a fork, or a future empty list) or remove them
   - [ ] Pre-releases (`v1.2.0-rc.1`): the release workflow takes only `vMAJOR.MINOR.PATCH`; a Debian version would need `~rc.1` to sort before the release
 

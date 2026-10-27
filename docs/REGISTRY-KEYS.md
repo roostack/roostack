@@ -35,6 +35,61 @@ the old signing key is useless to anyone holding it.
   and Secrets).
 - About half an hour.
 
+## The ceremony VM
+
+The way it was done on 2026-10-27, both ceremonies (this one and the
+release key's, [RELEASING.md](RELEASING.md)) in one sitting, on the
+maintainer's own computer:
+
+```sh
+make build
+scripts/ceremony-vm.sh /dev/sdb /dev/sdc    # the two USB drives, unmounted
+```
+
+[scripts/ceremony-vm.sh](../scripts/ceremony-vm.sh) checks Debian's live
+image against Debian's CD signing keys and boots it in QEMU with **no
+network device and no disk of its own**, so the keys live only in the VM's
+RAM. The VM sees `bin/roostack`, [scripts/ceremony.sh](../scripts/ceremony.sh)
+and these two documents on a read-only disk, a small disk for what comes
+out, and the two USB drives, whole. Inside it, as the script says:
+
+```sh
+sudo mkdir -p /mnt/tools /mnt/out
+sudo mount -o ro LABEL=tools /mnt/tools
+sudo mount LABEL=out /mnt/out
+bash /mnt/tools/ceremony.sh
+```
+
+`ceremony.sh` asks for one passphrase (make it in your password manager
+first) and does steps 2–5 below and the release key's steps 1–5, printing
+each command. It writes an encrypted bundle of every private key and the
+revocation certificate to each USB drive, reads each copy back and opens
+it, and leaves the public halves (`public/`) and the two CI secrets
+(`to-github/`) on the out disk, which `ceremony-vm.sh` copies to
+`/dev/shm/roostack-ceremony/out` when the VM powers off. From there:
+step 6 here and the release key's step 6 (the secrets, then delete them),
+and steps 7, 8 and 11 here and the release key's 7 and 8 (the public
+halves, committed). Everything in `/dev/shm` goes at the next reboot.
+
+Things to know:
+
+- **A drive must have a filesystem** (FAT, exFAT or ext4), be unmounted,
+  and not ejected: an ejected drive shows 0 bytes until it's plugged in
+  again.
+- **What a VM doesn't cover:** malware on the host could read the VM's
+  memory. A live USB on the bare machine covers that too; the VM was
+  judged enough for a one-person project (SPEC.md §8.3.3).
+- **The later procedures** (a new signing key, renewing the release
+  subkey) are done by hand in the same VM: the docs are on its tools disk,
+  and the bundle opens from a USB drive with
+  `gpg -d roostack-offline-keys-*.tar.gpg | tar x`.
+- **To test the scripts** without making real keys: `QEMU_EXTRA` adds QEMU
+  options and replaces the window (e.g. `-display none -monitor
+  unix:mon.sock,server,nowait` to drive it, and `-drive`/`-device
+  usb-storage` lines for emulated drives on a second `qemu-xhci`), and
+  `ceremony.sh` runs on any machine with `CEREMONY_ALLOW_NETWORK=1`,
+  `OUT` and `W` set to scratch folders.
+
 ## The ceremony
 
 1. **Go offline.** Turn off Wi-Fi and unplug the network on the computer

@@ -226,7 +226,9 @@ through a release signed with the old one.
 
 ### The ceremony
 
-You need:
+The scripted way, in an offline VM together with the registry's keys, is
+in [REGISTRY-KEYS.md](REGISTRY-KEYS.md), "The ceremony VM"
+(`scripts/ceremony.sh` does steps 1–5 below). By hand, you need:
 
 - a Linux computer you trust that can go offline (a Debian live USB is
   good), with GnuPG 2.2 or newer;
