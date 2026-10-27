@@ -126,7 +126,7 @@ func waitUpdated(t *testing.T, m *Manager, name string) {
 // for the version *bad points at.
 func updateSetup(t *testing.T, m *Manager) (*chainBackups, *string) {
 	t.Helper()
-	m.Settings = linkKV{}
+	m.Settings = &memKV{m: map[string]string{}}
 	m.waits.healthWait, m.waits.healthStable, m.waits.healthEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond
 	m.waits.failedFor, m.waits.statusEvery = 100*time.Millisecond, 10*time.Millisecond
 	local := m.Node.(*node.Local)
@@ -224,7 +224,7 @@ func TestServiceUpdate(t *testing.T) {
 	t.Parallel()
 	m, _ := newManager(t)
 	ctx := context.Background()
-	m.Settings = linkKV{}
+	m.Settings = &memKV{m: map[string]string{}}
 	m.waits.healthWait, m.waits.healthStable, m.waits.healthEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond
 	m.waits.failedFor, m.waits.statusEvery = 100*time.Millisecond, 10*time.Millisecond
 	local := m.Node.(*node.Local)

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -24,15 +25,30 @@ import (
 )
 
 // fakePhotoAgent mounts nothing: the test puts the export there itself.
-type fakePhotoAgent struct{ mounted, unmounted []string }
+// The migration's goroutines call it, so its lists are read with calls.
+type fakePhotoAgent struct {
+	mu                 sync.Mutex
+	mounted, unmounted []string
+}
 
 func (f *fakePhotoAgent) MountPhotos(_ context.Context, service, who string, l agent.Library) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.mounted = append(f.mounted, service+" "+who+" "+l.Drive+"/"+l.Sub)
 	return filepath.Join(photoImportRoot, agent.PhotoSpotName(service, who)), nil
 }
 func (f *fakePhotoAgent) UnmountPhotos(_ context.Context, service, who string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.unmounted = append(f.unmounted, service+" "+who)
 	return nil
+}
+
+// lists returns copies of what was mounted and unmounted so far.
+func (f *fakePhotoAgent) lists() (mounted, unmounted []string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.mounted), slices.Clone(f.unmounted)
 }
 
 // fakePhotoUnits runs immich-go as a test would want it: its log written
@@ -143,11 +159,14 @@ func TestPhotoMigration(t *testing.T) {
 	lab := config.Lab{Paths: config.Paths{StateDir: filepath.Join(root, "state"), ServicesDir: filepath.Join(root, "srv"),
 		MediaDir: filepath.Join(root, "media")}}
 	ag, units, secrets := &fakePhotoAgent{}, &fakePhotoUnits{}, &memSecrets{m: map[string][]byte{}}
+	// ended is what OnPhotos was told, from the migration's goroutine.
+	var endedMu sync.Mutex
 	var ended []PhotoSummary
+	endedSoFar := func() []PhotoSummary { endedMu.Lock(); defer endedMu.Unlock(); return slices.Clone(ended) }
 	n := &Local{Lab: lab, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Activity: activity.New(),
 		State: &syncKV{m: map[string]string{}}, Secrets: secrets, Exec: immichAPI, Launch: photoLauncher,
 		PhotoAgent: ag, PhotoUnits: units,
-		OnPhotos: func(_ context.Context, s PhotoSummary) { ended = append(ended, s) }}
+		OnPhotos: func(_ context.Context, s PhotoSummary) { endedMu.Lock(); ended = append(ended, s); endedMu.Unlock() }}
 	p := immichPackage(t)
 	in := &instance.Instance{Package: "immich", Version: p.Version, Updates: "notify",
 		Routes:   map[string]instance.RouteOverride{"web": {Port: 20001}},
@@ -183,8 +202,8 @@ func TestPhotoMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	st := waitPhotos(t, n, func(s *PhotoState) bool { return !s.Scanning })
-	if st.Scan == nil || st.Scan.Photos != 2 || len(st.Scan.Parts) != 2 || len(ag.mounted) != 1 {
-		t.Fatalf("scan %+v, mounted %v", st.Scan, ag.mounted)
+	if mounted, _ := ag.lists(); st.Scan == nil || st.Scan.Photos != 2 || len(st.Scan.Parts) != 2 || len(mounted) != 1 {
+		t.Fatalf("scan %+v, mounted %v", st.Scan, mounted)
 	}
 	if p := st.Problems(); len(p) != 1 || !strings.HasPrefix(p[0], "Part 2 isn't here") {
 		t.Errorf("problems %q", p)
@@ -259,8 +278,17 @@ func TestPhotoMigration(t *testing.T) {
 	if _, kept := secrets.m["roostack-photos-immich-anna"]; kept || st.HasKey {
 		t.Error("the key is kept after the migration")
 	}
-	if len(ag.unmounted) != 1 || len(ended) != 1 || ended[0].Who != "anna" {
-		t.Errorf("unmounted %v, ended %v", ag.unmounted, ended)
+	// The export is unmounted and the controller told after the run's
+	// state is saved, so wait for both.
+	var unmounted []string
+	var told []PhotoSummary
+	testwait.For(t, 5*time.Second, func() bool {
+		_, unmounted = ag.lists()
+		told = endedSoFar()
+		return len(unmounted) == 1 && len(told) == 1
+	})
+	if told[0].Who != "anna" {
+		t.Errorf("unmounted %v, ended %v", unmounted, told)
 	}
 	v, _ := x.PhotoMigration(ctx, "immich", "anna")
 	if strings.Contains(v.Log, "key") || !strings.Contains(v.Log, "uploaded successfully file=takeout-001.zip:IMG_1.JPG") {

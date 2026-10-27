@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -137,9 +138,12 @@ func TestClosedForRoostackAdvisory(t *testing.T) {
 		}
 		audit = nil
 	}
-	ix := &registry.Index{}
-	m.RegistryIndex = func() (*registry.Index, error) { return ix, nil }
-	ix.Advisories = []*registry.Advisory{{ID: "2026-0009", Title: "Caddy lets anyone read any file.", Severity: registry.SeverityCritical,
+	// The index is swapped below while RegistryChanged's goroutine (which
+	// m.Wait doesn't wait for) may still read it.
+	var ix atomic.Pointer[registry.Index]
+	m.RegistryIndex = func() (*registry.Index, error) { return ix.Load(), nil }
+	ix.Store(&registry.Index{})
+	ix.Load().Advisories = []*registry.Advisory{{ID: "2026-0009", Title: "Caddy lets anyone read any file.", Severity: registry.SeverityCritical,
 		Exploited: true, Published: "2026-10-23", Roostack: &registry.RoostackAffected{Versions: []string{"0.4.0", "0.4.1"}, Fixed: "0.4.2"}}}
 	m.RegistryChanged()
 	m.Wait()
@@ -167,7 +171,7 @@ func TestClosedForRoostackAdvisory(t *testing.T) {
 		t.Fatalf("closed for it: %+v", c)
 	}
 	// The registry withdraws it (or Roostack was updated): open again.
-	ix = &registry.Index{}
+	ix.Store(&registry.Index{})
 	m.RegistryChanged()
 	m.Wait()
 	testwait.For(t, 5*time.Second, func() bool {

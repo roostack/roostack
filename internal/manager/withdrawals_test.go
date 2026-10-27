@@ -80,7 +80,7 @@ func TestRegistryStop(t *testing.T) {
 	m, _ := newManager(t)
 	m.waits.lastBackupCheck = 10 * time.Millisecond
 	ctx := context.Background()
-	m.Settings = linkKV{}
+	m.Settings = &memKV{m: map[string]string{}}
 	m.UpdateLab = func(func(*config.Lab)) error { return nil }
 	backups := &stopBackups{}
 	m.Node.(*node.Local).Jobs.Backups = backups

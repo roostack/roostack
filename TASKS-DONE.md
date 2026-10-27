@@ -486,6 +486,7 @@ The review of 2026-10-16 found no CI for either Go repository.
 - [x] CI running `make vet`, `go test ./...` with restic 0.18.0 (so the backup tests don't skip) and govulncheck on every pull request and push to `main` (`.github/workflows/ci.yml`, README "Continuous integration"); no secrets. Checked before the first run: actionlint clean, the suite passed on VM1 with its restic, govulncheck clear on Go 1.27.2
   - [x] Its first run on GitHub (2026-10-17, draft pull request Tyris/roostack#1): green in about 6 minutes; restic 0.18.0 used (the backup tests ran, `internal/backup` 149 s), govulncheck clear
 - [x] govulncheck weekly too, so a new advisory shows without waiting for a push (2026-10-18: a Monday schedule in ci.yml runs only that job)
+- [x] `go test -race ./...` passes (2026-10-28, before the first release): internal/cloud's three were already fixed; `TestPhotoMigration` (the fake agent and `OnPhotos` read under locks, and waited for), `TestEveryChecksTheClock` (the interval put back only after `Every` returns), `TestClosedForRoostackAdvisory` (the index swapped atomically) and the update and withdrawal tests (the locked `memKV` instead of the plain-map `linkKV`). All in tests; no race in the code itself
 
 ## Browser check of the review's pages (browser-check, 2026-10-17)
 

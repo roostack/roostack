@@ -71,21 +71,25 @@ func TestFileJournal(t *testing.T) {
 // after a suspend): it looks at the clock often, not once.
 func TestEveryChecksTheClock(t *testing.T) {
 	checkEvery = 10 * time.Millisecond
-	defer func() { checkEvery = time.Minute }()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	done := make(chan struct{})
+	// Every must have returned before checkEvery is put back: it reads it.
+	defer func() { cancel(); <-done; checkEvery = time.Minute }()
 	fired := make(chan time.Time, 3)
 	start := time.Now()
 	// The first time is already past (the machine slept through it): it
 	// fires at once, then each time after.
 	n := 0
-	go Every(ctx, func(now time.Time) time.Time {
-		n++
-		if n == 1 {
-			return start.Add(-time.Hour)
-		}
-		return now.Add(30 * time.Millisecond)
-	}, func() { fired <- time.Now() })
+	go func() {
+		defer close(done)
+		Every(ctx, func(now time.Time) time.Time {
+			n++
+			if n == 1 {
+				return start.Add(-time.Hour)
+			}
+			return now.Add(30 * time.Millisecond)
+		}, func() { fired <- time.Now() })
+	}()
 	for i := range 3 {
 		select {
 		case <-fired:
