@@ -51,25 +51,27 @@ func TestTokens(t *testing.T) {
 
 // A login naming no account costs as much as a wrong password, so timing
 // doesn't reveal which usernames exist: its hash has the same argon2
-// settings as every other. The timing check is loose and takes the
-// quickest of a few tries, so a busy machine pausing once doesn't fail it.
+// settings as every other. The timing check is loose, takes the quickest
+// of a few tries of each, and takes them in turn, so a busy machine (CI
+// runs other packages' tests beside this one) slows both alike rather
+// than only one kind's tries.
 func TestVerifyNoAccountTakesAsLong(t *testing.T) {
 	hash, _ := HashPassword("correct horse battery")
 	settings := func(h string) string { return strings.Split(h, "$")[3] }
 	if settings(noAccountHash()) != settings(hash) {
 		t.Fatalf("no account's hash uses %s, a password's %s", settings(noAccountHash()), settings(hash))
 	}
-	quickest := func(f func()) time.Duration {
-		best := time.Duration(1<<63 - 1)
-		for range 3 {
-			start := time.Now()
-			f()
-			best = min(best, time.Since(start))
-		}
-		return best
+	timed := func(f func()) time.Duration {
+		start := time.Now()
+		f()
+		return time.Since(start)
 	}
-	real := quickest(func() { VerifyPassword(hash, "wrong") })
-	if none := quickest(func() { VerifyNoAccount("wrong") }); none < real/2 {
+	real, none := time.Duration(1<<63-1), time.Duration(1<<63-1)
+	for range 5 {
+		real = min(real, timed(func() { VerifyPassword(hash, "wrong") }))
+		none = min(none, timed(func() { VerifyNoAccount("wrong") }))
+	}
+	if none < real/2 {
 		t.Errorf("no account took %v, a wrong password %v", none, real)
 	}
 }
