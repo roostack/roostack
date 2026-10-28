@@ -113,6 +113,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Updates: an update to a new image (the download first): still tried only with new versions of the same image
 - [ ] Updates: offer a fix on the installed line when the newest version is a major the policy doesn't take (the fetcher keeps only the newest version)
 - [ ] Updates: ask for a setting a new version requires (today such an update is blocked, with a sentence); `upgrade` hooks and migration steps (SPEC §8.1 Future)
+- [ ] Rebuilt images (found at the first Publish, 2026-10-28): projects rebuild the same version to patch its base OS and some delete the old digest (HedgeDoc's quay.io 1.12.0, fixed by hand as `1.12.0-roostack.3`). First step: the watcher, which already notices a vanished image, opens a pull request with the tag's new digest as a new revision when a pinned tag moves; part of the update bot below
 - [ ] Update bot in the registry: hourly upstream checks, pull requests, CI that installs and health-checks (and backs up and restores) each update, auto-merge for official patch releases (SPEC §8.3.8)
 - [ ] "Follow upstream" per service at patch or minor (SPEC §8.3.8): package `updates:` tag pattern, the resolved digest kept in the lab's state, health check and roll back to the previous image, the explanation where it's chosen; withdrawals by image digest
 - [ ] Registry settings (the Owner): create the team `@roostack/registry-maintainers`, and protect `main` (pull requests, the Publish check, reviews from code owners)
