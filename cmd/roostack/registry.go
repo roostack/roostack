@@ -30,6 +30,7 @@ Commands:
   watch     Read the sources of security problems and draft advisories (the registry's CI)
   images    List the packages' images, or those still without a bill of materials
   bom-check Compare the bills of materials with each package's built_with
+  updates   Find new app versions and rebuilt images, and write their revisions (the registry's CI)
 `
 
 func registryCmd(args []string) error {
@@ -52,6 +53,8 @@ func registryCmd(args []string) error {
 		return registryImages(args)
 	case "bom-check":
 		return registryBOMCheck(args)
+	case "updates":
+		return registryUpdates(args)
 	case "-h", "--help", "help":
 		fmt.Print(registryUsage)
 		return nil

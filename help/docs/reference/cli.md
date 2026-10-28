@@ -102,8 +102,11 @@ roostack registry check [-url URL]
 `check` fetches the [service registry's](../settings/updates.md#services-you-can-install)
 signed list as Roostack does, checks every signature and file, and prints
 what it found, without changing anything. The other `registry` commands
-(`keygen`, `delegate`, `index`) are for the registry's maintainers: they make
-its keys and build its signed list.
+are for the registry's maintainers and its automatic checks: `keygen`,
+`delegate` and `index` make its keys and build its signed list; `watch`,
+`images` and `bom-check` look for security problems in its apps; and
+`updates` finds new versions of its apps, and rebuilt images, and writes
+the new package versions for the registry's maintainers to review.
 
 ## Servers
 

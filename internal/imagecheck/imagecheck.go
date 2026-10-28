@@ -1,7 +1,9 @@
 // Package imagecheck asks container registries which processors an image
 // has builds for: the multi-architecture check run before a pin changes
 // (make check-images, ARM64-PLAN.md 1.3) and by the registry's CI for its
-// index (SPEC.md §8.3.3). Anonymous pulls only; no Podman needed.
+// index (SPEC.md §8.3.3); and, for the registry's update check (§8.3.8),
+// a repository's tags and the digest a tag points to now. Anonymous pulls
+// only; no Podman needed.
 package imagecheck
 
 import (
@@ -39,27 +41,9 @@ var ErrGone = errors.New("the image is gone from its registry")
 // its platforms as os/architecture. A digest that isn't an index is an error:
 // pins are of the index, so one pin works on every processor.
 func IndexPlatforms(registry, repo, digest string) ([]string, error) {
-	host := registry
-	if registry == "docker.io" {
-		host = "registry-1.docker.io"
-		if !strings.Contains(repo, "/") {
-			repo = "library/" + repo
-		}
-	}
-	u := "https://" + host + "/v2/" + repo + "/manifests/" + digest
-	resp, err := registryGet(u, "")
+	resp, err := ask(http.MethodGet, endpoint(registry, repo)+"/manifests/"+digest)
 	if err != nil {
 		return nil, err
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		resp.Body.Close()
-		token, err := registryToken(resp.Header.Get("WWW-Authenticate"))
-		if err != nil {
-			return nil, err
-		}
-		if resp, err = registryGet(u, token); err != nil {
-			return nil, err
-		}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
@@ -89,10 +73,136 @@ func IndexPlatforms(registry, repo, digest string) ([]string, error) {
 	return platforms, nil
 }
 
+// endpoint is a repository's API address: Docker Hub's API isn't at
+// docker.io, and its official images are under library/.
+func endpoint(registry, repo string) string {
+	host := registry
+	if registry == "docker.io" {
+		host = "registry-1.docker.io"
+		if !strings.Contains(repo, "/") {
+			repo = "library/" + repo
+		}
+	}
+	return scheme + "://" + host + "/v2/" + repo
+}
+
+// scheme is https; the tests' registries change it.
+var scheme = "https"
+
+// ask makes a request, logging in anonymously when the registry asks
+// (401 with a Bearer challenge).
+func ask(method, u string) (*http.Response, error) {
+	resp, err := registryDo(method, u, "")
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		resp.Body.Close()
+		token, err := registryToken(resp.Header.Get("WWW-Authenticate"))
+		if err != nil {
+			return nil, err
+		}
+		return registryDo(method, u, token)
+	}
+	return resp, nil
+}
+
+// Tags lists a repository's tags, following the registry's pages
+// (Link: <…>; rel="next").
+func Tags(registry, repo string) ([]string, error) {
+	base := endpoint(registry, repo)
+	next := base + "/tags/list?n=1000"
+	var tags []string
+	for next != "" {
+		resp, err := ask(http.MethodGet, next)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, fmt.Errorf("listing %s's tags: the registry answered %s", repo, resp.Status)
+		}
+		var page struct{ Tags []string }
+		err = json.NewDecoder(resp.Body).Decode(&page)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("listing %s's tags: %w", repo, err)
+		}
+		tags = append(tags, page.Tags...)
+		next = ""
+		if m := linkNext.FindStringSubmatch(resp.Header.Get("Link")); m != nil {
+			ref, err := url.Parse(m[1])
+			if err != nil {
+				return nil, err
+			}
+			b, _ := url.Parse(base)
+			next = b.ResolveReference(ref).String()
+		}
+	}
+	return tags, nil
+}
+
+var linkNext = regexp.MustCompile(`<([^>]+)>;\s*rel="?next"?`)
+
+// TagDigest is the digest a tag points to now (its image index's, for a
+// multi-arch image), by a HEAD request, which Docker Hub doesn't count
+// against its pull limit. ErrGone when the tag doesn't exist.
+func TagDigest(registry, repo, tag string) (string, error) {
+	resp, err := ask(http.MethodHead, endpoint(registry, repo)+"/manifests/"+tag)
+	if err != nil {
+		return "", err
+	}
+	resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return "", fmt.Errorf("%s:%s: %w", repo, tag, ErrGone)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("%s:%s: the registry answered %s", repo, tag, resp.Status)
+	}
+	d := resp.Header.Get("Docker-Content-Digest")
+	if !digestRe.MatchString(d) {
+		return "", fmt.Errorf("%s:%s: the registry gave no digest", repo, tag)
+	}
+	return d, nil
+}
+
+var digestRe = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
+// Ref is an image reference split into its parts; Digest may be "".
+type Ref struct{ Registry, Repo, Tag, Digest string }
+
+// String puts a Ref back together: registry/repo:tag@digest.
+func (r Ref) String() string {
+	s := r.Registry + "/" + r.Repo
+	if r.Tag != "" {
+		s += ":" + r.Tag
+	}
+	if r.Digest != "" {
+		s += "@" + r.Digest
+	}
+	return s
+}
+
+var refRe = regexp.MustCompile(`^([a-z0-9.-]+\.[a-z]+(?::[0-9]+)?)/([a-z0-9._/-]+?)(?::([\w.-]+))?(?:@(sha256:[0-9a-f]{64}))?$`)
+
+// ParseRef splits registry/repository[:tag][@sha256:…], as packages pin
+// images (with the registry's name always there).
+func ParseRef(s string) (Ref, error) {
+	m := refRe.FindStringSubmatch(s)
+	if m == nil {
+		return Ref{}, fmt.Errorf("%s isn't an image reference (registry/name:tag@sha256:…)", s)
+	}
+	return Ref{m[1], m[2], m[3], m[4]}, nil
+}
+
 var registryClient = &http.Client{Timeout: 30 * time.Second}
 
 func registryGet(u, token string) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	return registryDo(http.MethodGet, u, token)
+}
+
+func registryDo(method, u, token string) (*http.Response, error) {
+	req, err := http.NewRequest(method, u, nil)
 	if err != nil {
 		return nil, err
 	}
