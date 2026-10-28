@@ -132,6 +132,7 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [ ] Needs Roostack support, a session each: Frigate (and Viseron), Pi-hole, Home Assistant
 - [ ] Cal.diy: heavy, and its README says personal, non-production use; decide with the Owner
 - [ ] **Before go-live: every placeholder logo replaced** with the project's own, once its terms allow it or the project agrees (each package's file says why it has a placeholder)
+  - [ ] 16 replaced on 2026-10-28 (roostack/services, each registry.yaml says where from). Left: Ghost, HedgeDoc, PhotoPrism and Plex, whose terms ask for permission: ask each project, or keep the placeholder
 - [ ] **Media libraries** (design locked 2026-10-19 with a mock-up, SPEC §8.1 "Media libraries"): libraries per server (drive folder, share, or a folder on the server), chosen per service, read-only and not backed up, `ro,rslave`; "read as owner" through idmapped mounts
   - [ ] The move page naming libraries the service reads that its new server lacks
 - [ ] **Check ASSUMPTIONS I3 at the first MySQL or MariaDB pin change:** a service with real data, updated across the major version
