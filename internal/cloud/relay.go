@@ -99,9 +99,11 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 		return fmt.Errorf("connecting to Roostack Cloud's edges: %w", err)
 	}
 	s.mu.Lock()
-	s.st.Relay, s.st.Names = st, relay.Names
+	s.st.Relay = st
+	publicChanged := s.setNames(relay.Names)
 	err = s.save()
 	s.mu.Unlock()
+	s.publicChanged(publicChanged)
 	if cur != nil && !slices.Equal(cur.Relay.Edges, relay.Edges) {
 		s.edgesChanged()
 	}
@@ -211,11 +213,13 @@ func (s *Service) askRelayAgain(ctx context.Context, done string, ask func(*clou
 		s.mu.Unlock()
 		return errors.New("the relay changed meanwhile: try again")
 	}
-	s.st.Relay.Relay, s.st.Names = relay, relay.Names
+	s.st.Relay.Relay = relay
+	publicChanged := s.setNames(relay.Names)
 	s.st.Relay.Closed = req.Pause
 	s.log.Info("Roostack Cloud: the relay was " + done)
 	err = s.save()
 	s.mu.Unlock()
+	s.publicChanged(publicChanged)
 	if changed {
 		s.edgesChanged()
 	}
@@ -414,12 +418,13 @@ func (s *Service) refreshRelay(ctx context.Context) error {
 	cur.Relay.Domain, cur.Relay.Name = relay.Domain, relay.Name
 	paused := cur.Relay.Paused
 	cur.Relay.TurnedOff, cur.Relay.Suspended, cur.Relay.Paused = relay.TurnedOff, relay.Suspended, relay.Paused
-	s.st.Names = relay.Names
+	publicChanged := s.setNames(relay.Names)
 	changed := len(relay.Edges) > 0 && !slices.Equal(cur.Relay.Edges, relay.Edges) && s.WireGuard != nil
 	next := *cur
 	next.Relay.Edges = relay.Edges
 	err := s.save()
 	s.mu.Unlock()
+	s.publicChanged(publicChanged)
 	if err != nil {
 		return fmt.Errorf("saving how the relay stands: %w", err)
 	}

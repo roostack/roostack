@@ -145,6 +145,10 @@ func publicHostsOf(lab config.Lab, services []state.Service, old bool) []string 
 		hosts = append(hosts, caddy.StatusSubdomain+"."+lab.Domain)
 	}
 	for _, s := range services {
+		if lab.Public.Refused[s.Name()] != "" {
+			// Roostack Cloud won't carry it (cloudpublic.go).
+			continue
+		}
 		_, routes := generate.Values(lab, s.Package, s.Instance)
 		if rc, ok := routes[s.Package.SSORoute()]; ok && rc.Exposure == pkgspec.ExposurePublic && generate.SSOOn(lab, s.Package, s.Instance) {
 			// The sign-in page is public while a service using it is

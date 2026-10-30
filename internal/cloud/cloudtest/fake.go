@@ -107,6 +107,16 @@ type Fake struct {
 	// them 404, as a Cloud from before them does.
 	Reports   map[string]cloudapi.LabReport
 	NoReports bool
+	// Public is each lab's last word on what serves its public addresses
+	// (cloudapi.PublicHosts), by lab ID; NoPublic answers it 404, as a
+	// Cloud from before it does. As Cloud's rules (on by default):
+	// a roost.ac name only carries the registry's packages, and a package
+	// the registry flags needs approval, unless the account is Approved.
+	// PublicOpen turns both rules off.
+	Public     map[string]cloudapi.PublicHosts
+	NoPublic   bool
+	Approved   bool
+	PublicOpen bool
 	// NoKeep is a Cloud from before names were kept: KeepEarlier is
 	// ignored (the earlier name goes with the claim) and releasing
 	// answers 404. Released are the names the labs released, in order.
@@ -398,7 +408,7 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			reply(w, cloudapi.NameAvailability{Available: true})
 		}
 	case known && rt.Lab && !(rt.Path == cloudapi.PathLabReport && f.NoReports) && !(rt.Path == cloudapi.PathLabNameRelease && f.NoKeep) &&
-		!(rt.Path == cloudapi.PathLabNews && f.NoNews):
+		!(rt.Path == cloudapi.PathLabNews && f.NoNews) && !(rt.Path == cloudapi.PathLabPublic && f.NoPublic):
 		f.labAPI(w, r, rt)
 	case r.Method == http.MethodPost && (r.URL.Path == cloudapi.PathRestoreChallenge || r.URL.Path == cloudapi.PathRestoreAccess ||
 		r.URL.Path == cloudapi.PathRestoreRelink):
@@ -512,8 +522,16 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request, rt cloudapi.Route)
 	}
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLab:
-		reply(w, cloudapi.LabInfo{LabID: id, Account: f.Account, Suspended: f.SuspendedFor, Names: f.NameStates,
+		reply(w, cloudapi.LabInfo{LabID: id, Account: f.Account, Suspended: f.SuspendedFor, Names: f.labNames(id),
 			Recipients: f.recipients(id)})
+	case r.Method == http.MethodPut && r.URL.Path == cloudapi.PathLabPublic:
+		var req cloudapi.PublicHosts
+		json.NewDecoder(r.Body).Decode(&req)
+		if f.Public == nil {
+			f.Public = map[string]cloudapi.PublicHosts{}
+		}
+		f.Public[id] = req
+		reply(w, cloudapi.PublicAnswer{Names: f.publicNames(id)})
 	case r.Method == http.MethodPut && r.URL.Path == cloudapi.PathLabReport:
 		var req cloudapi.LabReport
 		json.NewDecoder(r.Body).Decode(&req)
@@ -556,14 +574,14 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request, rt cloudapi.Route)
 			f.RelayPaused = time.Time{}
 		}
 		f.RelayClosed = req.Pause
-		reply(w, f.relay(req))
+		reply(w, f.relay(id, req))
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabRelay:
 		req, ok := f.Relayed[id]
 		if !ok {
 			fail(w, http.StatusNotFound, "This lab isn't relayed.")
 			return
 		}
-		reply(w, f.relay(req))
+		reply(w, f.relay(id, req))
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabNews:
 		reply(w, cloudapi.News{Registry: f.Registry})
 	case r.Method == http.MethodDelete && r.URL.Path == cloudapi.PathLabRelay:
@@ -857,12 +875,44 @@ func Start(t testing.TB) (*Fake, config.Cloud) {
 	return f, config.Cloud{URL: srv.URL, CAFile: ca}
 }
 
+// labNames are what the lab is told about its names: NameStates, and the
+// public addresses the fake won't carry for what serves them (f.mu held).
+func (f *Fake) labNames(id string) []cloudapi.NameStatus {
+	return append(slices.Clone(f.NameStates), f.publicNames(id)...)
+}
+
+// PublicReason is what the fake says about an address it won't carry for
+// what serves it.
+const PublicReason = "Roostack Cloud will allow it once your account is approved."
+
+// publicNames are the lab's public addresses the fake won't carry, as
+// Cloud's rules say (Public; f.mu held).
+func (f *Fake) publicNames(id string) []cloudapi.NameStatus {
+	if f.Approved || f.PublicOpen {
+		return nil
+	}
+	var out []cloudapi.NameStatus
+	for _, h := range f.Public[id].Hosts {
+		n := cloudapi.NameStatus{Host: h.Host, Reason: PublicReason}
+		switch {
+		case h.Kind == cloudapi.HostOwn && strings.HasSuffix(h.Host, "."+f.NameSuffix):
+			n.State = cloudapi.NameOwnPackage
+		case h.Kind == cloudapi.HostRegistry && h.Approval:
+			n.State = cloudapi.NameNeedsApproval
+		default:
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
 // relay is the fake's answer to a relay request: its edges, a relay name,
 // and the own domain's proof (verified as DomainVerified says).
-func (f *Fake) relay(req cloudapi.RelayRequest) cloudapi.Relay {
+func (f *Fake) relay(id string, req cloudapi.RelayRequest) cloudapi.Relay {
 	r := cloudapi.Relay{Addr: "100.81.1.1", Prefix: 16, Name: "r-test.relay.roost.test", Edges: []cloudapi.RelayEdge{{Name: "syd-1",
 		Endpoint: "198.51.100.10:51830", PublicKey: "ZWRnZWVkZ2VlZGdlZWRnZWVkZ2VlZGdlZWRnZWVkZ2U=", Addr: "100.81.0.1",
-		PublicIPv4: "198.51.100.10"}}, TurnedOff: f.RelayOff, Suspended: f.RelaySuspended, Names: f.NameStates, Registry: f.Registry,
+		PublicIPv4: "198.51.100.10"}}, TurnedOff: f.RelayOff, Suspended: f.RelaySuspended, Names: f.labNames(id), Registry: f.Registry,
 		Paused: f.RelayPaused}
 	if f.RelayEdges != nil {
 		r.Edges = f.RelayEdges

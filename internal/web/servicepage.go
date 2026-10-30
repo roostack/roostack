@@ -105,6 +105,13 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			data["Access"] = access
 			// Its addresses wait for its setup (SPEC.md §8.1).
 			data["PublicAfterSetup"] = slices.ContainsFunc(access, func(a manager.RouteAccess) bool { return a.AfterSetup })
+			// Kept private because Roostack Cloud doesn't allow its public
+			// access through roost.ac (SPEC.md §6.11).
+			if s.CloudLimit != nil {
+				if c := s.CloudLimit(name); c != nil && c.State != "" {
+					data["CloudKept"] = c
+				}
+			}
 			if v := s.wafCard(r.Context(), access); v != nil {
 				data["WAF"] = v
 			}

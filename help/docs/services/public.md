@@ -170,6 +170,41 @@ someone who visits on several days counts once each day.
     every 5 minutes, at most 1,000; the edges drop them an hour after the
     last time, if the lab goes quiet.
 
+## What Roostack Cloud allows through roost.ac
+
+A **free roost.ac name** only gives public access to services from the
+**service registry**: if you've added a package of your own, its service
+will stay private on a roost.ac name. A few registry services that anyone
+can upload anything to, such as Zipline, are a favourite for hiding phishing,
+so Roostack Cloud only allows public access for them through roost.ac names
+and the relay for **approved accounts**. The service registry flags those, and
+says why.
+
+If you make one of these public, its page will say **Kept private** and why,
+and so will Home. Your choice stands: Roostack will make it public by itself
+as soon as Roostack Cloud allows it. To ask for approval, write to the address
+the page gives.
+
+**Your own domain isn't limited**, as long as visitors don't come through
+Roostack Cloud's relay: it's your lab. Through the relay, your own domain
+can have services from your own packages, but the services the registry
+flags still need approval.
+
+??? note "For technical users"
+
+    Whenever its public addresses change, and once a day, your lab tells
+    Roostack Cloud what serves each address that comes through its roost.ac
+    name or the relay: the registry package's name and whether the registry
+    flags it, or only that a package is your own, never its name. Roostack
+    Cloud answers with those it doesn't allow, leaves them out of roost.ac's
+    DNS and the relay, and Roostack keeps them private in your lab too
+    (reachable from your home network or VPN). Until Roostack Cloud has
+    answered for a new address that it might not allow, the address stays
+    private, usually for a few seconds.
+
+    It's your lab's own say: a changed Roostack could say anything, so
+    Roostack Cloud will also check public addresses from outside.
+
 ## If it doesn't work
 
 If the check link doesn't open, look at these in order. The page ticks the

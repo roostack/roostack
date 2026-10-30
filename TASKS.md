@@ -286,6 +286,13 @@ What every repeating job in Roostack, Cloud, and the registry asks of shared ser
 - [x] Roostack Cloud backup's 12-hour keys could run out during a long upload, and a 403 then counted as a failure that needs someone: keys are renewed once they're an hour old, and a command that fails once its keys have run out runs again at once with new ones (SPEC §6.9, docs/ASSUMPTIONS.md N10)
 - [ ] Left: the watcher's feeds have no conditional requests (CISA's list is over 1 MB an hour), which needs somewhere to keep their ETags; logging in to Docker Hub in the registry's workflows if they meet its anonymous limit; the edges' config could carry a version so that an unchanged pull costs nothing
 
+## roost.ac names policy (SPEC §6.11, "Roostack Cloud's names and relay"; built 2026-10-30)
+
+- [x] The registry's `roost_ac` flag, the lab's report to Cloud (`PUT /v1/lab/public`), services Cloud doesn't allow kept private, and the pages (mock-up approved 2026-10-30). Cloud's side is on its own branch.
+- [ ] The registry repository: document `roost_ac` in its README and `registry.yaml` docs, and flag Zipline when its package lands.
+- [ ] Public ports (not web routes) of a refused service aren't limited: only names and the relay are. Look again if a flagged package ever has a public port.
+- [ ] Cloud's outside checker recognising upload hosts and comparing what answers with the package a lab declared (the review's item 9).
+
 ## To discuss with the user
 
 Nothing at the moment.

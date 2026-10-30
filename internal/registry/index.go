@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -112,14 +113,48 @@ type Index struct {
 // version's, so the website and the catalog can list packages without
 // fetching every file (SPEC.md §8.3.6).
 type Package struct {
-	Title       string              `json:"title"`
-	Description string              `json:"description"`
-	Tier        string              `json:"tier"`
-	Maintainers []string            `json:"maintainers"`
-	Categories  []string            `json:"categories,omitempty"`
-	Icon        *File               `json:"icon,omitempty"`
-	Withdrawn   *Withdrawal         `json:"withdrawn,omitempty"`
-	Versions    map[string]*Version `json:"versions"`
+	Title       string      `json:"title"`
+	Description string      `json:"description"`
+	Tier        string      `json:"tier"`
+	Maintainers []string    `json:"maintainers"`
+	Categories  []string    `json:"categories,omitempty"`
+	Icon        *File       `json:"icon,omitempty"`
+	Withdrawn   *Withdrawal `json:"withdrawn,omitempty"`
+	// RoostAc limits Roostack Cloud's roost.ac names and relay for the
+	// package's services (nil: no limit; older indexes have none).
+	RoostAc  *RoostAc            `json:"roost_ac,omitempty"`
+	Versions map[string]*Version `json:"versions"`
+}
+
+// RoostAc is the registry's maintainers limiting how Roostack Cloud
+// carries a package's services (Cloud's DESIGN §5): Approval, the reason,
+// says they're public through a roost.ac name or Cloud's relay only for an
+// account Cloud has approved, as a package that's a risk to Cloud as a
+// service provider (Zipline's public hosting of anything uploaded, say).
+// In registry.yaml, so a package's author can't remove it and it can
+// change without a new version. The Owner's own domain without the relay
+// is never limited: it's their lab.
+type RoostAc struct {
+	Approval string `json:"approval" yaml:"approval"`
+}
+
+// NeedsApproval is the reason the package needs Cloud's approval for
+// roost.ac names and the relay ("": it doesn't).
+func (p *Package) NeedsApproval() string {
+	if p == nil || p.RoostAc == nil {
+		return ""
+	}
+	return p.RoostAc.Approval
+}
+
+func (r *RoostAc) check() error {
+	if r == nil {
+		return nil
+	}
+	if strings.TrimSpace(r.Approval) == "" || strings.ContainsAny(r.Approval, "\r\n") {
+		return errors.New("roost_ac: approval needs its reason, on one line")
+	}
+	return nil
 }
 
 // File is a file the index vouches for by its SHA-256.
@@ -225,6 +260,9 @@ func (ix *Index) Check() error {
 			errs = append(errs, fmt.Errorf("%s: tier %q", name, p.Tier))
 		}
 		if err := p.Withdrawn.check(); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", name, err))
+		}
+		if err := p.RoostAc.check(); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", name, err))
 		}
 		if p.Icon != nil {

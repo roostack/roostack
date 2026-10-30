@@ -1,0 +1,85 @@
+<!doctype html><html lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+  <title>roost.ac names policy · Roostack (mock-up)</title>
+  <link rel="icon" href="/internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/internal/web/static/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" href="/internal/web/static/apple-touch-icon.png">
+  <link rel="preload" href="/internal/web/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/tokyo-night.css">
+  
+  <link rel="stylesheet" href="/internal/web/static/css/app.css">
+    <style>
+  .mock-label { font: 600 0.8rem/1.2 var(--font-mono, monospace); text-transform: uppercase; letter-spacing: .06em; color: var(--fg-muted); margin: var(--space-7, 2.5rem) 0 var(--space-3, .75rem); }
+  .mock-label:first-of-type { margin-top: 0; }
+  main.page { max-width: 52rem; margin: 0 auto; padding: var(--space-6, 2rem) 16px; }
+  .registry-says { margin: var(--space-3) 0; padding-left: var(--space-3); border-left: 2px solid var(--edge-strong); }
+</style>
+</head>
+
+<body>
+<main class="page">
+<h1>roost.ac names policy: what Owners will see (mock-up, 2026-10-30)</h1>
+<p class="hint">Smiths' lab is on <code>smiths.roost.ac</code>. It runs Zipline (flagged by the registry as needing approval) at <code>shots.smiths.roost.ac</code>, and Notes, from one of the Owner's own packages, at <code>notes.smiths.roost.ac</code>. The account isn't approved. Proposed wording follows the 2026-10-22 rules; sentences in <em>italics</em> are Roostack Cloud's own (its answer's reason); "carry" isn't used (the maintainer, 2026-10-30), shown as Cloud sends them.</p>
+
+<p class="mock-label">1 · Home: Needs attention</p>
+<section class="attention"><ul>
+  <li class="item notice notice-warn"><span class="item-text"><strong>Zipline is staying private: Roostack Cloud only allows public access for it through roost.ac for approved accounts.</strong><span>Roostack will make shots.smiths.roost.ac public by itself once your account is approved.</span></span><a class="button secondary small" href="#zipline">Why</a></li>
+  <li class="item notice notice-warn"><span class="item-text"><strong>Notes is staying private: Roostack Cloud only allows public access through free roost.ac names for services from the registry, and Notes is from one of your own packages.</strong><span>Roostack will make notes.smiths.roost.ac public by itself once your account is approved, or you can use your own domain.</span></span><a class="button secondary small" href="#notes">Why</a></li>
+</ul></section>
+
+<p class="mock-label" id="zipline">2 · Zipline → Public access (its address is kept private)</p>
+<section class="card medium">
+  <div class="heading"><h1>Who can reach shots.smiths.roost.ac</h1><span class="badge badge-warn">Kept private</span></div>
+  <p class="notice notice-warn" role="status">You made this address public, but it's staying private: Roostack Cloud only allows public access for Zipline through roost.ac and its relay for approved accounts. <em>Roostack Cloud will allow it once your account is approved: write to hello@roostack.cloud to ask.</em></p>
+  <p>The service registry's reason:</p>
+  <blockquote class="registry-says">Anything uploaded to it can have a public link, and its short links can lead anywhere, so it's a favourite for hiding phishing.</blockquote>
+  <p>Roostack will make it public by itself as soon as Roostack Cloud allows it, and until then only your home network (or VPN) can open it.
+    Your own domain isn't limited, as long as visitors don't come through Roostack Cloud's relay: <a href="#">Your lab's address</a>.</p>
+  <details class="technical"><summary>How Roostack knows</summary>
+    <p>Whenever its public addresses change, and once a day, the lab tells Roostack Cloud what serves each address that comes through its roost.ac name or the relay: the registry package's name and whether the registry flags it, or only that a package is your own, never its name. Roostack Cloud answers with those it doesn't allow, leaves them out of roost.ac's DNS and its relay, and Roostack keeps them private here. Last answer: today at 09:14.</p></details>
+  <button type="button" class="quiet danger">Make private</button>
+</section>
+
+<p class="mock-label" id="notes">3 · Notes → Public access (one of the Owner's own packages)</p>
+<section class="card medium">
+  <div class="heading"><h1>Who can reach notes.smiths.roost.ac</h1><span class="badge badge-warn">Kept private</span></div>
+  <p class="notice notice-warn" role="status">You made this address public, but it's staying private: Roostack Cloud only allows public access through free roost.ac names for services from the registry, and Notes is from one of your own packages. <em>Roostack Cloud will allow it once your account is approved: write to hello@roostack.cloud to ask.</em></p>
+  <p>Roostack will make it public by itself as soon as Roostack Cloud allows it. On your own domain it can be public now, through your router or Roostack Cloud's relay: <a href="#">Your lab's address</a>.</p>
+</section>
+
+<p class="mock-label">4 · Before making Zipline public (the form, on a roost.ac name)</p>
+<section class="card medium">
+  <div class="heading"><h1>Who can reach shots.smiths.roost.ac</h1><span class="badge">Private</span></div>
+  <p>Right now only devices on your home network (or VPN) can open it.</p>
+  <p class="notice" role="status">Roostack Cloud only allows public access for Zipline through roost.ac for approved accounts, so if yours isn't approved, this address will stay private after you make it public, and Roostack will make it public by itself once it's approved.</p>
+  <button type="button">Make public</button>
+</section>
+
+<p class="mock-label">5 · While Roostack Cloud hasn't answered yet (seconds, or until it can be reached)</p>
+<section class="card medium">
+  <div class="heading"><h1>Who can reach shots.smiths.roost.ac</h1><span class="badge badge-warn">Kept private</span></div>
+  <p class="notice" role="status">Roostack is asking Roostack Cloud whether it allows public access for this address, and it's staying private until Roostack Cloud answers, because Roostack Cloud only allows public access for Zipline through roost.ac for approved accounts.</p>
+</section>
+
+<p class="mock-label">6 · Settings → Public access: the list of public services</p>
+<section class="card">
+  <div class="table-wrap"><table class="list"><tr><th>Service</th><th>Public access</th></tr>
+    <tr><td>Immich<br><small class="hint">photos.smiths.roost.ac</small></td><td>Public</td></tr>
+    <tr><td>Zipline<br><small class="hint">shots.smiths.roost.ac</small></td><td>Kept private until your account is approved</td></tr>
+    <tr><td>Notes<br><small class="hint">notes.smiths.roost.ac</small></td><td>Kept private until your account is approved</td></tr>
+  </table></div>
+</section>
+</main>
+</body></html>

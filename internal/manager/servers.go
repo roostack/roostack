@@ -285,8 +285,15 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	if len(advised) > 0 {
 		pause.Advised = advised
 	}
+	// Services Roostack Cloud won't carry through the lab's roost.ac name
+	// or its relay (cloudpublic.go), worked out now and kept private,
+	// never saved; Cloud is told what's public now, and its answer applies
+	// again if it changes them.
+	refused := m.cloudRefused(services)
+	m.refused.Store(&refused)
+	m.sendCloudPublic()
 	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked,
-		StatusPage: m.StatusPageOn(), Pause: pause}
+		StatusPage: m.StatusPageOn(), Pause: pause, Refused: refused}
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
 		nodes = append(nodes, r)

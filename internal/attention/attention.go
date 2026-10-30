@@ -137,6 +137,12 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 		}
 		lab.cloudStanding(&l)
 	}
+	// Services kept private because Roostack Cloud doesn't allow their
+	// public access through roost.ac (SPEC.md §6.11): the Owner's to
+	// deal with (approval, or their own domain).
+	if owner {
+		lab.cloudRefused(&l)
+	}
 	// No list from the service registry for a while (SPEC.md §8.3.3).
 	if owner {
 		lab.registry(&l)

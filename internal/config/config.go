@@ -255,7 +255,19 @@ type Public struct {
 	// of a security problem in a public service (SPEC.md §6.16): tell,
 	// exploited (the default, when empty) or critical (AdvisoriesTell…).
 	Advisories string `yaml:"advisories,omitempty"`
+	// Refused are the services whose public addresses Roostack Cloud
+	// won't carry through the lab's roost.ac name or its relay, by name,
+	// each with why (a cloudapi name state, or RefusedChecking): they
+	// stay private, as if the Owner hadn't made them public (SPEC.md
+	// §6.11, "Roostack Cloud's names and relay"). Worked out by the
+	// controller from Cloud's last answer for each assignment, and sent
+	// to every server, never saved.
+	Refused map[string]string `yaml:"-" json:"refused,omitempty"`
 }
+
+// RefusedChecking is a service in Public.Refused that waits for Roostack
+// Cloud's answer: one it may refuse, kept private until it's said.
+const RefusedChecking = "checking"
 
 // What Roostack does about the service registry's security advisories
 // (Public.Advisories, SPEC.md §6.16). Only critical ones (usable by anyone

@@ -646,3 +646,34 @@ func TestBuildImageGone(t *testing.T) {
 		t.Errorf("the newest version's image gone: %v", err)
 	}
 }
+
+// registry.yaml's roost_ac flag (Cloud's DESIGN §5) goes into the signed
+// index, where a lab reads it, and needs its reason.
+func TestBuildRoostAc(t *testing.T) {
+	r := newTestRegistry(t)
+	r.write("packages/forgejo/registry.yaml", "tier: official\nmaintainers: [roostack]\nroost_ac:\n  approval: \"\"\n")
+	if _, err := r.tryBuild(r.signing); err == nil || !strings.Contains(err.Error(), "approval needs its reason") {
+		t.Errorf("got %v", err)
+	}
+	r.write("packages/forgejo/registry.yaml", "tier: official\nmaintainers: [roostack]\nroost_ac:\n  approval: It hosts anything uploaded.\n")
+	r.build()
+	dir := t.TempDir()
+	f := r.fetcher(dir)
+	if err := f.Fetch(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	listing, err := f.Listing()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := listing["forgejo"].NeedsApproval(); got != "It hosts anything uploaded." {
+		t.Errorf("forgejo needs approval %q", got)
+	}
+	if got := listing["vaultwarden"].NeedsApproval(); got != "" {
+		t.Errorf("vaultwarden needs approval %q", got)
+	}
+	ix := &Index{Type: TypeIndex, Format: 1, Serial: 1, Date: time.Now(), Packages: map[string]*Package{"forgejo": {Tier: TierOfficial, RoostAc: &RoostAc{Approval: "a\nb"}}}}
+	if err := ix.Check(); err == nil || !strings.Contains(err.Error(), "on one line") {
+		t.Errorf("an index with a two-line reason: %v", err)
+	}
+}

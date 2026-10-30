@@ -156,6 +156,22 @@ func (s *Server) renderPublic(w http.ResponseWriter, r *http.Request, formErr st
 			data["Edge"] = e
 		}
 	}
+	// Roostack Cloud's limit on its public access through roost.ac
+	// (SPEC.md §6.11): kept private now, with Cloud's own reason, or a
+	// word before it's made public.
+	if s.CloudLimit != nil {
+		if c := s.CloudLimit(r.PathValue("name")); c != nil {
+			data["Limit"] = c
+			data["Kept"] = ra.Public && slices.Contains(c.Hosts, ra.Host)
+			if s.Cloud != nil {
+				for _, n := range s.Cloud.Status().Names {
+					if n.Host == ra.Host {
+						data["CloudReason"] = n.Reason
+					}
+				}
+			}
+		}
+	}
 	if ra.Public {
 		data["Protected"] = s.Protected != nil && s.Protected(r.Context())
 		data["Check"] = s.lastCheck(r.Context(), ra.Host)
@@ -313,6 +329,11 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 	data["SharingAsked"], data["Share"] = asked, share
 	hosts := s.Manager.PublicHosts()
 	data["Hosts"] = hosts
+	// Services kept private because Roostack Cloud doesn't allow their
+	// public access through roost.ac (SPEC.md §6.11).
+	if s.CloudRefusals != nil {
+		data["Kept"] = s.CloudRefusals()
+	}
 	// How visitors come in: port forwarding at home, or through a cloud
 	// server in the lab (SPEC.md §10.5). A lab on the internet is reached
 	// directly.
