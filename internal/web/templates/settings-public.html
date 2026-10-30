@@ -28,11 +28,10 @@
   {{with .Kept}}
   <h2>Kept private</h2>
   <p class="hint">You made these public, but Roostack Cloud only allows their public access through roost.ac for approved accounts, so they're staying private for now.</p>
-  <div class="table-wrap"><table class="list">
-    <thead><tr><th>Service</th><th>Public access</th></tr></thead>
-    <tbody>{{range .}}<tr><td><a href="/services/{{.Name}}/public/{{.Route}}">{{.Title}}</a>{{range .Hosts}}<br><small class="hint">{{.}}</small>{{end}}</td>
-      <td>{{if or (eq .State "own_package") (eq .State "needs_approval")}}Kept private until your account is approved{{else}}Kept private while Roostack asks Roostack Cloud{{end}}</td></tr>{{end}}</tbody>
-  </table></div>
+  <ul class="plain">{{range .}}
+    <li><a href="/services/{{.Name}}/public/{{.Route}}"><strong>{{.Title}}</strong></a>{{range .Hosts}} <code>{{.}}</code>{{end}}<br>
+      <small class="hint">{{if or (eq .State "own_package") (eq .State "needs_approval")}}Kept private until your account is approved{{else}}Kept private while Roostack asks Roostack Cloud{{end}}</small></li>
+  {{end}}</ul>
   {{end}}
 </section>
 {{with .Pauses}}{{if or .Closed .All .BuiltWith .PausedServices}}
