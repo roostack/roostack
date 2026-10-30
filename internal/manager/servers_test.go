@@ -41,6 +41,15 @@ type fakeRemote struct {
 	backups node.Backups
 	// arch is its processor ("": it doesn't say; arch_test.go).
 	arch string
+	// setup is what it says of every service's install hooks
+	// (setup_test.go).
+	setup node.HookStatus
+}
+
+func (f *fakeRemote) InstallStatus(context.Context, string) node.HookStatus {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.setup
 }
 
 func (f *fakeRemote) Arch() string {

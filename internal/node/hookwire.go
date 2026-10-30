@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"slices"
 )
 
 // Package hooks (hooks.go) on the lab API: a service's setup, its actions
@@ -27,6 +28,15 @@ func (r *Remote) InstallStatus(ctx context.Context, service string) HookStatus {
 		return HookStatus{Failed: err.Error()}
 	}
 	return st
+}
+
+// SetUpWaiting says whether the server is still to be handed a set-up
+// of the service (Assignment.SetUp): until then, what it says about its
+// setup is about an earlier one.
+func (r *Remote) SetUpWaiting(service string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.latest != nil && slices.Contains(r.latest.SetUp, service)
 }
 
 func (r *Remote) RetryInstall(ctx context.Context, service string) error {

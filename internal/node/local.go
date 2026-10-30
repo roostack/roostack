@@ -241,6 +241,10 @@ type Local struct {
 	Exec    ExecFunc
 	// HookRetry and HookDeadline tune install hook retries (0: defaults).
 	HookRetry, HookDeadline time.Duration
+	// SetUpDone, on the controller, is told when a service's install hooks
+	// have succeeded, so its addresses waiting for setup can be public
+	// (manager.Manager.SetUpDone, SPEC.md §8.1).
+	SetUpDone func(service string)
 
 	// Jobs are the server's backups, restores and OS updates.
 	Jobs Maintenance

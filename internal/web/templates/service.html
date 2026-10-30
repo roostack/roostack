@@ -206,6 +206,8 @@
     {{else}}<p><strong>Installing {{$.Service.Title}}.</strong> This usually takes a few minutes. You can leave this page: it will carry on,
       and the Services page shows how far it's got.</p>{{end}}
     {{template "install-steps" .}}
+    {{if and $.PublicAfterSetup (not .Failed)}}<p class="hint">Roostack is keeping {{$.Service.Title}} private until setup has finished,
+      since some apps belong to whoever reaches them first until they're set up, and it will be public as soon as setup has finished.</p>{{end}}
   </div>
   {{with $.InstallActivity}}
   <details class="activity-details">
@@ -219,11 +221,15 @@
   {{/* Polls this page but swaps only this notice, so forms aren't reset. */}}
   <p id="setup-status" class="notice" role="status" hx-get="/services/{{$.Service.Name}}" hx-trigger="every 5s"
     hx-select="#setup-status" hx-swap="outerHTML">
-    Finishing setup (for example, creating the administrator account). This can take a few minutes after installing.</p>
+    Finishing setup (for example, creating the administrator account). This can take a few minutes after installing.
+    {{- if $.PublicAfterSetup}} Roostack is keeping {{$.Service.Title}} private until then, since some apps belong to whoever reaches them first
+    until they're set up, and it will be public as soon as setup has finished.{{end}}</p>
   {{else if .Failed}}
   <div id="setup-status" class="notice notice-error" role="alert">
     <p><strong>Setup didn't finish.</strong> {{$.Service.Title}} is running, but a setup step failed:</p>
     <pre class="output">{{.Failed}}</pre>
+    {{if $.PublicAfterSetup}}<p>Roostack will keep {{$.Service.Title}} private until setup has finished, since some apps belong to whoever
+      reaches them first until they're set up.</p>{{end}}
     <form method="post" action="/services/{{$.Service.Name}}/setup/retry"><button type="submit">Try again</button></form>
     {{with $.InstallFields}}
     <details{{if $.RetryError}} open{{end}}>
@@ -256,7 +262,8 @@
         {{- else if eq $.Service.Status "awaiting-data"}}<span class="address-pending">{{.}}</span> <small class="hint">· ready once its data is in</small>
         {{- else}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>
         {{- with $.Old}}{{with .URL $u}}<br><small class="hint">Until {{date $.Old.Until}} also at its old address, {{.}}</small>{{end}}{{end}}{{end}}</dd>{{end}}
-      {{if not .Service.NoAddress}}{{range .Access}}<dt>Reachable from</dt><dd>{{if .Public}}{{if and $.PublicService $.PublicService.Paused}}Home only for now: <a href="{{if $.PublicService.Advisory}}#advisory{{else}}#paused{{end}}">public access is paused</a>{{else}}Anyone on the internet{{end}}{{else}}{{template "private-where" $.Internet}}{{end}}{{if gt (len $.Access) 1}} <small>({{.Host}})</small>{{end}}
+      {{if not .Service.NoAddress}}{{range .Access}}<dt>Reachable from</dt><dd>{{if .AfterSetup}}{{if $.Internet}}Only through an SSH tunnel{{else}}Home only{{end}} for now:
+        <a href="#{{if $.Service.Install}}install{{else}}setup{{end}}-status">it will be public once setup has finished</a>{{else if .Public}}{{if and $.PublicService $.PublicService.Paused}}Home only for now: <a href="{{if $.PublicService.Advisory}}#advisory{{else}}#paused{{end}}">public access is paused</a>{{else}}Anyone on the internet{{end}}{{else}}{{template "private-where" $.Internet}}{{end}}{{if gt (len $.Access) 1}} <small>({{.Host}})</small>{{end}}
         {{- if $.IsOwner}} · <a href="/services/{{$.Service.Name}}/public/{{.Route}}">{{if .Public}}Public access…{{else}}Make public…{{end}}</a>{{end}}</dd>
       {{else}}<dt>Reachable from</dt><dd>{{template "private-where" $.Internet}}</dd>{{end}}{{end}}
       {{with .Service.Server}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}

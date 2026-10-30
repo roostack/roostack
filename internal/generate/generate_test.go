@@ -170,6 +170,57 @@ func TestPaused(t *testing.T) {
 	paused(t, testLab(), in, true)
 }
 
+// A service whose install hooks haven't succeeded keeps its public
+// addresses and ports private (SPEC.md §8.1, "Public addresses wait for
+// setup"), and says what it will make public.
+func TestPublicAfterSetup(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("forgejo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "forgejo-sso.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	on := true
+	in.Routes["web"] = instance.RouteOverride{Port: in.Routes["web"].Port, Exposure: pkgspec.ExposurePublic}
+	in.Ports = map[string]instance.PortOverride{"ssh": {Enabled: &on, Exposure: pkgspec.ExposurePublic}}
+	check := func(settingUp bool) {
+		t.Helper()
+		in.SettingUp = settingUp
+		out, err := Service(testLab(), p, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		site := out.CaddySite.Content
+		if got := strings.Contains(site, "abort @forgejo-web-external"); got != settingUp {
+			t.Errorf("private route = %v, want %v:\n%s", got, settingUp, site)
+		}
+		wantExposure := map[bool]string{true: pkgspec.ExposurePrivate, false: pkgspec.ExposurePublic}[settingUp]
+		if len(out.HostPorts) != 1 || out.HostPorts[0].Exposure != wantExposure {
+			t.Errorf("ports: %+v", out.HostPorts)
+		}
+		if out.Public == settingUp || out.SSOPublic == settingUp {
+			t.Errorf("public %v, sign-in page public %v, while setting up %v", out.Public, out.SSOPublic, settingUp)
+		}
+		_, routes := Values(testLab(), p, in)
+		if rc := routes["web"]; rc.AfterSetup != settingUp || rc.Exposure != wantExposure {
+			t.Errorf("route = %+v", rc)
+		}
+		if pc := ResolvePorts(p, in)["ssh"]; pc.AfterSetup != settingUp || pc.Exposure != wantExposure {
+			t.Errorf("port = %+v", pc)
+		}
+	}
+	check(true)
+	check(false)
+	// A private address has nothing to wait for.
+	in.Routes["web"] = instance.RouteOverride{Port: in.Routes["web"].Port}
+	in.SettingUp = true
+	if _, routes := Values(testLab(), p, in); routes["web"].AfterSetup {
+		t.Error("a private address isn't waiting to be public")
+	}
+}
+
 func TestErrors(t *testing.T) {
 	p, err := pkgspec.Load(pkgtest.File("immich"))
 	if err != nil {

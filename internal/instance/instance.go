@@ -103,6 +103,13 @@ type Instance struct {
 	// so only its databases run, and its install hooks don't, until its
 	// data is switched in.
 	AwaitingData bool `yaml:"awaiting_data,omitempty"`
+	// SettingUp: its install hooks haven't succeeded yet, so its addresses
+	// and ports stay private whatever the Owner chose (SPEC.md §8.1,
+	// "Public addresses wait for setup"): some apps belong to whoever
+	// reaches them first until they're set up. Set by the controller when
+	// it installs a package whose install hooks will run, and cleared when
+	// the service's server says they've succeeded.
+	SettingUp bool `yaml:"setting_up,omitempty"`
 }
 
 // Hold is why a service is held stopped (Instance.Held).

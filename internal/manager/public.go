@@ -20,9 +20,12 @@ import (
 
 // RouteAccess is who can reach one of a service's addresses.
 type RouteAccess struct {
-	Route  string // the package's route name
-	Host   string // e.g. photos.lab.example.com
-	Public bool
+	Route string // the package's route name
+	Host  string // e.g. photos.lab.example.com
+	// Public: it's chosen public. AfterSetup: it will be once the
+	// service's install hooks have succeeded, and is private until then
+	// (SPEC.md §8.1, "Public addresses wait for setup").
+	Public, AfterSetup bool
 	// Unsafe is the package's reason the whole address shouldn't be
 	// public, if it gave one.
 	Unsafe string
@@ -52,8 +55,8 @@ func (m *Manager) Access(name string) ([]RouteAccess, error) {
 	var out []RouteAccess
 	for _, rn := range slices.Sorted(maps.Keys(p.Routes)) {
 		r, rc := p.Routes[rn], routes[rn]
-		ra := RouteAccess{Route: rn, Host: rc.Host, Public: rc.Exposure == pkgspec.ExposurePublic, Unsafe: r.Public.Unsafe,
-			WAF: !in.NoWAF}
+		ra := RouteAccess{Route: rn, Host: rc.Host, Public: rc.Exposure == pkgspec.ExposurePublic || rc.AfterSetup,
+			AfterSetup: rc.AfterSetup, Unsafe: r.Public.Unsafe, WAF: !in.NoWAF}
 		for _, pp := range r.Public.PrivatePaths {
 			ra.PrivatePaths = append(ra.PrivatePaths, PathAccess{Path: pp.Path, Reason: pp.Reason,
 				Open: slices.Contains(in.Routes[rn].PublicPaths, pp.Path)})

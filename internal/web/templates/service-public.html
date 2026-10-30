@@ -7,14 +7,22 @@
   {{with .Route}}
   <div class="heading">
     <h1>Who can reach {{.Host}}</h1>
-    {{if .Public}}{{badge "Public" "highlight"}}{{else}}{{badge "Private"}}{{end}}
+    {{if .AfterSetup}}{{badge "Public once set up" "highlight"}}{{else if .Public}}{{badge "Public" "highlight"}}{{else}}{{badge "Private"}}{{end}}
   </div>
   {{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
 
-  {{if .Route.Public}}
+  {{if .Route.AfterSetup}}
+  {{/* Public addresses wait for setup (SPEC.md §8.1). */}}
+  <p><strong>Anyone on the internet</strong> will be able to reach <code>{{.Route.Host}}</code> once {{.Package.Title}} has finished setting up
+    {{- if .Route.PrivatePaths}}, except the parts below that stay private{{end}}.
+    Until then, Roostack is keeping it private ({{$privateMeans}}) so that nobody can get to it before it's set up.
+    {{template "public-ui" .}}</p>
+  {{else if .Route.Public}}
   <p><strong>Anyone on the internet</strong> can reach <code>{{.Route.Host}}</code>{{if .Route.PrivatePaths}}, except the parts below that stay private{{end}}.
     {{template "public-ui" .}}</p>
+  {{end}}
+  {{if .Route.Public}}
   {{with .Route.PrivatePaths}}
   <h2>Parts kept private</h2>
   <p class="hint">{{$.Package.Title}}'s package keeps these private: {{$privateMeans}}. Tick one to make it public too.</p>
@@ -77,7 +85,8 @@
     <li id="check"{{if .CheckLink}} hx-get="/services/{{$.Name}}/public/{{.Route.Route}}" hx-select="#check" hx-trigger="every 5s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
       <span class="dot dot-{{if .Check}}ok{{else}}none{{end}}" aria-hidden="true"></span><strong>{{if .Internet}}Check from a browser.{{else}}Check from your phone.{{end}}</strong>
       {{with .Check}}It worked from outside on {{date .At}} at {{.At.Local.Format "15:04"}} (from {{.From}}).{{end}}
-      {{if .CheckLink}}
+      {{if .Route.AfterSetup}}<p>You'll be able to check once {{$.Package.Title}} has finished setting up.</p>
+      {{else if .CheckLink}}
       {{if .Internet}}<p>Open this link in any browser, on any device (not on this server itself). This step will tick itself when it works.</p>
       {{else}}<p>Turn Wi-Fi off so your phone uses mobile data, then scan this code or open the link. This step will tick itself when it works.</p>{{end}}
       {{with .CheckQR}}<div class="qr-box">{{.}}</div>{{end}}

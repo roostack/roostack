@@ -122,7 +122,8 @@ func (m *Manager) SSOClients() []sso.Client {
 			exposure = o.Exposure
 		}
 		host := sub + "." + m.Lab.Domain
-		c := sso.Client{ID: in.ID(), Title: titleOf(p, in.Title), Public: exposure == pkgspec.ExposurePublic}
+		// Not public while it waits for its setup (SPEC.md §8.1).
+		c := sso.Client{ID: in.ID(), Title: titleOf(p, in.Title), Public: exposure == pkgspec.ExposurePublic && !in.SettingUp}
 		if p.SSO.OIDC != nil {
 			uris, err := generate.SSORedirects(m.Lab, p, in)
 			if err != nil {

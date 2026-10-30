@@ -265,15 +265,22 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 // installAudit is the audit entry for an install: the service, where it
-// runs, whether it went public, and any risks the Owner accepted for a
-// package of their own (SPEC.md §6.11, §8.3.4).
+// runs, whether it went public (or will once it's set up, SPEC.md §8.1),
+// and any risks the Owner accepted for a package of their own (SPEC.md
+// §6.11, §8.3.4).
 func (s *Server) installAudit(p *pkgspec.Package, req manager.InstallRequest) string {
-	detail := cmp.Or(req.Name, p.Name)
+	name := cmp.Or(req.Name, p.Name)
+	detail := name
 	if req.Host != "" {
 		detail += " on " + req.Host
 	}
 	if req.Public {
-		detail += ", public"
+		access, _ := s.Manager.Access(name)
+		if slices.ContainsFunc(access, func(a manager.RouteAccess) bool { return a.AfterSetup }) {
+			detail += ", public once set up"
+		} else {
+			detail += ", public"
+		}
 	}
 	if req.BringData {
 		detail += ", waiting for its data"

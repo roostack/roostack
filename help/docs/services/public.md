@@ -288,6 +288,37 @@ hours. A technical user can end it now (below).
       (`/var/lib/roostack/services/<name>.yaml`). A package can't turn it
       off.
 
+## Public once it's set up
+
+Some services belong to whoever reaches them first until they're set up:
+the first person to open them becomes their administrator. So when a
+service has setup steps that run after it's installed (such as creating
+its administrator account), Roostack will keep its addresses private until
+those steps have finished, even if you chose to make it public. It will
+be public by itself as soon as they have, usually within a minute or two,
+and meanwhile the service's page says **Home only for now: it will be
+public once setup has finished** (on a cloud server, **Only through an SSH
+tunnel for now**).
+
+If setup doesn't finish, the service's page says what went wrong, with
+**Try again**, and the service stays private until it works. There's no
+way to make it public before then: until it's set up, anyone who reaches
+it first could take it over.
+
+A service installed again over its data from before, without filling in
+its first-time settings, skips those steps (it already has its
+administrator), so it's public as soon as it's running.
+
+??? note "For technical users"
+    - The service's instance file (`/var/lib/roostack/services/<name>.yaml`)
+      has `setting_up: true` until its install hooks have succeeded on the
+      server running it. While it's there, its routes and ports count as
+      private everywhere: Caddy, the firewall, public DNS records, the
+      lab's own edge, and Roostack Cloud's relay.
+    - The audit log records the install as "public once set up", then
+      "<name> finished setting up, so <address> is public now", and the
+      setup's log ends by saying which addresses will be public.
+
 ## Parts that stay private
 
 Some services have pages that shouldn't be public, such as an admin panel.
@@ -308,7 +339,9 @@ Where it is and DNS**; the setup wizard asks too. Then:
 
 - **Services start public.** Installing one ticks **Anyone on the internet
   can reach it**; untick it to keep it private. Services whose package
-  says they aren't safe to make public still start private.
+  says they aren't safe to make public still start private, and a service
+  with setup steps is public once they've finished
+  ([Public once it's set up](#public-once-its-set-up)).
 - **Roostack's own pages** are at `roost.<your domain>`, for anyone to
   reach, protected by your password, a code from your authenticator app,
   CrowdSec, and a strict limit on login attempts. You can keep them to an

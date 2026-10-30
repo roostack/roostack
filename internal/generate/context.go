@@ -60,7 +60,13 @@ type RouteContext struct {
 	Subdomain string
 	Host      string // e.g. passwords.lab.example.com
 	URL       string // e.g. https://passwords.lab.example.com
-	Exposure  string
+	// Exposure is who reaches it now: private while the service's install
+	// hooks haven't succeeded (instance.SettingUp), whatever was chosen.
+	Exposure string
+	// AfterSetup: it was chosen public, and will be once the service's
+	// install hooks have succeeded (SPEC.md §8.1, "Public addresses wait
+	// for setup").
+	AfterSetup bool
 	// Port is the host loopback port the route's container is published
 	// on (0 until allocated).
 	Port int
@@ -74,7 +80,9 @@ type PortContext struct {
 	Enabled  bool
 	HostPort int
 	Protocol string
-	Exposure string
+	// Exposure and AfterSetup are as for a route (RouteContext).
+	Exposure   string
+	AfterSetup bool
 }
 
 // DatabaseContext gives an app what it needs to connect to its database.
@@ -132,7 +140,11 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 			host = sub + "." + lab.Domain
 			url = "https://" + host
 		}
-		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: url, Exposure: exp, Port: port,
+		later := exp == pkgspec.ExposurePublic && in.SettingUp
+		if later {
+			exp = pkgspec.ExposurePrivate
+		}
+		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: url, Exposure: exp, AfterSetup: later, Port: port,
 			PublicPaths: open}
 	}
 
@@ -165,7 +177,8 @@ func Values(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (map[stri
 }
 
 // ResolvePorts applies an instance's port overrides to the package's
-// defaults.
+// defaults. A public port is private while the service's install hooks
+// haven't succeeded (RouteContext.AfterSetup).
 func ResolvePorts(p *pkgspec.Package, in *instance.Instance) map[string]PortContext {
 	ports := map[string]PortContext{}
 	for name, pp := range p.Ports {
@@ -180,6 +193,9 @@ func ResolvePorts(p *pkgspec.Package, in *instance.Instance) map[string]PortCont
 			if o.Exposure != "" {
 				pc.Exposure = o.Exposure
 			}
+		}
+		if pc.Exposure == pkgspec.ExposurePublic && in.SettingUp {
+			pc.Exposure, pc.AfterSetup = pkgspec.ExposurePrivate, true
 		}
 		ports[name] = pc
 	}

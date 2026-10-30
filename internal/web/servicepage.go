@@ -103,6 +103,8 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		s.addSettingsData(data, name, p, nil)
 		if access, err := s.Manager.Access(name); err == nil {
 			data["Access"] = access
+			// Its addresses wait for its setup (SPEC.md §8.1).
+			data["PublicAfterSetup"] = slices.ContainsFunc(access, func(a manager.RouteAccess) bool { return a.AfterSetup })
 			if v := s.wafCard(r.Context(), access); v != nil {
 				data["WAF"] = v
 			}

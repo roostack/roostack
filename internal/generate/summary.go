@@ -75,6 +75,9 @@ type Address struct {
 	Route  string
 	Host   string // localhost until the lab has an address
 	Public bool
+	// AfterSetup: public only once its install hooks have succeeded
+	// (SPEC.md §8.1, "Public addresses wait for setup").
+	AfterSetup bool
 	// Unsafe is the package's reason it shouldn't be public, if any.
 	Unsafe string
 }
@@ -131,7 +134,7 @@ func Summarize(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Summ
 	for _, name := range slices.Sorted(maps.Keys(p.Routes)) {
 		rc := g.ctx.Routes[name]
 		s.Addresses = append(s.Addresses, Address{Route: name, Host: rc.Host,
-			Public: rc.Exposure == pkgspec.ExposurePublic, Unsafe: p.Routes[name].Public.Unsafe})
+			Public: rc.Exposure == pkgspec.ExposurePublic || rc.AfterSetup, AfterSetup: rc.AfterSetup, Unsafe: p.Routes[name].Public.Unsafe})
 	}
 	for _, name := range slices.Sorted(maps.Keys(p.Ports)) {
 		s.Ports = append(s.Ports, Port{Name: name, Title: p.Ports[name].Title, PortContext: g.ctx.Ports[name]})
