@@ -1,6 +1,7 @@
 package node
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -219,6 +220,25 @@ func (n *Local) queueScheduled(s state.Service, h *pkgspec.Hook) bool {
 	return true
 }
 
+// stopScheduled ends a task that ran past its timeout by restarting the
+// container it ran in (the maintainer, 2026-10-30): the interrupt reaches
+// only the command's own process, and a program it started, such as the
+// garbage collector Seafile's gc.sh starts, would carry on (docs/
+// ASSUMPTIONS.md Y2). It's still the night's maintenance, so a restart is
+// the lesser harm. It returns the task's failure.
+func (n *Local) stopScheduled(ctx context.Context, act *activity.Log, h *pkgspec.Hook, container string, timeout time.Duration) error {
+	took := words.ExactDuration(timeout)
+	if n.Reconciler == nil || n.Reconciler.Systemd == nil {
+		return fmt.Errorf("it was still running after %s, so Roostack interrupted it", took)
+	}
+	act.Printf("It's still running after %s: Roostack is restarting its %s container, so that nothing it started keeps running.", took, h.Container)
+	if err := n.Reconciler.Systemd.Restart(context.WithoutCancel(ctx), container+".service"); err != nil {
+		n.Log.Error("restarting a container after its scheduled task's timeout", "container", container, "err", err)
+		return fmt.Errorf("it was still running after %s, and restarting its %s container to stop it didn't work: %w", took, h.Container, err)
+	}
+	return fmt.Errorf("it was still running after %s, so Roostack restarted its %s container to stop it", took, h.Container)
+}
+
 // lastLine is the last line a command printed, "" if none.
 func lastLine(out []byte) string {
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
@@ -322,7 +342,7 @@ func (n *Local) runScheduled(ctx context.Context, service, hook string) (err err
 		n.setScheduledRecord(context.WithoutCancel(ctx), service, hook, rec)
 		act.Finish(err)
 	}()
-	timeout := h.RunTimeout()
+	timeout := cmp.Or(n.scheduledTimeout, h.RunTimeout())
 	act.Step("Running in its %s container, for up to %s", h.Container, words.ExactDuration(timeout))
 	run, err := generate.Hook(n.currentLab(), s.Package, s.Instance, h, nil)
 	if err != nil {
@@ -337,9 +357,7 @@ func (n *Local) runScheduled(ctx context.Context, service, hook string) (err err
 	act.Write(out)
 	switch {
 	case errors.Is(rctx.Err(), context.DeadlineExceeded):
-		// The interrupt reaches the command's own process, not processes
-		// it started (docs/ASSUMPTIONS.md Y2), so don't say it stopped.
-		return fmt.Errorf("it was still running after %s, so Roostack interrupted it", words.ExactDuration(timeout))
+		return n.stopScheduled(ctx, act, h, run.Container, timeout)
 	case err != nil:
 		// The last thing it said is usually why; the log has the rest.
 		if line := lastLine(out); line != "" {

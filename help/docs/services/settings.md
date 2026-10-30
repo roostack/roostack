@@ -62,6 +62,10 @@ server was off, or the service stopped) will run the next night instead.
 **Run now** runs one as soon as nothing else is happening on the server,
 such as a backup or an update.
 
+A task that runs for longer than its package allows will be stopped by
+restarting the container it runs in, which takes the service away for a
+moment, and it counts as not working.
+
 If a task doesn't work twice in a row, it will show under **Needs
 attention** and be emailed like other problems. Its page says what went
 wrong; **Try again** runs it again, and otherwise Roostack will try again

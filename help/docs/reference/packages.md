@@ -349,9 +349,9 @@ will run the next night. It's never run twice at once.
 
 Like other hooks, it's a command in one of the service's containers, given
 settings only as `env` and `secrets`, with no `inputs`; it doesn't `saves`
-a secret. A task still running after its `timeout` will be interrupted and
-count as failed; the interrupt reaches the command itself, not processes it
-started, so a script should `exec` its last long command. It must be safe to run at any time the app is running,
+a secret. A task still running after its `timeout` will be
+interrupted, then Roostack will restart the container it ran in, so that
+nothing it started keeps running; the run counts as failed. It must be safe to run at any time the app is running,
 including straight after a restore. The service page shows each task's
 last run with **Run now**, and two failures in a row go under **Needs
 attention**. A Roostack from before scheduled tasks won't accept the

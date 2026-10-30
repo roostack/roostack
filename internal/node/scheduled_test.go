@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/systemd"
 	"roostack.cloud/roostack/internal/usererr"
@@ -360,5 +361,42 @@ func TestScheduledTaskInterruptedByRoostack(t *testing.T) {
 	<-done
 	if rec := n.scheduledRecord(context.Background(), "files", "free-space"); rec.Failures != 0 || !rec.Started.IsZero() {
 		t.Errorf("record after Roostack stopped: %+v", rec)
+	}
+}
+
+// A task still running after its timeout is ended by restarting the
+// container it ran in, since the interrupt doesn't reach processes it
+// started (SPEC.md §8.1; docs/ASSUMPTIONS.md Y2).
+func TestScheduledTaskTimeoutRestartsItsContainer(t *testing.T) {
+	p, err := pkgspec.Parse([]byte(tasksPackage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := &instance.Instance{Package: "files", Version: p.Version, Updates: instance.UpdatesNotify,
+		Routes: map[string]instance.RouteOverride{"web": {Port: 20040}}}
+	exec := func(ctx context.Context, _ string, _ map[string]string, _ []string) ([]byte, []byte, error) {
+		<-ctx.Done()
+		return []byte("Removing unused blocks\n"), nil, errors.New("signal: interrupt")
+	}
+	units := &fakeUnits{active: true}
+	n := &Local{Lab: config.Default(), State: &lockedKV{m: map[string]string{}}, Exec: exec, Units: units,
+		Reconciler: &reconcile.Reconciler{Systemd: units}, Activity: activity.New(),
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), scheduledTimeout: 20 * time.Millisecond,
+		Secrets: &memSecrets{m: map[string][]byte{"roostack-files-key": []byte("k")}}}
+	n.assignment.Services = []state.Service{{Package: p, Instance: in}}
+	err = n.runScheduled(context.Background(), "files", "free-space")
+	if err == nil || !strings.Contains(err.Error(), "so Roostack restarted its app container to stop it") {
+		t.Errorf("error %v", err)
+	}
+	if len(units.restarted) != 1 || units.restarted[0] != "roostack-files-app.service" {
+		t.Errorf("restarted %v", units.restarted)
+	}
+	rec := n.scheduledRecord(context.Background(), "files", "free-space")
+	if rec.Failures != 1 || rec.OK {
+		t.Errorf("record %+v", rec)
+	}
+	snap, _ := n.Activity.Latest(activity.Scheduled)
+	if !strings.Contains(strings.Join(snap.Lines, "\n"), "Roostack is restarting its app container, so that nothing it started keeps running.") {
+		t.Errorf("log %q", snap.Lines)
 	}
 }

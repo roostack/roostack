@@ -299,6 +299,9 @@ type Local struct {
 	// scheduled is what each scheduled task is doing on the coordinator,
 	// by scheduledKey (scheduled.go): queued or running.
 	scheduled map[string]int
+	// scheduledTimeout, if set, replaces every scheduled task's timeout
+	// (tests: a package's is at least a minute).
+	scheduledTimeout time.Duration
 
 	// followingBuild: a Caddy image build is being shown (build.go), and
 	// buildPoll how often its log is read (zero: build.go's buildPoll).
