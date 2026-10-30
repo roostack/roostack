@@ -624,6 +624,40 @@
     }
    },
    {
+    "name": "config_files",
+    "type": "map",
+    "item": {
+     "type": "object",
+     "ptr": true,
+     "fields": [
+      {
+       "name": "title",
+       "type": "string"
+      },
+      {
+       "name": "storage",
+       "type": "string"
+      },
+      {
+       "name": "path",
+       "type": "string"
+      },
+      {
+       "name": "format",
+       "type": "string"
+      },
+      {
+       "name": "block",
+       "type": "bool"
+      },
+      {
+       "name": "content",
+       "type": "string"
+      }
+     ]
+    }
+   },
+   {
     "name": "sso",
     "type": "object",
     "ptr": true,
@@ -745,6 +779,7 @@
  "patterns": {
   "builtWith": "^[a-z][a-z0-9-]{0,31}$",
   "clientIPHeader": "^[Xx]-[A-Za-z0-9-]+$",
+  "configPath": "^[A-Za-z0-9_][A-Za-z0-9._-]*(/[A-Za-z0-9_][A-Za-z0-9._-]*)*$",
   "envName": "^[A-Za-z_][A-Za-z0-9_]*$",
   "icon": "^[A-Za-z0-9][A-Za-z0-9._-]*\\.png$",
   "memory": "^([0-9]+(?:\\.[0-9]+)?) ?(MB|GB)$",
@@ -763,9 +798,18 @@
   "version": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
  },
  "lists": {
+  "blockFormats": [
+   "python"
+  ],
   "classes": [
    "critical",
    "replaceable"
+  ],
+  "configFormats": [
+   "python",
+   "yaml",
+   "json",
+   "text"
   ],
   "databaseTypes": [
    "sqlite",
@@ -874,6 +918,7 @@
   "iconMinSize": 256,
   "maxBuiltWith": 20,
   "maxCategories": 3,
+  "maxConfigTitle": 60,
   "maxKeywordBytes": 40,
   "maxKeywords": 10,
   "maxMakerBytes": 100,
@@ -1314,6 +1359,45 @@
    "label": "Built with",
    "help": "What the app is built on, as short names such as php, node, laravel or log4j, not every library it uses. If that thing has a security problem, the Owner will be able to pause public access to every service built with it at once. Roostack will add the databases it runs for the app by itself.",
    "example": "php, laravel",
+   "link": "reference/packages#the-parts"
+  },
+  "config_files": {
+   "label": "Config files",
+   "help": "Files the app reads its settings from, which Roostack will write inside the service's storage from a template and the service's settings, and write again when they change, restarting the containers that mount that storage.",
+   "link": "reference/packages#the-parts"
+  },
+  "config_files.*.block": {
+   "label": "Lines at the end of the app's own file",
+   "help": "For an app that makes the file itself and keeps its own values in it (Seafile's SECRET_KEY). Roostack will add its lines at the end once the app has made the file, and leave the rest alone. Python only, where a later line wins.",
+   "link": "reference/packages#the-parts"
+  },
+  "config_files.*.content": {
+   "label": "Content",
+   "help": "A template. It can also use .Secrets.\u003ckey\u003e for a secret setting and .SSO.ClientSecret while single sign-on is on, which Roostack will fill in on the server as it writes the file, quoted for the format.",
+   "link": "reference/packages#the-parts"
+  },
+  "config_files.*.format": {
+   "label": "Format",
+   "help": "python, yaml, json, or text. It decides how secrets will be quoted, whether the file will start with a comment, and how a rendered example will be checked.",
+   "example": "yaml",
+   "link": "reference/packages#the-parts"
+  },
+  "config_files.*.path": {
+   "label": "Path",
+   "help": "Where it is inside the storage folder.",
+   "example": "conf/settings.yaml",
+   "link": "reference/packages#the-parts"
+  },
+  "config_files.*.storage": {
+   "label": "In the storage",
+   "help": "The storage entry it's in. A container must mount it, and the app must read the file as the container's root, or as the user UserNS=keep-id maps.",
+   "example": "config",
+   "link": "reference/packages#the-parts"
+  },
+  "config_files.*.title": {
+   "label": "What it is",
+   "help": "A few words for people, shown beside its path. At most 60 characters.",
+   "example": "Pingvin Share X's settings",
    "link": "reference/packages#the-parts"
   },
   "containers": {

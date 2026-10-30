@@ -89,6 +89,7 @@ func (p *Package) Validate() error {
 	}
 	p.validateHooks(v)
 	p.validateSSO(v)
+	p.validateConfigFiles(v)
 	for i, l := range p.Links {
 		at := fmt.Sprintf("links[%d]", i)
 		if l.Title == "" {

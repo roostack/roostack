@@ -46,6 +46,9 @@ type Package struct {
 	Ports        map[string]*Port      `yaml:"ports"`
 	Hooks        []*Hook               `yaml:"hooks"`
 	Links        []Link                `yaml:"links"`
+	// ConfigFiles are files Roostack writes for the app to read its
+	// settings from (configfile.go, SPEC.md §8.1).
+	ConfigFiles map[string]*ConfigFile `yaml:"config_files"`
 	// SSO is how the app takes single sign-on (sso.go, SPEC.md §5.2).
 	SSO *SSO `yaml:"sso"`
 }

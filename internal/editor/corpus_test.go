@@ -225,6 +225,13 @@ var byType = map[string][]string{
 // special are values tried at particular fields, beyond their type's.
 // <c>, <r> and <s> are the package's first container, route and storage.
 var special = map[string][]string{
+	// Config files (pkgspec/configfile.go).
+	"config_files.*.path":    {`../x`, `.hidden`, `"a//b"`, `/etc/x`, `conf/x.yaml`, `a/../b`, `"a b"`},
+	"config_files.*.format":  {`toml`, `python`, `json`, `text`},
+	"config_files.*.block":   {`true`},
+	"config_files.*.storage": {`data`, `nope`},
+	"config_files.*.title":   {`"  "`, `"` + strings.Repeat("x", 61) + `"`, `"a\nb"`},
+	"config_files.*.content": {`"  "`},
 	"about.licence": {`GPL-3.0`, `GPL-2.0+`, `MIT OR Apache-2.0`, `(MIT`, `MIT AND`, `Apache-2.0 WITH LLVM-exception`,
 		`closed`, `LicenseRef-x`, `MIT OR GPL-3.0`, `MIT)`, `MIT WITH`, `AGPL-3.0-or-later`},
 	"about.website": {`http://x.com`, `"https://"`, `https://user@x.com`, `https:///x`, `"https://x.com:abc"`, `"https://exa mple.com"`,
@@ -551,7 +558,7 @@ func corpus(t *testing.T) []corpusCase {
 			pattern := make([]string, len(p))
 			for i, seg := range p {
 				pattern[i] = fmt.Sprint(seg)
-				if i == 1 && slices.Contains([]string{"containers", "storage", "databases", "routes", "ports"}, pattern[0]) {
+				if i == 1 && slices.Contains([]string{"containers", "storage", "databases", "routes", "ports", "config_files"}, pattern[0]) {
 					pattern[i] = "*"
 				}
 			}

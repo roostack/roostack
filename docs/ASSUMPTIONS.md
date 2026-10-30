@@ -372,6 +372,19 @@ Checked on VM7 (arm64, Debian 13), 2026-10-30, with the `scheduled-test` fixture
 | Y2 ❌ | **A timeout stops only the command's own process.** A task taking 200 seconds with a 2-minute timeout: at 2 minutes the transient unit's SIGINT reached `podman exec`, which passed it on to the command (its `sh` ended, so the script's last step didn't run), but the `sleep` it had started ran on to its end, a minute later. A script that `exec`s its long command is stopped; a program its script started (Seafile's `gc.sh` starting the garbage collector) isn't. Action hooks' 2-minute limit is the same. | Why a timeout restarts the task's container (SPEC §8.1, the maintainer's choice) |
 | Y3 ✅ | **Restarting the task's container ends what it started.** The same 200-second task, after the change: at 2 minutes Roostack interrupted it and restarted `roostack-scheduled-test-app.service` (the job ended 11 seconds after the timeout, the container "Up 2 seconds"), and `ps` in the container showed only its `httpd`, with no `sleep` left. The card and History said "it was still running after 2 min, so Roostack restarted its app container to stop it". | `node.stopScheduled` |
 
+## Z. Config files a package declares (SPEC §8.1)
+
+Checked on VM6 (arm64, Debian 13), 2026-10-30, with Pingvin Share X 2.1.0 (the test package in `internal/testdata/packages`) and a small Python app that makes its own settings file, both added as the Owner's own packages.
+
+| # | Assumption | Where it matters |
+|---|---|---|
+| Z1 ✅ | **Roostack's sandboxed daemon writes into a service's storage, through `os.Root`,** before the container starts: `config.yaml`, 0600, owned by the roostack user, in a folder Roostack made. | `reconcile.writeInRoot` |
+| Z2 ✅ | **A 0600 file owned by Roostack's user is readable by the container's user with `UserNS=keep-id:uid=1000,gid=1000`,** in a storage folder mounted read-only (`:ro`): Pingvin Share X ran as 1000, read every value from it (`/api/configs`), and its data folder stayed the roostack user's. | Packages whose app isn't the container's root |
+| Z3 ✅ | **A block goes in once the app has made its file, and the app reads it after the restart:** the app wrote its file 3 seconds after starting; Roostack added the block 7 seconds later (two looks 5 seconds apart), restarted it, and Python's `import settings` read Roostack's values over the app's own, the file keeping its 0644. A setting saved from the page changed only the block and restarted the app. | `node.waitForConfigs`, Seafile's `seahub_settings.py` |
+| Z4 ✅ | **The file follows setup:** the install hook finished, the install-only password secret was deleted, and the file was written again with `password: ""` the same second, and the app restarted. Turning single sign-on on put the same client secret Podman holds into the file. | `node.runPendingHooks`, `reconcile.configValues` |
+| Z5 ✅ | **`os.Root` refuses a symlink out of the storage folder on Linux** (a symlinked file is replaced by the rename, a symlinked folder refused): `TestConfigFileSymlink`, run in the VM with `scripts/dev-vm.sh test`. | A container could plant a symlink where Roostack writes |
+| Z6 | **Not yet tried:** Seafile itself (it needs the extra MariaDB schemas of build plan item 2, on another branch); a block on a server other than the controller (the same code runs there). | |
+
 ## H. Dependencies
 
 Picked overnight to keep moving; **approved by the user on 2026-09-26.**

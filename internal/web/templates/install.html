@@ -207,7 +207,9 @@
       <dt>Files</dt>
       <dd>What Roostack would write, as <code>roostack render</code> shows them:
         {{range .Files}}<details id="install-file-{{.Name}}"><summary><code>{{pathBase .Name}}</code></summary>
-          <small class="hint">In <code>{{pathDir .Name}}</code></small><pre class="output">{{.Content}}</pre></details>{{end}}</dd>
+          <small class="hint">In <code>{{pathDir .Name}}</code></small><pre class="output">{{.Content}}</pre></details>{{end}}
+        {{range .ConfigFiles}}<details id="install-config-{{.Name}}"><summary><code>{{.Path}}</code>: {{.Title}}</summary>
+          <small class="hint">In <code>{{.Dir}}</code>{{if .Block}}: Roostack's lines at the end of the file, which the app will make on its first start{{end}}{{with .Secrets}}. Roostack will fill in each ‹secret› as it writes the file{{end}}.</small><pre class="output">{{.Shown}}</pre></details>{{end}}</dd>
     </dl>
   </details>
   {{end}}

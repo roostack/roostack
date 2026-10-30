@@ -194,6 +194,17 @@ type Plan struct {
 	// download, or building an image), for the log: starting them can take
 	// minutes, and people should know why.
 	StartNotes map[string]string
+	// Configs are config files to write (SPEC.md §8.1), with their secrets
+	// filled in as they're written: the plan never holds a secret.
+	Configs []generate.ConfigFile
+	// ConfigsWaiting are blocks for files their app hasn't made yet
+	// (generate.ConfigFile.Block): written by the apply after it has.
+	ConfigsWaiting []generate.ConfigFile
+	// ConfigsLeft are config files Roostack leaves as they are, each with
+	// why: one it can't read inside its storage (a symlink out of it), or
+	// whose block has lost its last line, where Roostack won't guess
+	// where its lines end.
+	ConfigsLeft []string
 }
 
 // quadletImage is a Quadlet file's Image= value.
@@ -255,7 +266,7 @@ func startNote(quadlet string) string {
 // container again (Reconciler.Unfinished) is a change.
 func (p *Plan) Empty() bool {
 	return len(p.Dirs) == 0 && len(p.Secrets) == 0 && len(p.Write) == 0 &&
-		len(p.Remove) == 0 && !p.ReloadCaddy && len(p.StartNotes) == 0
+		len(p.Remove) == 0 && !p.ReloadCaddy && len(p.StartNotes) == 0 && len(p.Configs) == 0
 }
 
 // String describes the plan for people.
@@ -288,6 +299,16 @@ func (p *Plan) String() string {
 	list("Stop units", p.StopUnits)
 	list("Write files", paths(p.Write))
 	list("Remove files", paths(p.Remove))
+	var configs, waiting []string
+	for _, f := range p.Configs {
+		configs = append(configs, f.HostPath())
+	}
+	for _, f := range p.ConfigsWaiting {
+		waiting = append(waiting, f.HostPath())
+	}
+	list("Write config files", configs)
+	list("Waiting for the app to make its file", waiting)
+	list("Config files left as they are", p.ConfigsLeft)
 	if p.DaemonReload {
 		b.WriteString("Reload systemd\n")
 	}
@@ -492,6 +513,20 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		}
 	}
 
+	// Config files (SPEC.md §8.1), each restarting the containers that
+	// read it if they were already there.
+	newSecrets := map[string]bool{}
+	for _, s := range plan.Secrets {
+		newSecrets[s.Name] = true
+	}
+	for _, s := range d.Services {
+		for _, f := range s.ConfigFiles {
+			if err := r.planConfig(ctx, plan, f, newSecrets, haveQuadlets); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	if held[generate.CaddyUnit+".container"] {
 		plan.ReloadCaddy = false // its files are written for when it starts
 	}
@@ -569,6 +604,15 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) (err error) {
 		log.Printf("remove %s", f.Path)
 		if err := os.Remove(f.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
+		}
+	}
+	if len(p.Configs) > 0 {
+		log.Step("Writing config files")
+	}
+	for _, f := range p.Configs {
+		log.Printf("write  %s", f.HostPath()) // never its secrets
+		if err := r.writeConfig(ctx, f, created); err != nil {
+			return fmt.Errorf("writing %s: %w", f.HostPath(), err)
 		}
 	}
 	written = true

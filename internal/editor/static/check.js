@@ -360,7 +360,7 @@
     "Health.http": "HTTPCheck", "Route.monitor": "RouteMonitor", "Route.public": "PublicRules",
     "PublicRules.private_paths": "PrivatePath", "Hook.inputs": "Setting",
     "Package.sso": "SSO", "SSO.oidc": "SSOOIDC", "SSO.forward_auth": "SSOForwardAuth", "SSOForwardAuth.bypass_paths": "PrivatePath",
-    "SSOOIDC.groups": "SSOGroups",
+    "SSOOIDC.groups": "SSOGroups", "Package.config_files": "ConfigFile",
   };
   function goTypeOf(parent, name) { return structNames[parent + "." + name] || "string"; }
 
@@ -402,6 +402,7 @@
     for (const n of sortedKeys(p.ports)) validatePortDef(p, add, n, p.ports[n]);
     validateHooks(p, add);
     validateSSO(p, add);
+    validateConfigFiles(p, add);
     (p.links || []).forEach((l, i) => {
       const at = `links[${i}]`;
       if (l.title === "") add(`${at}.title: required`);
@@ -596,6 +597,27 @@
         else if (s.install_only && h.on !== "install") add(`${at}.secrets.${k}: ${goQuote(ref)} is install_only and will be deleted after install`);
       }
     });
+  }
+
+  // validateConfigFiles is Package.validateConfigFiles (pkgspec/configfile.go).
+  function validateConfigFiles(p, add) {
+    const at = {};
+    const mounts = (storage) => Object.values(p.containers || {}).some((c) => c && (c.mounts || []).some((m) => m.storage === storage));
+    for (const name of sortedKeys(p.config_files)) {
+      const f = p.config_files[name], where = "config_files." + name;
+      if (!re.name.test(name)) add(`${where}: invalid name`);
+      if (isNil(f)) { add(`${where}: title, storage, path, format, and content are required`); continue; }
+      if (f.title.trim() === "" || [...f.title].length > S.limits.maxConfigTitle || /[\n\r]/.test(f.title)) add(`${where}.title: required, one line of at most ${S.limits.maxConfigTitle} characters`);
+      if (!has(p.storage, f.storage)) add(`${where}.storage: unknown storage ${goQuote(f.storage)}`);
+      else if (!mounts(f.storage)) add(`${where}.storage: no container mounts ${goQuote(f.storage)}, so the app couldn't read the file`);
+      const key = f.storage + "/" + f.path;
+      if (!re.configPath.test(f.path)) add(`${where}.path: ${goQuote(f.path)} must be a path inside the storage folder, like conf/settings.yaml: letters, digits, and - _ . /, each part starting with a letter, digit, or _`);
+      else if (Object.prototype.hasOwnProperty.call(at, key)) add(`${where}.path: config_files.${at[key]} is there already`);
+      else at[key] = name;
+      if (!L.configFormats.includes(f.format)) add(`${where}.format: must be one of ${L.configFormats.join(", ")}; got ${goQuote(f.format)}`);
+      else if (f.block && !L.blockFormats.includes(f.format)) add(`${where}.block: only for ${L.blockFormats.join(", ")}, where a later line wins (a ${f.format} file refuses a key given twice)`);
+      if (f.content.trim() === "") add(`${where}.content: required`);
+    }
   }
 
   function validateStorage(add, name, s) {
@@ -1091,13 +1113,21 @@
     const sso = p.sso || {};
     for (const c of sortedKeys(sso.env)) for (const k of sortedKeys(sso.env[c])) where.push([`sso.env.${c}.${k}`, sso.env[c][k], null]);
     if (sso.oidc) (sso.oidc.redirect_paths || []).forEach((rp, i) => where.push([`sso.oidc.redirect_paths[${i}]`, rp, null]));
-    const secretEnv = new Set();
+    // Where secrets may go: sso.secret_env (the client secret) and config
+    // files (it and the secret settings).
+    const secretsIn = {};
     for (const c of sortedKeys(sso.secret_env)) for (const k of sortedKeys(sso.secret_env[c])) {
       where.push([`sso.secret_env.${c}.${k}`, sso.secret_env[c][k], null]);
-      secretEnv.add(`sso.secret_env.${c}.${k}`);
+      secretsIn[`sso.secret_env.${c}.${k}`] = "secretEnv";
+    }
+    for (const n of sortedKeys(p.config_files)) {
+      const f = p.config_files[n];
+      if (!f) continue;
+      where.push([`config_files.${n}.content`, f.content, null]);
+      secretsIn[`config_files.${n}.content`] = "config";
     }
     for (const [at, text, hook, isWhen] of where) {
-      for (const msg of checkTemplate(p, text, hook, secretEnv.has(at))) out.push(`${at}: ${msg}`);
+      for (const msg of checkTemplate(p, text, hook, secretsIn[at])) out.push(`${at}: ${msg}`);
       if (isWhen && !text.includes("{{") && !["true", "false"].includes(text.trim())) out.push(`${at}: a condition must be true or false, or a template that gives one, such as {{ .Settings.x }}`);
     }
     return out;
@@ -1143,13 +1173,22 @@
       case "Lab": return leaf(fields.Lab, a, ".Lab");
       case "SSO":
         // generate.SSOContext.ClientSecret: never into a file Roostack writes.
-        if (a === "ClientSecret") return secretEnv ? null : ".SSO.ClientSecret is only for sso.secret_env (or an sso hook's secrets: sso.client_secret)";
+        if (a === "ClientSecret") return secretEnv ? null : ".SSO.ClientSecret is only for sso.secret_env, config files, or an sso hook's secrets (sso.client_secret)";
         return leaf(fields.SSO, a, ".SSO");
       case "Settings": {
         if (a === undefined) return null;
         const s = settingOf(p, a);
         if (!s) return `.Settings.${a}: the package has no setting ${goQuote(a)}`;
-        if (s.type === "secret") return `.Settings.${a} is a secret, and secrets never go into templates: give it to the container with secrets: instead`;
+        if (s.type === "secret") return secretEnv === "config" ? `.Settings.${a} is a secret: in a config file it's .Secrets.${a}` : `.Settings.${a} is a secret, and secrets never go into templates: give it to the container with secrets: instead`;
+        return null;
+      }
+      case "Secrets": {
+        // generate.Context.Secrets: config files only, filled in as Roostack writes them.
+        if (secretEnv !== "config") return ".Secrets is only for config files: give a container a secret with secrets: instead";
+        if (a === undefined) return null;
+        const s = settingOf(p, a);
+        if (!s || s.type !== "secret") return `.Secrets.${a}: the package has no secret setting ${goQuote(a)}`;
+        if (s.from_hook) return `.Secrets.${a} is from_hook, so only hooks can use it`;
         return null;
       }
       case "Routes":

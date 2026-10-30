@@ -158,6 +158,11 @@ func render(args []string) error {
 	if out.CaddySite != nil {
 		files = append(files, prefixed("caddy/sites", []generate.File{*out.CaddySite})...)
 	}
+	// Config files with their secrets as placeholders: the server fills
+	// them in as it writes them.
+	for _, f := range out.ConfigFiles {
+		files = append(files, generate.File{Name: filepath.Join("config", f.Name, f.Path), Content: f.Shown()})
+	}
 	return writeFiles(*outDir, files)
 }
 

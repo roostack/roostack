@@ -41,4 +41,7 @@ func Stop(o *Output, p *pkgspec.Package, lastBackup bool) {
 		return s.Container != "" && !keep[s.Container+".container"]
 	})
 	o.CaddySite, o.Hosts, o.Ports, o.HostPorts, o.Public = nil, nil, nil, nil, false
+	// No app reads its config files, and a block would wait for one to
+	// make its file: they're written again when it runs (SPEC.md §8.1).
+	o.ConfigFiles = nil
 }

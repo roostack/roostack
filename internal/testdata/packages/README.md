@@ -23,3 +23,8 @@ path is tested with a small package of its own (`internal/node`).
 scheduled tasks (`on: schedule`, SPEC.md §8.1), a daily one whose settings
 make it take a while or fail, and a weekly one. Install it as a package of
 your own on a dev VM to try scheduled tasks there.
+
+Pingvin Share X isn't in the registry yet: it's a first draft written with
+config files a package declares (SPEC.md §8.1), whose whole `config.yaml`
+holds the first administrator's password and single sign-on's client secret,
+and it was tried on VM6. Its icon is Mealie's placeholder.

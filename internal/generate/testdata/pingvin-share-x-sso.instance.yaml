@@ -1,0 +1,9 @@
+package: pingvin-share-x
+version: 2.1.0-roostack.1
+updates: minor
+sso: true
+settings:
+  admin_email: me@example.com
+  max_share_days: 14
+routes:
+  web: { port: 20010 }

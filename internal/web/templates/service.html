@@ -551,6 +551,13 @@ Image: {{.Image}}</code></pre>
 <pre><code>{{.Content}}</code></pre>
   </figure>
   {{end}}
+  {{range .ConfigFiles}}
+  <figure class="code-panel">
+    <figcaption class="code-bar">{{icon "documents"}}<span>{{.HostPath}}</span> <small>{{.Title}}{{if .Block}}: Roostack's lines at the end of the app's own file{{end}}</small></figcaption>
+<pre><code>{{.Shown}}</code></pre>
+  </figure>
+  {{end}}
+  {{with .ConfigFiles}}<p class="hint">Roostack fills in each ‹secret› on the server as it writes the file, and never shows it here.</p>{{end}}
   {{end}}
   <figure class="code-panel">
     <figcaption class="code-bar"><span>Its log</span></figcaption>

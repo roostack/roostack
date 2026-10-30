@@ -93,6 +93,8 @@ func Describe() Description {
 			"ssoRedirectPath": redirectPathRe.String(),
 			"ssoAppScheme":    appSchemeRe.String(),
 			"ssoGroupName":    groupNameRe.String(),
+			// Config files' (configfile.go).
+			"configPath": configPathRe.String(),
 		},
 		Lists: map[string][]string{
 			"ssoClientSecret":    {SSOClientSecret},
@@ -107,6 +109,8 @@ func Describe() Description {
 			"gpuKinds":           gpuKinds,
 			"quadletSections":    quadletSections,
 			"deprecatedLicences": deprecatedLicences,
+			"configFormats":      ConfigFormats,
+			"blockFormats":       BlockFormats,
 		},
 		Categories: Categories,
 		Limits: map[string]int64{
@@ -116,6 +120,7 @@ func Describe() Description {
 			"maxMakerBytes":   maxMaker,
 			"maxKeywordBytes": maxKeyword,
 			"maxStorageTitle": maxStorageTitle,
+			"maxConfigTitle":  maxConfigTitle,
 			"minHostPort":     MinHostPort,
 			"iconMinSize":     IconMinSize,
 			"iconMaxBytes":    IconMaxBytes,

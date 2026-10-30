@@ -56,7 +56,15 @@ func Check(p *pkgspec.Package) error {
 				lab.HasGPU = gpu
 				in := &instance.Instance{Package: p.Name, Version: p.Version, Updates: instance.UpdatesNotify,
 					Settings: settings, Routes: routes, Ports: ports, SSO: sso}
-				if _, err := Service(lab, p, in); err != nil {
+				out, err := Service(lab, p, in)
+				if err == nil {
+					for _, f := range out.ConfigFiles {
+						if err = checkConfigFile(f); err != nil {
+							break
+						}
+					}
+				}
+				if err != nil {
 					if sso {
 						return fmt.Errorf("with settings %v, GPU %v, single sign-on on: %w", settings, gpu, err)
 					}

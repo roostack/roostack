@@ -125,7 +125,7 @@ func schemaJS(t *testing.T) []byte {
 // editor offers to start from, in the order it shows them, and the bases
 // the corpus changes. This is their one list: corpus.test.js finds them
 // in examples.js.
-var testPackages = []string{"vaultwarden", "forgejo", "immich"}
+var testPackages = []string{"vaultwarden", "forgejo", "immich", "pingvin-share-x"}
 
 // testPackage reads a test package's file, the one there is of it.
 func testPackage(t *testing.T, name string) (file string, data []byte) {
