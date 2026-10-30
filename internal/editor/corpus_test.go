@@ -372,6 +372,9 @@ func structural(first map[string]string) [][]edit {
 		// Templated redirect paths, escapes, and renamed groups.
 		`{oidc: {route: ` + r + `, redirect_paths: ["/u/{{ pathescape .SSO.ProviderName }}/cb", "x/{{ .SSO.ClientID }}", "/a%20b", "/a%2", "/a%zz"]}}`,
 		`{oidc: {route: ` + r + `, redirect_paths: [/l], groups: {users: user, admins: admin}}}`,
+		// What the card says about admins and accounts already in the app.
+		`{oidc: {route: ` + r + `, redirect_paths: [/l], admins: true, existing_accounts: username_or_email}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l], existing_accounts: by_email}}`, `{oidc: {route: ` + r + `, redirect_paths: [/l], admins: maybe}}`,
 		`{oidc: {route: ` + r + `, redirect_paths: [/l], groups: {users: User, admins: admin}}}`,
 		`{oidc: {route: ` + r + `, redirect_paths: [/l], groups: {users: same, admins: same}}}`,
 		`{oidc: {route: ` + r + `, redirect_paths: [/l], groups: {users: user}}}`, `{oidc: {route: ` + r + `, redirect_paths: [/l], groups: bogus}}`,

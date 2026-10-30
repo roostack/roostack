@@ -30,6 +30,7 @@ func TestSSOValidation(t *testing.T) {
 		{"bypass path", "sso: { forward_auth: { route: web, bypass_paths: [{ path: '/api/*', reason: r }] } }", "must start with /"},
 		{"env container", "sso: { oidc: { route: web, redirect_paths: [/cb] }, env: { db: { X: y } } }", "sso.env.db: unknown container"},
 		{"another secret", "sso: { oidc: { route: web, redirect_paths: [/cb] }, secrets: { web: { X: admin_token } } }", "must be sso.client_secret"},
+		{"existing accounts", "sso: { oidc: { route: web, redirect_paths: [/cb], existing_accounts: by_email } }", `"by_email" must be one of email, username`},
 		{"a wall's secret", "sso: { forward_auth: { route: web }, secrets: { web: { X: sso.client_secret } } }", "only an oidc app"},
 	} {
 		p, err := Parse([]byte(ssoBase + tc.sso))
@@ -47,6 +48,8 @@ sso:
     route: web
     redirect_paths: [/login, /accounts/oidc/lab/login/callback/]
     redirect_uris: ['app.example:///oauth-callback']
+    admins: true
+    existing_accounts: username_or_email
   env:
     web: { OIDC_ENABLED: "true" }
   secrets:
@@ -57,6 +60,9 @@ sso:
 	}
 	if err := p.Validate(); err != nil {
 		t.Fatal(err)
+	}
+	if o := p.SSO.OIDC; !o.Admins || o.ExistingAccounts != SSOExistingUsernameOrEmail {
+		t.Errorf("admins %v, existing accounts %q", o.Admins, o.ExistingAccounts)
 	}
 	if p.SSORoute() != "web" {
 		t.Errorf("route %q", p.SSORoute())

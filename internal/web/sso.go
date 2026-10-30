@@ -44,6 +44,12 @@ type ssoCard struct {
 	// Wall: behind forward auth; otherwise an OIDC app.
 	Wall bool
 	Note string
+	// AppAdmins: the app makes the lab's Owners and Admins its admins;
+	// Existing is what it does with an account it already has (the
+	// package's sso.oidc.admins and existing_accounts). The card claims
+	// neither unless the package says so.
+	AppAdmins bool
+	Existing  string
 	// SignInHost is the sign-in page's address, and SignInPublic whether
 	// it's public (it follows the services and Roostack's pages).
 	SignInHost   string
@@ -118,6 +124,9 @@ func (s *Server) ssoCardFor(r *http.Request, name string, p *pkgspec.Package) *s
 	u := currentUser(r)
 	c := &ssoCard{Name: name, Title: p.Title, Note: p.SSO.Note, Wall: p.SSO.ForwardAuth != nil, SignInHost: s.SignInHost,
 		CanChoose: u != nil && u.Role == auth.RoleOwner, ClientID: name}
+	if o := p.SSO.OIDC; o != nil {
+		c.AppAdmins, c.Existing = o.Admins, o.ExistingAccounts
+	}
 	c.Available, c.Why = s.SSO.SSOAvailable(name)
 	c.HasHook = len(p.HooksOn(pkgspec.HookSSO)) > 0
 	c.CanManage = u != nil && auth.Can(u.Role, auth.ManageServices)

@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -635,5 +637,58 @@ func TestPersonDialog(t *testing.T) {
 	}
 	if code, body := h.post("/users/"+itoa64(mum)+"/details", url.Values{"email": {"not an address"}}, h.srv.URL); code != 400 || !strings.Contains(body, open) {
 		t.Errorf("a refused email: %d, or the dialog isn't open", code)
+	}
+}
+
+// The card says what the app does with admins and the accounts already in
+// it only as its package says (sso.oidc.admins and existing_accounts), so
+// it never claims something an app doesn't do.
+func TestSSOCardClaims(t *testing.T) {
+	h, _ := loggedIn(t, "owner")
+	render := func(c *ssoCard) string {
+		t.Helper()
+		var b strings.Builder
+		if err := h.server.pages["service"].ExecuteTemplate(&b, "sso-card", c); err != nil {
+			t.Fatal(err)
+		}
+		text := regexp.MustCompile(`<[^>]*>`).ReplaceAllString(b.String(), "")
+		return strings.Join(strings.Fields(html.UnescapeString(text)), " ")
+	}
+	for _, tc := range []struct {
+		existing  string
+		on, off   string // what the card says when it's on, and before
+		notOn     string
+		admins    bool
+		wantAdmin bool
+	}{
+		{existing: "", on: "Plik will make each person an account the first time they sign in.", notOn: "already in Plik"},
+		{existing: "email", admins: true, wantAdmin: true,
+			on:  "Plik will make each person an account the first time they sign in, or use the one already in Plik with their email address.",
+			off: "Accounts already in Plik will be found by their email address, so check each person's email on People."},
+		{existing: "username",
+			on:  "or use the one already in Plik with their username.",
+			off: "Accounts already in Plik will be found by their username, so check each person's username on People."},
+		{existing: "username_or_email",
+			on:  "or use the one already in Plik with their username, or else their email address.",
+			off: "Accounts already in Plik will be found by their username, or else their email address, so check both on People."},
+		{existing: "separate",
+			on:  "Plik will make each person a new account the first time they sign in, and accounts already in Plik will stay separate.",
+			off: "Accounts already in Plik will stay separate: each person will get a new one when they first sign in through the lab."},
+	} {
+		c := &ssoCard{Name: "plik", Title: "Plik", SignInHost: "sign-in.lab.example.com", Existing: tc.existing, AppAdmins: tc.admins,
+			Admins: []string{"sam"}}
+		c.On = true
+		on := render(c)
+		if !strings.Contains(on, tc.on) || tc.notOn != "" && strings.Contains(on, tc.notOn) {
+			t.Errorf("%q, on: %s", tc.existing, on)
+		}
+		if got := strings.Contains(on, "Admins in Plik"); got != tc.wantAdmin {
+			t.Errorf("%q: admins row %v, want %v", tc.existing, got, tc.wantAdmin)
+		}
+		c.On, c.Available = false, true
+		off := render(c)
+		if tc.off == "" && strings.Contains(off, "Accounts already in") || tc.off != "" && !strings.Contains(off, tc.off) {
+			t.Errorf("%q, before it's on: %s", tc.existing, off)
+		}
 	}
 }

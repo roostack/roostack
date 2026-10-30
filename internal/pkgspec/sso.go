@@ -50,7 +50,26 @@ type SSOOIDC struct {
 	// Groups renames the two groups the app is told about, for apps that
 	// expect their own words (Immich and Audiobookshelf: user and admin).
 	Groups *SSOGroups `yaml:"groups"`
+	// Admins says the app makes the lab's Owners and Admins its own
+	// admins, from the groups claim; the service's card says so only then.
+	Admins bool `yaml:"admins"`
+	// ExistingAccounts says what the app does when someone who signs in
+	// already has an account in it (an SSOExisting value). Left out, the
+	// card says nothing about those accounts.
+	ExistingAccounts string `yaml:"existing_accounts"`
 }
+
+// What an app does with an account it already has when its person first
+// signs in through the lab (SSOOIDC.ExistingAccounts).
+const (
+	SSOExistingEmail           = "email"             // uses the one with their email address
+	SSOExistingUsername        = "username"          // uses the one with their username
+	SSOExistingUsernameOrEmail = "username_or_email" // their username, or else their email address
+	SSOExistingSeparate        = "separate"          // makes a new one beside it
+)
+
+// SSOExisting are the values of sso.oidc.existing_accounts.
+var SSOExisting = []string{SSOExistingEmail, SSOExistingUsername, SSOExistingUsernameOrEmail, SSOExistingSeparate}
 
 // SSOGroups are the names of the groups in an app's "groups" claim.
 type SSOGroups struct {
@@ -133,6 +152,9 @@ func (p *Package) validateSSO(v *validator) {
 			} else if g.Users == g.Admins {
 				v.addf("sso.oidc.groups: users and admins must differ")
 			}
+		}
+		if o.ExistingAccounts != "" && !slices.Contains(SSOExisting, o.ExistingAccounts) {
+			v.addf("sso.oidc.existing_accounts: %q must be one of %s", o.ExistingAccounts, strings.Join(SSOExisting, ", "))
 		}
 		for i, u := range o.RedirectURIs {
 			if !appSchemeRe.MatchString(u) || strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:") {

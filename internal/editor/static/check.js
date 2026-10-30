@@ -414,6 +414,7 @@
         if (!re.ssoGroupName.test(g.users) || !re.ssoGroupName.test(g.admins)) add("sso.oidc.groups: users and admins must each be a lowercase name (letters, digits, -, and _)");
         else if (g.users === g.admins) add("sso.oidc.groups: users and admins must differ");
       }
+      if (!isNil(o.existing_accounts) && o.existing_accounts !== "" && !S.lists.ssoExisting.includes(o.existing_accounts)) add(`sso.oidc.existing_accounts: ${goQuote(o.existing_accounts)} must be one of ${S.lists.ssoExisting.join(", ")}`);
       (o.redirect_uris || []).forEach((u, i) => {
         if (!re.ssoAppScheme.test(u) || u.startsWith("http:") || u.startsWith("https:")) add(`sso.oidc.redirect_uris[${i}]: ${goQuote(u)} must be a phone app's own address (like app.example:/callback), not a web address`);
       });

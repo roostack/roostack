@@ -64,6 +64,8 @@ type Reconciler struct {
 	Paths   config.Paths
 	Systemd Systemd
 	Secrets Secrets
+	// Networks removes a removed service's Podman network (optional).
+	Networks Networks
 	// Log shows an apply's steps live in the UI (optional, per apply).
 	Log *activity.Log
 	// UserSecret returns a user-provided secret value (e.g. the DNS token)
@@ -166,6 +168,10 @@ type Plan struct {
 	Remove  []FileChange
 	// StopUnits are units whose Quadlet file is being removed.
 	StopUnits []string
+	// RemoveNetworks are the Podman networks of removed .network files.
+	// Stopping a network's unit doesn't delete the network (ASSUMPTIONS
+	// C9), so they're removed once their containers have stopped.
+	RemoveNetworks []string
 	// RestartUnits have a changed Quadlet file.
 	RestartUnits []string
 	// StartUnits are all desired units; starting a running unit is a no-op.
@@ -198,6 +204,34 @@ func quadletImage(quadlet string) string {
 		}
 	}
 	return ""
+}
+
+// quadletNetworkName is the Podman network a .network file makes: its
+// NetworkName=, or else Quadlet's default, systemd-<file's name>.
+func quadletNetworkName(file, quadlet string) string {
+	for _, line := range strings.Split(quadlet, "\n") {
+		if name, ok := strings.CutPrefix(line, "NetworkName="); ok {
+			return strings.TrimSpace(name)
+		}
+	}
+	return "systemd-" + strings.TrimSuffix(file, ".network")
+}
+
+// removeNetworks deletes removed services' networks, whose containers have
+// stopped by now. A failure is only logged: the service is gone either way,
+// and a network left behind is harmless (removed by hand with podman
+// network rm).
+func (r *Reconciler) removeNetworks(ctx context.Context, log *activity.Log, names []string) {
+	if len(names) == 0 || r.Networks == nil {
+		return
+	}
+	log.Step("Removing networks")
+	for _, n := range names {
+		log.Printf("podman network rm %s", n)
+		if err := r.Networks.Remove(ctx, n); err != nil {
+			log.Printf("Couldn't remove %s, so it's left as it is: %v", n, err)
+		}
+	}
 }
 
 // startNote is what starting a new container's unit involves.
@@ -257,6 +291,7 @@ func (p *Plan) String() string {
 	if p.DaemonReload {
 		b.WriteString("Reload systemd\n")
 	}
+	list("Remove networks", p.RemoveNetworks)
 	list("Restart units", p.RestartUnits)
 	list("Start units", p.StartUnits)
 	list("Waiting for a secret", p.Waiting)
@@ -407,6 +442,9 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 			plan.Remove = append(plan.Remove, FileChange{Path: filepath.Join(quadletDir, name)})
 			plan.StopUnits = append(plan.StopUnits, unitFor(name))
 			plan.DaemonReload = true
+			if strings.HasSuffix(name, ".network") {
+				plan.RemoveNetworks = append(plan.RemoveNetworks, quadletNetworkName(name, haveQuadlets[name]))
+			}
 		}
 	}
 
@@ -545,6 +583,7 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) (err error) {
 			return err
 		}
 	}
+	r.removeNetworks(ctx, log, p.RemoveNetworks)
 	if len(p.RestartUnits) > 0 {
 		log.Step("Restarting changed services")
 		log.Printf("%s", strings.Join(p.RestartUnits, " "))
@@ -686,6 +725,13 @@ func (r *Reconciler) dbURL(ctx context.Context, d generate.DBURL, created map[st
 		}
 	}
 	return []byte(d.URL(strings.TrimSpace(string(pw)))), nil
+}
+
+// Networks is the subset of Podman network handling the reconciler needs.
+type Networks interface {
+	// Remove deletes a network no container uses any more; a missing
+	// network is not an error.
+	Remove(ctx context.Context, name string) error
 }
 
 // fromTemplate makes a secret_env value from the client secret: one made

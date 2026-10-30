@@ -65,3 +65,28 @@ func TestSecretsValuesOnStdin(t *testing.T) {
 		}
 	}
 }
+
+// Removing a network never forces it (which would remove its containers
+// too), and one that's gone already is fine.
+func TestNetworksRemove(t *testing.T) {
+	f := &fakeRun{}
+	n := &Networks{Run: f.run}
+	if err := n.Remove(context.Background(), "roostack-plik"); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"network", "rm", "roostack-plik"}; !slices.Equal(f.args, want) {
+		t.Errorf("args = %q", f.args)
+	}
+	n.Run = func(context.Context, []byte, ...string) ([]byte, error) {
+		return nil, errors.New("podman network: exit status 1: Error: unable to find network with name or ID roostack-plik: network not found")
+	}
+	if err := n.Remove(context.Background(), "roostack-plik"); err != nil {
+		t.Errorf("a missing network: %v", err)
+	}
+	n.Run = func(context.Context, []byte, ...string) ([]byte, error) {
+		return nil, errors.New("podman network: exit status 2: Error: network roostack-plik is being used")
+	}
+	if err := n.Remove(context.Background(), "roostack-plik"); err == nil {
+		t.Error("a network in use: no error")
+	}
+}
