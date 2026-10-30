@@ -258,14 +258,17 @@
     }
     if (!isNil(sso) && !isNil(sso.oidc)) {
       // The secret and the app's settings reach it as env, inside a value
-      // (secret_env), or through its sso hook.
+      // (secret_env), through its sso hook, or in a config file.
       const hookGetsSecret = ssoHooks.some((h) => Object.values(h.secrets || {}).includes(S.lists.ssoClientSecret[0]));
-      if (Object.keys(sso.secrets || {}).length === 0 && Object.keys(sso.secret_env || {}).length === 0 && !hookGetsSecret && firstContainer) {
+      const configs = Object.values(pkg.config_files || {}).map((f) => (f ? String(f.content) : ""));
+      const configGetsSecret = configs.some((c) => c.includes(".SSO.ClientSecret"));
+      if (Object.keys(sso.secrets || {}).length === 0 && Object.keys(sso.secret_env || {}).length === 0 && !hookGetsSecret && !configGetsSecret && firstContainer) {
         add(make("sso.secrets", `An OIDC app needs its client secret, which Roostack will make: give it to the container under the variable the app reads (often OIDC_CLIENT_SECRET), or to its on: sso hook if a command or its API sets the app.`,
           [set("Give it as OIDC_CLIENT_SECRET", ["sso", "secrets", firstContainer], { OIDC_CLIENT_SECRET: S.lists.ssoClientSecret[0] })]));
       }
       const usesSSO = [sso.env, sso.secret_env, ...ssoHooks.map((h) => ({ hook: h.env }))].some((byContainer) =>
-        Object.values(byContainer || {}).some((m) => Object.values(m || {}).some((v) => String(v).includes(".SSO."))));
+        Object.values(byContainer || {}).some((m) => Object.values(m || {}).some((v) => String(v).includes(".SSO.")))) ||
+        configs.some((c) => c.includes(".SSO."));
       if (app && app.sso === "api" && ssoHooks.length > 0 && !(pkg.settings || []).some((s) => s.from_hook)) {
         add(make("hooks", how.api(app.app)));
       }

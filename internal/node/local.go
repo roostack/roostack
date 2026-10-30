@@ -313,6 +313,9 @@ type Local struct {
 	imp importRuns
 	// pho is what migrating photos into Immich shares (photos.go).
 	pho photoRuns
+	// cfg is the look for the files config file blocks wait for
+	// (configfiles.go).
+	cfg configWait
 }
 
 // services is a copy of the services this server runs.
@@ -637,6 +640,11 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		return err
 	}
 	n.installsApplied()
+	n.waitForConfigs(plan.ConfigsWaiting)
+	for _, left := range plan.ConfigsLeft {
+		act.Printf("Config file left as it is: %s", left)
+		n.Log.Warn("config file left as it is", "why", left)
+	}
 	if building {
 		n.followCaddyBuild(n.lab(a).Paths.CaddyBuildLog())
 	}

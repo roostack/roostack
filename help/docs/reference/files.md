@@ -68,7 +68,7 @@ sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) systemctl --user st
 
 | Path | What it is |
 |---|---|
-| `services/<name>/<storage>/` | Each service's data |
+| `services/<name>/<storage>/` | Each service's data. Some apps read their settings from a file in it, which Roostack writes from the service's settings: its [config files](packages.md#the-parts), shown on the service's page under **Technical**, each with its path |
 | `services/<name>/db/<name>/` | A service's database files |
 | `services/<name>/db-dump/` | Its database dump, made before each backup |
 | `media/<name>/<storage>/` | Large data such as photos and videos (can be a separate disk) |

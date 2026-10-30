@@ -360,6 +360,19 @@ Checked on VM1 (arm64, Debian 13), 2026-10-21, Immich 3.3.3 from the registry's 
 | X15 ✅ | **Carrying on by itself after a reboot** (Ella, a Member, 50,313 photos from an Owner's location, 2026-10-21): the first try started immich-go 5 seconds after boot, before Immich was back on its network ("lookup roostack-immich-server … no such host"), and it gave up; Roostack now waits up to 15 minutes until Immich answers about the key. Rebooted again at 9,202: Roostack was up at 21:49:02 and the migration running again at 21:49:22 with no page opened, and it finished: 50,279 migrated in 4 goes, Immich's count 50,280 (the 33 left out by choice), nothing twice. The container had `--memory` half the VM's (2.05 GB), `GOMEMLIMIT=1467MiB`, and `oom_score_adj` 1000. | `node.carryOnAfterRestart` |
 | X10 | **Not yet tried:** a network share as the source; Immich on a node other than the controller (refused with a sentence for now); real videos and HEICs (the generator makes none; Immich's ffmpeg can make videos for `-videos-from`); a Live Photo pair; a real Takeout's localised names; a library over 50,000 photos (X11's sizes are extrapolated); the time zone Immich shows for a sidecar-only date; emails (no mail server on the VM); arm64 only, not amd64. | TASKS.md |
 
+## Y. Config files a package declares (SPEC §8.1)
+
+Checked on VM6 (arm64, Debian 13), 2026-10-30, with Pingvin Share X 2.1.0 (the test package in `internal/testdata/packages`) and a small Python app that makes its own settings file, both added as the Owner's own packages.
+
+| # | Assumption | Where it matters |
+|---|---|---|
+| Y1 ✅ | **Roostack's sandboxed daemon writes into a service's storage, through `os.Root`,** before the container starts: `config.yaml`, 0600, owned by the roostack user, in a folder Roostack made. | `reconcile.writeInRoot` |
+| Y2 ✅ | **A 0600 file owned by Roostack's user is readable by the container's user with `UserNS=keep-id:uid=1000,gid=1000`,** in a storage folder mounted read-only (`:ro`): Pingvin Share X ran as 1000, read every value from it (`/api/configs`), and its data folder stayed the roostack user's. | Packages whose app isn't the container's root |
+| Y3 ✅ | **A block goes in once the app has made its file, and the app reads it after the restart:** the app wrote its file 3 seconds after starting; Roostack added the block 7 seconds later (two looks 5 seconds apart), restarted it, and Python's `import settings` read Roostack's values over the app's own, the file keeping its 0644. A setting saved from the page changed only the block and restarted the app. | `node.waitForConfigs`, Seafile's `seahub_settings.py` |
+| Y4 ✅ | **The file follows setup:** the install hook finished, the install-only password secret was deleted, and the file was written again with `password: ""` the same second, and the app restarted. Turning single sign-on on put the same client secret Podman holds into the file. | `node.runPendingHooks`, `reconcile.configValues` |
+| Y5 ✅ | **`os.Root` refuses a symlink out of the storage folder on Linux** (a symlinked file is replaced by the rename, a symlinked folder refused): `TestConfigFileSymlink`, run in the VM with `scripts/dev-vm.sh test`. | A container could plant a symlink where Roostack writes |
+| Y6 | **Not yet tried:** Seafile itself (it needs the extra MariaDB schemas of build plan item 2, on another branch); a block on a server other than the controller (the same code runs there). | |
+
 ## H. Dependencies
 
 Picked overnight to keep moving; **approved by the user on 2026-09-26.**

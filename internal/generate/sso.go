@@ -38,9 +38,11 @@ type SSOContext struct {
 	// under the names the package gives them (sso.oidc.groups).
 	UserGroup, AdminGroup string
 
-	// secretMarker is set while rendering sso.secret_env, the one place
-	// .SSO.ClientSecret is allowed.
+	// secretMarker is set while rendering sso.secret_env, and fileSecret
+	// (the client secret's Podman name) while rendering a config file: the
+	// places .SSO.ClientSecret is allowed.
 	secretMarker bool
+	fileSecret   string
 }
 
 // SSOSecretMarker stands for the client secret in a rendered secret_env
@@ -48,11 +50,17 @@ type SSOContext struct {
 // never has the secret. Plain letters, so json leaves it as it is.
 const SSOSecretMarker = "ROOSTACKSSOCLIENTSECRETxq7Zp2"
 
-// ClientSecret is the app's client secret, in sso.secret_env only:
-// anywhere else it would end up in a file Roostack writes.
+// ClientSecret is the app's client secret, in sso.secret_env and config
+// files only, where the server puts it in: anywhere else it would end up
+// in a file Roostack writes as generated.
 func (c SSOContext) ClientSecret() (string, error) {
-	if !c.secretMarker {
-		return "", fmt.Errorf(".SSO.ClientSecret is only for sso.secret_env (or an sso hook's secrets: sso.client_secret)")
+	switch {
+	case c.fileSecret != "" && !c.Enabled:
+		return "", fmt.Errorf(".SSO.ClientSecret is there only while single sign-on is on: use it inside {{ if .SSO.Enabled }}")
+	case c.fileSecret != "":
+		return SecretPlaceholder(c.fileSecret), nil
+	case !c.secretMarker:
+		return "", fmt.Errorf(".SSO.ClientSecret is only for sso.secret_env, config files, or an sso hook's secrets (sso.client_secret)")
 	}
 	return SSOSecretMarker, nil
 }

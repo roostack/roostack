@@ -741,14 +741,17 @@ func (m *Manager) markRemoved(ctx context.Context, id string) {
 }
 
 // ServiceFiles are the files Roostack writes for a service, for its page's
-// technical side: its Quadlet units (on the server it runs on) and its
-// Caddy site (on the controller, which forwards to the service's server
-// when it's another one). Generation is pure, so these are what the
-// servers have, made again here rather than read from them.
+// technical side: its Quadlet units and config files (on the server it
+// runs on) and its Caddy site (on the controller, which forwards to the
+// service's server when it's another one). Generation is pure, so these
+// are what the servers have, made again here rather than read from them;
+// config files with their secrets as placeholders, which only the server
+// fills in (SPEC.md §8.1).
 type ServiceFiles struct {
 	QuadletDir, CaddySitesDir string
 	Quadlets                  []generate.File
 	CaddySite                 *generate.File
+	ConfigFiles               []generate.ConfigFile
 }
 
 // ServiceFiles makes a service's files as its servers write them.
@@ -764,7 +767,7 @@ func (m *Manager) ServiceFiles(name string) (*ServiceFiles, error) {
 		return nil, err
 	}
 	f := &ServiceFiles{QuadletDir: m.Lab.Paths.QuadletDir(), CaddySitesDir: m.Lab.Paths.CaddySitesDir(),
-		Quadlets: out.Quadlets, CaddySite: out.CaddySite}
+		Quadlets: out.Quadlets, CaddySite: out.CaddySite, ConfigFiles: out.ConfigFiles}
 	if in.HostOr(m.Lab.NodeID) != m.Lab.NodeID {
 		f.CaddySite = nil
 		for _, r := range m.others() {

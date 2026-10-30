@@ -14,6 +14,13 @@ func Dump(o *Output) string {
 	if o.CaddySite != nil {
 		fmt.Fprintf(&b, "==> caddy/sites/%s\n%s\n", o.CaddySite.Name, o.CaddySite.Content)
 	}
+	for _, f := range o.ConfigFiles {
+		what := "the whole file"
+		if f.Block {
+			what = "a block at the end of the app's own file"
+		}
+		fmt.Fprintf(&b, "==> config %s (%s: %s)\n%s\n", f.HostPath(), f.Title, what, f.Shown())
+	}
 	b.WriteString("==> units\n")
 	for _, u := range o.Units {
 		fmt.Fprintf(&b, "%s\n", u)

@@ -146,7 +146,9 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [ ] **Publishing the new packages:** Papra, Linkwarden, Paperless-ngx, Mealie, Lychee, Ghost, PhotoPrism, Jellyfin, Navidrome, Plex and Vaultwarden 1.37.4-roostack.2 use `install_value`, `databases.<name>.url`, `.Lab.TimeZone`, colons in paths, `client_ip_header`, `mysql`, `mariadb` or media libraries, so they wait for a Roostack release with them (the registry's Publish workflow checks with a pinned release)
 - [ ] **Forgejo 19 (the next LTS, April 2027):** the package stays on the 15 LTS line (v17.0.0 had an upstream "don't upgrade" warning on 2026-10-18, and 16 ends 2026-10-29)
 - [ ] **Extra settings per service** (Settings → Advanced, Owner only): extra environment variables, plain or secret; the package's own variables refused; kept in the instance, through updates; shown in the generated files and Details
-- [ ] **Config files a package declares** (`config_files:`), with Frigate and Home Assistant: an editor in the browser (syntax check, the app's own check, the previous version kept, restart on save); a code editor library only if chosen with the Owner
+- **Config files a package declares** (`config_files:`, SPEC §8.1)
+  - [ ] Editing in the browser, with Frigate and Home Assistant: the Owner's version kept in the instance, a syntax check, the app's own check, the previous version kept, restart on save; a code editor library only if chosen with the Owner
+  - [ ] More block formats when an app needs one (shell-style env files, where a later line wins too)
 - [ ] **Frigate** (a session): devices beyond Intel graphics (Coral and other USB accelerators), shared memory, cameras over RTSP
 - [ ] **Pi-hole** (a session): DNS on port 53, beside any resolver the server runs
 - [ ] **Home Assistant** (a session): finding devices on the home network (host networking, or what's needed instead), within the package policy

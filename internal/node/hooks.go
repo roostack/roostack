@@ -233,6 +233,10 @@ func (n *Local) runPendingHooks(ctx context.Context) {
 				}
 			}
 		}
+		// Config files holding one are written again without it.
+		if installOnlyInConfig(s.Package) {
+			n.Reapply(name + " finished setting up: its config files without the values only setup needed")
+		}
 	}
 }
 
@@ -260,6 +264,10 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 	defer cancel()
 	act := n.Activity.Start(activity.Setup, "Setting up "+s.Title())
 	defer func() { act.Finish(err) }()
+	// Its config file blocks first: the hooks run against the app with them.
+	if err := n.waitForBlocks(ctx, act, s, retry); err != nil {
+		return err
+	}
 	hooks := s.Package.HooksOn(pkgspec.HookInstall)
 	for i, h := range hooks {
 		if h.Title != "" {

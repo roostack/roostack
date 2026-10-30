@@ -529,6 +529,38 @@ links[].path:
   help: The page's path, starting with a single /.
   example: /admin
   link: reference/packages#the-parts
+config_files:
+  label: Config files
+  help: Files the app reads its settings from, which Roostack will write inside the service's storage from a template and the service's settings, and write again when they change, restarting the containers that mount that storage.
+  link: reference/packages#the-parts
+config_files.*.title:
+  label: What it is
+  help: A few words for people, shown beside its path. At most 60 characters.
+  example: Pingvin Share X's settings
+  link: reference/packages#the-parts
+config_files.*.storage:
+  label: In the storage
+  help: The storage entry it's in. A container must mount it, and the app must read the file as the container's root, or as the user UserNS=keep-id maps.
+  example: config
+  link: reference/packages#the-parts
+config_files.*.path:
+  label: Path
+  help: Where it is inside the storage folder.
+  example: conf/settings.yaml
+  link: reference/packages#the-parts
+config_files.*.format:
+  label: Format
+  help: python, yaml, json, or text. It decides how secrets will be quoted, whether the file will start with a comment, and how a rendered example will be checked.
+  example: yaml
+  link: reference/packages#the-parts
+config_files.*.block:
+  label: Lines at the end of the app's own file
+  help: For an app that makes the file itself and keeps its own values in it (Seafile's SECRET_KEY). Roostack will add its lines at the end once the app has made the file, and leave the rest alone. Python only, where a later line wins.
+  link: reference/packages#the-parts
+config_files.*.content:
+  label: Content
+  help: A template. It can also use .Secrets.<key> for a secret setting and .SSO.ClientSecret while single sign-on is on, which Roostack will fill in on the server as it writes the file, quoted for the format.
+  link: reference/packages#the-parts
 sso:
   label: Single sign-on
   help: How the app takes single sign-on, which the Owner turns on per service. Either oidc (the app will sign people in through OIDC itself) or forward_auth (everyone will sign in on the lab's sign-in page before a request reaches it), not both.

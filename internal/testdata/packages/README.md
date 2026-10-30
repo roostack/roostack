@@ -18,3 +18,8 @@ Forgejo has its `sso` part and `on: sso` hook too (an app set by a command,
 as the registry's 15.0.10-roostack.2 has them), under the version the tests
 name. Immich is an older version, without single sign-on: the key-saving
 path is tested with a small package of its own (`internal/node`).
+
+Pingvin Share X isn't in the registry yet: it's a first draft written with
+config files a package declares (SPEC.md §8.1), whose whole `config.yaml`
+holds the first administrator's password and single sign-on's client secret,
+and it was tried on VM6. Its icon is Mealie's placeholder.

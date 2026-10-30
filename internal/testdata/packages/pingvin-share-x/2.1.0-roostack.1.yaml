@@ -1,0 +1,139 @@
+# Pingvin Share X: a test package for config files a package declares
+# (SPEC.md §8.1). Not yet in the registry: a first draft of the package,
+# written with the feature. Image digest looked up 2026-10-30.
+schema: roostack/v1alpha1
+name: pingvin-share-x
+title: Pingvin Share X
+description: Send files to anyone with a link, and ask people to send you theirs
+version: 2.1.0-roostack.1
+
+about:
+  maker: smp46 and the Pingvin Share community
+  website: https://smp46.github.io/pingvin-share-x/
+  source: https://github.com/smp46/pingvin-share-x
+  licence: BSD-2-Clause
+  # A placeholder, not Pingvin Share X's logo.
+  icon: icon.png
+  categories: [productivity]
+  keywords: [file sharing, send files, upload, transfer, share links]
+built_with: [node]
+requires:
+  roostack: "0.1"
+
+settings:
+  # Pingvin Share X makes this administrator on its first start, from
+  # initUser in its config file; Roostack deletes the password once setup
+  # has finished and writes the file again without it.
+  - key: admin_email
+    title: Your email address
+    description: For signing in to Pingvin Share X
+    type: string
+    required: true
+    install_only: true
+  - key: admin_password
+    title: Your password
+    description: At least 8 characters. Roostack forgets it once the account is made.
+    type: secret
+    min_length: 8
+    install_only: true
+  - key: max_share_days
+    title: Longest a share can last, in days
+    description: 0 lets people keep shares for ever
+    type: int
+    default: 30
+  - key: signups_allowed
+    title: Allow anyone to create an account
+    description: Otherwise you add people from Pingvin Share X's administration
+    type: bool
+    default: false
+
+containers:
+  app:
+    image: docker.io/smp46/pingvin-share-x:v2.1.0@sha256:0b3e52a50d233957d8a05632ee13554ad775ee9af757591c36c885973deb590d
+    env:
+      TRUST_PROXY: "true"
+      # Its own folder, mounted read-only: the app can read its settings,
+      # not change them.
+      CONFIG_FILE: /opt/app/config/config.yaml
+    mounts:
+      - { storage: data, path: /opt/app/backend/data }
+      - { storage: config, path: /opt/app/config, readonly: true }
+    health:
+      http: { port: 3000, path: /api/health }
+    memory: 200 MB
+    quadlet:
+      Container:
+        # Run as 1000, mapped to Roostack's user, so the data folder and
+        # the config file are its own (the image would otherwise start as
+        # root and change the data folder's owner).
+        User: "1000:1000"
+        UserNS: keep-id:uid=1000,gid=1000
+
+storage:
+  data:
+    title: The files people share, and its database
+    class: critical
+  config:
+    title: Its settings file, which Roostack writes
+    class: critical
+
+config_files:
+  config:
+    title: Pingvin Share X's settings
+    storage: config
+    path: config.yaml
+    format: yaml
+    content: |
+      general:
+        appName: Pingvin Share X
+        appUrl: {{ json .Routes.web.URL }}
+        showHomePage: "false"
+      security:
+        secureCookies: {{ if .Lab.Domain }}"true"{{ else }}"false"{{ end }}  # HTTPS once the lab has an address
+        allowRegistration: {{ if .Settings.signups_allowed }}"true"{{ else }}"false"{{ end }}
+        allowUnauthenticatedShares: "false"
+      share:
+        maxExpiration: "{{ .Settings.max_share_days }} days"
+      {{- if .SSO.Enabled }}
+      oauth:
+        allowRegistration: "true"
+        oidc-enabled: "true"
+        oidc-discoveryUri: {{ json .SSO.DiscoveryURL }}
+        oidc-clientId: {{ json .SSO.ClientID }}
+        oidc-clientSecret: {{ .SSO.ClientSecret }}
+        oidc-rolePath: groups
+        oidc-roleGeneralAccess: {{ json .SSO.UserGroup }}
+        oidc-roleAdminAccess: {{ json .SSO.AdminGroup }}
+      {{- end }}
+      initUser:
+        enabled: true
+        username: admin
+        email: {{ json .Settings.admin_email }}
+        password: {{ .Secrets.admin_password }}
+        isAdmin: true
+
+hooks:
+  # The administrator is made on the first start, from the config file:
+  # this waits until Pingvin Share X answers, so that setup finishes (and
+  # its password is deleted) only once it has.
+  - on: install
+    title: Wait for Pingvin Share X to start
+    container: app
+    command: [curl, -fsS, http://127.0.0.1:3000/api/health]
+
+routes:
+  web:
+    container: app
+    port: 3000
+    subdomain: share
+    exposure: private
+    max_body_size: 10GB
+    public:
+      login_paths:
+        - /api/auth/signIn
+
+sso:
+  oidc:
+    route: web
+    redirect_paths: [/api/oauth/callback/oidc]
+  note: Pingvin Share X's own passwords keep working.

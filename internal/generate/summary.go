@@ -35,6 +35,9 @@ type Summary struct {
 	// shows them: the Quadlet units, then the Caddy site, each named by
 	// its full path.
 	Files []File
+	// ConfigFiles are the files it gets inside its storage, which the
+	// page shows with their secrets as placeholders (ConfigFile.Shown).
+	ConfigFiles []ConfigFile
 	// Dirs and Backup are the folders it gets and what's backed up of
 	// them (the generator's Output).
 	Dirs   []string
@@ -101,6 +104,7 @@ func Summarize(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Summ
 	if out.CaddySite != nil {
 		s.Files = append(s.Files, File{Name: filepath.Join(lab.Paths.CaddySitesDir(), out.CaddySite.Name), Content: out.CaddySite.Content})
 	}
+	s.ConfigFiles = out.ConfigFiles
 
 	for _, name := range slices.Sorted(maps.Keys(p.Storage)) {
 		st := p.Storage[name]

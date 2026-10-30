@@ -807,7 +807,9 @@ func TestServiceCardsAndBuiltIns(t *testing.T) {
 	_, body := h.get("/services/vaultwarden")
 	for _, want := range []string{`class="view-switch"`, "roostack-vaultwarden-app", "docker.io/vaultwarden/server:1.34.1",
 		"roostack-vaultwarden-app.container", "vault.lab.example.com → 127.0.0.1:18000", "/srv/roostack/services/vaultwarden", "12.0 MB",
-		"journalctl --user -u 'roostack-vaultwarden-*'"} {
+		"journalctl --user -u 'roostack-vaultwarden-*'",
+		// Its config files, secrets as placeholders (SPEC.md §8.1).
+		"/srv/roostack/services/vaultwarden/data/settings.yaml", "token: ‹secret: Admin token›"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("service page missing %q", want)
 		}
@@ -1368,6 +1370,17 @@ func TestInstallSummary(t *testing.T) {
 		t.Error("install page: a server that doesn't say its memory")
 	}
 	fm.serverMemory = manager.ServerMemory{}
+
+	// Its config files, with their secrets as placeholders (SPEC.md §8.1).
+	_, body = h.post("/install/pingvin-share-x/summary", url.Values{"subdomain": {"share"}, "title": {"Pingvin Share X"},
+		"setting.admin_email": {"me@example.com"}}, h.srv.URL)
+	for _, want := range []string{`id="install-config-config"`, "<code>config.yaml</code>: Pingvin Share X&#39;s settings",
+		"In <code>/srv/roostack/services/pingvin-share-x/config</code>. Roostack will fill in each ‹secret› as it writes the file.",
+		"password: ‹secret: Your password, until setup has finished›"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("install page is missing %q", want)
+		}
+	}
 
 	// Data from before on the server: the page says it's used.
 	if strings.Contains(body, "data from before") {

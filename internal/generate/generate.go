@@ -125,6 +125,9 @@ type Output struct {
 	// Units are the systemd services to start. systemd orders them using
 	// the generated Requires=/After= dependencies.
 	Units []string
+	// ConfigFiles are written inside its storage, with its secrets filled
+	// in (configfile.go, SPEC.md §8.1).
+	ConfigFiles []ConfigFile
 	// Hosts are the hostnames this service's routes use.
 	Hosts []string
 	// Ports are the host loopback ports its routes are published on.
@@ -327,6 +330,9 @@ func (g *gen) run() error {
 		}
 	}
 	if err := g.caddySite(); err != nil {
+		return err
+	}
+	if err := g.configFiles(); err != nil {
 		return err
 	}
 	g.secrets()

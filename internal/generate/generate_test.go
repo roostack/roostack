@@ -40,6 +40,8 @@ func TestGolden(t *testing.T) {
 		{"stirling-pdf-sso", "stirling-pdf", "stirling-pdf-sso.instance.yaml"},
 		// An app set by a command, in its sso hook (Forgejo).
 		{"forgejo-sso", "forgejo", "forgejo-sso.instance.yaml"},
+		// A config file with secrets (SPEC.md §8.1): placeholders only.
+		{"pingvin-share-x-sso", "pingvin-share-x", "pingvin-share-x-sso.instance.yaml"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

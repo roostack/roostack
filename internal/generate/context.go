@@ -34,6 +34,10 @@ type Context struct {
 	Inputs map[string]string
 	// SSO is single sign-on's values (sso.go, SPEC.md §5.2).
 	SSO SSOContext
+	// Secrets are placeholders for the secret settings, in config files
+	// only, which the server fills in as it writes them (configfile.go);
+	// nil in every other template.
+	Secrets map[string]string
 }
 
 // ContainerContext describes a sibling container.

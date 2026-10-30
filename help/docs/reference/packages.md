@@ -321,6 +321,67 @@ routes:
       note: Phone apps still sign in with the app's own password.
     ```
 
+`config_files`
+:   Files the app reads its settings from, for an app that takes them
+    from a file rather than its environment. Roostack will write each one
+    from its template and the service's settings, inside one of the
+    service's storage folders, and write it again whenever they change
+    (a setting, single sign-on turned on or off, a new address), then
+    restart the containers that mount that storage. Each has a name of
+    its own and:
+
+    - `title`: what it is, in a few words ("Seafile's web settings").
+    - `storage` and `path`: the storage entry it's in, which a container
+      must mount, and where inside it, such as `conf/settings.yaml`.
+    - `format`: `python`, `yaml`, `json`, or `text`. It decides how a
+      secret is written: quoted as JSON writes a string, which Python,
+      YAML, and JSON all read, or as it is in `text`. A `python` or `yaml`
+      file starts with a comment saying Roostack writes it. `roostack
+      validate` checks that a `yaml` or `json` file is valid once
+      rendered.
+    - `block: true`, for an app that makes the file itself and keeps its
+      own values in it, such as Seafile's `seahub_settings.py` with its
+      `SECRET_KEY`: the template is then Roostack's lines at the end of
+      the app's file, between `# BEGIN Roostack` and `# END Roostack`, and
+      Roostack leaves the rest alone. Roostack will add them once the app
+      has made the file on its first start, then restart it, and the
+      service's install hooks wait for that. Only `python` for now, where
+      a later line wins over an earlier one.
+    - `content`: the template. Besides what other templates use, it can
+      use the service's secrets: `{{ .Secrets.<key> }}` for a secret
+      setting, and `{{ .SSO.ClientSecret }}` while single sign-on is on.
+      Roostack will fill them in on the server as it writes the file, so
+      they're never in what it shows (the service's page, the summary
+      before installing, `roostack render`), which has `‹secret: …›` in
+      their place. Don't quote them yourself. An `install_only` secret
+      will be in the file only until setup has finished: Roostack will
+      then delete it and write the file again with `""` in its place.
+
+    The file is written as Roostack's user, which is the container's root
+    (or its user with `UserNS=keep-id`), and only that user can read it.
+    So the app must read it as root, or as the user `keep-id` maps. Give
+    an app that changes its data folder's owner at start a storage entry
+    of its own for the file, mounted `readonly`. Use it for what the app
+    can't take from its environment.
+
+    ```yaml
+    config_files:
+      settings:
+        title: Pingvin Share X's settings
+        storage: config          # mounted read-only at /opt/app/config
+        path: config.yaml
+        format: yaml
+        content: |
+          general:
+            appUrl: {{ json .Routes.web.URL }}
+          security:
+            allowRegistration: {{ if .Settings.signups_allowed }}"true"{{ else }}"false"{{ end }}
+          initUser:
+            enabled: true
+            email: {{ json .Settings.admin_email }}
+            password: {{ .Secrets.admin_password }}
+    ```
+
 ## What a package may not do
 
 Every package in the registry follows a **package policy**, which Roostack
@@ -383,7 +444,7 @@ may break the policy: check it with `roostack validate -local`, and see
 
 ## Templates
 
-Values in `env`, `when`, and hooks are Go templates:
+Values in `env`, `when`, hooks, and config files are Go templates:
 
 | Value | Example |
 |---|---|
@@ -399,7 +460,8 @@ Values in `env`, `when`, and hooks are Go templates:
 | `.SSO.ClientID` | The app's ID at the sign-in page: the service's name |
 | `.SSO.ProviderName` / `.ButtonText` | The lab's name / `Sign in with` and the lab's name |
 | `.SSO.UserGroup` / `.AdminGroup` | `users` and `admins` (or the names `sso.oidc.groups` gives): the `groups` claim (with the `groups` scope) has `users` for everyone with access, and `admins` too for the lab's Owners and Admins |
-| `.SSO.ClientSecret` | The app's client secret, in `sso.secret_env` only: anywhere else it would land in a file Roostack writes |
+| `.SSO.ClientSecret` | The app's client secret, in `sso.secret_env` and config files only: anywhere else it would land in a file Roostack writes |
+| `.Secrets.<key>` | A secret setting, in config files only, filled in on the server as Roostack writes the file |
 
 Two functions help: `json` writes a value as a JSON string, quoted and
 escaped (`{{ json .SSO.ProviderName }}`), and `pathescape` escapes it for
