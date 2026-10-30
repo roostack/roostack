@@ -784,7 +784,7 @@ func TestRoundTrip(t *testing.T) {
 	}
 
 	// Every method that goes over the wire has a row.
-	local := map[string]bool{"Identity": true, "Address": true, "Close": true, "Pending": true, "DataDirs": true,
+	local := map[string]bool{"Identity": true, "Address": true, "Close": true, "Pending": true, "SetUpWaiting": true, "DataDirs": true,
 		"Backups": true, "Restores": true, "Updates": true, "Settings": true, "Media": true, "Imports": true,
 		"Mover": true, "Updater": true, "Disks": true, "Memory": true, "LeftData": true, "History": true,
 		"Linked": true, "GuestHost": true, "Processor": true, "Photos": true}

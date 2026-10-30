@@ -110,6 +110,9 @@ func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maint
 	go maintenance.Every(ctx,
 		func(now time.Time) time.Time { return maintenance.NextDaily(now, maintenance.DefaultBackupAt) },
 		func() { go mgr.AutoUpdate(ctx, time.Now().Add(-time.Minute)) })
+	// Services waiting for their setup: their addresses open once their
+	// servers say it has succeeded (SPEC.md §8.1).
+	go mgr.WatchSetUps(ctx)
 	// Hourly, from the start: hear from labs storing this one's backups (a
 	// removal, a new name), and delete removed guest labs' backups once
 	// their grace ends.

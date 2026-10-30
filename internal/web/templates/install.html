@@ -176,7 +176,7 @@
       {{- with .Remade}}<br><small class="hint">Not backed up, as {{$.Package.Title}} makes them again: {{.}}.</small>{{end}}</dd>
     {{range .Addresses}}<dt>Address</dt>
     <dd>{{if $.NoAddress}}None yet: it will get one once your lab has an address{{else}}{{.Host}}<br>
-      <small class="hint">{{if .Public}}Anyone on the internet{{else}}{{template "private-where" $.Internet}}{{end}}</small>{{end}}</dd>{{end}}
+      <small class="hint">{{if .AfterSetup}}Anyone on the internet, once it's set up{{else if .Public}}Anyone on the internet{{else}}{{template "private-where" $.Internet}}{{end}}</small>{{end}}</dd>{{end}}
     {{range .Ports}}<dt>Connection</dt>
     <dd>{{.Title}}, port {{.HostPort}}{{if ne .Protocol "tcp"}} ({{.Protocol}}){{end}}<br>
       <small class="hint">{{if .Enabled}}On{{else}}Off until you turn it on, on its page{{end}}; {{if eq .Exposure "public"}}anyone on the internet{{else}}your home network only{{end}}</small></dd>{{end}}

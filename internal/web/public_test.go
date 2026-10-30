@@ -373,3 +373,52 @@ func TestKnownExploits(t *testing.T) {
 		t.Errorf("an Admin turned it off: %d", code)
 	}
 }
+
+// A public address waits for the service's setup (SPEC.md §8.1): the
+// service page and the address's page say it's private until then, and
+// why.
+func TestPublicAfterSetupPages(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.access = []manager.RouteAccess{{Route: "web", Host: "passwords.lab.example.com", Public: true, AfterSetup: true, WAF: true}}
+	fm.setup = map[string]manager.HookStatus{"vaultwarden": {Running: true}}
+	_, body := h.get("/services/vaultwarden")
+	for _, want := range []string{"Home only for now:", `<a href="#setup-status">it will be public once setup has finished</a>`,
+		"Roostack is keeping Vaultwarden private until then, since some apps belong to whoever reaches them first",
+		"and it will be public as soon as setup has finished."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("service page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Anyone on the internet") {
+		t.Error("not public yet")
+	}
+	fm.setup["vaultwarden"] = manager.HookStatus{Failed: "exit status 1"}
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "Roostack will keep Vaultwarden private until setup has finished") {
+		t.Error("a failed setup says it stays private")
+	}
+	_, body = h.get("/services/vaultwarden/public/web")
+	for _, want := range []string{"Public once set up", "will be able to reach <code>passwords.lab.example.com</code> once Vaultwarden has finished setting up",
+		"Until then, Roostack is keeping it private (reachable from your home network (or VPN) only) so that nobody can get to it before it's set up.",
+		"You'll be able to check once Vaultwarden has finished setting up.", "Make private"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("public page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Make a check link") {
+		t.Error("no check link before it's public")
+	}
+
+	h.setSetup(&fakeSetup{p: allDone, network: config.NetworkInternet})
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "Only through an SSH tunnel for now:") {
+		t.Error("on a lab on the internet, private means an SSH tunnel")
+	}
+	if _, body := h.get("/services/vaultwarden/public/web"); !strings.Contains(body, "(reachable only through an SSH tunnel)") {
+		t.Error("on a lab on the internet, private means an SSH tunnel")
+	}
+
+	// The install's audit entry says it will be public once set up.
+	h.post("/install/vaultwarden", url.Values{"public": {"on"}, "share": {"no"}}, h.srv.URL)
+	if logs, _ := h.store.RecentAudit(context.Background(), 1); len(logs) != 1 || logs[0].Detail != "vaultwarden, public once set up" {
+		t.Errorf("the install's audit entry: %+v", logs)
+	}
+}

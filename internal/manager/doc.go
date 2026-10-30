@@ -19,6 +19,8 @@
 //     §8.3.4); withdrawals.go: the registry's withdrawals and stops;
 //   - update.go: updating to newer package versions (SPEC.md §7.1);
 //   - retry.go: running install hooks again with changed settings;
+//     setup.go: public addresses waiting for install hooks to succeed
+//     (SPEC.md §8.1);
 //   - public.go, edge.go: public addresses, the web application
 //     firewall, a lab's edge and Roostack Cloud's relay (SPEC.md §6.11,
 //     §10.5);

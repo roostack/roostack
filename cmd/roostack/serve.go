@@ -253,6 +253,9 @@ func (c *controller) wireManager() {
 		Submit:    func(j maintenance.Job) { c.coord.Submit(j) },
 		Settings:  c.st,
 		Audit:     func(ctx context.Context, action, detail string) { c.st.Audit(ctx, nil, action, detail) }}
+	// Its own services' addresses waiting for setup open as soon as
+	// their install hooks succeed (SPEC.md §8.1).
+	c.local.SetUpDone = c.mgr.SetUpDone
 	c.mgr.RenameSelf = func(name string) error {
 		self := c.id
 		self.Name = name

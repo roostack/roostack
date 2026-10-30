@@ -123,8 +123,10 @@ type Manager struct {
 	// written to disk.
 	secrets map[string]map[string][]byte
 	// setUp lists newly installed services whose install hooks the node
-	// should run.
-	setUp []string
+	// should run. setUpAsked are the services whose lost setup Roostack
+	// asked for again (CheckSetUps), so it's asked for only once.
+	setUp      []string
+	setUpAsked map[string]bool
 	// assignErr is why the last assignment couldn't be built, if it failed.
 	assignErr error
 	// pulls are when each server last fetched its assignment.
@@ -410,6 +412,11 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	}
 	in.Local = m.IsLocal(p.Name)
 	in.AwaitingData = req.BringData
+	// Install hooks (e.g. creating the admin account) run once the
+	// service has started, and its addresses stay private until they've
+	// succeeded (SPEC.md §8.1, "Public addresses wait for setup").
+	setUp := len(p.HooksOn(pkgspec.HookInstall)) > 0 && !keep
+	in.SettingUp = setUp
 	secrets := map[string][]byte{}
 	for _, s := range p.Settings {
 		// A key the app makes (from_hook) comes only from its hook, never
@@ -462,9 +469,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err := in.Save(state.InstanceFile(m.Lab, id)); err != nil {
 		return err
 	}
-	// Install hooks (e.g. creating the admin account) run once the
-	// service has started.
-	if len(p.HooksOn(pkgspec.HookInstall)) > 0 && !keep {
+	if setUp {
 		m.setUp = append(m.setUp, id)
 	}
 	if m.secrets == nil {
@@ -620,11 +625,18 @@ func (m *Manager) InstallSummary(name string, req InstallRequest) (*InstallSumma
 	if _, err := state.AllocatePorts(m.onNode(services, in.Host)); err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), memoryWait)
+	defer cancel()
+	left := m.leftData(ctx, in.Host, cmp.Or(in.Name, p.Name))
+	// Its addresses wait for its install hooks, as Install will decide
+	// (SPEC.md §8.1, "Public addresses wait for setup").
+	keep := req.BringData || setupLeftEmpty(p, req) && len(left) > 0
+	in.SettingUp = len(p.HooksOn(pkgspec.HookInstall)) > 0 && !keep
 	sum, err := generate.Summarize(m.Lab, p, in)
 	if err != nil {
 		return nil, err
 	}
-	out := &InstallSummary{Summary: sum, Server: ServerMemory{Servers: 1 + len(m.others())}}
+	out := &InstallSummary{Summary: sum, Server: ServerMemory{Servers: 1 + len(m.others())}, LeftData: left}
 	n := m.node(in.Host)
 	id := n.Identity()
 	out.Server.Name, out.Server.This = id.Name, id.ID == m.Lab.NodeID || in.Host == ""
@@ -636,8 +648,6 @@ func (m *Manager) InstallSummary(name string, req InstallRequest) (*InstallSumma
 		}
 		out.Server.Expected += mem
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), memoryWait)
-	defer cancel()
 	if nm := node.Capability(n, node.Node.Memory); nm != nil {
 		if info, err := nm.MemoryInfo(ctx); err == nil {
 			out.Server.Total, out.Server.Available = info.Total, info.Available
@@ -645,7 +655,6 @@ func (m *Manager) InstallSummary(name string, req InstallRequest) (*InstallSumma
 			m.Log.Warn("server memory", "server", id.Name, "err", err)
 		}
 	}
-	out.LeftData = m.leftData(ctx, in.Host, cmp.Or(in.Name, p.Name))
 	return out, nil
 }
 

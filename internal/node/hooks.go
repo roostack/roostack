@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Hook progress, stored as runtime settings (hookKey). A service installed
@@ -57,6 +59,10 @@ type HookStatus struct {
 	Running bool   // setting up now
 	Pending bool   // waiting for the service to start
 	Failed  string // why the last attempt failed
+	// Done: they succeeded. None of the four is a service with no install
+	// hooks to run here (none in its package, installed over its data from
+	// before, or its setup never reached this server).
+	Done bool
 	// SSO is its sso hooks' last run, for the Single sign-on card.
 	SSO SSOHookStatus
 }
@@ -98,7 +104,7 @@ func (n *Local) InstallStatus(ctx context.Context, name string) HookStatus {
 	n.mu.Lock()
 	running := n.hooksRunning[name]
 	n.mu.Unlock()
-	st := HookStatus{Running: running, Pending: v == hookPending && !running, SSO: n.ssoStatus(ctx, name)}
+	st := HookStatus{Running: running, Pending: v == hookPending && !running, Done: v == hookDone, SSO: n.ssoStatus(ctx, name)}
 	if msg, failed := strings.CutPrefix(v, hookFailed); failed {
 		st.Failed = msg
 	}
@@ -221,6 +227,11 @@ func (n *Local) runPendingHooks(ctx context.Context) {
 		n.installStep(name, stageSetup, true)
 		n.Log.Info("install hooks done", "service", name)
 		n.State.SetSetting(ctx, hookKey(name), hookDone)
+		// Its addresses waiting for setup can be public (SPEC.md §8.1): the
+		// controller decides, and asks other servers.
+		if n.SetUpDone != nil {
+			n.SetUpDone(name)
+		}
 		// Settings used only during the install now take their own value.
 		if hasInstallValues(s.Package) {
 			n.Reapply(name + " finished setting up: its settings for after the install")
@@ -278,7 +289,27 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 			return fmt.Errorf("%s didn't finish setting up: %w", s.Title(), err)
 		}
 	}
+	if opens := publicAfterSetup(n.currentLab(), s); len(opens) > 0 {
+		act.Printf("Roostack will make %s public now that setup has finished.", words.And(opens))
+	}
 	return nil
+}
+
+// publicAfterSetup lists the addresses of a service waiting for its setup
+// that were chosen public (SPEC.md §8.1, "Public addresses wait for
+// setup").
+func publicAfterSetup(lab config.Lab, s state.Service) []string {
+	if !s.Instance.SettingUp || !lab.HasAddress() {
+		return nil
+	}
+	_, routes := generate.Values(lab, s.Package, s.Instance)
+	var out []string
+	for _, rn := range slices.Sorted(maps.Keys(routes)) {
+		if routes[rn].AfterSetup {
+			out = append(out, routes[rn].Host)
+		}
+	}
+	return out
 }
 
 // retryHook runs a hook until it succeeds, as a service that has just
