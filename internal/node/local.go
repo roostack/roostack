@@ -61,6 +61,9 @@ type Node interface {
 	InstallStatus(ctx context.Context, service string) HookStatus
 	RetryInstall(ctx context.Context, service string) error
 	RunAction(ctx context.Context, service, action string, inputs map[string]string) (string, error)
+	// RunScheduled runs one of its scheduled tasks as soon as its
+	// maintenance allows (scheduled.go).
+	RunScheduled(ctx context.Context, service, hook string) error
 	RevealSecret(ctx context.Context, service, key string) (string, error)
 	// LatestActivity is the node's latest log of a kind (activity.Apply, ...).
 	LatestActivity(kind string) (activity.Snapshot, bool)
@@ -297,6 +300,12 @@ type Local struct {
 	// removed or installed afresh meanwhile (errSetupStopped).
 	hooksCancel map[string]context.CancelCauseFunc
 	hooksDone   chan struct{}
+	// scheduled is what each scheduled task is doing on the coordinator,
+	// by scheduledKey (scheduled.go): queued or running.
+	scheduled map[string]int
+	// scheduledTimeout, if set, replaces every scheduled task's timeout
+	// (tests: a package's is at least a minute).
+	scheduledTimeout time.Duration
 
 	// followingBuild: a Caddy image build is being shown (build.go), and
 	// buildPoll how often its log is read (zero: build.go's buildPoll).
@@ -377,6 +386,7 @@ func (n *Local) Apply(a Assignment) {
 				n.stopSetupLocked(s.Name())
 				n.State.SetSetting(context.Background(), hookKey(s.Name()), "")
 				n.State.SetSetting(context.Background(), ssoKey(s.Name()), "")
+				n.forgetScheduled(s)
 			}
 		}
 		for _, name := range a.SetUp {

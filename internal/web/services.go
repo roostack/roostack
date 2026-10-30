@@ -682,6 +682,33 @@ func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 	s.renderServiceWith(w, r, map[string]any{"ActionResult": result}, result["error"] != "")
 }
 
+// scheduledSubmit runs one of a service's scheduled tasks as soon as its
+// server's maintenance allows: Run now, or Try again after it failed
+// (SPEC.md §8.1).
+func (s *Server) scheduledSubmit(w http.ResponseWriter, r *http.Request) {
+	n := s.serverOf(r)
+	if n == nil {
+		http.NotFound(w, r)
+		return
+	}
+	name, hook := r.PathValue("name"), r.PathValue("hook")
+	err := n.RunScheduled(r.Context(), name, hook)
+	msg, isForm := usererr.Message(err)
+	switch {
+	case errors.Is(err, manager.ErrNotFound):
+		http.NotFound(w, r)
+		return
+	case isForm:
+		s.renderServiceWith(w, r, map[string]any{"ScheduledError": map[string]string{"name": hook, "msg": msg}}, true)
+		return
+	case err != nil:
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "scheduled task", name+" "+hook+": run now")
+	redirect(w, r, "/services/"+name+"#scheduled")
+}
+
 // servicePkg loads the package of the installed service named in the URL
 // (titled as the service), writing a 404 if there is none.
 func (s *Server) servicePkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, bool) {

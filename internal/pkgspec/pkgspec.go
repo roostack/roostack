@@ -9,6 +9,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -63,6 +64,25 @@ const (
 	// own API (Forgejo, Immich). It must be safe to run again (SPEC.md
 	// §5.2, "Connecting the remaining apps").
 	HookSSO = "sso"
+	// HookSchedule runs every day, week or month (Hook.Every), at a time
+	// Roostack picks in the night's maintenance, after the backup, and only
+	// while the service runs: upkeep the app's image doesn't schedule
+	// itself, such as Seafile's garbage collection (SPEC.md §8.1).
+	HookSchedule = "schedule"
+)
+
+// How often a scheduled hook runs (Hook.Every).
+const (
+	EveryDay   = "day"
+	EveryWeek  = "week"
+	EveryMonth = "month"
+)
+
+// Scheduled hooks' timeouts: the default, and the most a package may ask
+// for, as a running one holds up its server's restart (SPEC.md §8.1).
+const (
+	DefaultScheduleTimeout = time.Hour
+	MaxScheduleTimeout     = 6 * time.Hour
 )
 
 // Hook runs a command inside one of the service's containers.
@@ -71,8 +91,8 @@ const (
 // environment variables, never templated into the command itself, so they
 // can't change what a shell script does.
 type Hook struct {
-	On          string `yaml:"on"`   // install, action or sso
-	Name        string `yaml:"name"` // actions: used in URLs
+	On          string `yaml:"on"`   // install, action, sso or schedule
+	Name        string `yaml:"name"` // actions and scheduled hooks: used in URLs
 	Title       string `yaml:"title"`
 	Description string `yaml:"description"`
 	Container   string `yaml:"container"`
@@ -89,6 +109,29 @@ type Hook struct {
 	// standard output becomes its value, and is never shown or logged
 	// (install and action hooks only). Its standard error is its log.
 	Saves string `yaml:"saves"`
+	// Every is how often a scheduled hook runs: day, week or month.
+	Every string `yaml:"every"`
+	// Timeout is how long a scheduled hook may run (a Go duration such
+	// as "2h"); empty is DefaultScheduleTimeout.
+	Timeout string `yaml:"timeout"`
+}
+
+// RunTimeout is how long a scheduled hook may run.
+func (h *Hook) RunTimeout() time.Duration {
+	if d, err := time.ParseDuration(h.Timeout); err == nil && d > 0 {
+		return d
+	}
+	return DefaultScheduleTimeout
+}
+
+// Scheduled returns the scheduled hook with this name, or nil.
+func (p *Package) Scheduled(name string) *Hook {
+	for _, h := range p.HooksOn(HookSchedule) {
+		if h.Name == name {
+			return h
+		}
+	}
+	return nil
 }
 
 // HooksOn returns the package's hooks for an event, in order.

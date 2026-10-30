@@ -53,8 +53,8 @@ type SecretStore interface {
 // safely, returning its standard output and standard error apart.
 type ExecFunc func(ctx context.Context, container string, env map[string]string, command []string) (stdout, stderr []byte, err error)
 
-// HookStatus is the state of a service's install hooks, and of its single
-// sign-on hooks (ssohooks.go).
+// HookStatus is the state of a service's install hooks, of its single
+// sign-on hooks (ssohooks.go), and of its scheduled tasks (scheduled.go).
 type HookStatus struct {
 	Running bool   // setting up now
 	Pending bool   // waiting for the service to start
@@ -65,6 +65,8 @@ type HookStatus struct {
 	Done bool
 	// SSO is its sso hooks' last run, for the Single sign-on card.
 	SSO SSOHookStatus
+	// Scheduled are its scheduled tasks (scheduled.go).
+	Scheduled []ScheduledStatus `json:",omitempty"`
 }
 
 // ActionError is an action that ran but failed; Output is what it printed.
@@ -105,6 +107,9 @@ func (n *Local) InstallStatus(ctx context.Context, name string) HookStatus {
 	running := n.hooksRunning[name]
 	n.mu.Unlock()
 	st := HookStatus{Running: running, Pending: v == hookPending && !running, Done: v == hookDone, SSO: n.ssoStatus(ctx, name)}
+	if s, ok := n.service(name); ok {
+		st.Scheduled = n.scheduledStatus(ctx, s)
+	}
 	if msg, failed := strings.CutPrefix(v, hookFailed); failed {
 		st.Failed = msg
 	}

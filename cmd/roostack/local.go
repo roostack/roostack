@@ -93,7 +93,7 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		return lab, services, nil
 	}
 	jobs := &serverJobs{lab: lab, st: st, log: log, agent: agentClient, acts: local.Activity, services: assigned,
-		cloudKeys: cloudKeys}
+		cloudKeys: cloudKeys, scheduled: local.QueueScheduled}
 	var err error
 	if local.Jobs, err = jobs.start(ctx); err != nil {
 		return nil, nil, nil, err

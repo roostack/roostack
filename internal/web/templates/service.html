@@ -371,6 +371,40 @@
     {{end}}
     </section>
     {{end}}
+    {{/* Scheduled tasks (SPEC.md §8.1): upkeep the package asks for, run
+         at night after the backup while the service is running. */}}
+    {{/* Reloads when a run finishes, and every few seconds while one
+         waits its turn (it has no log until it starts). */}}
+    {{with .Scheduled}}
+    <section class="card" id="scheduled" hx-get="/services/{{$.Service.Name}}" hx-select="#scheduled" hx-swap="outerHTML" hx-disinherit="*"
+      hx-trigger="activity-done from:body{{if $.ScheduledWaiting}}, every 5s [document.visibilityState === 'visible']{{end}}">
+    <div class="card-head"><h2>Scheduled tasks</h2></div>
+    {{range .}}
+    <div class="task">
+      <p><strong>{{.Title}}</strong>{{with .Description}}<br><small class="hint">{{.}}</small>{{end}}</p>
+      {{if .Running}}<p><span class="dot dot-ok" aria-hidden="true"></span>Running now…</p>
+      {{else if .Queued}}<p><span class="dot dot-none" aria-hidden="true"></span>Waiting for other maintenance on this server to finish, then it will run.</p>
+      {{else if .Attention}}<p role="alert"><span class="dot dot-problem" aria-hidden="true"></span><strong>Didn't work the last {{.Failures}} times</strong>, and Roostack will try again {{.Again}}.</p>
+      {{else if and (not .Started.IsZero) (not .OK)}}<p><span class="dot dot-warn" aria-hidden="true"></span>Didn't work last time, so Roostack will try again {{.Again}}.</p>
+      {{else}}<p><span class="dot {{if .Started.IsZero}}dot-none{{else}}dot-ok{{end}}" aria-hidden="true"></span>{{.When}}</p>
+      {{end}}
+      <p class="hint">{{if .Started.IsZero}}It hasn't run yet.
+        {{- else if .OK}}Last ran {{when .Started}} and took {{took .Started .Finished}}.
+        {{- else}}{{capitalise (when .Started)}}: {{firstLine .Error}}{{end}}
+        {{- if .Skipped}} It didn't run {{when .SkippedAt}}: {{.Skipped}}.{{end}}
+        {{- if $.IsOwner}} <a href="/settings/history?kind=scheduled">History</a>{{end}}</p>
+      {{if and $.ScheduledError (eq (index $.ScheduledError "name") .Name)}}<p class="error" role="alert">{{index $.ScheduledError "msg"}}</p>{{end}}
+      {{if and $.CanManage (not (or .Running .Queued))}}
+      <form method="post" action="/services/{{$.Service.Name}}/scheduled/{{.Name}}/run">
+        <button type="submit" class="{{if not .Attention}}secondary {{end}}small">{{if .Attention}}Try again{{else}}Run now{{end}}</button>
+      </form>
+      {{end}}
+    </div>
+    {{end}}
+    {{with $.ScheduledActivity}}{{activity .}}{{end}}
+    <p class="hint">Roostack runs these at night after the backup, and only while {{$.Service.Title}} is running.</p>
+    </section>
+    {{end}}
     {{with .Ports}}
     <section class="card">
     <div class="card-head"><h2>Extra connections</h2></div>

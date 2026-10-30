@@ -18,3 +18,8 @@ Forgejo has its `sso` part and `on: sso` hook too (an app set by a command,
 as the registry's 15.0.10-roostack.2 has them), under the version the tests
 name. Immich is an older version, without single sign-on: the key-saving
 path is tested with a small package of its own (`internal/node`).
+
+`scheduled-test` isn't in the registry: BusyBox's web server with two
+scheduled tasks (`on: schedule`, SPEC.md §8.1), a daily one whose settings
+make it take a while or fail, and a weekly one. Install it as a package of
+your own on a dev VM to try scheduled tasks there.

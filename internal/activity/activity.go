@@ -51,6 +51,9 @@ const (
 	// Photos is migrating photos into Immich (SPEC.md §8.5): one log per
 	// service and person (PhotosFor).
 	Photos = "photos"
+	// Scheduled is a service's scheduled task (SPEC.md §8.1): one log per
+	// server, as its tasks run one at a time.
+	Scheduled = "scheduled"
 )
 
 // BackupSetupFor is the BackupSetup log of one server: the controller

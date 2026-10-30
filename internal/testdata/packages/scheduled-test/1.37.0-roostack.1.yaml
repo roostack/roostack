@@ -1,0 +1,75 @@
+# A test package for scheduled tasks (SPEC.md §8.1): BusyBox's web server,
+# with a daily task that can be told to take a while or to fail, and a
+# weekly one. Not in the registry. Image digest looked up 2026-10-30.
+schema: roostack/v1alpha1
+name: scheduled-test
+title: Scheduled tasks test
+description: A small web server with scheduled tasks, for testing Roostack
+version: 1.37.0-roostack.1
+
+about:
+  maker: The BusyBox developers
+  source: https://git.busybox.net/busybox
+  licence: GPL-2.0-only
+  icon: icon.png
+  categories: [development]
+  keywords: [test, scheduled tasks]
+requires:
+  roostack: "0.1"
+
+settings:
+  - key: task_fails
+    title: Make the daily task fail
+    description: For testing what Roostack shows when a task doesn't work
+    type: bool
+    default: false
+  - key: task_seconds
+    title: How long the daily task takes, in seconds
+    type: int
+    default: 5
+
+containers:
+  app:
+    image: docker.io/library/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+    command: [sh, -c, 'echo "Scheduled tasks test" > /www/index.html && exec httpd -f -v -p 8080 -h /www']
+    mounts:
+      - { storage: data, path: /www }
+    health:
+      http: { port: 8080, path: / }
+    memory: 5 MB
+
+storage:
+  data:
+    title: Its web page and what its tasks wrote
+    class: critical
+
+routes:
+  web:
+    container: app
+    port: 8080
+    subdomain: tasks
+    exposure: private
+    public:
+      unsafe: >-
+        It's a test page with nothing to sign in to, and no reason for anyone
+        outside your home to see it.
+
+hooks:
+  - on: schedule
+    name: tidy
+    title: Tidy up
+    description: Writes the time to tidied.txt, after waiting as long as its setting says.
+    container: app
+    every: day
+    timeout: 2m
+    env:
+      TAKES: "{{ .Settings.task_seconds }}"
+      FAIL: "{{ .Settings.task_fails }}"
+    command: [sh, -c, 'echo "Tidying up for $TAKES seconds"; sleep "$TAKES"; date > /www/tidied.txt; if [ "$FAIL" = true ]; then echo "The task was set to fail." >&2; exit 1; fi; echo Done.']
+  - on: schedule
+    name: check
+    title: Check the files
+    description: Lists the files it serves.
+    container: app
+    every: week
+    command: [ls, -l, /www]

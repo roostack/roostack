@@ -348,6 +348,23 @@ func structural(first map[string]string) [][]edit {
 	}
 	add(append(set(`{on: action, name: a, title: A, container: `+c+`, command: [x]}`, "hooks", 98), set(`{on: action, name: a, title: B, container: `+c+`, command: [y]}`, "hooks", 99)...))
 
+	// Scheduled hooks (SPEC.md §8.1).
+	for _, v := range []string{
+		`{on: schedule, name: gc, title: Free up space, container: ` + c + `, every: week, timeout: 2h, command: [x]}`,
+		`{on: schedule, name: gc, title: Free up space, container: ` + c + `, every: day, command: [x], env: {A: "{{ .Settings.x }}"}}`,
+		`{on: schedule, name: Bad, container: ` + c + `, every: hourly, command: [x]}`,
+		`{on: schedule, name: gc, title: T, container: ` + c + `, every: month, timeout: 7h, command: [x]}`,
+		`{on: schedule, name: gc, title: T, container: ` + c + `, every: month, timeout: 30s, command: [x]}`,
+		`{on: schedule, name: gc, title: T, container: ` + c + `, every: month, timeout: 1h30m, command: [x]}`,
+		`{on: schedule, name: gc, title: T, container: ` + c + `, every: day, timeout: soon, command: [x]}`,
+		`{on: schedule, name: gc, title: T, container: ` + c + `, every: day, command: [x], inputs: [{key: a, type: string}]}`,
+		`{on: schedule, name: gc, title: T, container: ` + c + `, every: day, command: [x], saves: x}`,
+		`{on: action, name: a, title: A, container: ` + c + `, command: [x], every: day, timeout: 1h}`,
+	} {
+		add(set(v, "hooks", 99))
+	}
+	add(append(set(`{on: schedule, name: gc, title: A, container: `+c+`, every: day, command: [x]}`, "hooks", 98), set(`{on: schedule, name: gc, title: B, container: `+c+`, every: week, command: [y]}`, "hooks", 99)...))
+
 	// Links and ports.
 	for _, v := range []string{`{title: "", route: nope, path: "//x"}`, `{title: T, route: ` + r + `, path: admin}`, `{title: T, route: ` + r + `, path: /ok}`} {
 		add(set(v, "links", 99))

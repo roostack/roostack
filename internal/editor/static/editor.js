@@ -470,7 +470,7 @@
   const enums = {
     "settings[].type": S.lists.settingTypes, "hooks[].inputs[].type": ["string", "secret"], "storage.*.class": S.lists.classes,
     "storage.*.location": S.lists.locations, "databases.*.type": S.lists.databaseTypes, "routes.*.exposure": S.lists.exposures,
-    "ports.*.exposure": S.lists.exposures, "ports.*.protocol": ["tcp", "udp"], "hooks[].on": S.lists.hookEvents, "containers.*.devices[].gpu": S.lists.gpuKinds,
+    "ports.*.exposure": S.lists.exposures, "ports.*.protocol": ["tcp", "udp"], "hooks[].on": S.lists.hookEvents, "hooks[].every": S.lists.everies, "containers.*.devices[].gpu": S.lists.gpuKinds,
     "sso.oidc.existing_accounts": S.lists.ssoExisting,
   };
   // The value a field has when it's left out, shown beside its choice.

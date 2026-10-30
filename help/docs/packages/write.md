@@ -235,7 +235,9 @@ sign-ups can be on while the hook signs the Owner up, and off afterwards
 (`default: false`, `install_value: true`).
 
 `hooks` run commands inside a container: `on: install` once after the
-first start, and `on: action` as a button on the service's page. Whatever
+first start, `on: action` as a button on the service's page, and `on:
+schedule` every day, week, or month for upkeep the app doesn't schedule
+itself (a [scheduled task](../reference/packages.md#scheduled-tasks)). Whatever
 people type reaches the command only as an environment variable, and an
 install hook must be safe to run twice. Installed again over its data from
 before, a service may be installed with its `install_only` settings left

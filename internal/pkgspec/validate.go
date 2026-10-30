@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/quadlet"
 )
@@ -176,7 +177,7 @@ func (p *Package) validateSettings(v *validator) {
 }
 
 func (p *Package) validateHooks(v *validator) {
-	actions := map[string]bool{}
+	actions, scheduled := map[string]bool{}, map[string]bool{}
 	for i, h := range p.Hooks {
 		at := fmt.Sprintf("hooks[%d]", i)
 		if h == nil {
@@ -206,13 +207,38 @@ func (p *Package) validateHooks(v *validator) {
 			case h.Name != "" || len(h.Inputs) > 0:
 				v.addf("%s: an sso hook takes no name or inputs", at)
 			}
+		case HookSchedule:
+			if !nameRe.MatchString(h.Name) {
+				v.addf("%s.name: %q must be lowercase letters, digits, and dashes", at, h.Name)
+			}
+			if scheduled[h.Name] {
+				v.addf("%s.name: duplicate scheduled hook %q", at, h.Name)
+			}
+			scheduled[h.Name] = true
+			if h.Title == "" {
+				v.addf("%s.title: required (shown on the service page and in its history)", at)
+			}
+			if h.Every != EveryDay && h.Every != EveryWeek && h.Every != EveryMonth {
+				v.addf("%s.every: must be %q, %q, or %q", at, EveryDay, EveryWeek, EveryMonth)
+			}
+			if h.Timeout != "" {
+				if d, err := time.ParseDuration(h.Timeout); err != nil || d < time.Minute || d > MaxScheduleTimeout {
+					v.addf("%s.timeout: %q must be a length of time from 1m to %s, such as 2h", at, h.Timeout, "6h")
+				}
+			}
+			if len(h.Inputs) > 0 {
+				v.addf("%s.inputs: only actions take inputs; scheduled hooks use settings", at)
+			}
 		default:
-			v.addf("%s.on: must be %q, %q, or %q", at, HookInstall, HookAction, HookSSO)
+			v.addf("%s.on: must be %q, %q, %q, or %q", at, HookInstall, HookAction, HookSSO, HookSchedule)
+		}
+		if h.On != HookSchedule && (h.Every != "" || h.Timeout != "") {
+			v.addf("%s: only scheduled hooks take every and timeout", at)
 		}
 		if h.Saves != "" {
 			s := p.Setting(h.Saves)
 			switch {
-			case h.On == HookSSO:
+			case h.On == HookSSO || h.On == HookSchedule:
 				v.addf("%s.saves: only install and action hooks save a secret", at)
 			case s == nil || !s.FromHook:
 				v.addf("%s.saves: %q is not a from_hook secret setting", at, h.Saves)

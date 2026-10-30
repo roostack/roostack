@@ -251,9 +251,10 @@ routes:
 `hooks`
 :   Commands run inside a container: `on: install` once after the first
     start (such as creating an admin account), `on: action`, a button on
-    the service page with `inputs`, or `on: sso`, run when single sign-on
+    the service page with `inputs`, `on: sso`, run when single sign-on
     is turned on, changed (the lab's address or name), or off, for an app
-    set by a command or its own API (below). Values people type reach the
+    set by a command or its own API (below), or `on: schedule`, a
+    [scheduled task](#scheduled-tasks). Values people type reach the
     command only as environment variables, and any secret it's given is
     replaced by `[secret]` in what it prints before that's shown.
 
@@ -346,6 +347,41 @@ routes:
           OIDC_CLIENT_SECRET: sso.client_secret
       note: Phone apps still sign in with the app's own password.
     ```
+
+## Scheduled tasks
+
+A hook with `on: schedule` is upkeep the app's image doesn't schedule
+itself, such as Seafile's garbage collection:
+
+```yaml
+hooks:
+  - on: schedule
+    name: free-space            # in its address and the service's history
+    title: Free up space
+    description: Removes blocks that no file or version uses any more.
+    container: app
+    every: week                 # day, week, or month
+    timeout: 2h                 # optional: an hour without it, 6h at most
+    command: [/scripts/gc.sh]
+```
+
+`every` says how often, and Roostack picks the time: at night, after the
+server's backup and OS updates and before its restart window, one task at
+a time. A weekly task gets its own weekday and a monthly one its own day
+(from 1 to 28), so a lab's tasks don't all run on the same night. A task
+runs only while the service is running and has finished setting up; one
+that didn't run on its night (the server was off, or the service stopped)
+will run the next night. It's never run twice at once.
+
+Like other hooks, it's a command in one of the service's containers, given
+settings only as `env` and `secrets`, with no `inputs`; it doesn't `saves`
+a secret. A task still running after its `timeout` will be
+interrupted, then Roostack will restart the container it ran in, so that
+nothing it started keeps running; the run counts as failed. It must be safe to run at any time the app is running,
+including straight after a restore. The service page shows each task's
+last run with **Run now**, and two failures in a row go under **Needs
+attention**. A Roostack from before scheduled tasks won't accept the
+package, so its `requires.roostack` must name a release that has them.
 
 ## What a package may not do
 

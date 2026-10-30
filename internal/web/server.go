@@ -368,6 +368,7 @@ type ServiceNode interface {
 	InstallStatus(ctx context.Context, name string) manager.HookStatus
 	RetryInstall(ctx context.Context, name string) error
 	RunAction(ctx context.Context, name, action string, inputs map[string]string) (string, error)
+	RunScheduled(ctx context.Context, name, hook string) error
 	RevealSecret(ctx context.Context, name, key string) (string, error)
 	LatestActivity(kind string) (activity.Snapshot, bool)
 	Backups() node.Backups
@@ -775,6 +776,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /services/{name}/setup/retry", s.require(auth.ManageServices, s.retrySetupSubmit))
 	mux.Handle("POST /services/{name}/setup/retry-with", s.require(auth.ManageServices, s.retryWithSubmit))
 	mux.Handle("POST /services/{name}/actions/{action}", s.require(auth.ManageServices, s.actionSubmit))
+	mux.Handle("POST /services/{name}/scheduled/{hook}/run", s.require(auth.ManageServices, s.scheduledSubmit))
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
 	mux.Handle("POST /services/{name}/title", s.require(auth.ManageServices, s.titleSubmit))
 	mux.Handle("POST /services/{name}/update", s.require(auth.ManageServices, s.updateSubmit))
