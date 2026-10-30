@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -237,3 +238,45 @@ type nopReporter struct{}
 
 func (nopReporter) SetInterruptible(bool) {}
 func (nopReporter) SetProgress(int)       {}
+
+// A MySQL or MariaDB database is loaded as the app's user: its database
+// and schemas dropped, the database made again, the dump loaded (which
+// makes the schemas it has), then schemas the backup didn't have made
+// empty. The commands run here with a fake client in place of the
+// container's.
+func TestMySQLLoadDumps(t *testing.T) {
+	dir := t.TempDir()
+	log := filepath.Join(dir, "client.log")
+	os.WriteFile(filepath.Join(dir, "mariadb"), []byte("#!/bin/sh\necho \"$@\" >>"+log+"\n"+
+		"case \"$*\" in *' -e '*) ;; *) echo \"stdin: $(cat)\" >>"+log+" ;; esac\n"), 0o755)
+	dump := filepath.Join(dir, "main.sql")
+	os.WriteFile(dump, []byte("USE seafile_ccnet;"), 0o644)
+
+	units := &fakeUnits{}
+	r := &Restorer{Units: units, Launch: func(ctx context.Context, _ []string, name string, args ...string) *exec.Cmd {
+		if name != "podman" || strings.Join(args[:4], " ") != "exec -i roostack-seafile-db-main sh" {
+			t.Fatalf("ran %s %q", name, args)
+		}
+		cmd := exec.CommandContext(ctx, "sh", args[4:]...)
+		cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"))
+		return cmd
+	}}
+	err := r.LoadDumps(context.Background(), &generate.Output{Backup: generate.BackupPlan{Prepare: []generate.PrepareStep{{
+		Type: pkgspec.DBMariaDB, Container: "roostack-seafile-db-main", User: "seafile", Database: "seafile",
+		Schemas: []string{"seafile_ccnet", "seafile_seahub"}, Target: dump,
+	}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(log)
+	want := "-h 127.0.0.1 -u seafile -e DROP DATABASE IF EXISTS seafile; CREATE DATABASE seafile; " +
+		"DROP DATABASE IF EXISTS seafile_ccnet; DROP DATABASE IF EXISTS seafile_seahub\n" +
+		"-h 127.0.0.1 -u seafile seafile\nstdin: USE seafile_ccnet;\n" +
+		"-h 127.0.0.1 -u seafile -e DO 1; CREATE DATABASE IF NOT EXISTS seafile_ccnet; CREATE DATABASE IF NOT EXISTS seafile_seahub\n"
+	if string(got) != want {
+		t.Errorf("client ran:\n%s\nwant:\n%s", got, want)
+	}
+	if !slices.Equal(units.calls, []string{"start roostack-seafile-db-main.service"}) {
+		t.Errorf("units: %q", units.calls)
+	}
+}

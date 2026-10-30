@@ -208,6 +208,19 @@ routes:
     `memory` like a container's; otherwise Roostack expects 200 MB for
     Postgres, 500 MB for MySQL, 150 MB for MariaDB, and 50 MB for Redis.
 
+    A `mysql` or `mariadb` database can have more `schemas` on the same
+    server, for an app that wants several for one user (Seafile wants
+    three): `schemas: [ccnet, seahub]`. Roostack will name each after the
+    database, `<database>_<schema>` (`seafile_ccnet`), make the ones that
+    aren't there each time the database starts, so a later version of
+    the package can add one, and back them up and restore them with the
+    database, all at the same moment. Templates find their names with
+    `{{ .Databases.main.Schemas.ccnet }}`. A schema's name has lower-case
+    letters, digits, and `_`, at most 31 characters. A package that no
+    longer lists one leaves it on the server, but it isn't backed up any
+    more. Postgres has none: an app that wants several Postgres databases
+    gets one `databases` entry for each.
+
 `routes`
 :   Web addresses: which container and port, the default `subdomain`,
     `exposure` (`private` or `public`), `max_body_size`, and
@@ -403,6 +416,7 @@ Values in `env`, `when`, and hooks are Go templates:
 | `.Routes.<route>.Host` / `.URL` | `photos.smith.family` / `https://photos.smith.family`. Use `.URL` for an app's own address: until the lab has one, it's the local `http://localhost:<port>` (and `.Host` is `localhost`), so the app still starts |
 | `.Settings.<key>` | Settings that aren't secrets |
 | `.Databases.<name>.Host` / `.Port` / `.User` / `.Name` | Connection details for a database |
+| `.Databases.<name>.Schemas.<schema>` | The name of one of a MySQL or MariaDB database's more schemas, e.g. `seafile_ccnet` |
 | `(index .Containers "<name>").Host` | Another container of the service |
 | `.Lab.Domain`, `.Service.Name` | The lab's domain, and the service's name |
 | `.Lab.TimeZone` | The server's time zone, e.g. `Europe/Berlin` (`UTC` if it isn't known). Containers already run in it; this is for apps with their own time-zone setting |

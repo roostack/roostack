@@ -598,6 +598,15 @@
       default:
         add(`${at}.type: must be one of sqlite, postgres, mysql, mariadb, redis; got ${goQuote(d.type)}`);
     }
+    const schemas = d.schemas || [];
+    if (schemas.length > 0 && d.type !== "mysql" && d.type !== "mariadb") {
+      add(`${at}.schemas: only a mysql or mariadb database can have more schemas; got ${d.type}`);
+      return;
+    }
+    schemas.forEach((s, i) => {
+      if (!re.schema.test(s)) add(`${at}.schemas[${i}]: must be lower-case letters, digits, and _, starting with a letter, at most 31 characters; got ${goQuote(s)}`);
+      else if (schemas.slice(0, i).includes(s)) add(`${at}.schemas[${i}]: ${goQuote(s)} is there twice`);
+    });
   }
 
   function validateContainer(p, add, name, c) {
@@ -1068,7 +1077,7 @@
     Service: { Name: 1 }, Lab: { Domain: 1, TimeZone: 1 },
     route: { Subdomain: 1, Host: 1, URL: 1, Exposure: 1, Port: 1, PublicPaths: 1 },
     port: { Enabled: 1, HostPort: 1, Protocol: 1, Exposure: 1 },
-    database: { Host: 1, Port: 1, User: 1, Name: 1 }, container: { Host: 1 },
+    database: { Host: 1, Port: 1, User: 1, Name: 1, Schemas: 1 }, container: { Host: 1 },
     // generate.SSOContext.
     SSO: { Enabled: 1, Issuer: 1, DiscoveryURL: 1, AuthorizeURL: 1, TokenURL: 1, UserinfoURL: 1, ClientID: 1, ProviderName: 1, ButtonText: 1, UserGroup: 1, AdminGroup: 1 },
   };
@@ -1097,7 +1106,7 @@
   }
 
   function checkChain(p, parts, hook, secretEnv) {
-    const [top, a, b] = parts;
+    const [top, a, b, c] = parts;
     const leaf = (set, k, what) => (k === undefined || set[k] ? null : `${what} has no ${k} (it has ${Object.keys(set).join(", ")})`);
     switch (top) {
       case "Service": return leaf(fields.Service, a, ".Service");
@@ -1126,6 +1135,9 @@
         const d = has(p.databases, a) ? p.databases[a] : null;
         if (!d) return `.Databases.${a}: the package has no database ${goQuote(a)} (it has ${names(p.databases)})`;
         if (d.type === "sqlite") return `.Databases.${a}: a SQLite database is a file in the app's own storage, with nothing to connect to`;
+        if (b === "Schemas" && c !== undefined && !(d.schemas || []).includes(c)) {
+          return `.Databases.${a}.Schemas.${c}: the database has no schema ${goQuote(c)} (it has ${(d.schemas || []).join(", ") || "none"})`;
+        }
         return leaf(fields.database, b, `.Databases.${a}`);
       }
       case "Containers":

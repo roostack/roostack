@@ -138,8 +138,8 @@ main backup (its other backups will carry on meanwhile).
       certificates, a consistent copy of Roostack's database) and the
       Podman secrets store, plus every service's data folders. Databases
       are dumped first (a SQLite copy, `pg_dump` for Postgres, or
-      `mysqldump`/`mariadb-dump` for MySQL and MariaDB) so that their
-      backups are consistent. Container images aren't included: they're
+      `mysqldump`/`mariadb-dump` for MySQL and MariaDB, with all of a
+      database's schemas in one dump) so that their backups are consistent. Container images aren't included: they're
       downloaded again.
     - **Encryption:** every repository is encrypted with your
       [recovery key](../start/recovery-key.md), kept in

@@ -59,24 +59,15 @@ func (p *Preparer) Run(ctx context.Context, step generate.PrepareStep) error {
 			return ErrDumpKept
 		}
 		// A consistent snapshot without locking (InnoDB), as the app's own
-		// user; no tablespaces, which need a privilege it lacks.
-		return p.run(ctx, &step.Target, "podman", "exec", step.Container, "sh", "-c",
-			mysqlCommand(step.Type, "dump")+" --single-transaction --no-tablespaces --routines --triggers --events "+
-				"-h 127.0.0.1 -u \"$1\" \"$2\"", "dump", step.User, step.Database)
+		// user, of all its schemas at one moment (one transaction); no
+		// tablespaces, which need a privilege it lacks. With --databases,
+		// the dump says which schema each table goes in.
+		args := []string{"exec", step.Container, "sh", "-c",
+			`u="$1"; shift; ` + generate.MySQLCommand(step.Type, "dump") + " --single-transaction --no-tablespaces --routines --triggers --events " +
+				`-h 127.0.0.1 -u "$u" --databases "$@"`, "dump", step.User, step.Database}
+		return p.run(ctx, &step.Target, "podman", append(args, step.Schemas...)...)
 	}
 	return fmt.Errorf("backup: unknown prepare step %q", step.Type)
-}
-
-// mysqlCommand is the start of a shell command running a MySQL or MariaDB
-// client tool ("dump" or "client") inside the database's container, with
-// the app's password from the container's secret file in MYSQL_PWD: never
-// on a command line (SPEC.md §8.1, "MySQL and MariaDB").
-func mysqlCommand(kind, tool string) string {
-	names := map[string]string{"dump": "mysqldump", "client": "mysql"}
-	if kind == pkgspec.DBMariaDB {
-		names = map[string]string{"dump": "mariadb-dump", "client": "mariadb"}
-	}
-	return `MYSQL_PWD="$(cat /run/secrets/db-password)" exec ` + names[tool]
 }
 
 // stopped says whether a database step's database is one Roostack has

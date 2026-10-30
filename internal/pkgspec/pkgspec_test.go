@@ -75,6 +75,42 @@ databases:
   main: { type: mysql }
 containers:
   web: { image: x, secrets: { DATABASE_URL: databases.main.url } }`, "or .url for postgres"},
+		{"schemas on a postgres database", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  main: { type: postgres, schemas: [extra] }
+containers:
+  web: { image: x }`, "databases.main.schemas: only a mysql or mariadb database can have more schemas; got postgres"},
+		{"a schema name SQL would need quoted", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  main: { type: mariadb, schemas: [ccnet, seahub-db] }
+containers:
+  web: { image: x }`, `databases.main.schemas[1]: must be lower-case letters, digits, and _, starting with a letter, at most 31 characters; got "seahub-db"`},
+		{"a schema name too long for MySQL", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  main: { type: mysql, schemas: [a_schema_name_of_thirty_two_char] }
+containers:
+  web: { image: x }`, "databases.main.schemas[0]: must be lower-case"},
+		{"a schema twice", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  main: { type: mariadb, schemas: [ccnet, ccnet] }
+containers:
+  web: { image: x }`, `databases.main.schemas[1]: "ccnet" is there twice`},
 		{"password for a redis database", `
 schema: roostack/v1alpha1
 name: app

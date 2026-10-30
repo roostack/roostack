@@ -902,6 +902,65 @@ containers:
 	}
 }
 
+// A MySQL or MariaDB database's more schemas are named after it, reach
+// templates, are made by the app's user each time its container starts
+// (the first-start script having let it), and are dumped with it.
+func TestMySQLSchemas(t *testing.T) {
+	p, err := pkgspec.Parse([]byte(`
+schema: roostack/v1alpha1
+name: seafile
+title: Seafile
+version: "1"
+databases:
+  main: { type: mariadb, schemas: [ccnet, seahub] }
+  other: { type: mysql }
+containers:
+  web:
+    image: example/app:1
+    env: { SEAFILE: "{{ .Databases.main.Name }}", CCNET: "{{ .Databases.main.Schemas.ccnet }}", SEAHUB: "{{ .Databases.main.Schemas.seahub }}" }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Service(testLab(), p, &instance.Instance{Package: "seafile", Version: "1", Updates: "notify"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{}
+	for _, q := range out.Quadlets {
+		files[q.Name] = q.Content
+	}
+	for unit, want := range map[string][]string{
+		"roostack-seafile-db-main.container": {"Volume=" + MySQLInitDir + ":/docker-entrypoint-initdb.d:ro",
+			`ExecStartPost=/usr/bin/podman exec roostack-seafile-db-main sh -c 'MYSQL_PWD="$$(cat /run/secrets/db-password)" exec mariadb ` +
+				`-h 127.0.0.1 -u seafile -e "CREATE DATABASE IF NOT EXISTS seafile_ccnet; CREATE DATABASE IF NOT EXISTS seafile_seahub"'`},
+		// Without schemas, the script still runs, for a schema a later
+		// version adds; nothing to make at start.
+		"roostack-seafile-db-other.container": {"Volume=" + MySQLInitDir + ":/docker-entrypoint-initdb.d:ro"},
+		"roostack-seafile-web.container":      {"Environment=SEAFILE=seafile", "Environment=CCNET=seafile_ccnet", "Environment=SEAHUB=seafile_seahub"},
+	} {
+		for _, w := range want {
+			if !strings.Contains(files[unit], w) {
+				t.Errorf("%s lacks %q:\n%s", unit, w, files[unit])
+			}
+		}
+	}
+	if strings.Contains(files["roostack-seafile-db-other.container"], "ExecStartPost") {
+		t.Error("a database without schemas has nothing to make")
+	}
+	for _, s := range out.Backup.Prepare {
+		want := map[string][]string{"seafile": {"seafile_ccnet", "seafile_seahub"}, "seafile_other": nil}[s.Database]
+		if !slices.Equal(s.Schemas, want) {
+			t.Errorf("%s: schemas %q, want %q", s.Database, s.Schemas, want)
+		}
+	}
+	// A template naming a schema the database hasn't fails.
+	p.Containers["web"].Env["X"] = "{{ .Databases.main.Schemas.nope }}"
+	if _, err := Service(testLab(), p, &instance.Instance{Package: "seafile", Version: "1", Updates: "notify"}); err == nil {
+		t.Error("an unknown schema rendered")
+	}
+}
+
 // MySQL user names have at most 32 characters: a longer name keeps its
 // start and a hash of the whole, the same every time.
 func TestMySQLIdent(t *testing.T) {

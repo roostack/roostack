@@ -193,7 +193,9 @@ the app finds them with `{{ .Databases.main.Host }}` and the rest
 `databases.main.password` in its `secrets`. For SQLite, give the file's
 place in a storage folder (`path: data/db.sqlite3`), and Roostack copies it
 safely before each backup. A Redis used only as a queue or cache can say
-`backup: false`.
+`backup: false`. An app that wants several MySQL or MariaDB databases for
+one user lists the others as `schemas` on the same one
+([the reference](../reference/packages.md#the-parts) has the details).
 
 ## Its web address
 

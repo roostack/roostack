@@ -208,6 +208,9 @@ type PrepareStep struct {
 	Container string
 	User      string
 	Database  string
+	// Schemas are a MySQL or MariaDB database's more schemas, dumped and
+	// restored with it.
+	Schemas []string
 	// Source is the host path of the live file (sqlite).
 	Source string
 	// Target is the host path the consistent copy is written to.
@@ -617,6 +620,10 @@ func (g *gen) mysql(name string, d *pkgspec.Database) error {
 	}
 	cs.Add("Secret", secretName(svc, "databases."+name+".password")+",type=mount,target=db-password")
 	cs.Add("Volume", dataDir+":/var/lib/mysql")
+	// Run as root on the first start only: the app's user may then make
+	// and drop the schemas named after its database, so a package can add
+	// one in a later version.
+	cs.Add("Volume", MySQLInitDir+":/docker-entrypoint-initdb.d:ro")
 	// Over TCP: on first start the image's entrypoint runs a temporary
 	// server on its socket only, which mustn't count as ready.
 	cs.Add("HealthCmd", admin+" ping -h 127.0.0.1 --silent")
@@ -625,6 +632,23 @@ func (g *gen) mysql(name string, d *pkgspec.Database) error {
 	cs.Add("Label", "io.roostack.component=db-"+name)
 	addPassthrough(&u, d.Quadlet)
 	addServiceSections(&u)
+	var schemas []string
+	for _, s := range d.Schemas {
+		schemas = append(schemas, db.Schemas[s])
+	}
+	if len(schemas) > 0 {
+		// Once the server is ready (Notify=healthy), each start, the app's
+		// user makes the schemas that aren't there yet: on the first start,
+		// and when a newer package adds one. Names are letters, digits and
+		// _ (pkgspec's schemaRe), so they need no quoting.
+		var sql []string
+		for _, s := range schemas {
+			sql = append(sql, "CREATE DATABASE IF NOT EXISTS "+s)
+		}
+		u.Section("Service").Add("ExecStartPost", "/usr/bin/podman exec "+unit+" sh -c '"+
+			strings.ReplaceAll(MySQLCommand(d.Type, "client"), "$", "$$")+" -h 127.0.0.1 -u "+db.User+
+			" -e \""+strings.Join(sql, "; ")+"\"'")
+	}
 
 	if err := g.addQuadlet(unit+".container", &u); err != nil {
 		return err
@@ -634,11 +658,23 @@ func (g *gen) mysql(name string, d *pkgspec.Database) error {
 	g.out.Secrets = append(g.out.Secrets, Secret{Name: secretName(svc, "databases."+name+".password"), Generate: true})
 	if d.BackedUp() {
 		g.out.Backup.Prepare = append(g.out.Backup.Prepare, PrepareStep{
-			Type: d.Type, Container: unit, User: db.User, Database: db.Name,
+			Type: d.Type, Container: unit, User: db.User, Database: db.Name, Schemas: schemas,
 			Target: filepath.Join(g.dumpDir(), name+".sql"),
 		})
 	}
 	return nil
+}
+
+// MySQLCommand is the start of a shell command running a MySQL or MariaDB
+// client tool ("dump" or "client") inside the database's container, with
+// the app's password from the container's secret file in MYSQL_PWD: never
+// on a command line (SPEC.md §8.1, "MySQL and MariaDB").
+func MySQLCommand(kind, tool string) string {
+	names := map[string]string{"dump": "mysqldump", "client": "mysql"}
+	if kind == pkgspec.DBMariaDB {
+		names = map[string]string{"dump": "mariadb-dump", "client": "mariadb"}
+	}
+	return `MYSQL_PWD="$(cat /run/secrets/db-password)" exec ` + names[tool]
 }
 
 func (g *gen) redis(name string, d *pkgspec.Database) error {

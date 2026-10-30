@@ -88,6 +88,7 @@ it's there, until you delete it.
 | `/usr/bin/roostack`, `/usr/bin/roostack-agent` | The programs |
 | `/usr/lib/systemd/system/roostack.service`, `roostack-agent.service` | Their systemd units |
 | `/usr/share/roostack/caddy/Containerfile` | How Roostack's web server image is built, on each server |
+| `/usr/share/roostack/mysql-initdb/roostack-schemas.sh` | Run once as root in each MySQL or MariaDB container when it first starts: it lets the app's user make the database's [more schemas](packages.md#the-parts) |
 | `/etc/apt/sources.list.d/roostack.sources` | Where Roostack's own updates come from: its apt repository, and the series this server follows (`Suites:`). You may point `URIs:` at a mirror ([Updates](../settings/updates.md#roostacks-own-updates)) |
 | `/usr/share/keyrings/roostack-archive-keyring.gpg` | The key Roostack's packages are signed with, which apt checks them against |
 | `/etc/apt/apt.conf.d/52roostack-unattended-upgrades` | Nightly updates: Debian's stable updates and Roostack's fixes install by themselves, and only Roostack restarts the server |

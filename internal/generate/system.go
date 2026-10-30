@@ -24,6 +24,12 @@ const CaddyImage = "localhost/roostack-caddy:latest"
 // installed by the package).
 const CaddyBuildDir = "/usr/share/roostack/caddy"
 
+// MySQLInitDir holds the script MySQL and MariaDB containers run as
+// root when they first start (build/mysql-initdb in the source, installed
+// by the package): it lets the app's user make and drop the schemas named
+// after its database (SPEC.md §8.1, "MySQL and MariaDB").
+const MySQLInitDir = "/usr/share/roostack/mysql-initdb"
+
 // CaddyUnit is the systemd service running the reverse proxy.
 const CaddyUnit = "roostack-caddy"
 

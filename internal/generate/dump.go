@@ -36,7 +36,8 @@ func Dump(o *Output) string {
 	}
 	b.WriteString("\n==> backup prepare\n")
 	for _, s := range o.Backup.Prepare {
-		fmt.Fprintf(&b, "%+v\n", s)
+		// Schemas only where a database has them, as they were added later.
+		fmt.Fprintf(&b, "%s\n", strings.Replace(fmt.Sprintf("%+v", s), " Schemas:[]", "", 1))
 	}
 	return b.String()
 }

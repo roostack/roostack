@@ -311,8 +311,13 @@ type Database struct {
 	Backup *bool `yaml:"backup"`
 	// Memory is the database's typical memory use, if not Roostack's
 	// default for its type (ExpectedMemory).
-	Memory  string  `yaml:"memory"`
-	Quadlet Quadlet `yaml:"quadlet"`
+	Memory string `yaml:"memory"`
+	// Schemas are more schemas on a mysql or mariadb database's server,
+	// for the same user, for an app that wants several (Seafile's three):
+	// each is <the database's name>_<schema>, backed up and restored with
+	// the database (SPEC.md §8.1, "MySQL and MariaDB").
+	Schemas []string `yaml:"schemas"`
+	Quadlet Quadlet  `yaml:"quadlet"`
 }
 
 // BackedUp reports whether the database is included in backups.

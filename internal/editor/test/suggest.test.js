@@ -137,6 +137,14 @@ test("single sign-on's templates: .SSO's fields pass, others are named", () => {
   assert.ok(!msgs.some((m) => /sso\.env\.app\.A/.test(m)), msgs.join("\n"));
 });
 
+test("a database's schemas in templates: its own pass, others are named", () => {
+  const text = base.replace("TZ: Europe/London", 'A: "{{ .Databases.main.Schemas.ccnet }}"\n      B: "{{ .Databases.main.Schemas.nope }}"') +
+    "databases:\n  main: { type: mariadb, schemas: [ccnet] }\n";
+  const msgs = R.check.run(text, { local: true }).problems.map((p) => p.message);
+  assert.ok(msgs.some((m) => /env\.B: \.Databases\.main\.Schemas\.nope: the database has no schema "nope" \(it has ccnet\)/.test(m)), msgs.join("\n"));
+  assert.ok(!msgs.some((m) => /env\.A/.test(m)), msgs.join("\n"));
+});
+
 test("single sign-on: how an app known to the registry takes it, and its kept key", () => {
   const api = suggestions(base.replace("ghcr.io/example/notes:2.0", "ghcr.io/immich-app/immich-server:v3.3.3"));
   assert.match(at(api, "sso")[0].message, /Immich takes its OIDC settings only through its API: .*from_hook/);

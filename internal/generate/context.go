@@ -91,6 +91,9 @@ type DatabaseContext struct {
 	Port int
 	User string
 	Name string
+	// Schemas are a MySQL or MariaDB database's more schemas (pkgspec's
+	// schemas): the package's name for each → its name on the server.
+	Schemas map[string]string
 }
 
 func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Context {
@@ -160,9 +163,14 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 		case pkgspec.DBRedis:
 			ctx.Databases[name] = DatabaseContext{Host: dbUnitName(in.ID(), name), Port: 6379}
 		case pkgspec.DBMySQL, pkgspec.DBMariaDB:
+			db := mysqlIdent(in.ID(), name)
+			schemas := map[string]string{}
+			for _, s := range d.Schemas {
+				schemas[s] = db + "_" + s
+			}
 			ctx.Databases[name] = DatabaseContext{
 				Host: dbUnitName(in.ID(), name), Port: 3306,
-				User: mysqlIdent(in.ID(), name), Name: mysqlIdent(in.ID(), name),
+				User: db, Name: db, Schemas: schemas,
 			}
 		}
 	}
