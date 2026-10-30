@@ -180,6 +180,10 @@ Network=roostack-immich.network</code></pre>
 {{notice "error" "The last backup didn't finish: the disk is full."}}`},
 			{"With a list", "noticeList KIND TEXT ITEMS: a notice whose text leads into a list (each item plain text, which may be long and technical: it wraps anywhere). For several things to read before deciding, such as what a package of your own asks for.", `
 {{noticeList "warn" "It asks for things packages from the service registry can't have:" .PolicyProblems}}`},
+			{"The registry's words", "blockquote.registry-says: the service registry's own reason, quoted after a notice that leads into it, such as why it flags a package as needing Roostack Cloud's approval for roost.ac (SPEC.md §6.11).", `
+<p class="notice notice-warn" role="status">You made this address public, but it's staying private: Roostack Cloud only allows public access for Zipline through roost.ac and its relay for approved accounts.</p>
+<p>The service registry's reason:</p>
+<blockquote class="registry-says">Anything uploaded to it can have a public link, and its short links can lead anywhere.</blockquote>`},
 		}},
 	{ID: "status", Title: "Status and badges", Intro: "Status says how a service is doing; badges label things. The highlight badge is for the brand's own voice (\"New\"), sparingly.",
 		Examples: []galleryExample{

@@ -29,6 +29,9 @@ type RegistryFacts struct {
 	Tier        string             `yaml:"tier"`
 	Maintainers []string           `yaml:"maintainers"`
 	Withdrawals []RegistryWithdraw `yaml:"withdrawals"`
+	// RoostAc is how Roostack Cloud's roost.ac names and relay may carry
+	// the package's services (RoostAc), if they're limited.
+	RoostAc *RoostAc `yaml:"roost_ac"`
 }
 
 // RegistryWithdraw is one withdrawal in registry.yaml: of a version, or
@@ -181,9 +184,12 @@ func buildPackage(root, name string, lookup func(string) ([]string, error), seen
 	if err := dec.Decode(&facts); err != nil {
 		return fail("registry.yaml: %v", err)
 	}
-	p := &Package{Tier: facts.Tier, Maintainers: facts.Maintainers, Versions: map[string]*Version{}}
+	p := &Package{Tier: facts.Tier, Maintainers: facts.Maintainers, RoostAc: facts.RoostAc, Versions: map[string]*Version{}}
 	if len(p.Maintainers) == 0 {
 		return fail("registry.yaml: no maintainers")
+	}
+	if err := p.RoostAc.check(); err != nil {
+		return fail("registry.yaml: %v", err)
 	}
 	files := map[string][]byte{}
 	entries, err := os.ReadDir(dir)

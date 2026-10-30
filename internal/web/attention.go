@@ -26,6 +26,7 @@ func (s *Server) AttentionLab() *attention.Lab {
 		Maintenance:    s.Maintenance,
 		RestorePending: s.RestorePending,
 		Cloud:          s.Cloud,
+		CloudRefusals:  s.CloudRefusals,
 		Registry:       s.Registry,
 		Libraries:      s.Libraries,
 		DNS:            s.DNS,

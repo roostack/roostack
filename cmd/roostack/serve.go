@@ -420,6 +420,15 @@ func (c *controller) wireCloud() error {
 			}
 			return report, nil
 		}
+		// What serves each public address that comes through Roostack
+		// Cloud (SPEC.md §6.11): the lab keeps private what Cloud won't
+		// carry, and applies again when Cloud's answer changes that.
+		link.Public = mgr.CloudPublicHosts
+		link.PublicChanged = func() {
+			mgr.ApplyBecause("Roostack Cloud's answer changed which public addresses it allows")
+		}
+		mgr.CloudPublic = manager.CloudPublic{Send: link.SendPublic, Verdict: link.PublicVerdict}
+		srv.CloudLimit, srv.CloudRefusals = mgr.CloudLimit, mgr.CloudRefusals
 		// The lab's own CrowdSec bans, refused at the relay's edges too.
 		go link.SendBans(c.ctx, 5*time.Minute, func(ctx context.Context) ([]string, error) {
 			// CrowdSec runs while anything is public, its unit there

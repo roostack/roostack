@@ -120,6 +120,34 @@ func (lab *Lab) cloudStanding(l *List) {
 	}
 }
 
+// cloudRefused adds the services kept private because Roostack Cloud
+// doesn't allow their public access through roost.ac (SPEC.md §6.11): a
+// warning, since the Owner made them public, and the way out is theirs
+// (asking for approval, or their own domain).
+func (lab *Lab) cloudRefused(l *List) {
+	if lab.CloudRefusals == nil {
+		return
+	}
+	for _, c := range lab.CloudRefusals() {
+		item := Item{Key: "cloud-public:" + c.Name, Level: Warning, LinkText: "Why",
+			Link: "/services/" + c.Name + "/public/" + c.Route}
+		host := strings.Join(c.Hosts, " and ")
+		switch c.State {
+		case cloudapi.NameOwnPackage:
+			item.Text = c.Title + " is staying private: Roostack Cloud only allows public access through free roost.ac names for services from the registry, and " +
+				c.Title + " is from one of your own packages. Roostack will make " + host + " public by itself once your account is approved, or you can use your own domain."
+		case cloudapi.NameNeedsApproval:
+			item.Text = c.Title + " is staying private: Roostack Cloud only allows public access for it through roost.ac for approved accounts. " +
+				"Roostack will make " + host + " public by itself once your account is approved."
+		default:
+			item.Level = Info
+			item.Text = "Roostack is asking Roostack Cloud whether it allows public access for " + c.Title + ". " +
+				host + " is staying private until Roostack Cloud answers."
+		}
+		l.add(item)
+	}
+}
+
 // relayDomain is the lab's own domain's proof, while relayed ("" when
 // its address is a roost.ac name).
 func (lab *Lab) relayDomain() *cloudapi.RelayDomain {

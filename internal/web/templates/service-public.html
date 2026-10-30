@@ -7,12 +7,35 @@
   {{with .Route}}
   <div class="heading">
     <h1>Who can reach {{.Host}}</h1>
-    {{if .Public}}{{badge "Public" "highlight"}}{{else}}{{badge "Private"}}{{end}}
+    {{if $.Kept}}{{badge "Kept private" "warn"}}{{else if .Public}}{{badge "Public" "highlight"}}{{else}}{{badge "Private"}}{{end}}
   </div>
   {{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
 
-  {{if .Route.Public}}
+  {{if .Kept}}
+  {{/* Roostack Cloud doesn't allow its public access through roost.ac
+       (SPEC.md §6.11): the Owner's choice stands, and it goes public by
+       itself once Cloud allows it. */}}
+  {{with .Limit}}
+  <p class="notice notice-warn" role="status">
+    {{- if eq .State "own_package"}}You made this address public, but it's staying private: Roostack Cloud only allows public access through free roost.ac names for services from the registry, and {{.Title}} is from one of your own packages.
+    {{- else if eq .State "needs_approval"}}You made this address public, but it's staying private: Roostack Cloud only allows public access for {{.Title}} through roost.ac and its relay for approved accounts.
+    {{- else}}Roostack is asking Roostack Cloud whether it allows public access for this address, and it's staying private until Roostack Cloud answers{{if .Registry}}, because Roostack Cloud only allows public access for {{.Title}} through roost.ac for approved accounts{{end}}.{{end}}
+    {{- with $.CloudReason}} <em>{{.}}</em>{{end}}</p>
+  {{with .Registry}}<p>The service registry's reason:</p>
+  <blockquote class="registry-says">{{.}}</blockquote>{{end}}
+  {{if eq .State "own_package"}}<p>Roostack will make it public by itself as soon as Roostack Cloud allows it. On your own domain it can be public now, through your router or Roostack Cloud's relay:
+    <a href="/settings/domain">Your lab's address</a>.</p>
+  {{else}}<p>Roostack will make it public by itself as soon as Roostack Cloud allows it, and until then it's {{$privateMeans}}.
+    Your own domain isn't limited, as long as visitors don't come through Roostack Cloud's relay: <a href="/settings/domain">Your lab's address</a>.</p>{{end}}
+  {{end}}
+  <details class="technical"><summary>How Roostack knows</summary>
+    <p>Whenever its public addresses change, and once a day, the lab tells Roostack Cloud what serves each address that comes through its roost.ac name or the relay:
+      the registry package's name and whether the registry flags it, or only that a package is your own, never its name. Roostack Cloud answers with those it doesn't allow,
+      leaves them out of roost.ac's DNS and its relay, and Roostack keeps them private here.</p></details>
+  {{confirm (printf "/services/%s/public/%s" $.Name .Route.Route) (printf "Make %s private? It will stay private once Roostack Cloud allows it, until you make it public again." .Route.Host) "Make private" "quiet danger" "public=off"}}
+
+  {{else if .Route.Public}}
   <p><strong>Anyone on the internet</strong> can reach <code>{{.Route.Host}}</code>{{if .Route.PrivatePaths}}, except the parts below that stay private{{end}}.
     {{template "public-ui" .}}</p>
   {{with .Route.PrivatePaths}}
@@ -112,6 +135,8 @@
     {{- else}}Right now only devices on your home network (or VPN) can open it.{{end}}</p>
   <p>Making it public will let <strong>anyone on the internet</strong> reach it: its login page and anything it shares without a login.
     {{template "public-ui" .}} Use strong passwords (and two-factor authentication, if {{.Package.Title}} has it).</p>
+  {{with .Limit}}{{if .Registry}}{{notice "info" (printf "Roostack Cloud only allows public access for %s through roost.ac for approved accounts, so if yours isn't approved, this address will stay private after you make it public, and Roostack will make it public by itself once it's approved." .Title)}}
+  {{else}}{{notice "info" (printf "Roostack Cloud only allows public access through free roost.ac names for services from the registry, and %s is from one of your own packages, so if your account isn't approved, this address will stay private after you make it public, and Roostack will make it public by itself once it's approved." .Title)}}{{end}}{{end}}
   <form method="post" action="/services/{{$.Name}}/public/{{.Route.Route}}">
     <input type="hidden" name="public" value="on">
     {{with .Route.Unsafe}}

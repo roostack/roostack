@@ -130,6 +130,11 @@ type Server struct {
 	// Cloud is the controller's link to Roostack Cloud (SPEC.md §6.6). Nil
 	// when Cloud is turned off (config.Cloud): nothing about it is offered.
 	Cloud CloudLink
+	// CloudLimit is how Roostack Cloud limits a service's public access
+	// through roost.ac, and CloudRefusals the services it keeps private
+	// now (manager.Manager's; SPEC.md §6.11). Nil: no limits.
+	CloudLimit    func(name string) *manager.CloudRefusal
+	CloudRefusals func() []*manager.CloudRefusal
 	// Registry keeps the catalog up to date with the service registry
 	// (SPEC.md §8.3.3): the controller's only. Nil on other servers and in
 	// tests that don't need it.

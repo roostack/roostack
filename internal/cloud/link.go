@@ -73,7 +73,10 @@ type Service struct {
 	now                    func() time.Time
 
 	mu sync.Mutex
-	st linkState
+	// publicMu takes telling Cloud about public addresses in turn
+	// (public.go), so an older answer never lands after a newer one.
+	publicMu sync.Mutex
+	st       linkState
 	// relayMu takes turns at changing the relay (its WireGuard and its
 	// state), so a refresh never undoes a newer Relay or StopRelay.
 	relayMu sync.Mutex
@@ -120,6 +123,12 @@ type Service struct {
 	// email recipients, its servers' last backups to Cloud; report.go);
 	// nil: nothing.
 	Report func(ctx context.Context) (cloudapi.LabReport, error)
+	// Public is what serves each of the lab's public addresses that come
+	// through its roost.ac name or the relay (public.go); nil: nothing.
+	Public func() []cloudapi.PublicHost
+	// PublicChanged is called when Cloud's answer changes which of them it
+	// carries: the lab applies again, keeping private what it won't.
+	PublicChanged func()
 }
 
 // linkState is what's kept in link.json.
@@ -162,6 +171,9 @@ type linkState struct {
 	// the kept earlier name is the lab's again (SPEC.md §6.6).
 	Kept     *cloudapi.KeptName `json:"kept,omitempty"`
 	GiveBack string             `json:"give_back,omitempty"`
+	// Public is what the lab last told Cloud about what serves its
+	// public addresses (public.go).
+	Public *publicState `json:"public,omitempty"`
 }
 
 // onHold says Cloud has something of the lab on hold: a name waiting for
@@ -171,7 +183,9 @@ func (st linkState) onHold() bool {
 		return true
 	}
 	for _, n := range st.Names {
-		if n.State != cloudapi.NameRefused {
+		// What serves an address can stay unapproved for good: the
+		// daily check-in will hear of an approval.
+		if n.State != cloudapi.NameRefused && !policyState(n.State) {
 			return true
 		}
 	}
@@ -755,6 +769,9 @@ func (s *Service) Check(ctx context.Context) error {
 		return nil
 	}
 	var info cloudapi.LabInfo
+	// answered: Cloud answered the lab's public addresses after info,
+	// so its answer is the newer.
+	answered := false
 	err := s.client.do(ctx, true, http.MethodGet, cloudapi.PathLab, nil, &info)
 	if errors.Is(err, ErrUnlinked) {
 		if rerr := s.relink(ctx); rerr == nil {
@@ -778,6 +795,11 @@ func (s *Service) Check(ctx context.Context) error {
 		if rerr != nil {
 			s.log.Warn("Roostack Cloud: telling Cloud the lab's report (tried again at the next check)", "err", rerr)
 		}
+		if perr := s.sendPublic(ctx, true); perr != nil {
+			s.log.Warn("Roostack Cloud: telling Cloud what serves the lab's public addresses (tried again at the next check)", "err", perr)
+		} else {
+			answered = s.Public != nil
+		}
 		// Names the lab is done with.
 		s.releaseKept(ctx)
 		// Cloud backup's space, for the pages (kept by StorageUsage).
@@ -794,7 +816,7 @@ func (s *Service) Check(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	now := s.now()
-	dropped, unrelayed := false, false
+	dropped, unrelayed, publicChanged := false, false, false
 	switch {
 	case errors.Is(err, ErrUnlinked):
 		s.log.Warn("Roostack Cloud no longer accepts this lab's certificate; forgetting the link")
@@ -811,11 +833,18 @@ func (s *Service) Check(ctx context.Context) error {
 			s.st.LastError = err.Error()
 		}
 	default:
+		names := info.Names
+		if answered {
+			names = withPolicy(names, s.st.Names)
+		}
+		info.Names = s.st.Names
 		s.st.LabInfo = info
+		publicChanged = s.setNames(names)
 		s.st.LastContact, s.st.LastTry, s.st.LastError, s.st.Refused = now, time.Time{}, "", ""
 	}
 	serr := s.save()
 	s.mu.Unlock()
+	s.publicChanged(publicChanged)
 	if dropped && s.Dropped != nil {
 		s.Dropped(ctx)
 	}

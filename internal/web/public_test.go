@@ -373,3 +373,58 @@ func TestKnownExploits(t *testing.T) {
 		t.Errorf("an Admin turned it off: %d", code)
 	}
 }
+
+// TestCloudKeptPrivate: an address Roostack Cloud doesn't allow through
+// roost.ac (SPEC.md §6.11) is shown kept private, with why (the lab's
+// words, then Cloud's), on its public access page, the service's page,
+// Settings → Public access, and under Needs attention; before it's made
+// public, the Owner is told it may stay private.
+func TestCloudKeptPrivate(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	limit := &manager.CloudRefusal{Name: "vaultwarden", Title: "Vaultwarden", Registry: "Anything uploaded to it can have a public link."}
+	h.server.CloudLimit = func(name string) *manager.CloudRefusal {
+		if name != "vaultwarden" {
+			return nil
+		}
+		return limit
+	}
+	h.server.CloudRefusals = func() []*manager.CloudRefusal {
+		if limit.State == "" {
+			return nil
+		}
+		return []*manager.CloudRefusal{limit}
+	}
+	if _, body := h.get("/services/vaultwarden/public/web"); !strings.Contains(body,
+		"Roostack Cloud only allows public access for Vaultwarden through roost.ac for approved accounts, so if yours isn&#39;t approved") {
+		t.Errorf("before making it public: %s", body)
+	}
+	h.post("/services/vaultwarden/public/web", url.Values{"public": {"on"}, "share": {"no"}}, h.srv.URL)
+	limit.State, limit.Hosts, limit.Route = cloudapi.NameNeedsApproval, []string{"passwords.lab.example.com"}, "web"
+	_, body := h.get("/services/vaultwarden/public/web")
+	for _, want := range []string{"Kept private", "You made this address public, but it's staying private: Roostack Cloud only allows public access for Vaultwarden through roost.ac and its relay for approved accounts.",
+		`<blockquote class="registry-says">Anything uploaded to it can have a public link.</blockquote>`, "Roostack will make it public by itself as soon as Roostack Cloud allows it",
+		`href="/settings/domain"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("kept private: missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Make a check link") {
+		t.Error("kept private, yet the checklist is shown")
+	}
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "Roostack Cloud allows its public access only for approved accounts") {
+		t.Error("the service page doesn't say it's kept private")
+	}
+	if _, body := h.get("/settings/public"); !strings.Contains(body, "Kept private until your account is approved") {
+		t.Error("Settings → Public access doesn't list it")
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "Vaultwarden is staying private: Roostack Cloud only allows public access for it through roost.ac for approved accounts.") {
+		t.Error("Needs attention doesn't say so")
+	}
+	// One of the Owner's own packages.
+	limit.State, limit.Registry, limit.Own = cloudapi.NameOwnPackage, "", true
+	if _, body := h.get("/services/vaultwarden/public/web"); !strings.Contains(body,
+		"Roostack Cloud only allows public access through free roost.ac names for services from the registry, and Vaultwarden is from one of your own packages.") {
+		t.Error("own package: not said")
+	}
+	_ = fm
+}

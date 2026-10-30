@@ -64,6 +64,9 @@ type LabContext struct {
 	// visitors from outside, and the server running it closes its public
 	// ports to them.
 	Pause config.PublicPause `json:"pause,omitzero"`
+	// Refused are the services Roostack Cloud won't carry (config.Public):
+	// the server running Caddy keeps their addresses private.
+	Refused map[string]string `json:"refused,omitempty"`
 }
 
 // WireService is a service's instance and package files.

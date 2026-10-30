@@ -258,7 +258,8 @@ func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream 
 		lab: lab, pkg: p, inst: in, ctx: buildContext(lab, p, in), upstream: upstream,
 		name: in.ID(), title: cmp.Or(in.Title, p.Title), out: &Output{Service: in.ID()},
 		included: map[string]bool{}, waf: !in.NoWAF, sso: SSOOn(lab, p, in), ssoReach: SSOReaches(lab, p, in),
-		paused: Paused(lab, p, in),
+		paused:  Paused(lab, p, in),
+		refused: lab.Public.Refused[in.ID()] != "",
 	}
 }
 
@@ -289,6 +290,10 @@ type gen struct {
 	// answer visitors from outside with the paused page, and its public
 	// ports take connections from home only.
 	paused bool
+	// refused: Roostack Cloud won't carry its public addresses through the
+	// lab's roost.ac name or its relay (config.Public.Refused): its routes
+	// stay private, as if the Owner hadn't made them public.
+	refused bool
 	// sso: single sign-on is on (SSOOn); ssoReach: its containers reach
 	// the sign-in page (SSOReaches).
 	sso, ssoReach bool
@@ -693,7 +698,8 @@ func (g *gen) caddySite() error {
 			continue
 		}
 		g.out.Hosts = append(g.out.Hosts, rc.Host)
-		g.out.Monitors = append(g.out.Monitors, g.routeMonitor(name, r, rc.Host, rc.Exposure == pkgspec.ExposurePublic))
+		public := rc.Exposure == pkgspec.ExposurePublic && !g.refused
+		g.out.Monitors = append(g.out.Monitors, g.routeMonitor(name, r, rc.Host, public))
 		cr := caddy.Route{
 			ID:             g.name + "-" + name,
 			Service:        g.name,
@@ -701,7 +707,7 @@ func (g *gen) caddySite() error {
 			Host:           rc.Host,
 			OldHost:        OldHost(g.lab, rc.Host),
 			Upstream:       fmt.Sprintf("%s:%d", g.upstream, rc.Port),
-			Private:        rc.Exposure != pkgspec.ExposurePublic,
+			Private:        !public,
 			PrivateFrom:    PrivateFrom(g.lab),
 			PrivateExcept:  g.lab.EdgeAddrs,
 			MaxBodySize:    r.MaxBodySize,

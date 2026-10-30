@@ -170,6 +170,43 @@ func TestPaused(t *testing.T) {
 	paused(t, testLab(), in, true)
 }
 
+// TestRefused: a service Roostack Cloud won't carry (config.Public.
+// Refused) gets the same site as if the Owner hadn't made it public, and
+// needs neither CrowdSec nor the sign-in page public.
+func TestRefused(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("forgejo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "forgejo-sso.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	private, err := Service(testLab(), p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.Routes["web"] = instance.RouteOverride{Port: in.Routes["web"].Port, Exposure: pkgspec.ExposurePublic}
+	lab := testLab()
+	lab.Public.Refused = map[string]string{in.ID(): "needs_approval"}
+	refused, err := Service(lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refused.CaddySite.Content != private.CaddySite.Content || refused.Public || refused.SSOPublic {
+		t.Errorf("refused: public %v, sign-in page public %v, site:\n%s\nwant:\n%s", refused.Public, refused.SSOPublic,
+			refused.CaddySite.Content, private.CaddySite.Content)
+	}
+	for _, mon := range refused.Monitors {
+		if mon.Public {
+			t.Errorf("monitor %+v checks it from outside", mon)
+		}
+	}
+	if public, _ := Service(testLab(), p, in); !public.Public {
+		t.Error("not public without the refusal")
+	}
+}
+
 func TestErrors(t *testing.T) {
 	p, err := pkgspec.Load(pkgtest.File("immich"))
 	if err != nil {

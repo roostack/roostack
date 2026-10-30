@@ -55,6 +55,11 @@ const (
 	// isn't relayed (a relayed one hears the same in Relay). A Cloud
 	// from before it answers 404, and the lab asks again a day later.
 	PathLabNews = "/v1/lab/news"
+	// PUT PublicHosts → PublicAnswer (mutual TLS): what serves each of
+	// the lab's public addresses, whenever they change and after each
+	// check-in. A Cloud from before it answers 404, and the lab carries
+	// on without it.
+	PathLabPublic = "/v1/lab/public"
 
 	// Proving the recovery key, for a lab that has lost its controller
 	// (no certificate): POST RestoreChallengeRequest → RestoreChallenge,
@@ -114,6 +119,7 @@ var Routes = []Route{
 	{Method: "PUT", Path: PathLabRecoveryIdentity, Lab: true, Writes: true},
 	{Method: "PUT", Path: PathLabReport, Lab: true, WhileSuspended: true, Writes: true},
 	{Method: "GET", Path: PathLabNews, Lab: true, WhileSuspended: true},
+	{Method: "PUT", Path: PathLabPublic, Lab: true, Writes: true},
 	{Method: "POST", Path: PathRestoreChallenge},
 	{Method: "POST", Path: PathRestoreAccess},
 	{Method: "POST", Path: PathRestoreRelink},
@@ -266,8 +272,10 @@ const (
 // Cloud (Host, in full): a name that looks like a bank's, a government
 // service's or a brand's waits for approval (NameWaiting), and may be
 // refused (NameRefused); any name may be suspended after an abuse report
-// (NameSuspended). Reason says why, for people, when refused or
-// suspended; Since is when it started.
+// (NameSuspended). A public address may also be one Cloud doesn't carry
+// for what serves it (NameOwnPackage, NameNeedsApproval; PublicHosts).
+// Reason says why, for people, when refused or suspended, and how to ask
+// for approval for the last two; Since is when it started.
 type NameStatus struct {
 	Host   string    `json:"host"`
 	State  string    `json:"state"`
@@ -280,7 +288,58 @@ const (
 	NameWaiting   = "waiting"
 	NameRefused   = "refused"
 	NameSuspended = "suspended"
+	// NameOwnPackage: a service from one of the Owner's own packages, on
+	// a roost.ac name, whose free names only carry the registry's (Cloud's
+	// DESIGN §5), unless the account is approved.
+	NameOwnPackage = "own_package"
+	// NameNeedsApproval: a service from a package the registry flags as
+	// needing approval for roost.ac names and the relay (PublicHost.
+	// Approval), for an account that isn't approved.
+	NameNeedsApproval = "needs_approval"
 )
+
+// PublicHosts are the lab's public addresses that come through its
+// roost.ac name or Cloud's relay, each with what serves it, so that Cloud
+// can leave out of its DNS and its edges what it doesn't carry (Cloud's
+// DESIGN §5, "Free names only for registry packages"). Asking again
+// replaces all of them. Only an honest lab's say: a changed Roostack
+// could say anything, and Cloud's outside checks are the real check.
+type PublicHosts struct {
+	Hosts []PublicHost `json:"hosts"`
+}
+
+// PublicHost is one public address (Host, in full) and what serves it:
+// Kind, and for a registry package its name (Package) and whether the
+// registry flags it as needing approval (Approval). The Owner's own
+// packages are never named.
+type PublicHost struct {
+	Host     string `json:"host"`
+	Kind     string `json:"kind"`
+	Package  string `json:"package,omitempty"`
+	Approval bool   `json:"approval,omitempty"`
+}
+
+// What serves a public address (PublicHost.Kind).
+const (
+	// HostRoostack: Roostack's own pages (the sign-in page, the status
+	// page).
+	HostRoostack = "roostack"
+	// HostRegistry: a service from the service registry.
+	HostRegistry = "registry"
+	// HostOwn: a service from one of the Owner's own packages.
+	HostOwn = "own"
+)
+
+// MaxPublicHosts is the most addresses a PublicHosts carries.
+const MaxPublicHosts = 500
+
+// PublicAnswer is Cloud's answer to PublicHosts: the addresses it won't
+// carry (NameOwnPackage or NameNeedsApproval; none: it carries them all).
+// They're in LabInfo.Names and Relay.Names too, beside the names that
+// don't work for other reasons.
+type PublicAnswer struct {
+	Names []NameStatus `json:"names"`
+}
 
 // LabReport is what the lab tells Cloud after each check-in. A field left
 // out (null) is unknown, and Cloud keeps what it had; an empty list

@@ -85,6 +85,9 @@ type Manager struct {
 	// Public access: Roostack Cloud's relay, a way in for public visitors
 	// (edge.go).
 	Relay Relay
+	// CloudPublic is Roostack Cloud's say on which public services its
+	// roost.ac names and relay carry (cloudpublic.go; nil funcs: no Cloud).
+	CloudPublic CloudPublic
 	// Media libraries: the servers' libraries (store.Store; SPEC.md §8.1,
 	// "Media libraries"). Nil: none.
 	Libraries LibraryStore
@@ -161,6 +164,10 @@ type Manager struct {
 	relayMu  sync.Mutex
 	relayGen uint64
 	relayWG  sync.WaitGroup
+	// refused are the services Roostack Cloud won't carry as the last
+	// assignment worked them out (cloudpublic.go), by ID, for the lab's
+	// public names (withStatusPage).
+	refused atomic.Pointer[map[string]string]
 
 	// registryWG is RegistryChanged's background updates still running
 	// (withdrawals.go), so Wait covers them too.

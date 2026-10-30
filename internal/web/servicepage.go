@@ -103,6 +103,13 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		s.addSettingsData(data, name, p, nil)
 		if access, err := s.Manager.Access(name); err == nil {
 			data["Access"] = access
+			// Kept private because Roostack Cloud doesn't allow its public
+			// access through roost.ac (SPEC.md §6.11).
+			if s.CloudLimit != nil {
+				if c := s.CloudLimit(name); c != nil && c.State != "" {
+					data["CloudKept"] = c
+				}
+			}
 			if v := s.wafCard(r.Context(), access); v != nil {
 				data["WAF"] = v
 			}

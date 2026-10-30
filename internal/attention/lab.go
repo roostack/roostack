@@ -45,10 +45,14 @@ type Lab struct {
 	// being put back.
 	RestorePending func() bool
 	Cloud          Cloud
-	Registry       Registry
-	Libraries      Libraries
-	DNS            DNS
-	Monitor        Monitor
+	// CloudRefusals are the services kept private because Roostack Cloud
+	// doesn't allow their public access through roost.ac (manager.
+	// CloudRefusals; nil: none).
+	CloudRefusals func() []*manager.CloudRefusal
+	Registry      Registry
+	Libraries     Libraries
+	DNS           DNS
+	Monitor       Monitor
 	// HostChecks are the servers' checks for changes Roostack didn't
 	// make, kept for a while (the Updates pages share them).
 	HostChecks *HostChecks
