@@ -412,6 +412,7 @@ Finished work, by phase, with the headings of [TASKS.md](TASKS.md), where the op
   - [x] Your own checks (2026-10-19): a web address, a host and port, or a ping (works in the sandbox, ASSUMPTIONS U2)
   - [x] The public status page (2026-10-19): `status.<lab>`, static, the checks ticked, its switch in lab.yaml, its name public
   - [x] `monitor:` on a package's route (2026-10-19), in pkgspec, validate and the packages reference
+- [x] **Scheduled tasks** (`on: schedule`, the maintainer's choices of 2026-10-30, SPEC §8.1): `every: day | week | month` and a `timeout`, in pkgspec, validate, the editor's check.js and the packages reference; each server queues the tasks due after its nightly backup and OS updates, on its coordinator, spread over the week and month, only while the service runs, catching up a missed night; the service page's Scheduled tasks card with Run now, two failures in a row under "Needs attention" with Try again, each run in History; the `scheduled-test` fixture. For Seafile's garbage collection
 
 ## Security review 2026-10-16: the root boundary (rs-privilege)
 

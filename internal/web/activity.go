@@ -28,6 +28,8 @@ var activityPerm = map[string]auth.Permission{
 	activity.Import: auth.ManageHost,
 	// A service restarted as its library's drive came back (SPEC.md §8.4).
 	activity.LibraryRestart: auth.ManageServices,
+	// A service's scheduled task (SPEC.md §8.1).
+	activity.Scheduled: auth.ManageServices,
 }
 
 // activityView is one activity's live status and log (parts.html).

@@ -51,6 +51,22 @@ Some services offer **actions**: things you'd otherwise need a command line
 for, such as resetting someone's password in Forgejo. Open the action, fill
 in what it asks, and choose its button. Its result will show underneath.
 
+## Scheduled tasks
+
+Some services need upkeep that their app doesn't do by itself, such as
+Seafile freeing the space that deleted files leave behind. Their page has
+**Scheduled tasks**, each with how often it runs, when it last ran, and how
+long it took. Roostack runs them at night, after the backup, one at a time
+and only while the service is running; a task that couldn't run (the
+server was off, or the service stopped) will run the next night instead.
+**Run now** runs one as soon as nothing else is happening on the server,
+such as a backup or an update.
+
+If a task doesn't work twice in a row, it will show under **Needs
+attention** and be emailed like other problems. Its page says what went
+wrong; **Try again** runs it again, and otherwise Roostack will try again
+the next time it's due.
+
 ## Extra connections
 
 A few services use connections other than the web, such as git over SSH in
@@ -215,3 +231,13 @@ one: see [Move a service](../servers/move.md).
     service's container. Their inputs reach the command only as
     environment variables on standard input and aren't written to the audit
     log (only the action's name and whether it worked).
+
+    **Scheduled tasks** are package `schedule` hooks, run the same way. Each
+    server queues the ones due on its maintenance coordinator right after
+    the nightly backup and OS updates, so they never overlap a backup, a
+    restore, or an update, and a pending restart waits for a task to
+    finish. A weekly task's weekday and a monthly task's day (1 to 28) come
+    from its service's and task's names, so a server's tasks are spread out.
+    Each run is in **Settings → History** under Scheduled tasks, with its
+    log; what each task last did is kept in the server's database, under
+    `hooks.<service>.scheduled.<task>` in its settings.

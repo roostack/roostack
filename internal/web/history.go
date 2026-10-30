@@ -34,6 +34,7 @@ var historyKinds = []struct{ ID, Title string }{
 	{activity.OSUpdates, "Updates"},
 	{activity.Restore, "Restores"},
 	{activity.Import, "Bringing data in"},
+	{activity.Scheduled, "Scheduled tasks"},
 }
 
 // historyEntry is one line of the page.

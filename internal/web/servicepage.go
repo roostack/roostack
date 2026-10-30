@@ -5,11 +5,14 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
 
@@ -130,11 +133,18 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	if n := s.serverOf(r); n != nil {
 		st := n.InstallStatus(r.Context(), name)
 		data["Setup"] = st
+		data["Scheduled"] = scheduledViews(st.Scheduled)
+		data["ScheduledWaiting"] = slices.ContainsFunc(st.Scheduled, func(t node.ScheduledStatus) bool { return t.Queued })
 		if st.Failed != "" && auth.Can(currentUser(r).Role, auth.ManageServices) {
 			if p, ok := data["Package"].(*pkgspec.Package); ok {
 				data["InstallFields"] = s.installFields(name, p)
 			}
 		}
+	}
+	// The latest scheduled task's log, if it's this service's: a server
+	// runs its tasks one at a time and keeps the latest log.
+	if a := s.activityFor(r, activity.Scheduled); a != nil && strings.HasPrefix(a.Title, data["Service"].(ServiceView).Title+": ") {
+		data["ScheduledActivity"] = a
 	}
 	// The latest setup log, if it's this service's.
 	if a := s.activityFor(r, activity.Setup); a != nil && a.Title == "Setting up "+data["Service"].(ServiceView).Title {
@@ -213,4 +223,47 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		}
 	}
 	s.render(w, page, data)
+}
+
+// scheduledView is one of a service's scheduled tasks on its page (SPEC.md
+// §8.1): When says how often, and on which night, and Again when it will
+// run next after a failure.
+type scheduledView struct {
+	node.ScheduledStatus
+	When, Again string
+	// Attention: it has failed often enough to be under "Needs attention".
+	Attention bool
+}
+
+func scheduledViews(tasks []node.ScheduledStatus) []scheduledView {
+	var out []scheduledView
+	for _, t := range tasks {
+		v := scheduledView{ScheduledStatus: t, Attention: t.Failures >= node.ScheduledFailuresShown}
+		switch t.Every {
+		case pkgspec.EveryDay:
+			v.When, v.Again = "Every night", "the next night"
+		case pkgspec.EveryWeek:
+			day := time.Weekday(t.Day).String()
+			v.When, v.Again = "Weekly, early on "+day+"s", "early on "+day
+		case pkgspec.EveryMonth:
+			v.When, v.Again = "Monthly, early on the "+ordinal(t.Day), "early on the "+ordinal(t.Day)
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+// ordinal is a day of the month as people say it: 1st, 2nd, 3rd, 14th.
+func ordinal(n int) string {
+	suffix := "th"
+	switch {
+	case n%100 >= 11 && n%100 <= 13:
+	case n%10 == 1:
+		suffix = "st"
+	case n%10 == 2:
+		suffix = "nd"
+	case n%10 == 3:
+		suffix = "rd"
+	}
+	return strconv.Itoa(n) + suffix
 }

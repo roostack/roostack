@@ -1132,6 +1132,10 @@ type fakeNode struct {
 	actions   []string
 	actionOut string
 	actionErr error
+	// scheduled are the scheduled tasks run, and scheduledErr what
+	// running one says.
+	scheduled    []string
+	scheduledErr error
 
 	acts     *activity.Registry
 	backups  BackupService
@@ -1225,6 +1229,11 @@ func (f *fakeNode) RetryInstall(_ context.Context, name string) error {
 func (f *fakeNode) RunAction(_ context.Context, name, action string, inputs map[string]string) (string, error) {
 	f.actions = append(f.actions, fmt.Sprintf("%s %s %v", name, action, inputs))
 	return f.actionOut, f.actionErr
+}
+
+func (f *fakeNode) RunScheduled(_ context.Context, name, hook string) error {
+	f.scheduled = append(f.scheduled, name+" "+hook)
+	return f.scheduledErr
 }
 
 func (f *fakeNode) BuiltIns(context.Context) ([]node.BuiltIn, error) {

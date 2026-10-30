@@ -69,7 +69,9 @@ var (
 	rtStates   = map[string]string{"immich": "running"}
 	rtDetails  = map[string]ServiceDetail{"immich": {Status: "running", DataDirs: []string{"/srv/immich"}, DataSize: 42}}
 	rtBuiltIns = []BuiltIn{{Name: "Caddy", Kind: "proxy", Status: "active (running)", Detail: "3 sites", LastSeen: rtAt}}
-	rtHook     = HookStatus{Running: true, Failed: "earlier"}
+	rtHook     = HookStatus{Running: true, Failed: "earlier", Scheduled: []ScheduledStatus{{Name: "free-space", Title: "Free up space",
+		Every: "week", Day: 2, Started: time.Date(2026, 10, 27, 2, 41, 0, 0, time.UTC), Finished: time.Date(2026, 10, 27, 2, 53, 0, 0, time.UTC),
+		Error: "database is locked", Failures: 2, Queued: true}}}
 	rtActivity = activity.Snapshot{Title: "Backing up", Status: "Backing up immich", Started: rtAt, Lines: []string{"one"}}
 	rtAddrs    = []string{"192.168.1.20"}
 	rtLinks    = map[string]int64{"pubkey": 1790000000}
@@ -142,6 +144,10 @@ func (f rtNode) RetryInstall(_ context.Context, s string) error { f.rec("RetryIn
 func (f rtNode) RunAction(_ context.Context, s, a string, in map[string]string) (string, error) {
 	f.rec("RunAction", s, a, in)
 	return "done", nil
+}
+func (f rtNode) RunScheduled(_ context.Context, s, h string) error {
+	f.rec("RunScheduled", s, h)
+	return nil
 }
 func (f rtNode) RevealSecret(_ context.Context, s, k string) (string, error) {
 	f.rec("RevealSecret", s, k)
@@ -585,6 +591,8 @@ func TestRoundTrip(t *testing.T) {
 			[]rtCall{call("RetryInstall", "immich")}, nil},
 		{"RunAction", func() (any, error) { return r.RunAction(ctx, "immich", "reset password", inputs) },
 			[]rtCall{call("RunAction", "immich", "reset password", inputs)}, "done"},
+		{"RunScheduled", func() (any, error) { return nil, r.RunScheduled(ctx, "seafile", "free space") },
+			[]rtCall{call("RunScheduled", "seafile", "free space")}, nil},
 		{"RevealSecret", func() (any, error) { return r.RevealSecret(ctx, "immich", "admin/token") },
 			[]rtCall{call("RevealSecret", "immich", "admin/token")}, "s3cret"},
 

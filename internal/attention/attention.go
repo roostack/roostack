@@ -333,6 +333,16 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 						Text: svc.Title + " has stopped working.",
 						Link: link, LinkText: "See what's wrong"})
 				}
+				// A scheduled task that failed twice in a row (SPEC.md
+				// §8.1): once may be a bad night, and it's tried again
+				// the next. Not while it's being tried again now.
+				for _, t := range hs.Scheduled {
+					if t.Failures >= node.ScheduledFailuresShown && !t.Queued && !t.Running {
+						l.add(Item{Key: "scheduled-failed:" + svc.Name + ":" + t.Name, Level: Problem,
+							Text: fmt.Sprintf("%s's scheduled task “%s” didn't work the last %d times.", svc.Title, t.Title, t.Failures),
+							Link: link + "#scheduled", LinkText: "See what went wrong"})
+					}
+				}
 			}
 		}
 	}

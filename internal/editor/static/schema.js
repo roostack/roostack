@@ -579,6 +579,14 @@
       {
        "name": "saves",
        "type": "string"
+      },
+      {
+       "name": "every",
+       "type": "string"
+      },
+      {
+       "name": "timeout",
+       "type": "string"
       }
      ]
     }
@@ -763,6 +771,11 @@
    "GFDL-1.2",
    "GFDL-1.3"
   ],
+  "everies": [
+   "day",
+   "week",
+   "month"
+  ],
   "exposures": [
    "private",
    "public"
@@ -773,7 +786,8 @@
   "hookEvents": [
    "install",
    "action",
-   "sso"
+   "sso",
+   "schedule"
   ],
   "locations": [
    "service",
@@ -1440,8 +1454,8 @@
    "link": "packages/write#name-and-version"
   },
   "hooks": {
-   "label": "Setup and actions",
-   "help": "Commands run inside a container, once after the first start (install), as a button on the service's page (action), or when single sign-on is turned on, changed, or off (sso). Values people type will reach them only as environment variables.",
+   "label": "Setup, actions, and scheduled tasks",
+   "help": "Commands run inside a container, once after the first start (install), as a button on the service's page (action), when single sign-on is turned on, changed, or off (sso), or every day, week, or month (schedule). Values people type will reach them only as environment variables.",
    "link": "packages/write#settings-setup-and-links"
   },
   "hooks[].command": {
@@ -1463,6 +1477,12 @@
    "label": "Environment",
    "help": "Environment variables for the command; values can be templates, such as {{ .Settings.admin_username }} or an action's {{ .Inputs.username }}.",
    "link": "reference/packages#templates"
+  },
+  "hooks[].every": {
+   "label": "How often",
+   "help": "For a scheduled task: day, week, or month. Roostack will pick the night (a weekly task gets its own weekday, so tasks don't all run together), run it after the backup, and catch up a run it missed the next night.",
+   "example": "week",
+   "link": "reference/packages#scheduled-tasks"
   },
   "hooks[].inputs": {
    "label": "Inputs",
@@ -1534,13 +1554,13 @@
   },
   "hooks[].name": {
    "label": "Name",
-   "help": "For an action, lowercase letters, digits, and dashes, used in its address.",
+   "help": "For an action or a scheduled task, lowercase letters, digits, and dashes, used in its address.",
    "example": "reset-password",
    "link": "reference/packages#the-parts"
   },
   "hooks[].on": {
    "label": "When",
-   "help": "install will run once after the first start and must be safe to run twice; action is a button on the service's page; sso will run when single sign-on is turned on, changed (the lab's address or name), or off, told which by ROOSTACK_SSO=on or off, and must be safe to run again.",
+   "help": "install will run once after the first start and must be safe to run twice; action is a button on the service's page; sso will run when single sign-on is turned on, changed (the lab's address or name), or off, told which by ROOSTACK_SSO=on or off, and must be safe to run again; schedule will run every day, week, or month (every), at night after the backup, while the service is running.",
    "link": "packages/write#settings-setup-and-links"
   },
   "hooks[].saves": {
@@ -1554,9 +1574,15 @@
    "help": "Secret settings as environment variables, or for an action inputs.\u003ckey\u003e for a secret input. An sso hook of an OIDC app may also have sso.client_secret, which is empty while single sign-on is off.",
    "link": "reference/packages#the-parts"
   },
+  "hooks[].timeout": {
+   "label": "Time limit",
+   "help": "For a scheduled task: how long it may run before Roostack stops it, from 1m to 6h, such as 2h. Without one, an hour.",
+   "example": "2h",
+   "link": "reference/packages#scheduled-tasks"
+  },
   "hooks[].title": {
    "label": "Title",
-   "help": "For an action, the button's label.",
+   "help": "For an action, the button's label; for a scheduled task, its name on the service's page and in its history.",
    "example": "Reset a password",
    "link": "reference/packages#the-parts"
   },

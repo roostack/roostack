@@ -270,6 +270,77 @@ func TestServiceSetupAndActions(t *testing.T) {
 	}
 }
 
+// A service's scheduled tasks (SPEC.md §8.1): when each runs and how its
+// last run went, Run now, and two failures in a row under "Needs
+// attention" with Try again.
+func TestServiceScheduledTasks(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "forgejo", Title: "Forgejo", Status: "running", URLs: []string{"https://git.lab.example.com"}}}, nil
+	}
+	started := time.Now().Add(-time.Hour)
+	task := node.ScheduledStatus{Name: "free-space", Title: "Free up space", Description: "Removes unused blocks.",
+		Every: "week", Day: int(time.Tuesday), Started: started, Finished: started.Add(12 * time.Minute), OK: true}
+	fm.setup = map[string]manager.HookStatus{"forgejo": {Scheduled: []node.ScheduledStatus{task}}}
+	_, body := h.get("/services/forgejo")
+	for _, want := range []string{`id="scheduled"`, "Free up space", "Removes unused blocks.", "Weekly, early on Tuesdays",
+		"took 12 min", `action="/services/forgejo/scheduled/free-space/run"`, ">Run now<"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("service page: no %q", want)
+		}
+	}
+	h.post("/services/forgejo/scheduled/free-space/run", nil, h.srv.URL)
+	if len(fm.scheduled) != 1 || fm.scheduled[0] != "forgejo free-space" {
+		t.Errorf("ran %v", fm.scheduled)
+	}
+
+	// Queued: no button, and it says why it waits.
+	task.Queued = true
+	fm.setup["forgejo"] = manager.HookStatus{Scheduled: []node.ScheduledStatus{task}}
+	if _, body := h.get("/services/forgejo"); !strings.Contains(body, "Waiting for other maintenance") || strings.Contains(body, ">Run now<") {
+		t.Error("queued: want it waiting, without Run now")
+	}
+
+	// One failure: on the page, not under "Needs attention".
+	task.Queued, task.OK, task.Error, task.Failures = false, false, "the database is locked (exit status 1)", 1
+	fm.setup["forgejo"] = manager.HookStatus{Scheduled: []node.ScheduledStatus{task}}
+	_, body = h.get("/services/forgejo")
+	if !strings.Contains(body, "Didn't work last time, so Roostack will try again early on Tuesday.") ||
+		!strings.Contains(body, "the database is locked") {
+		t.Error("one failure: want what went wrong and when it will try again")
+	}
+	if _, home := h.get("/"); strings.Contains(home, "scheduled task") {
+		t.Error("home: one failure shouldn't need attention")
+	}
+
+	// Two in a row: under "Needs attention", and Try again.
+	task.Failures = 2
+	fm.setup["forgejo"] = manager.HookStatus{Scheduled: []node.ScheduledStatus{task}}
+	_, body = h.get("/services/forgejo")
+	if !strings.Contains(body, "Didn't work the last 2 times") || !strings.Contains(body, ">Try again<") {
+		t.Error("two failures: want them said, with Try again")
+	}
+	if _, home := h.get("/"); !strings.Contains(home, "Forgejo&#39;s scheduled task “Free up space” didn&#39;t work the last 2 times.") ||
+		!strings.Contains(home, "/services/forgejo#scheduled") {
+		t.Error("home: two failures should need attention")
+	}
+
+	// A task that can't run now says why.
+	fm.scheduledErr = usererr.New("Free up space can't run now: Forgejo isn't running.")
+	if code, body := h.post("/services/forgejo/scheduled/free-space/run", nil, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "Forgejo isn&#39;t running.") {
+		t.Errorf("can't run: %d", code)
+	}
+
+	// Members see the tasks but can't run them.
+	m, mm := loggedIn(t, auth.RoleMember)
+	m.server.Services = h.server.Services
+	mm.setup = fm.setup
+	if _, body := m.get("/services/forgejo"); strings.Contains(body, `/scheduled/free-space/run"`) {
+		t.Error("a member was offered Try again")
+	}
+}
+
 func TestTemporaryPasswordMustBeChanged(t *testing.T) {
 	h := newHarness(t, "")
 	hash, _ := authkit.HashPassword("temporary password")

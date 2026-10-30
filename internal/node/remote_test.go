@@ -81,6 +81,7 @@ func (f *fakeNode) RunAction(_ context.Context, s, a string, in map[string]strin
 	}
 	return "ok " + in["username"], nil
 }
+func (f *fakeNode) RunScheduled(context.Context, string, string) error          { return nil }
 func (f *fakeNode) RevealSecret(_ context.Context, s, k string) (string, error) { return "s3cret", nil }
 func (f *fakeNode) LatestActivity(kind string) (activity.Snapshot, bool) {
 	return activity.Snapshot{Title: "Applying changes", Status: "All changes applied"}, kind == activity.Apply

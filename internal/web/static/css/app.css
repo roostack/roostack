@@ -687,6 +687,8 @@ details:not(.activity-details, .action, .tile > details, .pe details)[open] > :l
 details:not(.activity-details, .action, .tile > details, .pe details)[open] > :is(ul, ol) { padding-left: calc(var(--space-3) + 1.25em); }
 /* An action (a service's): a row with a chevron that opens its form. */
 details.action { border-top: 1px solid var(--border); padding: var(--space-3) 0; }
+/* A service's scheduled tasks, one under another. */
+.task + .task { border-top: 1px solid var(--border); padding-top: var(--space-3); }
 .card-head + details.action { border-top: 0; padding-top: 0; }
 details.action > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); list-style: none;
   color: var(--fg); font-size: var(--text-base); font-weight: var(--weight-medium); }

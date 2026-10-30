@@ -112,6 +112,23 @@
     return val("str", s);
   }
 
+  // parseGoDuration is time.ParseDuration(s) in nanoseconds, or NaN.
+  function parseGoDuration(s) {
+    const units = { ns: 1, us: 1e3, "µs": 1e3, "μs": 1e3, ms: 1e6, s: 1e9, m: 60e9, h: 3600e9 };
+    let rest = s, sign = 1;
+    if (rest[0] === "-" || rest[0] === "+") { sign = rest[0] === "-" ? -1 : 1; rest = rest.slice(1); }
+    if (rest === "0") return 0;
+    if (rest === "") return NaN;
+    let total = 0;
+    while (rest !== "") {
+      const m = /^(\d+\.?\d*|\.\d+)(ns|us|µs|μs|ms|s|m|h)/.exec(rest);
+      if (!m) return NaN;
+      total += parseFloat(m[1]) * units[m[2]];
+      rest = rest.slice(m[0].length);
+    }
+    return sign * total;
+  }
+
   // parseGoInt is strconv.ParseInt(s, 0, 64): decimal, 0x, 0o, 0b and a
   // leading 0 for octal; null if it isn't one.
   function parseGoInt(s) {
@@ -509,7 +526,7 @@
   }
 
   function validateHooks(p, add) {
-    const actions = new Set();
+    const actions = new Set(), scheduled = new Set();
     (p.hooks || []).forEach((h, i) => {
       const at = `hooks[${i}]`;
       if (isNil(h)) { add(`${at}: empty hook`); return; }
@@ -527,12 +544,25 @@
           if (isNil(p.sso)) add(`${at}.on: an sso hook needs the package's sso part`);
           else if (h.name !== "" || (h.inputs || []).length > 0) add(`${at}: an sso hook takes no name or inputs`);
           break;
+        case "schedule":
+          if (!re.name.test(h.name)) add(`${at}.name: ${goQuote(h.name)} must be lowercase letters, digits, and dashes`);
+          if (scheduled.has(h.name)) add(`${at}.name: duplicate scheduled hook ${goQuote(h.name)}`);
+          scheduled.add(h.name);
+          if (h.title === "") add(`${at}.title: required (shown on the service page and in its history)`);
+          if (h.every !== "day" && h.every !== "week" && h.every !== "month") add(`${at}.every: must be "day", "week", or "month"`);
+          if (h.timeout !== "") {
+            const d = parseGoDuration(h.timeout);
+            if (isNaN(d) || d < 60e9 || d > 6 * 3600e9) add(`${at}.timeout: ${goQuote(h.timeout)} must be a length of time from 1m to 6h, such as 2h`);
+          }
+          if ((h.inputs || []).length > 0) add(`${at}.inputs: only actions take inputs; scheduled hooks use settings`);
+          break;
         default:
-          add(`${at}.on: must be "install", "action", or "sso"`);
+          add(`${at}.on: must be "install", "action", "sso", or "schedule"`);
       }
+      if (h.on !== "schedule" && (h.every !== "" || h.timeout !== "")) add(`${at}: only scheduled hooks take every and timeout`);
       if (h.saves !== "") {
         const s = settingOf(p, h.saves);
-        if (h.on === "sso") add(`${at}.saves: only install and action hooks save a secret`);
+        if (h.on === "sso" || h.on === "schedule") add(`${at}.saves: only install and action hooks save a secret`);
         else if (!s || !s.from_hook) add(`${at}.saves: ${goQuote(h.saves)} is not a from_hook secret setting`);
       }
       if (!has(p.containers, h.container)) add(`${at}.container: unknown container ${goQuote(h.container)}`);

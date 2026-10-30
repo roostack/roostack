@@ -37,6 +37,9 @@ type serverJobs struct {
 	// restores cover.
 	services  serverServices
 	cloudKeys *cloudBackupKeys
+	// scheduled queues the services' scheduled tasks due tonight
+	// (node.Local.QueueScheduled), after the backup and OS updates.
+	scheduled func()
 
 	// Made by start's steps.
 	ticker   *time.Ticker
@@ -47,7 +50,8 @@ type serverJobs struct {
 }
 
 // start makes this server's maintenance jobs and runs them until ctx
-// ends.
+// ends. The nightly schedule also queues the services' scheduled tasks
+// (SPEC.md §8.1).
 func (j *serverJobs) start(ctx context.Context) (node.Maintenance, error) {
 	j.newCoordinator()
 	if err := j.newBackups(ctx); err != nil {
@@ -187,6 +191,11 @@ func (j *serverJobs) run(ctx context.Context) {
 			}
 			if err := updates.Submit(ctx); err != nil {
 				j.log.Warn("nightly OS updates not started", "err", err)
+			}
+			// Then the services' scheduled tasks due tonight, so they
+			// run after both and before the restart window (SPEC.md §8.1).
+			if j.scheduled != nil {
+				j.scheduled()
 			}
 		})
 	go updates.WatchSeries(ctx, 5*time.Minute, 6*time.Hour)
