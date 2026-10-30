@@ -295,6 +295,17 @@ routes:
     that expects its own words: `{ users: user, admins: admin }` for
     Immich, which makes someone its admin when the claim holds `admin`.
 
+    Two fields say what the app does, for the service's Single sign-on
+    card, which claims neither unless the package says so:
+    `oidc.admins: true` if the app will make the lab's Owners and Admins
+    its admins (from `groups`), and `oidc.existing_accounts` for what it
+    will do when someone who signs in already has an account in it:
+    `email` (use the one with their email address), `username`,
+    `username_or_email` (their username, or else their email address), or
+    `separate` (make a new one beside it). Check both on a lab before
+    saying so, since the card will tell people to check their details on
+    People before they turn it on.
+
     How each kind of app is connected:
 
     | The app takes its settings | The package has |
@@ -309,6 +320,8 @@ routes:
       oidc:
         route: web
         redirect_paths: [/login]
+        admins: true                # from OIDC_ADMIN_GROUP below
+        existing_accounts: email
       env:
         app:
           OIDC_AUTH_ENABLED: "true"

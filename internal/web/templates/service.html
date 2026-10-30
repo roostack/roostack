@@ -536,12 +536,14 @@ Image: {{.Image}}</code></pre>
   {{if not .Open}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{if .On}}
   {{if .Wall}}<p>Everyone who opens {{.Title}} signs in on the lab's sign-in page first, so only the people you choose reach it.</p>
-  {{else}}<p>People sign in to {{.Title}} with their account here, on the lab's sign-in page. {{.Title}} makes their account in {{.Title}} the first time
-    they sign in, or finds it by their email address.</p>{{end}}
+  {{else}}<p>People sign in to {{.Title}} with their account here, on the lab's sign-in page.
+    {{if eq .Existing "separate"}}{{.Title}} will make each person a new account the first time they sign in, and accounts already in {{.Title}} will stay separate.
+    {{else}}{{.Title}} will make each person an account the first time they sign in{{with .Existing}}, or use the one already in {{$.Title}} with their
+    {{if eq . "email"}}email address{{else if eq . "username"}}username{{else}}username, or else their email address{{end}}{{end}}.{{end}}</p>{{end}}
   {{template "sso-hook" .}}
   <dl class="facts">
     <dt>Who can sign in</dt><dd>{{.Summary}}{{if not .Access.Chosen}} <small class="hint">({{.Everyone}} {{if eq .Everyone 1}}person{{else}}people{{end}})</small>{{end}}</dd>
-    {{if not .Wall}}<dt>Admins in {{.Title}}</dt><dd>The lab's Owners and Admins{{with .Admins}}: {{join . ", "}}{{end}}</dd>{{end}}
+    {{if .AppAdmins}}<dt>Admins in {{.Title}}</dt><dd>The lab's Owners and Admins{{with .Admins}}: {{join . ", "}}{{end}}</dd>{{end}}
     <dt>Sign-in page</dt><dd><a href="https://{{.SignInHost}}" target="_blank" rel="noopener">{{.SignInHost}}{{template "new-window"}}</a>
       <small class="hint">· {{if .PagesPublic}}public, as Roostack's pages are{{else if .SignInPublic}}public, as a service using it is{{else}}from home and your VPN, like the services using it{{end}}</small></dd>
     {{range .Bypass}}<dt>Without signing in</dt><dd><code>{{.Path}}</code> <small class="hint">· {{.Reason}}</small></dd>{{end}}
@@ -590,7 +592,10 @@ Image: {{.Image}}</code></pre>
   <ul class="plain sso-steps">
     <li>{{icon "sign-in"}}<span>Roostack will {{if .Wall}}put {{.Title}} behind the lab's sign-in page{{else}}register {{.Title}} with the lab's sign-in page and give {{.Title}} its settings and a secret{{end}}.</span></li>
     {{if not .Wall}}<li>{{icon "changes"}}<span>{{.Title}} will restart, which will take a few seconds.</span></li>
-    <li>{{icon "users"}}<span>Accounts already in {{.Title}} will be found by their email address, so check each person's email on <a href="/settings/people">People</a>.</span></li>{{end}}
+    {{with .Existing}}<li>{{icon "users"}}<span>{{if eq . "separate"}}Accounts already in {{$.Title}} will stay separate: each person will get a new one when they first sign in through the lab.
+      {{- else if eq . "email"}}Accounts already in {{$.Title}} will be found by their email address, so check each person's email on <a href="/settings/people">People</a>.
+      {{- else if eq . "username"}}Accounts already in {{$.Title}} will be found by their username, so check each person's username on <a href="/settings/people">People</a>.
+      {{- else}}Accounts already in {{$.Title}} will be found by their username, or else their email address, so check both on <a href="/settings/people">People</a>.{{end}}</span></li>{{end}}{{end}}
     {{with .Note}}<li>{{icon "help"}}<span>{{.}}</span></li>{{end}}
   </ul>
   <form method="post" action="/services/{{.Name}}/sso" class="sso-who">

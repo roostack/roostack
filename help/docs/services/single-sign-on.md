@@ -17,10 +17,11 @@ Owner chooses who can sign in. Roostack will then:
 
 - for an app that signs people in itself (such as Mealie), register it with
   the sign-in page, give it its settings and a secret, and restart it,
-  which will take a few seconds. The app will make each person's account
-  the first time they sign in, or find the one with their
-  **email address**, so check everyone's email on **Settings → People**
-  first;
+  which will take a few seconds. The app will make each person an account
+  the first time they sign in. What it will do with an account someone
+  already has in it depends on the app, and the card will say: some will
+  find it by the person's **email address** or **username**, so check
+  them on **Settings → People** first, and some will keep it separate;
 - for an app with no accounts of its own (such as Stirling-PDF), put it
   **behind the sign-in page**: everyone will sign in before they reach it.
 
@@ -83,7 +84,8 @@ tries will be told who to ask.
 Members see only the services they can use on Roostack's home page.
 
 The lab's **Owners and Admins** are admins in apps that can make someone
-an admin from single sign-on (Mealie, for one).
+an admin from single sign-on (Mealie, for one), and the card's **Admins in**
+line will say so. In other apps, admins are chosen in the app itself.
 
 ## Signing in
 

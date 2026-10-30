@@ -249,7 +249,7 @@ One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-2
 - **Roostack holds the people.** Each person's username, name, email address, and role are what apps see. A person needs an email address before they can be given a service with single sign-on (most apps match or make accounts by email). The address Roostack has for notifications is the one used; it is marked verified because the Owner typed it in or the person changed it while signed in.
 - **Groups (new):** named lists of people the Owner makes, such as "Family" or "Friends", on the People page. A person can be in several.
 - **Who can use a service:** on the service's page, "Who can sign in": **Everyone in the lab** (the default), or chosen groups and people. Someone without access who tries sees a page saying so and who to ask, instead of the app.
-- **Admins in the app:** where an app can make someone an admin from a claim (Mealie, Forgejo, Immich, Paperless, Audiobookshelf), Roostack's Owners and Admins with access are the app's admins, since they already manage services. Choosing others per service will come later.
+- **Admins in the app:** where an app can make someone an admin from a claim (Mealie, Forgejo, Immich, Paperless, Audiobookshelf), Roostack's Owners and Admins with access are the app's admins, since they already manage services. Choosing others per service will come later. The service's card says so only for an app whose package has `sso.oidc.admins: true` (below, "What the card claims").
 - **Roles stay as they are** (Owner, Admin, Member): they say what someone may do in Roostack. Groups say which apps they use.
 - **What an app is told:**
   - `sub`, a fixed ID per person that never changes, even if they're renamed or the lab moves;
@@ -347,6 +347,8 @@ sso:
     route: web                                  # whose address the paths are on
     redirect_paths: [/login]                    # exact, on that address
     redirect_uris: [app.immich:///oauth-callback]  # other exact addresses (mobile apps)
+    admins: true                                # the app makes the lab's Owners and Admins its admins
+    existing_accounts: email                    # email | username | username_or_email | separate
     hook: sso                                   # optional: a hook run on turning it on, changing it or off
   forward_auth:
     route: web
@@ -377,6 +379,7 @@ sso:
   - apps set through their API with an admin key (Immich, Audiobookshelf, Wiki.js): a kept, generated admin key instead of today's install-only password.
 - **Not sensible:** Plex, Jellyfin, ntfy, Radicale, and Ghost; their packages say why.
 - **An app's first admin:** where the install hook makes one (Miniflux, Actual), the package makes it with the installing Owner's username and email, so single sign-on later finds the same account rather than refusing it or making someone else the owner.
+- **What the card claims — decided (2026-10-31), the maintainer:** the service's card says that the lab's Owners and Admins are the app's admins, and what the app will do with an account someone already has in it, only as the package says, since apps differ: trying Plik found the card claiming both for an app that does neither. `sso.oidc.admins: true` shows the "Admins in <app>" row. `sso.oidc.existing_accounts` picks the sentence on the card and the line before turning it on: `email` (the app will use the account with their email address: check each person's email on People), `username` (their username), `username_or_email` (Gitea: their username, or else their email address), or `separate` (a new account beside it). Left out, the card claims neither, so a package not yet revised shows less, never something false. *Considered:* the admins row only when `sso.oidc.groups` is set (Mealie, Paperless-ngx, Forgejo, and Gitea read the default `admins` group without it), and working both out from the package (`.SSO.AdminGroup` in its env or hooks covers admins today, but it's a guess, and what an app does with existing accounts is the app's behaviour, not in the package). The registry's packages as of that day, from their settings and notes: admins in Audiobookshelf, Forgejo, Gitea, Immich, Mealie, and Paperless-ngx; accounts by email in Immich, Mealie, Vaultwarden, and Forgejo (its package says email; Gitea's says username, then email: to check), by username in Audiobookshelf, by username or email in Gitea; separate in HedgeDoc, Linkwarden, Miniflux, Paperless-ngx, Papra (to check), Wiki.js, and Plik.
 
 #### The UI
 

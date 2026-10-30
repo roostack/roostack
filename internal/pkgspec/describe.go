@@ -95,6 +95,7 @@ func Describe() Description {
 		},
 		Lists: map[string][]string{
 			"ssoClientSecret":    {SSOClientSecret},
+			"ssoExisting":        SSOExisting,
 			"settingTypes":       {SettingBool, SettingString, SettingInt, SettingSecret},
 			"classes":            {ClassCritical, ClassReplaceable},
 			"locations":          {LocationService, LocationMedia},

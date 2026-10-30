@@ -650,6 +650,14 @@
           "type": "string"
          }
         ]
+       },
+       {
+        "name": "admins",
+        "type": "bool"
+       },
+       {
+        "name": "existing_accounts",
+        "type": "string"
        }
       ]
      },
@@ -793,6 +801,12 @@
   ],
   "ssoClientSecret": [
    "sso.client_secret"
+  ],
+  "ssoExisting": [
+   "email",
+   "username",
+   "username_or_email",
+   "separate"
   ]
  },
  "categories": [
@@ -1852,6 +1866,17 @@
    "label": "Note",
    "help": "What still uses the app's own sign-in (its phone apps, its API tokens), shown beside the switch on the service's page.",
    "example": "The phone apps still sign in with the app's own accounts.",
+   "link": "reference/packages#the-parts"
+  },
+  "sso.oidc.admins": {
+   "label": "Makes the lab's admins its admins",
+   "help": "On if the app will make the lab's Owners and Admins its own admins, from the admins group in its groups claim (Mealie, Forgejo, Immich). The service's Single sign-on card will say so only then.",
+   "link": "reference/packages#the-parts"
+  },
+  "sso.oidc.existing_accounts": {
+   "label": "An account already in the app",
+   "help": "What the app will do when someone who signs in already has an account in it: email (use the one with their email address), username (the one with their username), username_or_email (their username, or else their email address), or separate (make a new one beside it). Left out, the service's card will say nothing about those accounts.",
+   "example": "email",
    "link": "reference/packages#the-parts"
   },
   "sso.oidc.groups": {

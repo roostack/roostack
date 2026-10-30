@@ -462,7 +462,7 @@
     ] },
     { id: "sso", title: "Single sign-on", fields: [["sso", "oidc", "route"], ["sso", "oidc", "redirect_paths"], ["sso", "oidc", "redirect_uris"],
       ["sso", "forward_auth", "route"], ["sso", "forward_auth", "bypass_paths"], ["sso", "env"], ["sso", "secrets"], ["sso", "note"]],
-      more: [["sso", "secret_env"], ["sso", "oidc", "groups", "users"], ["sso", "oidc", "groups", "admins"]] },
+      more: [["sso", "oidc", "admins"], ["sso", "oidc", "existing_accounts"], ["sso", "secret_env"], ["sso", "oidc", "groups", "users"], ["sso", "oidc", "groups", "admins"]] },
     { id: "more", title: "More", map: ["ports"], add: "Add an extra connection", fields: ["title", "container", "port", "host_port", "protocol", "enabled"], more: ["description", "exposure"],
       lists: [{ path: ["upgrade_notes"], add: "Add an upgrade note", title: (v) => v.get && v.get("version"), fields: ["version", "note"] }], extra: [["schema"]] },
   ];
@@ -471,6 +471,7 @@
     "settings[].type": S.lists.settingTypes, "hooks[].inputs[].type": ["string", "secret"], "storage.*.class": S.lists.classes,
     "storage.*.location": S.lists.locations, "databases.*.type": S.lists.databaseTypes, "routes.*.exposure": S.lists.exposures,
     "ports.*.exposure": S.lists.exposures, "ports.*.protocol": ["tcp", "udp"], "hooks[].on": S.lists.hookEvents, "containers.*.devices[].gpu": S.lists.gpuKinds,
+    "sso.oidc.existing_accounts": S.lists.ssoExisting,
   };
   // The value a field has when it's left out, shown beside its choice.
   const defaults = { "storage.*.location": "service", "ports.*.protocol": "tcp" };
