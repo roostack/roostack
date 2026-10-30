@@ -15,7 +15,10 @@ import (
 var (
 	// A package's name, not a service's ID (instance.ValidName): it's
 	// shorter, so a second copy's ID can add a dash and more.
-	nameRe       = regexp.MustCompile(`^[a-z][a-z0-9-]{0,30}$`)
+	nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,30}$`)
+	// A schema goes after its database's name (at most 32 characters) and
+	// an _, within MySQL's 64, and into SQL unquoted.
+	schemaRe     = regexp.MustCompile(`^[a-z][a-z0-9_]{0,30}$`)
 	settingKeyRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 	envNameRe    = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	// A single DNS label.
@@ -323,6 +326,18 @@ func (p *Package) validateDatabase(v *validator, name string, d *Database) {
 		validateMemory(v, at+".memory", d.Memory)
 	default:
 		v.addf("%s.type: must be one of sqlite, postgres, mysql, mariadb, redis; got %q", at, d.Type)
+	}
+	if len(d.Schemas) > 0 && !MySQLFamily(d.Type) {
+		v.addf("%s.schemas: only a mysql or mariadb database can have more schemas; got %s", at, d.Type)
+		return
+	}
+	for i, s := range d.Schemas {
+		switch {
+		case !schemaRe.MatchString(s):
+			v.addf("%s.schemas[%d]: must be lower-case letters, digits, and _, starting with a letter, at most 31 characters; got %q", at, i, s)
+		case slices.Contains(d.Schemas[:i], s):
+			v.addf("%s.schemas[%d]: %q is there twice", at, i, s)
+		}
 	}
 }
 

@@ -449,7 +449,7 @@
     { id: "containers", title: "Containers", map: ["containers"], add: "Add a container",
       fields: ["image", "memory", "env", "secrets", "mounts", "health", "depends_on"], more: ["command", "devices", "when", "quadlet"] },
     { id: "storage", title: "Data", map: ["storage"], add: "Add storage", fields: ["title", "class", "location"] },
-    { id: "databases", title: "Databases", map: ["databases"], add: "Add a database", fields: ["type", "path", "image", "backup", "memory"], more: ["quadlet"] },
+    { id: "databases", title: "Databases", map: ["databases"], add: "Add a database", fields: ["type", "path", "image", "backup", "memory"], more: ["schemas", "quadlet"] },
     { id: "routes", title: "Web addresses", map: ["routes"], add: "Add a web address",
       fields: ["container", "port", "subdomain", ["public", "login_paths"], ["public", "private_paths"], ["public", "unsafe"]],
       more: ["max_body_size", "client_ip_header", ["monitor", "path"], ["monitor", "statuses"], "exposure"] },

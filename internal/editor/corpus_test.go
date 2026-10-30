@@ -283,7 +283,8 @@ func structural(first map[string]string) [][]edit {
 		`{type: sqlite, path: ` + s + `/db, image: i}`, `{type: sqlite, path: ` + s + `}`, `{type: sqlite, path: ` + s + `/}`,
 		`{type: postgres, path: p}`, `{type: nosql}`, `{type: redis, memory: 10 KB}`, `{type: postgres, image: "pg:17"}`,
 		`{type: mariadb, backup: false}`, `null`, `{type: sqlite, path: ` + s + `/db, memory: 1 GB}`,
-		`{type: postgres, quadlet: {Container: {ShmSize: 128m}}}`} {
+		`{type: postgres, quadlet: {Container: {ShmSize: 128m}}}`, `{type: mariadb, schemas: [ccnet, seahub]}`,
+		`{type: postgres, schemas: [extra]}`, `{type: redis, schemas: []}`, `{type: mysql, schemas: [Bad, ok_1, ok_1, a-b, ` + strings.Repeat("a", 32) + `]}`} {
 		add(set(v, "databases", "x"))
 	}
 	add(set(`{type: postgres}`, "databases", "Bad"))

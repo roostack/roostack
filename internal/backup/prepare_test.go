@@ -160,20 +160,23 @@ func TestStoppedDatabaseKeepsDump(t *testing.T) {
 }
 
 // MySQL and MariaDB are dumped in their containers as the app's user, the
-// password read there from the secret file, never on a command line.
+// password read there from the secret file, never on a command line, with
+// the database's schemas in the same dump.
 func TestMySQLDump(t *testing.T) {
 	for kind, tool := range map[string]string{pkgspec.DBMySQL: "mysqldump", pkgspec.DBMariaDB: "mariadb-dump"} {
 		var calls []string
 		p := &Preparer{Launch: fakeLaunch(&calls, "printf 'fake dump'")}
 		target := filepath.Join(t.TempDir(), "main.sql")
 		err := p.Run(context.Background(), generate.PrepareStep{
-			Type: kind, Container: "roostack-ghost-db-main", User: "ghost", Database: "ghost", Target: target,
+			Type: kind, Container: "roostack-seafile-db-main", User: "seafile", Database: "seafile",
+			Schemas: []string{"seafile_ccnet", "seafile_seahub"}, Target: target,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := `podman exec roostack-ghost-db-main sh -c MYSQL_PWD="$(cat /run/secrets/db-password)" exec ` + tool +
-			` --single-transaction --no-tablespaces --routines --triggers --events -h 127.0.0.1 -u "$1" "$2" dump ghost ghost`
+		want := `podman exec roostack-seafile-db-main sh -c u="$1"; shift; MYSQL_PWD="$(cat /run/secrets/db-password)" exec ` + tool +
+			` --single-transaction --no-tablespaces --routines --triggers --events -h 127.0.0.1 -u "$u" --databases "$@"` +
+			` dump seafile seafile seafile_ccnet seafile_seahub`
 		if len(calls) != 1 || calls[0] != want {
 			t.Errorf("%s: calls = %q, want %q", kind, calls, want)
 		}

@@ -96,6 +96,8 @@ elif [[ ${ROOSTACK_DEV_BUILD:-} != 1 ]]; then
 fi
 install -D -m 0644 build/caddy/Containerfile "$ROOT/usr/share/roostack/caddy/Containerfile"
 install -D -m 0644 build/immich-go/Containerfile "$ROOT/usr/share/roostack/immich-go/Containerfile"
+# Sourced, not run, by MySQL's and MariaDB's entrypoint, so not executable.
+install -D -m 0644 build/mysql-initdb/roostack-schemas.sh "$ROOT/usr/share/roostack/mysql-initdb/roostack-schemas.sh"
 install -D -m 0755 packaging/deb/installed-message "$ROOT/usr/share/roostack/installed-message"
 # The starting lab.yaml: no address yet (SPEC.md §6.6).
 install -D -m 0644 packaging/deb/lab.yaml "$ROOT/usr/share/roostack/lab.yaml"

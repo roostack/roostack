@@ -75,6 +75,7 @@ func Describe() Description {
 		Fields: describeType(reflect.TypeFor[Package]()),
 		Patterns: map[string]string{
 			"name":           nameRe.String(),
+			"schema":         schemaRe.String(),
 			"settingKey":     settingKeyRe.String(),
 			"envName":        envNameRe.String(),
 			"subdomain":      subdomainRe.String(),

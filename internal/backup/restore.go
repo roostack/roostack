@@ -222,18 +222,29 @@ func (r *Restorer) LoadDumps(ctx context.Context, svc *generate.Output) error {
 			if err := r.Units.Start(ctx, step.Container+".service"); err != nil {
 				return err
 			}
-			// The app's user may drop and recreate its own database: what
-			// the app made since the backup goes, then the dump goes in. Its
-			// name is letters, digits and _ (generate.mysqlIdent), so it
-			// needs no quoting.
+			// The app's user may drop and recreate its own database and
+			// schemas: what the app made since the backup goes, then the
+			// dump goes in. A dump with its schemas makes them itself, as
+			// they were (--databases); one from before has only the
+			// database's tables. Then schemas the package has but the
+			// backup didn't are made empty, as its database container's
+			// start would. Names are letters, digits and _
+			// (generate.mysqlIdent, pkgspec's schemaRe), so they need no
+			// quoting.
 			dump, err := os.Open(step.Target)
 			if err != nil {
 				return err
 			}
-			client := mysqlCommand(step.Type, "client") + ` -h 127.0.0.1 -u "$1"`
+			before := "DROP DATABASE IF EXISTS " + step.Database + "; CREATE DATABASE " + step.Database
+			after := "DO 1"
+			for _, s := range step.Schemas {
+				before += "; DROP DATABASE IF EXISTS " + s
+				after += "; CREATE DATABASE IF NOT EXISTS " + s
+			}
+			client := "(" + generate.MySQLCommand(step.Type, "client") + ` -h 127.0.0.1 -u "$1"`
 			err = r.run(ctx, dump, "podman", "exec", "-i", step.Container, "sh", "-c",
-				"("+client+" -e \"DROP DATABASE IF EXISTS $2; CREATE DATABASE $2\") && "+client+" \"$2\"",
-				"restore", step.User, step.Database)
+				client+` -e "$2") && `+client+` "$3") && `+client+` -e "$4")`,
+				"restore", step.User, before, step.Database, after)
 			dump.Close()
 			if err != nil {
 				return err

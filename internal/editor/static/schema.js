@@ -337,6 +337,13 @@
        "type": "string"
       },
       {
+       "name": "schemas",
+       "type": "list",
+       "item": {
+        "type": "string"
+       }
+      },
+      {
        "name": "quadlet",
        "type": "quadlet"
       }
@@ -730,6 +737,7 @@
   "pinned": "@sha256:[0-9a-f]{64}$",
   "quadletKey": "^[A-Za-z][A-Za-z0-9]*$",
   "roostack": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*))?$",
+  "schema": "^[a-z][a-z0-9_]{0,30}$",
   "settingKey": "^[a-z][a-z0-9_]{0,62}$",
   "spdxID": "^[A-Za-z0-9][A-Za-z0-9.-]*\\+?$",
   "ssoAppScheme": "^[a-z][a-z0-9+.-]*:/[^\\s]*$",
@@ -1427,6 +1435,12 @@
    "label": "Quadlet lines",
    "help": "Extra lines for the container's Quadlet file, by section, for what the format doesn't cover. Only the keys the package policy allows, such as UserNS=keep-id:uid=1000,gid=1000 for an app whose files need that owner.",
    "link": "reference/packages#what-a-package-may-not-do"
+  },
+  "databases.*.schemas": {
+   "label": "More schemas",
+   "help": "For mysql or mariadb, more schemas on the same server for the same user, for an app that wants several. Roostack will name each after the database, as \u003cdatabase\u003e_\u003cschema\u003e, make it, and back it up with the database; templates find its name with {{ .Databases.\u003cname\u003e.Schemas.\u003cschema\u003e }}.",
+   "example": "[ccnet, seahub]",
+   "link": "reference/packages#the-parts"
   },
   "databases.*.type": {
    "label": "Type",

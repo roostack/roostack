@@ -66,7 +66,8 @@ take a single file out of a backup by hand (see below).
     each data folder to `<folder>.before-restore-<time>`, restores each
     folder from the snapshot with restic, loads database dumps back (the
     SQLite copy, `pg_restore` for Postgres, or the dump into a recreated
-    database for MySQL and MariaDB), and starts the units again.
+    database and schemas for MySQL and MariaDB), and starts the units
+    again.
     A partial restore that was rolled back is kept as
     `<folder>.failed-restore-<time>`.
 
