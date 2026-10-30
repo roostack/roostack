@@ -28,7 +28,8 @@ Only Owners and Admins can remove services.
 
     Removing deletes the instance file
     (`/var/lib/roostack/services/<name>.yaml`); the next apply stops the
-    units and removes the service's Quadlet files and Caddy snippet.
-    Data under `/srv/roostack/services/<name>/` and
+    units, removes the service's Quadlet files and Caddy snippet, and then
+    removes its Podman network (`podman network rm roostack-<name>`), which
+    the next install will make again. Data under `/srv/roostack/services/<name>/` and
     `/srv/roostack/media/<name>/` is never touched. Its Podman secrets are
     kept too, so reinstalling can read the data.

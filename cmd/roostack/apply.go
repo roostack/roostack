@@ -73,6 +73,7 @@ func apply(args []string) error {
 		Paths:      lab.Paths,
 		Systemd:    systemd.New(),
 		Secrets:    podman.NewSecrets(),
+		Networks:   podman.NewNetworks(),
 		UserSecret: envSecret,
 	}
 	ctx := context.Background()

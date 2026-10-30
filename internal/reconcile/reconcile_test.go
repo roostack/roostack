@@ -67,6 +67,15 @@ func (f *fakeSecrets) Read(_ context.Context, name string) ([]byte, error) {
 	return v, nil
 }
 
+// fakeNetworks records removed networks, as calls on the fake systemd's
+// list so their order shows.
+type fakeNetworks struct{ sd *fakeSystemd }
+
+func (f *fakeNetworks) Remove(_ context.Context, name string) error {
+	f.sd.calls = append(f.sd.calls, "network rm "+name)
+	return nil
+}
+
 type env struct {
 	lab     config.Lab
 	r       *Reconciler
@@ -90,7 +99,7 @@ func newEnv(t *testing.T) *env {
 	}
 	e := &env{lab: lab, systemd: &fakeSystemd{}, secrets: &fakeSecrets{values: map[string][]byte{}}}
 	e.r = &Reconciler{
-		Paths: lab.Paths, Systemd: e.systemd, Secrets: e.secrets,
+		Paths: lab.Paths, Systemd: e.systemd, Secrets: e.secrets, Networks: &fakeNetworks{e.systemd},
 		UserSecret: func(name string) ([]byte, bool) {
 			return []byte("dns-token"), name == dns.SecretName("api_token")
 		},
@@ -317,6 +326,13 @@ func TestInstallUpdateRemove(t *testing.T) {
 	if e.systemd.calls[0] != "stop "+strings.Join(wantStop, " ") {
 		t.Errorf("units must be stopped before files are removed; calls: %v", e.systemd.calls)
 	}
+	// Its network goes too, once its containers have stopped (ASSUMPTIONS C9).
+	if want := []string{"roostack-vaultwarden"}; !slices.Equal(plan.RemoveNetworks, want) {
+		t.Errorf("remove networks = %v, want %v", plan.RemoveNetworks, want)
+	}
+	if i := slices.Index(e.systemd.calls, "network rm roostack-vaultwarden"); i < 1 {
+		t.Errorf("the network must be removed after its units stop; calls: %v", e.systemd.calls)
+	}
 	if _, err := os.Stat(filepath.Join(e.lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")); !os.IsNotExist(err) {
 		t.Error("quadlet file should be removed")
 	}
@@ -325,6 +341,27 @@ func TestInstallUpdateRemove(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(e.lab.Paths.ServicesDir, "vaultwarden", "data")); err != nil {
 		t.Error("service data must never be deleted by reconcile")
+	}
+}
+
+// A stopped service keeps its network (SPEC.md §6.4, "What stopping
+// does"): only removing it takes the network away.
+func TestStopKeepsNetwork(t *testing.T) {
+	e := newEnv(t)
+	d := e.desired(t, "vaultwarden")
+	e.apply(t, d)
+	p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	generate.Stop(d.Services[0], p, false)
+	e.systemd.calls = nil
+	plan := e.apply(t, d)
+	if want := []string{"roostack-vaultwarden-app.service"}; !slices.Equal(plan.StopUnits, want) {
+		t.Errorf("stop = %v, want %v", plan.StopUnits, want)
+	}
+	if len(plan.RemoveNetworks) > 0 || slices.ContainsFunc(e.systemd.calls, func(c string) bool { return strings.HasPrefix(c, "network rm") }) {
+		t.Errorf("a stop removed the network: %v, calls %v", plan.RemoveNetworks, e.systemd.calls)
 	}
 }
 
