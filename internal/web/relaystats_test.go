@@ -66,7 +66,12 @@ func TestRelayStats(t *testing.T) {
 	if _, body := h.get("/partials/relay-stats?period=today"); !strings.Contains(body, "Visitors each hour") || len(c.asked) < 2 || c.asked[len(c.asked)-1] != "hour" {
 		t.Errorf("today: %v\n%s", c.asked, body)
 	}
-	if _, body := h.get("/partials/relay-stats?period=year"); !strings.Contains(body, "Visitors each month") || !strings.Contains(body, time.Now().Format("January 2006")+": 52 visitors") {
+	// On the 1st, yesterday's 40 are last month's.
+	thisMonth := "52"
+	if time.Now().AddDate(0, 0, -1).Month() != time.Now().Month() {
+		thisMonth = "12"
+	}
+	if _, body := h.get("/partials/relay-stats?period=year"); !strings.Contains(body, "Visitors each month") || !strings.Contains(body, time.Now().Format("January 2006")+": "+thisMonth+" visitors") {
 		t.Errorf("a year:\n%s", body)
 	}
 	c.err = errors.New("Cloud is down")
