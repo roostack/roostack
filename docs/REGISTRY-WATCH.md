@@ -49,7 +49,11 @@ The registry runs it with `.github/workflows/watch.yml` (on the branch
 yet). Every hour it runs the watcher, opens a pull request for each draft
 from its own branch (`watch/<id>`), and pushes an urgent one to ntfy;
 each Monday it opens the digest as an issue instead. Then it commits
-`watch/state.json` to `main`. Its header says how to set it up:
+`watch/state.json` to `main`. An issue holds at most 65,536 characters,
+so the registry's `tools/fit-digest.sh` keeps as many matches as fit and
+links the state from before the digest for the rest (since 2026-11-04:
+the digest of 2026-11-02 had 2,888 matches, and its issue was refused).
+Its header says how to set it up:
 
 - the variables `ROOSTACK_BINARY_URL` and `ROOSTACK_BINARY_SHA256`, as for
   Publish, naming a Roostack release that has `roostack registry watch`;

@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Roostack (SPEC.md §8.1, "MySQL and MariaDB"). The image's entrypoint
 # sources this as root, once, when a MySQL or MariaDB container Roostack
 # made first starts, after it has made the app's user and database. It
