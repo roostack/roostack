@@ -59,6 +59,10 @@ type Kept struct {
 	Database string
 	// Replaceable storage isn't backed up: the app makes it again.
 	BackedUp, Replaceable bool
+	// Written storage holds a whole config file Roostack writes from the
+	// service's settings (pkgspec.ConfigFile without Block): replaceable
+	// storage like that is made again by Roostack, not the app.
+	Written bool
 	// Path is where it is on the server; empty for a database kept in
 	// a storage folder (sqlite) or only in memory (redis without backups).
 	Path string
@@ -109,10 +113,16 @@ func Summarize(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Summ
 	}
 	s.ConfigFiles = out.ConfigFiles
 
+	written := map[string]bool{}
+	for _, f := range p.ConfigFiles {
+		if !f.Block {
+			written[f.Storage] = true
+		}
+	}
 	for _, name := range slices.Sorted(maps.Keys(p.Storage)) {
 		st := p.Storage[name]
 		s.Kept = append(s.Kept, Kept{Name: name, Title: st.Title, BackedUp: st.Class == pkgspec.ClassCritical,
-			Replaceable: st.Class == pkgspec.ClassReplaceable, Path: g.storagePath(name)})
+			Replaceable: st.Class == pkgspec.ClassReplaceable, Written: written[name], Path: g.storagePath(name)})
 	}
 	for _, name := range slices.Sorted(maps.Keys(p.Databases)) {
 		d := p.Databases[name]

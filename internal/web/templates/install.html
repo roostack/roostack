@@ -173,7 +173,8 @@
   <dl class="facts">
     <dt>Keeps</dt>
     <dd>{{if .BackedUp}}{{.BackedUp}}: <strong>backed up</strong>{{else}}Nothing to back up{{end}}
-      {{- with .Remade}}<br><small class="hint">Not backed up, as {{$.Package.Title}} makes them again: {{.}}.</small>{{end}}</dd>
+      {{- with .Remade}}<br><small class="hint">Not backed up, as {{$.Package.Title}} makes them again: {{.}}.</small>{{end}}
+      {{- with .Written}}<br><small class="hint">Not backed up, as Roostack writes them from its settings: {{.}}.</small>{{end}}</dd>
     {{range .Addresses}}<dt>Address</dt>
     <dd>{{if $.NoAddress}}None yet: it will get one once your lab has an address{{else}}{{.Host}}<br>
       <small class="hint">{{if .AfterSetup}}Anyone on the internet, once it's set up{{else if .Public}}Anyone on the internet{{else}}{{template "private-where" $.Internet}}{{end}}</small>{{end}}</dd>{{end}}

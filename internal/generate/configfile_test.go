@@ -199,3 +199,24 @@ func TestConfigFileFixture(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+// Storage with a whole config file in it is what Roostack writes, which
+// the install summary says (the package try of Gokapi, 2026-10-31); a
+// block alone doesn't count, since the app makes the rest of its file.
+func TestSummaryWrittenStorage(t *testing.T) {
+	p := configPackage(t)
+	s, err := Summarize(testLab(), p, ExampleInstance(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Kept) == 0 || s.Kept[0].Name != "data" || !s.Kept[0].Written {
+		t.Errorf("with app.json: kept = %+v", s.Kept)
+	}
+	delete(p.ConfigFiles, "json")
+	if s, err = Summarize(testLab(), p, ExampleInstance(p)); err != nil {
+		t.Fatal(err)
+	}
+	if s.Kept[0].Written {
+		t.Errorf("with the block only: kept = %+v", s.Kept)
+	}
+}

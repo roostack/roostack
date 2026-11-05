@@ -118,7 +118,8 @@ example, lowers the memory it needs.
 Keeps
 :   What it stores, and whether that's **backed up**. Some things aren't,
     because the service makes them again if they're lost, such as
-    thumbnails.
+    thumbnails, or Roostack writes them from the service's settings,
+    such as a settings file.
 
 Address
 :   Its web address, and who can reach it.

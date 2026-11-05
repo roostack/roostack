@@ -1540,8 +1540,9 @@ func TestListText(t *testing.T) {
 		{[]string{"Thumbnails", "Converted videos", "Smart search models"}, true, "thumbnails, converted videos and smart search models"},
 		{[]string{"Your photos and videos", "its database"}, false, "Your photos and videos, and its database"},
 		{[]string{"Notes", "PostgreSQL dumps"}, false, "Notes and PostgreSQL dumps"},
+		{[]string{"Seafile's logs", "Thumbnails"}, true, "Seafile's logs and thumbnails"},
 	} {
-		if got := listText(tc.items, tc.lower); got != tc.want {
+		if got := listText(tc.items, tc.lower, "Seafile"); got != tc.want {
 			t.Errorf("listText(%q, %t) = %q, want %q", tc.items, tc.lower, got, tc.want)
 		}
 	}

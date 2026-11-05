@@ -417,6 +417,11 @@ Finished work, by phase, with the headings of [TASKS.md](TASKS.md), where the op
   - [x] The public status page (2026-10-19): `status.<lab>`, static, the checks ticked, its switch in lab.yaml, its name public
   - [x] `monitor:` on a package's route (2026-10-19), in pkgspec, validate and the packages reference
 - [x] **Scheduled tasks** (`on: schedule`, the maintainer's choices of 2026-10-30, SPEC §8.1): `every: day | week | month` and a `timeout`, in pkgspec, validate, the editor's check.js and the packages reference; each server queues the tasks due after its nightly backup and OS updates, on its coordinator, spread over the week and month, only while the service runs, catching up a missed night; the service page's Scheduled tasks card with Run now, two failures in a row under "Needs attention" with Try again, each run in History; the `scheduled-test` fixture. For Seafile's garbage collection
+- [x] **Found trying Gokapi and Seafile on a lab** (2026-10-31, fixed 2026-11-05):
+  - [x] Hooks' `${…}` no longer expanded by systemd: every `systemd-run` Roostack starts passes `--expand-environment=no` (ASSUMPTIONS A13)
+  - [x] MySQL's and MariaDB's health checks ping as the app's user, so MariaDB no longer logs "Access denied for user 'root'" every 10 seconds
+  - [x] `roostack backup run` on the command line records its run, so the Backups page and each service's page show it
+  - [x] The install summary keeps the app's name capitalised in its lists ("Seafile's logs"), and says storage holding a whole config file is written by Roostack from the service's settings, not made again by the app
 
 ## Security review 2026-10-16: the root boundary (rs-privilege)
 
