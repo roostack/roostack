@@ -879,9 +879,9 @@ containers:
 		"roostack-app-db-main.container": {"Image=" + DefaultMySQLImage, "Environment=MYSQL_USER=app", "Environment=MYSQL_DATABASE=app",
 			"Environment=MYSQL_PASSWORD_FILE=/run/secrets/db-password", "Environment=MYSQL_RANDOM_ROOT_PASSWORD=yes",
 			"Secret=roostack-app-db-main-password,type=mount,target=db-password", "/db/main:/var/lib/mysql",
-			"HealthCmd=mysqladmin ping -h 127.0.0.1 --silent", "Notify=healthy"},
+			`HealthCmd=MYSQL_PWD="$(cat /run/secrets/db-password)" exec mysqladmin ping -h 127.0.0.1 -u app --silent`, "Notify=healthy"},
 		"roostack-app-db-extra.container": {"Image=" + DefaultMariaDBImage, "Environment=MARIADB_USER=app_extra",
-			"Environment=MARIADB_AUTO_UPGRADE=1", "Environment=MARIADB_RANDOM_ROOT_PASSWORD=yes", "HealthCmd=mariadb-admin ping -h 127.0.0.1 --silent"},
+			"Environment=MARIADB_AUTO_UPGRADE=1", "Environment=MARIADB_RANDOM_ROOT_PASSWORD=yes", `HealthCmd=MYSQL_PWD="$(cat /run/secrets/db-password)" exec mariadb-admin ping -h 127.0.0.1 -u app_extra --silent`},
 		"roostack-app-web.container": {"Environment=\"DB=roostack-app-db-main:3306/app as app\"", "Environment=DB2=app_extra",
 			"Secret=roostack-app-db-main-password,type=env,target=DB_PASSWORD"},
 	} {
