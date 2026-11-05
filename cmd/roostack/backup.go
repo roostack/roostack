@@ -136,8 +136,19 @@ func backupRun(ctx context.Context, lab config.Lab, repo *backup.Repo, launch ba
 	if err != nil {
 		return err
 	}
+	// Recorded as the daemon records its own runs, so the Backups page and
+	// each service's page show it too.
+	deps.OnCopy = func(c backup.Copy, started time.Time, sum *backup.Summary, err error) {
+		if rerr := st.RecordBackup(context.WithoutCancel(ctx), backup.RunRecord(c.Repo.URL, started, sum, err)); rerr != nil {
+			fmt.Fprintln(os.Stderr, "backup: recording the copy's result:", rerr)
+		}
+	}
+	start := time.Now()
 	sum, err := backup.Run(ctx, *deps, &printReporter{})
 	fmt.Println()
+	if rerr := st.RecordBackup(context.WithoutCancel(ctx), backup.RunRecord(deps.Repo.URL, start, sum, err)); rerr != nil && err == nil {
+		err = fmt.Errorf("backup: recording its result: %w", rerr)
+	}
 	if err != nil {
 		return err
 	}

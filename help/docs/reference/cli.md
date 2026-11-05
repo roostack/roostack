@@ -54,7 +54,8 @@ roostack backup restore <service> [-snapshot ID]
 ```
 
 Each backup is a snapshot of the server's own settings and one snapshot per
-service, tagged with its name. `restore` puts one service back from one of
+service, tagged with its name. A backup run here shows on the **Backups**
+page and each service's page, like the nightly one. `restore` puts one service back from one of
 its snapshots (the latest, unless you give an ID from `snapshots`). The service's current data is moved aside into a
 `.before-restore-<time>` folder, never deleted. The **Backups** page does
 the same, with a live log.

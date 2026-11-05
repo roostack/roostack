@@ -204,3 +204,19 @@ func TestStatusAfterSwap(t *testing.T) {
 		t.Errorf("after the swap, the copy shows %+v, want the USB drive's failure", s.Copies)
 	}
 }
+
+// A run's record carries what the Backups page and each service's page
+// show: the command line's `roostack backup run` keeps one too (the
+// package try of Seafile, 2026-10-31).
+func TestRunRecord(t *testing.T) {
+	start := time.Now().Add(-time.Minute)
+	ok := RunRecord("/backups/r", start, &Summary{SnapshotID: "abc", FilesNew: 3, DataAdded: 10, Stored: 20, Services: []string{"seafile"}}, nil)
+	if !ok.OK || ok.SnapshotID != "abc" || ok.FilesNew != 3 || ok.Stored != 20 || !slices.Equal(ok.Services, []string{"seafile"}) ||
+		ok.Repository != "/backups/r" || !ok.Started.Equal(start) || ok.Finished.Before(start) || ok.Error != "" {
+		t.Errorf("record of a good run: %+v", ok)
+	}
+	failed := RunRecord("/backups/r", start, nil, errors.New("disk full"))
+	if failed.OK || failed.Error != "disk full" || failed.SnapshotID != "" {
+		t.Errorf("record of a failed run: %+v", failed)
+	}
+}
