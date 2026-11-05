@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 // updatesTimeout bounds how long the agent follows one run of OS updates.
@@ -92,7 +94,7 @@ func (h LinuxHost) RunUpdates(ctx context.Context, series string, w io.Writer) e
 			return err
 		}
 	}
-	args := []string{"--unit=" + updatesUnit, "--wait", "--quiet", "--collect",
+	args := []string{"--unit=" + updatesUnit, "--wait", "--quiet", "--collect", systemd.NoExpand,
 		"--property=StandardOutput=truncate:" + UpdatesLog, "--property=StandardError=inherit",
 		"--setenv=DEBIAN_FRONTEND=noninteractive"}
 	if series != "" {
@@ -208,7 +210,7 @@ func followFile(path string, w io.Writer, done <-chan error, every time.Duration
 
 // Reboot asks systemd to reboot after a moment, so the API call returns.
 func (h LinuxHost) Reboot() error {
-	return exec.Command("systemd-run", "--on-active=5", "--unit=roostack-reboot", "--collect",
+	return exec.Command("systemd-run", "--on-active=5", "--unit=roostack-reboot", "--collect", systemd.NoExpand,
 		"systemctl", "reboot").Run()
 }
 

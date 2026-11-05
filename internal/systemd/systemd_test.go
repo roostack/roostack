@@ -53,7 +53,7 @@ func TestRunDetached(t *testing.T) {
 	}}
 	ctx := context.Background()
 	m.RunDetached(ctx, "roostack-photos-immich", "podman", "run", "--rm", "x")
-	if want := "systemd-run --user --quiet --unit=roostack-photos-immich --property=RemainAfterExit=yes --property=KillMode=mixed --property=TimeoutStopSec=60 -- podman run --rm x"; calls[0] != want {
+	if want := "systemd-run --user --quiet --expand-environment=no --unit=roostack-photos-immich --property=RemainAfterExit=yes --property=KillMode=mixed --property=TimeoutStopSec=60 -- podman run --rm x"; calls[0] != want {
 		t.Errorf("started with %q", calls[0])
 	}
 	for _, c := range []struct {

@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+// NoExpand is given to every systemd-run Roostack starts. Since systemd
+// 254, systemd-run expands ${NAME} anywhere in the command it runs (and
+// $NAME as a word of its own) from the unit's environment, before the
+// command sees it: a shell script's own ${x} would become empty. Roostack
+// passes commands as they are, a package's hooks among them.
+const NoExpand = "--expand-environment=no"
+
 // unitSeq numbers transient units, so two never share a name.
 var unitSeq atomic.Int64
 
@@ -65,7 +72,7 @@ func unitWhat(name string, args []string) string {
 // see with ps. Cancelling ctx sends SIGINT to the unit, so programs like
 // restic can stop cleanly.
 func UserCommand(ctx context.Context, unit string, env []string, name string, args ...string) *exec.Cmd {
-	full := []string{"--user", "--wait", "--pipe", "--quiet", "--collect", "--unit=" + unit}
+	full := []string{"--user", "--wait", "--pipe", "--quiet", "--collect", NoExpand, "--unit=" + unit}
 	sorted := append([]string(nil), env...)
 	sort.Strings(sorted) // stable command lines for tests and logs
 	for _, e := range sorted {

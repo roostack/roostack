@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"roostack.cloud/roostack/internal/fsutil"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 // fstab is the file mounts are recorded in; fstabNew is where the agent
@@ -36,7 +37,7 @@ var commitFstab = func() error {
 	if err != nil {
 		return err
 	}
-	out, err := exec.Command("systemd-run", "--unit=roostack-fstab", "--wait", "--quiet", "--collect",
+	out, err := exec.Command("systemd-run", "--unit=roostack-fstab", "--wait", "--quiet", "--collect", systemd.NoExpand,
 		"--", exe, CommitFstabCommand).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
