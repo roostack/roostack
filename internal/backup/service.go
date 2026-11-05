@@ -72,15 +72,7 @@ func (s *Service) Job() maintenance.Job {
 				results[c.Name] = err
 				// Recorded by repository, not as a copy: a copy can become
 				// the main backup and keeps its results (SPEC.md §6.9).
-				run := store.BackupRun{Started: started, Finished: time.Now(), OK: err == nil, Repository: c.Repo.URL}
-				if sum != nil {
-					run.SnapshotID, run.FilesNew, run.DataAdded, run.Stored = sum.SnapshotID, sum.FilesNew, sum.DataAdded, sum.Stored
-					run.Services = sum.Services
-				}
-				if err != nil {
-					run.Error = err.Error()
-				}
-				s.Store.RecordBackup(context.WithoutCancel(ctx), run)
+				s.Store.RecordBackup(context.WithoutCancel(ctx), RunRecord(c.Repo.URL, started, sum, err))
 			}
 			sum, err := Run(ctx, deps, h)
 			// Out of date: stand down until the Owner says otherwise.
@@ -111,16 +103,9 @@ func (s *Service) Job() maintenance.Job {
 			if !deps.wants("") {
 				return nil // a retry of copies only: the main backup's result stands
 			}
-			run := store.BackupRun{Started: start, Finished: time.Now(), OK: err == nil, Repository: deps.Repo.URL}
-			if sum != nil {
-				run.SnapshotID, run.FilesNew, run.DataAdded, run.Stored = sum.SnapshotID, sum.FilesNew, sum.DataAdded, sum.Stored
-				run.Services = sum.Services
-			}
-			if err != nil {
-				run.Error = err.Error()
-				if ctx.Err() != nil {
-					run.Error = "paused for a restart: it will carry on afterwards"
-				}
+			run := RunRecord(deps.Repo.URL, start, sum, err)
+			if err != nil && ctx.Err() != nil {
+				run.Error = "paused for a restart: it will carry on afterwards"
 			}
 			if rerr := s.Store.RecordBackup(context.WithoutCancel(ctx), run); rerr != nil && err == nil {
 				err = rerr
@@ -131,6 +116,21 @@ func (s *Service) Job() maintenance.Job {
 			return err
 		},
 	}
+}
+
+// RunRecord is what's kept of a backup run to repository, which started
+// at start and ended now with sum (nil if it didn't get that far) and err:
+// the Backups page and each service's last backup come from these.
+func RunRecord(repository string, start time.Time, sum *Summary, err error) store.BackupRun {
+	run := store.BackupRun{Started: start, Finished: time.Now(), OK: err == nil, Repository: repository}
+	if sum != nil {
+		run.SnapshotID, run.FilesNew, run.DataAdded, run.Stored = sum.SnapshotID, sum.FilesNew, sum.DataAdded, sum.Stored
+		run.Services = sum.Services
+	}
+	if err != nil {
+		run.Error = err.Error()
+	}
+	return run
 }
 
 // MaintenanceJob prunes old snapshots and checks a sample of the stored

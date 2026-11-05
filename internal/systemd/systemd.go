@@ -174,7 +174,7 @@ func (m *Manager) SystemStatus(ctx context.Context, units ...string) ([]UnitStat
 // stays after its command ends (RemainAfterExit), so Exited can say how
 // it went even if Roostack restarted meanwhile; Forget clears it.
 func (m *Manager) RunDetached(ctx context.Context, unit string, name string, args ...string) error {
-	full := append([]string{"--user", "--quiet", "--unit=" + unit, "--property=RemainAfterExit=yes",
+	full := append([]string{"--user", "--quiet", NoExpand, "--unit=" + unit, "--property=RemainAfterExit=yes",
 		"--property=KillMode=mixed", "--property=TimeoutStopSec=60", "--", name}, args...)
 	_, err := m.Run(ctx, "systemd-run", full...)
 	return err

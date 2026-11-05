@@ -606,9 +606,9 @@ func (g *gen) mysql(name string, d *pkgspec.Database) error {
 	unit := dbUnitName(svc, name)
 	db := g.ctx.Databases[name]
 	dataDir := filepath.Join(g.serviceDir(), "db", name)
-	image, prefix, admin := DefaultMySQLImage, "MYSQL", "mysqladmin"
+	image, prefix := DefaultMySQLImage, "MYSQL"
 	if d.Type == pkgspec.DBMariaDB {
-		image, prefix, admin = DefaultMariaDBImage, "MARIADB", "mariadb-admin"
+		image, prefix = DefaultMariaDBImage, "MARIADB"
 	}
 	image = cmp.Or(d.Image, image)
 
@@ -636,8 +636,10 @@ func (g *gen) mysql(name string, d *pkgspec.Database) error {
 	// one in a later version.
 	cs.Add("Volume", MySQLInitDir+":/docker-entrypoint-initdb.d:ro")
 	// Over TCP: on first start the image's entrypoint runs a temporary
-	// server on its socket only, which mustn't count as ready.
-	cs.Add("HealthCmd", admin+" ping -h 127.0.0.1 --silent")
+	// server on its socket only, which mustn't count as ready. As the
+	// app's user: without a user the ping tries root, which MariaDB logs
+	// as "Access denied" every time (the ping still answers).
+	cs.Add("HealthCmd", MySQLCommand(d.Type, "admin")+" ping -h 127.0.0.1 -u "+db.User+" --silent")
 	addDBHealthTiming(cs)
 	cs.Add("Label", "io.roostack.service="+svc)
 	cs.Add("Label", "io.roostack.component=db-"+name)
@@ -677,13 +679,13 @@ func (g *gen) mysql(name string, d *pkgspec.Database) error {
 }
 
 // MySQLCommand is the start of a shell command running a MySQL or MariaDB
-// client tool ("dump" or "client") inside the database's container, with
+// client tool ("dump", "client" or "admin") inside the database's container, with
 // the app's password from the container's secret file in MYSQL_PWD: never
 // on a command line (SPEC.md §8.1, "MySQL and MariaDB").
 func MySQLCommand(kind, tool string) string {
-	names := map[string]string{"dump": "mysqldump", "client": "mysql"}
+	names := map[string]string{"dump": "mysqldump", "client": "mysql", "admin": "mysqladmin"}
 	if kind == pkgspec.DBMariaDB {
-		names = map[string]string{"dump": "mariadb-dump", "client": "mariadb"}
+		names = map[string]string{"dump": "mariadb-dump", "client": "mariadb", "admin": "mariadb-admin"}
 	}
 	return `MYSQL_PWD="$(cat /run/secrets/db-password)" exec ` + names[tool]
 }

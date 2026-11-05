@@ -45,9 +45,10 @@ type installSummaryView struct {
 	TooBig bool
 	// Err is why there's no summary yet: something on the form to fix.
 	Err string
-	// BackedUp and Remade list what it keeps, in words: what's backed
-	// up, and what the app makes again if it's lost.
-	BackedUp, Remade string
+	// BackedUp, Remade, and Written list what it keeps, in words: what's
+	// backed up, what the app makes again if it's lost, and what Roostack
+	// writes from its settings (config files).
+	BackedUp, Remade, Written string
 	// Internet: the lab is on the internet, so private means only
 	// through an SSH tunnel. NoAddress: the lab has no address yet.
 	Internet, NoAddress bool
@@ -82,7 +83,7 @@ func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) 
 	}
 	v.InstallSummary = sum
 	v.TooBig = sum.Server.Available > 0 && sum.Memory > sum.Server.Available
-	var backedUp, remade []string
+	var backedUp, remade, written []string
 	databases := 0
 	for _, k := range sum.Kept {
 		name := cmp.Or(k.Title, k.Name)
@@ -90,9 +91,12 @@ func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) 
 		case k.Database != "" && k.BackedUp:
 			databases++
 		case k.Database == "":
-			if k.BackedUp {
+			switch {
+			case k.BackedUp:
 				backedUp = append(backedUp, name)
-			} else if k.Replaceable {
+			case k.Replaceable && k.Written:
+				written = append(written, name)
+			case k.Replaceable:
 				remade = append(remade, name)
 			}
 		}
@@ -103,8 +107,9 @@ func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) 
 	case databases > 1:
 		backedUp = append(backedUp, "its databases")
 	}
-	v.BackedUp = listText(backedUp, false)
-	v.Remade = listText(remade, true)
+	v.BackedUp = listText(backedUp, false, p.Title)
+	v.Remade = listText(remade, true, p.Title)
+	v.Written = listText(written, true, p.Title)
 	return v
 }
 
@@ -112,14 +117,16 @@ func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) 
 // its own gets a comma before the last "and", so the list stays clear
 // ("Your photos and videos, and its database"). lower starts every phrase
 // in lower case, for a list after a colon; otherwise only the first keeps
-// its capital.
-func listText(items []string, lower bool) string {
+// its capital. A phrase starting with one of names (the app's, as in
+// "Seafile's logs") keeps it.
+func listText(items []string, lower bool, names ...string) string {
 	if len(items) == 0 {
 		return ""
 	}
 	out := slices.Clone(items)
 	for i := range out {
-		if lower || i > 0 {
+		named := slices.ContainsFunc(names, func(n string) bool { return n != "" && strings.HasPrefix(out[i], n) })
+		if (lower || i > 0) && !named {
 			out[i] = words.LowerFirstWord(out[i])
 		}
 	}

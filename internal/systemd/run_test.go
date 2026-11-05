@@ -45,3 +45,17 @@ func TestUnitWhat(t *testing.T) {
 		}
 	}
 }
+
+// A command reaches the unit as it is: systemd-run doesn't expand ${x}
+// in it (a package's hook scripts use the shell's own; the package try
+// of Gokapi, 2026-10-31).
+func TestUserCommandDoesNotExpand(t *testing.T) {
+	cmd := UserCommand(context.Background(), "roostack-podman-exec-1", nil, "podman", "exec", "app", "sh", "-c", `echo "${#x}"`)
+	dash := slices.Index(cmd.Args, "--")
+	if i := slices.Index(cmd.Args, "--expand-environment=no"); i < 0 || i > dash {
+		t.Errorf("command line: %s", strings.Join(cmd.Args, " "))
+	}
+	if cmd.Args[len(cmd.Args)-1] != `echo "${#x}"` {
+		t.Errorf("the script changed: %q", cmd.Args[len(cmd.Args)-1])
+	}
+}
