@@ -70,7 +70,11 @@ For the registry's Publish workflow (REGISTRY-KEYS.md, step 9):
      environment too, so a reviewer approves it as well), and
      `scripts/install.sh` at `dl.roostack.cloud/install.sh` when the
      release is in the newest series, once it's checked that the
-     installer names that series and the keyring's SHA-256.
+     installer names that series and the keyring's SHA-256. Its tools
+     come from Debian's snapshot of its image's day, or from Debian's own
+     trixie when the snapshot doesn't answer (since 2026-11-05: the
+     snapshot stalled both of v0.1.2's first publishes until apt was
+     killed, nothing published); the log warns when it's the latter.
 
 A release refuses to be made:
 
