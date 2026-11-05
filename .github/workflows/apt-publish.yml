@@ -34,7 +34,8 @@
 #
 # The tools come from a Debian 13 image pinned by digest, and its packages
 # from Debian's snapshot of the same day, so every run uses the same
-# apt-ftparchive, gpg and aws. Actions are pinned by commit, with the
+# apt-ftparchive, gpg and aws (or from Debian's own trixie when the
+# snapshot doesn't answer: "Install the tools"). Actions are pinned by commit, with the
 # release in a comment, as in ci.yml: update both together.
 name: Publish release
 
@@ -87,22 +88,40 @@ jobs:
       # are still checked.
       - name: Install the tools
         run: |
-          cat > /etc/apt/sources.list.d/debian.sources <<SOURCES
+          # Debian's snapshot of the image's day first, so every run uses
+          # the same tools. It has been unreliable for hours at a time
+          # (2026-11-04 and 05: v0.1.2's first two publishes were killed
+          # waiting for it), so then Debian's own trixie, whose indexes apt
+          # checks against the same keyring. Only these tools' versions can
+          # differ: the release's files are built and signed before this
+          # job, and the log says which source was used.
+          sources() {
+            cat > /etc/apt/sources.list.d/debian.sources <<SOURCES
           Types: deb
-          URIs: http://snapshot.debian.org/archive/debian/$DEBIAN_SNAPSHOT
+          URIs: $1/debian$2
           Suites: trixie trixie-updates
           Components: main
           Signed-By: /usr/share/keyrings/debian-archive-keyring.pgp
 
           Types: deb
-          URIs: http://snapshot.debian.org/archive/debian-security/$DEBIAN_SNAPSHOT
+          URIs: $1/debian-security$2
           Suites: trixie-security
           Components: main
           Signed-By: /usr/share/keyrings/debian-archive-keyring.pgp
           SOURCES
-          apt-get update -q -o Acquire::Check-Valid-Until=false
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
-            apt-utils gnupg gpgv awscli ca-certificates
+          }
+          install() {
+            local opts=(-q -o Acquire::Check-Valid-Until=false -o Acquire::Retries=3 -o Acquire::http::Timeout=30)
+            timeout 10m apt-get update "${opts[@]}" &&
+              DEBIAN_FRONTEND=noninteractive timeout 10m apt-get install -y "${opts[@]}" --no-install-recommends \
+                apt-utils gnupg gpgv awscli ca-certificates
+          }
+          sources http://snapshot.debian.org/archive "/$DEBIAN_SNAPSHOT"
+          if ! install; then
+            echo "::warning::Debian's snapshot $DEBIAN_SNAPSHOT didn't answer, so the tools are from deb.debian.org's trixie"
+            sources http://deb.debian.org ""
+            install
+          fi
           apt-ftparchive --version | head -1; gpg --version | head -1; aws --version
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
