@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
@@ -82,6 +83,45 @@ type ssoCard struct {
 	Connect, ConnectTitle string
 	// CanManage: the viewer may run actions and Try again.
 	CanManage bool
+	// Status is the service's (running, starting, failed, ...), for how
+	// turning single sign-on on or off went (Progress).
+	Status string
+}
+
+// ssoNoticeFor is how long the card says that turning single sign-on on
+// or off is done.
+const ssoNoticeFor = 10 * time.Minute
+
+// ssoStuckAfter is how many restarts since the change make an app one
+// that keeps stopping as it starts, rather than one still starting.
+const ssoStuckAfter = 3
+
+// Progress is where turning single sign-on on or off has got to, for the
+// card (SPEC.md §5.2, "While it's being set up"): "applying", "failed"
+// (the apply), "connecting" (the app's sso hooks, due or running),
+// "hook-failed", "stuck" (the app keeps stopping as it starts),
+// "restarting", "done" (for a while after), or "" for nothing to say.
+func (c ssoCard) Progress() string {
+	h := c.Hook
+	switch {
+	case h.Applying && h.ApplyFailed != "":
+		return "failed"
+	case h.Applying:
+		return "applying"
+	case c.HasHook && (h.Running || h.Due):
+		return "connecting"
+	case c.HasHook && h.Failed != "":
+		return "hook-failed"
+	case h.Applied.IsZero():
+		return ""
+	case h.Restarts >= ssoStuckAfter && (c.Status == "starting" || c.Status == "failed"):
+		return "stuck"
+	case c.Status == "starting" && time.Since(h.Applied) < ssoNoticeFor:
+		return "restarting"
+	case c.Status == "running" && time.Since(h.Applied) < ssoNoticeFor:
+		return "done"
+	}
+	return ""
 }
 
 // ssoChoice is a group or person to tick.

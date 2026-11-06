@@ -72,6 +72,8 @@ func run(cmd string, args []string) error {
 		return backupCmd(args)
 	case "backup-helper": // internal: run inside podman unshare
 		return backupHelper(args)
+	case "wait-online": // internal: roostack-wait-online.service
+		return waitOnline(args)
 	case "render":
 		return render(args)
 	case "validate":

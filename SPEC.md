@@ -394,6 +394,13 @@ sso:
 - **Settings → People:** groups; each person's services; the Sign-in page (below).
 - **The dashboard** shows each person only the services they can use; Owners and Admins still see every service.
 - **Mock-ups (2026-10-20):** [docs/mockups/sso](docs/mockups/sso/README.md): the sign-in page, Mealie's and Stirling-PDF's cards, and People with groups and the sign-in page's look.
+- **While it's being set up — as built (2026-11-06):** turning it on or off showed nothing on the card except while an sso hook was running, and the hook only starts once the apply has finished, so on the first real lab the page said "On" at once and nothing more, whatever happened next (Plik and Gokapi stopping as they started, Forgejo's hook failing). Now the card says where it's got to, for every app (`ssoCard.Progress`), polling every 3 seconds until something settles:
+  - **applying:** "Turning on single sign-on…", saying what Roostack is doing (the app's settings and its restart, or the wall), until an apply on the service's server has carried the change (`SSOHookStatus.Applying`: the node keeps single sign-on as its last successful apply left each service, `noteSSOApplied`); if the apply failed meanwhile, its error;
+  - **connecting:** an sso hook due (`SSOHookStatus.Due`: what it would do differs from its last successful run) or running; then the hook's failure with Try again, as before;
+  - **restarting**, while the app is starting in the 10 minutes after the change, and **done** ("Single sign-on is on.", with when the app restarted with it and how to check) once it's running;
+  - **keeps stopping as it starts:** 3 or more restarts by systemd since the change, with the app still starting or failed (`SSOHookStatus.Restarts`, counted from the units' `NRestarts` when the change was applied), saying its log will say why, the command to read it, that a common reason is the app not reaching the sign-in page, and that turning it off again will put the app back as it was.
+  
+  The record is kept in memory, so after Roostack restarts the card only says what it can still see (a hook due, running or failed). *Considered:* showing the activity log's lines on the card (they're about every service in the apply), and a timeout after which "restarting" counts as failed (the restart count says it sooner and surely).
 
 #### The look of the sign-in page
 

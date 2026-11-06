@@ -67,6 +67,7 @@ install -D -m 0755 bin/roostack "$ROOT/usr/bin/roostack"
 install -D -m 0755 bin/roostack-agent "$ROOT/usr/bin/roostack-agent"
 install -D -m 0644 packaging/systemd/roostack.service "$ROOT/usr/lib/systemd/system/roostack.service"
 install -D -m 0644 packaging/systemd/roostack-agent.service "$ROOT/usr/lib/systemd/system/roostack-agent.service"
+install -D -m 0644 packaging/systemd/roostack-wait-online.service "$ROOT/usr/lib/systemd/system/roostack-wait-online.service"
 install -D -m 0644 packaging/apt/52roostack-unattended-upgrades "$ROOT/etc/apt/apt.conf.d/52roostack-unattended-upgrades"
 # Roostack's apt repository (SPEC.md §7): the source follows this version's
 # release series (0.4.1 → suite 0.4), and the keyring is the release key's

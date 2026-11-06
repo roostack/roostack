@@ -335,6 +335,9 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 
 - [x] A service's own pages (public access, removing it) keep it marked in the sidebar, and the Services pages built without `pageData` (those two, the catalog, installing, adding a package of your own) list the services there at all (2026-11-06, `TestServiceSubpagesMarkTheService`); the service page's header no longer touches what's below it, and the catalog's "Add your own" card has its space above
 
+- [x] On the first real lab (Linode, 2026-11-06) no app reached the sign-in page: the services' containers had started before DHCP gave the server its IPv4 address, so their network had none (ASSUMPTIONS C11). `roostack-wait-online.service` now holds `network-online.target` until the server has a route; and the card says what's happening while single sign-on is turned on or off, and when it's done or the app keeps stopping (SPEC §5.2, "While it's being set up")
+- [ ] Notice a rootless network without the server's IPv4 address (it came after the containers started, or changed later): compare `podman unshare --rootless-netns ip -4 addr` with the server's own, say so under "Needs attention", and offer to restart the services, which starts the network again (ASSUMPTIONS C11)
+
 - [ ] Run the conformance suite again before each release that changes `internal/sso` or the sign-in page (docs/SSO-CONFORMANCE.md)
 - [ ] Add the `sso` part to the registry's Mealie and Stirling-PDF packages (as in `internal/testdata/packages`), once a Roostack release has it (`requires.roostack`)
 - [ ] The registry's single sign-on revisions say `requires.roostack: "0.1"`, which is right only if Roostack's single sign-on branches are merged before v0.1.0 is tagged (the first release, docs/RELEASING.md; development builds run any package). If 0.1.0 is tagged without them, raise each to the first release that has them

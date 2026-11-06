@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 // photosPackage is an app set through its own API, like Immich: its
@@ -246,5 +247,87 @@ func TestSavedKeyAndSSOHook(t *testing.T) {
 	}
 	if _, kept := secrets.m["roostack-photos-settings_key"]; !kept {
 		t.Error("the key must stay: turning it on again uses it")
+	}
+}
+
+// restartingUnits is systemd with every unit restarted n times so far.
+type restartingUnits struct{ n int }
+
+func (u *restartingUnits) Status(_ context.Context, units ...string) ([]systemd.UnitStatus, error) {
+	var out []systemd.UnitStatus
+	for _, name := range units {
+		out = append(out, systemd.UnitStatus{Unit: name, ActiveState: "activating", NRestarts: u.n})
+	}
+	return out, nil
+}
+
+// Turning single sign-on on, as the card sees it (SPEC.md §5.2, "While
+// it's being set up"): applying until an apply has carried it, then when
+// it was applied and how often the app has restarted since, and the sso
+// hook due until it has run.
+func TestSSOProgress(t *testing.T) {
+	t.Parallel()
+	p, err := pkgspec.Parse([]byte(photosPackage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := config.Default()
+	lab.Domain = "lab.example.com"
+	in := &instance.Instance{Package: "photos", Version: p.Version, Updates: instance.UpdatesNotify,
+		Routes: map[string]instance.RouteOverride{"web": {Port: 20040}}}
+	svc := state.Service{Package: p, Instance: in}
+	units := &restartingUnits{n: 4}
+	kv := memKV{hookKey("photos"): hookDone}
+	n := &Local{Lab: lab, State: kv, Secrets: &memSecrets{m: map[string][]byte{}}, Units: units, Activity: activity.New(),
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	n.assignment.Services = []state.Service{svc}
+	ctx := context.Background()
+
+	// Roostack's first apply since it started only learns how things are.
+	n.noteSSOApplied(ctx, n.assignment)
+	if st := n.ssoStatus(ctx, "photos"); st.Applying || !st.Applied.IsZero() || st.Due {
+		t.Fatalf("off from the start: %+v", st)
+	}
+
+	// Turned on: applying until an apply has carried it.
+	on := *in
+	on.SSO = true
+	n.assignment.Services = []state.Service{{Package: p, Instance: &on}}
+	if st := n.ssoStatus(ctx, "photos"); !st.Applying || st.ApplyFailed != "" {
+		t.Fatalf("turned on: %+v", st)
+	}
+	n.status.LastErr = errors.New("pulling an image: no space left")
+	if st := n.ssoStatus(ctx, "photos"); st.ApplyFailed != "pulling an image: no space left" {
+		t.Errorf("apply failed: %+v", st)
+	}
+	n.status.LastErr = nil
+
+	// Applied: when, restarts counted from then, and its sso hook due.
+	before := time.Now()
+	n.noteSSOApplied(ctx, n.assignment)
+	st := n.ssoStatus(ctx, "photos")
+	if st.Applying || st.Applied.Before(before) || st.Restarts != 0 || !st.Due {
+		t.Fatalf("applied: %+v", st)
+	}
+	units.n = 7
+	if st := n.ssoStatus(ctx, "photos"); st.Restarts != 3 {
+		t.Errorf("restarts since: %d", st.Restarts)
+	}
+
+	// Another apply that changes nothing keeps when it changed.
+	applied := st.Applied
+	n.noteSSOApplied(ctx, n.assignment)
+	if st := n.ssoStatus(ctx, "photos"); !st.Applied.Equal(applied) || st.Restarts != 3 {
+		t.Errorf("an apply that changed nothing: %+v", st)
+	}
+
+	// Its hook has run: no longer due.
+	fp, _, _, err := ssoFingerprint(n.currentLab(), n.assignment.Services[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	n.saveSSORecord(ctx, "photos", &ssoRecord{On: true, Fingerprint: fp, At: time.Now()})
+	if st := n.ssoStatus(ctx, "photos"); st.Due {
+		t.Errorf("due after its run: %+v", st)
 	}
 }

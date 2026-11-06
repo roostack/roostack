@@ -196,6 +196,9 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 				c.Error = msg
 			}
 			c.Open = c.On && c.CanChoose && (c.Error != "" || r.URL.Query().Get("sso") == "who")
+			if sv, ok := data["Service"].(ServiceView); ok {
+				c.Status = sv.Status
+			}
 			if st, ok := data["Setup"].(manager.HookStatus); ok {
 				c.Hook = st.SSO
 				if a := p.Action(st.SSO.NeedsKey); a != nil {
