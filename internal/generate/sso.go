@@ -148,6 +148,29 @@ func SSORedirects(lab config.Lab, p *pkgspec.Package, in *instance.Instance) ([]
 	return append(out, o.RedirectURIs...), nil
 }
 
+// SSOStart is the address that starts an OIDC app's sign-in through the
+// lab (its package's start_path, rendered, on its route's address), ""
+// if the package has none.
+func SSOStart(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (string, error) {
+	if p.SSO == nil || p.SSO.OIDC == nil || p.SSO.OIDC.StartPath == "" {
+		return "", nil
+	}
+	o := p.SSO.OIDC
+	ctx := buildContext(lab, p, in)
+	r, ok := ctx.Routes[o.Route]
+	if !ok {
+		return "", fmt.Errorf("sso.oidc.route: unknown route %q", o.Route)
+	}
+	path, err := ctx.render("sso.oidc.start_path", o.StartPath)
+	if err != nil {
+		return "", err
+	}
+	if !pkgspec.ValidStartPath(path) {
+		return "", fmt.Errorf("sso.oidc.start_path: %q isn't a plain path (with an optional query and fragment) once rendered", path)
+	}
+	return "https://" + r.Host + path, nil
+}
+
 // ssoEnv is a container's env with the package's sso env added while it's
 // on, replacing values of the same name.
 func (g *gen) ssoEnv(name string, env map[string]string) (map[string]string, error) {

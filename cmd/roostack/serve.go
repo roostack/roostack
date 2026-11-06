@@ -851,6 +851,25 @@ func (c *controller) listen(addr string) error {
 	return nil
 }
 
+// waitOnline is roostack-wait-online.service's command: it holds the
+// system's network-online.target until this server has a route to the
+// internet (waitForNetwork). The roostack user's containers wait for that
+// target (Podman's podman-user-wait-network-online.service), so they
+// start only once the server has its address: Podman's network for them
+// (pasta, in the rootless network namespace) copies the server's
+// addresses as it starts, and never adds one that comes later. On
+// Linode's Debian image the target came before DHCP had given the server
+// its IPv4 address, so every service's containers had none, and couldn't
+// reach the lab's sign-in page or anything else over IPv4
+// (docs/ASSUMPTIONS.md C11). It never fails: after a minute it lets the
+// server carry on, as waitForNetwork does.
+func waitOnline(args []string) error {
+	fs := flag.NewFlagSet("wait-online", flag.ExitOnError)
+	fs.Parse(args)
+	waitForNetwork(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	return nil
+}
+
 // waitForNetwork waits, up to a minute, until this server has a route to
 // the internet, and returns the address it uses (lab.HostIP). At boot,
 // network-online.target can come before the network is usable: on

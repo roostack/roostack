@@ -37,6 +37,13 @@ while it runs, and if it fails, why, with **Try again**; the app will keep
 working with its own passwords meanwhile. Roostack will run the step again
 by itself when your lab's address or name changes.
 
+While single sign-on is being turned on or off, the card will say what's
+happening (Roostack applying the change, the app restarting, the single
+sign-on step running) and then that it's done. If the app keeps stopping
+as it starts afterwards, the card will say so, with the command that shows
+its log: often it's that the app can't reach the sign-in page. Turning
+single sign-on off again will put the app back as it was.
+
 The card says what still uses the app's own sign-in, such as its phone
 apps or API tokens, and anything else to know: Paperless-ngx, for one,
 doesn't find an account it already has by its email, so its administrator

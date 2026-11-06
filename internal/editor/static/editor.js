@@ -460,7 +460,7 @@
         fields: ["on", "name", "title", "container", "command", "env", "secrets"], more: ["description", "inputs", "saves"] },
       { path: ["links"], add: "Add a link into the app", title: (v) => v.get && v.get("title"), fields: ["title", "route", "path", "description"] },
     ] },
-    { id: "sso", title: "Single sign-on", fields: [["sso", "oidc", "route"], ["sso", "oidc", "redirect_paths"], ["sso", "oidc", "redirect_uris"],
+    { id: "sso", title: "Single sign-on", fields: [["sso", "oidc", "route"], ["sso", "oidc", "redirect_paths"], ["sso", "oidc", "start_path"], ["sso", "oidc", "redirect_uris"],
       ["sso", "forward_auth", "route"], ["sso", "forward_auth", "bypass_paths"], ["sso", "env"], ["sso", "secrets"], ["sso", "note"]],
       more: [["sso", "oidc", "admins"], ["sso", "oidc", "existing_accounts"], ["sso", "secret_env"], ["sso", "oidc", "groups", "users"], ["sso", "oidc", "groups", "admins"]] },
     { id: "more", title: "More", map: ["ports"], add: "Add an extra connection", fields: ["title", "container", "port", "host_port", "protocol", "enabled"], more: ["description", "exposure"],

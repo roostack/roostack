@@ -1525,6 +1525,8 @@ func (f *fakeRestores) PutBack(_ context.Context, _, p string) error {
 type fakeSSO struct {
 	on  map[string]bool
 	why string
+	// start is where each app starts signing in through the lab.
+	start map[string]string
 }
 
 func (f *fakeSSO) SSOAvailable(string) (bool, string) { return f.why == "", f.why }
@@ -1554,6 +1556,9 @@ func (f *fakeSSO) SSOClients() []sso.Client {
 	}
 	if f.on["forgejo"] {
 		out = append(out, sso.Client{ID: "forgejo", Title: "Forgejo", RedirectURIs: []string{"https://git.lab.example.com/user/oauth2/lab.example.com/callback"}})
+	}
+	for i := range out {
+		out[i].StartURL = f.start[out[i].ID]
 	}
 	return out
 }

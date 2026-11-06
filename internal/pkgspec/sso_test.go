@@ -30,6 +30,8 @@ func TestSSOValidation(t *testing.T) {
 		{"bypass path", "sso: { forward_auth: { route: web, bypass_paths: [{ path: '/api/*', reason: r }] } }", "must start with /"},
 		{"env container", "sso: { oidc: { route: web, redirect_paths: [/cb] }, env: { db: { X: y } } }", "sso.env.db: unknown container"},
 		{"another secret", "sso: { oidc: { route: web, redirect_paths: [/cb] }, secrets: { web: { X: admin_token } } }", "must be sso.client_secret"},
+		{"start path", "sso: { oidc: { route: web, redirect_paths: [/cb], start_path: 'login?x' } }", "sso.oidc.start_path"},
+		{"start path query", "sso: { oidc: { route: web, redirect_paths: [/cb], start_path: '/login?next=<x>' } }", "sso.oidc.start_path"},
 		{"existing accounts", "sso: { oidc: { route: web, redirect_paths: [/cb], existing_accounts: by_email } }", `"by_email" must be one of email, username`},
 		{"a wall's secret", "sso: { forward_auth: { route: web }, secrets: { web: { X: sso.client_secret } } }", "only an oidc app"},
 	} {
@@ -48,6 +50,7 @@ sso:
     route: web
     redirect_paths: [/login, /accounts/oidc/lab/login/callback/]
     redirect_uris: ['app.example:///oauth-callback']
+    start_path: /#/sso?identifier=lab&process=login
     admins: true
     existing_accounts: username_or_email
   env:

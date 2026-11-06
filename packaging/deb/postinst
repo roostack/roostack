@@ -62,7 +62,9 @@ BindPaths=/run/user/$uid
 CONF
 
 systemctl daemon-reload
-systemctl enable roostack-agent.service roostack.service >/dev/null
+# The services' containers wait at boot until the server has its address
+# (docs/ASSUMPTIONS.md C11).
+systemctl enable roostack-wait-online.service roostack-agent.service roostack.service >/dev/null
 systemctl restart roostack-agent.service
 systemctl restart roostack.service
 

@@ -15,7 +15,7 @@
   <div class="page-head-actions">
     <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
     {{if and .Service.URLs (not .Service.Install) (not .Service.NoAddress) (ne .Service.Status "registry-stop") (ne .Service.Status "awaiting-data") (ne .Service.Status "held")}}
-    <a class="button" href="{{index .Service.URLs 0}}" target="_blank" rel="noopener">Open {{.Service.Title}}{{template "new-window"}}</a>{{end}}
+    <a class="button" href="{{or .Service.Start (index .Service.URLs 0)}}" target="_blank" rel="noopener">Open {{.Service.Title}}{{template "new-window"}}</a>{{end}}
   </div>
 </div>
   {{if and .PhotoCard (eq .Service.Status "running")}}{{template "photos-cta" .PhotoCard}}{{end}}
@@ -657,13 +657,25 @@ Image: {{.Image}}</code></pre>
 {{end}}
 
 {{define "sso-hook"}}
-{{/* An app set by its sso hooks: whether they're running or failed
-     (SPEC.md §5.2). Polls while running, swapping only this part. */}}
-{{if .HasHook}}
-{{if .Hook.Running}}
-<p id="sso-hook" class="notice" role="status" hx-get="/services/{{.Name}}" hx-trigger="every 3s" hx-select="#sso-hook" hx-swap="outerHTML">
+{{/* Turning single sign-on on or off (SPEC.md §5.2, "While it's being
+     set up"): what's happening, then whether it worked, for every app.
+     Polls while something's under way, swapping only this part. */}}
+{{$p := .Progress}}
+{{if eq $p "applying"}}
+<p id="sso-hook" class="notice" role="status" hx-get="/services/{{.Name}}" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-select="#sso-hook" hx-swap="outerHTML">
+  {{if .On}}<strong>Turning on single sign-on…</strong>
+    {{if .Wall}}Roostack is putting {{.Title}} behind the lab's sign-in page.{{else}}Roostack is giving {{.Title}} its settings for the lab's sign-in page, then {{.Title}} will restart.{{end}}
+  {{else}}<strong>Turning off single sign-on…</strong>
+    {{if .Wall}}Roostack is taking {{.Title}} out from behind the lab's sign-in page.{{else}}Roostack is taking {{.Title}}'s settings for the lab's sign-in page away, then {{.Title}} will restart.{{end}}{{end}}</p>
+{{else if eq $p "failed"}}
+<div id="sso-hook" class="notice notice-error" role="alert" hx-get="/services/{{.Name}}" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-select="#sso-hook" hx-swap="outerHTML">
+  <p><strong>Single sign-on isn't {{if .On}}on{{else}}off{{end}} for {{.Title}} yet:</strong> Roostack couldn't apply the change, and will try again with the next one.</p>
+  <pre class="output">{{.Hook.ApplyFailed}}</pre>
+</div>
+{{else if eq $p "connecting"}}
+<p id="sso-hook" class="notice" role="status" hx-get="/services/{{.Name}}" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-select="#sso-hook" hx-swap="outerHTML">
   {{if .On}}Connecting {{.Title}} to the sign-in page…{{else}}Disconnecting {{.Title}} from the sign-in page…{{end}}</p>
-{{else if .Hook.Failed}}
+{{else if eq $p "hook-failed"}}
 <div id="sso-hook" class="notice notice-error" role="alert">
   <p><strong>{{if .On}}{{.Title}} isn't connected to the sign-in page yet.{{else}}{{.Title}} wasn't disconnected from the sign-in page.{{end}}</strong>
     {{.Title}} is running{{if .On}}, but its own sign-in still works as before{{else}}; its single sign-on button now leads to a page saying it's off{{end}}.</p>
@@ -671,8 +683,24 @@ Image: {{.Image}}</code></pre>
   {{if .CanManage}}{{if .Connect}}<p><a class="button" href="/services/{{.Name}}?action={{.Connect}}#action-{{.Connect}}">{{.ConnectTitle}}…</a></p>
   {{else}}<form method="post" action="/services/{{.Name}}/setup/retry"><button type="submit">Try again</button></form>{{end}}{{end}}
 </div>
+{{else if eq $p "stuck"}}
+<div id="sso-hook" class="notice notice-error" role="alert" hx-get="/services/{{.Name}}" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-select="#sso-hook" hx-swap="outerHTML">
+  <p><strong>{{.Title}} keeps stopping as it starts</strong> since single sign-on was turned {{if .On}}on{{else}}off{{end}} {{when .Hook.Applied}}: it has restarted {{.Hook.Restarts}} times.
+    Its log will say why{{if .On}}; often it's that {{.Title}} can't reach the sign-in page at {{.SignInHost}}{{end}}.
+    {{if .On}}Turning single sign-on off again will put {{.Title}} back as it was.{{end}}</p>
+  <pre class="output"><code>journalctl --user -u 'roostack-{{.Name}}-*'</code></pre>
+</div>
+{{else if eq $p "restarting"}}
+<p id="sso-hook" class="notice" role="status" hx-get="/services/{{.Name}}" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-select="#sso-hook" hx-swap="outerHTML">
+  {{.Title}} is restarting {{if .On}}with its settings for the sign-in page{{else}}without single sign-on{{end}}…</p>
+{{else if eq $p "done"}}
+<p id="sso-hook" class="notice notice-ok" role="status">
+  {{if .On}}<strong>Single sign-on is on.</strong>
+    {{if .Wall}}From now on, everyone who opens {{.Title}} will sign in on the lab's sign-in page first.
+    {{else}}{{.Title}} restarted with it {{when .Hook.Applied}}: to check, open {{.Title}} and use its button for the lab's sign-in page.{{end}}
+  {{else}}<strong>Single sign-on is off.</strong>
+    {{if .Wall}}{{.Title}} is no longer behind the lab's sign-in page.{{else}}{{.Title}} restarted without it {{when .Hook.Applied}}.{{end}}{{end}}</p>
 {{else}}<span id="sso-hook" hidden></span>{{end}}
-{{end}}
 {{end}}
 
 {{define "sso-who"}}

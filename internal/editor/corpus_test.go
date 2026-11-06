@@ -397,6 +397,11 @@ func structural(first map[string]string) [][]edit {
 		// Templated redirect paths, escapes, and renamed groups.
 		`{oidc: {route: ` + r + `, redirect_paths: ["/u/{{ pathescape .SSO.ProviderName }}/cb", "x/{{ .SSO.ClientID }}", "/a%20b", "/a%2", "/a%zz"]}}`,
 		`{oidc: {route: ` + r + `, redirect_paths: [/l], groups: {users: user, admins: admin}}}`,
+		// Where signing in starts, templated or with a query, and wrong.
+		`{oidc: {route: ` + r + `, redirect_paths: [/l], start_path: "/user/oauth2/{{ pathescape .SSO.ProviderName }}"}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l], start_path: "/auth/login?autoLaunch=1"}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l], start_path: "/#/sso?identifier=00000000-01DC"}}`, `{oidc: {route: ` + r + `, redirect_paths: [/l], start_path: "/#a b"}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l], start_path: "login"}}`, `{oidc: {route: ` + r + `, redirect_paths: [/l], start_path: "/a?b=<c>"}}`,
 		// What the card says about admins and accounts already in the app.
 		`{oidc: {route: ` + r + `, redirect_paths: [/l], admins: true, existing_accounts: username_or_email}}`,
 		`{oidc: {route: ` + r + `, redirect_paths: [/l], existing_accounts: by_email}}`, `{oidc: {route: ` + r + `, redirect_paths: [/l], admins: maybe}}`,

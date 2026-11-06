@@ -293,6 +293,16 @@ routes:
       `Remote-Email`, `Remote-Name`, and `Remote-Groups` headers; Roostack
       removes any a visitor sends.
 
+    `oidc.start_path` says where on the app's address opening a link
+    makes it start signing in through the lab (Gokapi's `/oauth-login`),
+    so that someone already signed in on the lab's sign-in page lands
+    signed in: the sign-in page's list of services and Roostack's Open
+    links go there while single sign-on is on. It's a path with an
+    optional query and fragment, and may use `.SSO` like the redirect
+    paths. Leave it
+    out for an app that starts signing in only from a form or its own
+    scripts: the links will go to its front page.
+
     `env` (container, then variable) is added to containers only while
     single sign-on is on, replacing their own value of the same name; its
     templates have `.SSO` (below). `secrets` gives a container the app's

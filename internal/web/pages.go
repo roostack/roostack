@@ -252,7 +252,27 @@ func (s *Server) servicesFor(r *http.Request) ([]ServiceView, error) {
 	}
 	s.withTiers(services)
 	s.withIcons(services, auth.Can(u.Role, auth.ManageServices))
+	s.withStart(services)
 	return s.usableBy(r.Context(), u, services), nil
+}
+
+// withStart fills in where each service's Open links go, for an app that
+// starts signing in through the lab (SPEC.md §5.2, "Signing in from the
+// sign-in page"): a click then signs someone in rather than showing the
+// app's own sign-in page.
+func (s *Server) withStart(services []ServiceView) {
+	if s.SSO == nil {
+		return
+	}
+	start := map[string]string{}
+	for _, c := range s.SSO.SSOClients() {
+		if c.StartURL != "" {
+			start[c.ID] = c.StartURL
+		}
+	}
+	for i := range services {
+		services[i].Start = start[services[i].Name]
+	}
 }
 
 // serviceByName is the lab's service called name, as the dashboard lists
@@ -264,7 +284,9 @@ func (s *Server) serviceByName(ctx context.Context, name string) (ServiceView, b
 	}
 	for _, svc := range services {
 		if svc.Name == name {
-			return svc, true, nil
+			one := []ServiceView{svc}
+			s.withStart(one)
+			return one[0], true, nil
 		}
 	}
 	return ServiceView{}, false, nil

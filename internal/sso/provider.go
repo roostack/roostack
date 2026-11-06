@@ -82,6 +82,10 @@ type Client struct {
 	// Host is a walled service's address (forward auth); "" for an app
 	// that signs people in through OIDC.
 	Host string
+	// StartURL is where opening a link starts an OIDC app's sign-in
+	// through the lab (its package's sso.oidc.start_path), for the
+	// sign-in page's list of services; "" for its front page.
+	StartURL string
 	// Public: its address is public, so the sign-in page is too.
 	Public bool
 	// UserGroup and AdminGroup rename the groups claim's users and admins

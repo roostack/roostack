@@ -87,6 +87,7 @@ it's there, until you delete it.
 |---|---|
 | `/usr/bin/roostack`, `/usr/bin/roostack-agent` | The programs |
 | `/usr/lib/systemd/system/roostack.service`, `roostack-agent.service` | Their systemd units |
+| `/usr/lib/systemd/system/roostack-wait-online.service` | Holds the system's "network is online" at boot until the server has its address, so that the services' containers start with it |
 | `/usr/share/roostack/caddy/Containerfile` | How Roostack's web server image is built, on each server |
 | `/usr/share/roostack/mysql-initdb/roostack-schemas.sh` | Run once as root in each MySQL or MariaDB container when it first starts: it lets the app's user make the database's [more schemas](packages.md#the-parts) |
 | `/etc/apt/sources.list.d/roostack.sources` | Where Roostack's own updates come from: its apt repository, and the series this server follows (`Suites:`). You may point `URIs:` at a mirror ([Updates](../settings/updates.md#roostacks-own-updates)) |

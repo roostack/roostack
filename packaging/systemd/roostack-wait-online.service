@@ -1,0 +1,27 @@
+[Unit]
+Description=Roostack: wait until the server has its network address
+Documentation=file:///usr/share/doc/roostack/ARCHITECTURE.md
+# network-online.target can come before DHCP has given the server its
+# address (ifupdown with allow-hotplug, as on Linode's Debian image). The
+# roostack user's containers wait for that target, and their network keeps
+# the addresses the server had when it started, so this holds the target
+# until the server has a route to the internet, for up to a minute
+# (docs/ASSUMPTIONS.md C11).
+DefaultDependencies=no
+After=network.target
+Before=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/roostack wait-online
+TimeoutStartSec=90
+User=roostack
+Group=roostack
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=network-online.target

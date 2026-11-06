@@ -145,6 +145,9 @@ func (m *Manager) SSOClients() []sso.Client {
 				continue
 			}
 			c.RedirectURIs = uris
+			if c.StartURL, err = generate.SSOStart(m.Lab, p, in); err != nil {
+				m.Log.Error("single sign-on's start address", "service", in.ID(), "err", err)
+			}
 			if g := p.SSO.OIDC.Groups; g != nil {
 				c.UserGroup, c.AdminGroup = g.Users, g.Admins
 			}

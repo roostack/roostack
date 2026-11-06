@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"html/template"
@@ -367,7 +368,11 @@ func (s *Server) signInHome(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if host != "" {
-			v.Apps = append(v.Apps, signInApp{Title: c.Title, URL: "https://" + host + "/", Logo: "/look/app/" + c.ID, Host: host})
+			// Where the app starts signing in through the lab, so a
+			// click signs them in rather than showing the app's own
+			// sign-in page.
+			to := cmp.Or(c.StartURL, "https://"+host+"/")
+			v.Apps = append(v.Apps, signInApp{Title: c.Title, URL: to, Logo: "/look/app/" + c.ID, Host: host})
 		}
 	}
 	v.Photos = len(s.migratable(r.Context(), sess.User)) > 0

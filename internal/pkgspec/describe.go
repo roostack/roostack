@@ -91,6 +91,7 @@ func Describe() Description {
 			"quadletKey":     quadlet.KeyPattern,
 			// Single sign-on's (sso.go).
 			"ssoRedirectPath": redirectPathRe.String(),
+			"ssoStartQuery":   startQueryRe.String(),
 			"ssoAppScheme":    appSchemeRe.String(),
 			"ssoGroupName":    groupNameRe.String(),
 			// Config files' (configfile.go).
