@@ -695,10 +695,10 @@ Image: {{.Image}}</code></pre>
   {{.Title}} is restarting {{if .On}}with its settings for the sign-in page{{else}}without single sign-on{{end}}…</p>
 {{else if eq $p "done"}}
 <p id="sso-hook" class="notice notice-ok" role="status">
-  {{if .On}}✓ <strong>Single sign-on is on.</strong>
+  {{if .On}}<strong>Single sign-on is on.</strong>
     {{if .Wall}}From now on, everyone who opens {{.Title}} will sign in on the lab's sign-in page first.
     {{else}}{{.Title}} restarted with it {{when .Hook.Applied}}: to check, open {{.Title}} and use its button for the lab's sign-in page.{{end}}
-  {{else}}✓ <strong>Single sign-on is off.</strong>
+  {{else}}<strong>Single sign-on is off.</strong>
     {{if .Wall}}{{.Title}} is no longer behind the lab's sign-in page.{{else}}{{.Title}} restarted without it {{when .Hook.Applied}}.{{end}}{{end}}</p>
 {{else}}<span id="sso-hook" hidden></span>{{end}}
 {{end}}
