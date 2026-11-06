@@ -600,8 +600,8 @@ func TestFetchStatusUnwritable(t *testing.T) {
 
 // An older version's image gone from its registry (a project rebuilt the
 // tag) is a warning, not a failure: the version is kept, without
-// architectures, marked ImageGone, and never offered. The newest
-// version's image gone fails the build, since it's what labs install.
+// architectures, marked ImageGone, and never offered. So is the newest's,
+// said more loudly, unless a pull request is adding that version.
 func TestBuildImageGone(t *testing.T) {
 	r := newTestRegistry(t)
 	data, _ := os.ReadFile(filepath.Join(r.repo, "packages", "vaultwarden", "1.34.3-roostack.1.yaml"))
@@ -642,9 +642,45 @@ func TestBuildImageGone(t *testing.T) {
 		t.Errorf("amd64 offered %q", v)
 	}
 	gone = "docker.io/vaultwarden/server:1.34.4@sha256:" + strings.Repeat("ab", 32)
-	if _, err := build(); err == nil || !strings.Contains(err.Error(), "1.34.4-roostack.1.yaml: "+gone+": registry answered 404") {
-		t.Errorf("the newest version's image gone: %v", err)
+	warnings = nil
+	ix, err = build()
+	if err != nil {
+		t.Fatalf("the newest version's image gone: %v", err)
 	}
+	if v, _, _ := ix.Packages["vaultwarden"].Offer("dev", "amd64"); v != "1.34.3-roostack.1" {
+		t.Errorf("offered %q once the newest's image went", v)
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0], NewestGone) || !strings.Contains(warnings[0], "offered 1.34.3-roostack.1 instead") {
+		t.Errorf("warnings %q", warnings)
+	}
+	// One project's image going leaves the others published, and one
+	// package whose every image has gone just can't be installed.
+	oldGone := old
+	build2 := func(added ...string) (*Index, error) {
+		warnings = nil
+		return Build(BuildOptions{Repo: r.repo, Out: t.TempDir(), Now: r.now, New: added, Warn: func(m string) { warnings = append(warnings, m) },
+			Platforms: func(image string) ([]string, error) {
+				if image == oldGone || image == gone {
+					return nil, fmt.Errorf("registry answered 404 Not Found: %w", imagecheck.ErrGone)
+				}
+				return []string{"linux/amd64", "linux/arm64"}, nil
+			}})
+	}
+	ix, err = build2()
+	if err != nil {
+		t.Fatalf("every version's image gone: %v", err)
+	}
+	if v, _, ok := ix.Packages["vaultwarden"].Offer("dev", "amd64"); ok {
+		t.Errorf("offered %q with every image gone", v)
+	}
+	if !slices.ContainsFunc(warnings, func(w string) bool { return strings.Contains(w, "can't install this package") }) {
+		t.Errorf("warnings %q", warnings)
+	}
+	// A pull request adding a version whose image isn't there is a mistake.
+	if _, err := build2("vaultwarden@1.34.4-roostack.1"); err == nil || !strings.Contains(err.Error(), "1.34.4-roostack.1.yaml: "+gone+": registry answered 404") {
+		t.Errorf("a new version's image gone: %v", err)
+	}
+	gone, oldGone = "docker.io/vaultwarden/server:1.34.4@sha256:"+strings.Repeat("ab", 32), ""
 	// A project took that release back: withdrawing it is the fix, and the
 	// version before is what labs are offered.
 	r.write("packages/vaultwarden/registry.yaml", "tier: official\nmaintainers: [roostack]\nwithdrawals:\n"+
