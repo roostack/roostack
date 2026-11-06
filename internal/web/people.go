@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,7 +16,9 @@ import (
 
 // People's single sign-on parts (SPEC.md §5.2; docs/mockups/sso): each
 // person's name, email and groups; the groups and the services each can
-// use; the sign-in page's look; and its two sign-in choices.
+// use; and a card of single sign-on, whose own page (signinsettings.go)
+// has the sign-in page's choices since 2026-11-06. Its look is the lab's
+// (Name and look, labname.go).
 
 // groupView is a group on the People page.
 type groupView struct {
@@ -48,16 +49,6 @@ func (s *Server) addPeopleSSO(ctx context.Context, data map[string]any) {
 		return
 	}
 	data["SSO"] = true
-	data["SignInHost"] = s.SignInHost
-	if s.SignInHost != "" {
-		data["SignInURL"] = "https://" + s.SignInHost
-	}
-	data["LabName"] = s.labName()
-	data["Look"] = s.signInLook(ctx)
-	data["Themes"] = Themes
-	data["SignInRemember"] = s.signInRememberDefault(ctx)
-	v, _ := s.Store.Setting(ctx, settingSignInTwoFactor)
-	data["SignInTwoFactor"] = v == "everyone"
 
 	var ticks []ssoServiceTick
 	chosen := map[int64][]string{} // group → services chosen for it
@@ -282,45 +273,6 @@ func (s *Server) userDetailsSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(ctx, currentUser(r), "user details", u.Username)
 	s.renderUsers(w, r, http.StatusOK, map[string]any{"Done": "Saved " + u.Username + "'s details."})
-}
-
-// lookSubmit saves the sign-in page's look.
-func (s *Server) lookSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.SignIn == nil {
-		http.NotFound(w, r)
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, 4*maxLogo+64<<10)
-	if err := r.ParseMultipartForm(1 << 20); err != nil {
-		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"LookError": "Those files are too big: each logo can be at most 200 KB."})
-		return
-	}
-	if err := s.saveLook(r); err != nil {
-		if msg, ok := usererr.Message(err); ok {
-			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"LookError": msg})
-			return
-		}
-		s.serverError(w, err)
-		return
-	}
-	s.Store.Audit(r.Context(), currentUser(r), "settings", "the sign-in page's look")
-	redirect(w, r, "/settings/people?look=saved#sign-in-page")
-}
-
-// lookPreview shows the logo's files on People (the UI's own address).
-func (s *Server) lookPreview(w http.ResponseWriter, r *http.Request) {
-	part := r.PathValue("part")
-	kind := s.signInLook(r.Context()).Files[part]
-	if kind == "" {
-		http.NotFound(w, r)
-		return
-	}
-	data, err := os.ReadFile(s.lookPath(part, kind))
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	writeImage(w, kind, data)
 }
 
 // saveSignInChoices saves the sign-in page's two choices from Signing in.

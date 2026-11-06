@@ -1,11 +1,13 @@
-<!doctype html><html lang="en" data-palette="teal">
+<!doctype html><html lang="en" data-palette="{{.Look.Palette}}"{{with .Look.Accent}} data-accent="{{.}}"{{end}}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="60">
   <title>{{.LabName}} · Status</title>
   <link rel="stylesheet" href="/css/tokens.css">
-  <link rel="stylesheet" href="/css/themes/teal.css">
+  <link rel="stylesheet" href="/{{.Theme}}">
+  {{- if and (eq .Look.Logo "mark") .Logomark}}
+  <link rel="icon" href="/{{.Logomark}}">{{end}}
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/status.css">
 </head>
@@ -15,7 +17,14 @@
 <body class="status-page">
   <main class="status-main">
     <header>
-      <h1>{{.LabName}}</h1>
+      {{- /* The lab's logo (Name and look): its wide logo in place of the
+           name, which stays the heading for screen readers, or its mark
+           beside the name. */}}
+      {{if and (eq .Look.Logo "wide") .Logowide}}<h1 class="status-logo"><span class="status-logo-img{{if not .Logodark}} on-light{{end}}"><picture>
+        {{- with .Logodark}}<source srcset="/{{.}}" media="(prefers-color-scheme: dark)"{{with $.Look.Width "dark"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}>{{end -}}
+        <img src="/{{.Logowide}}" alt="{{.LabName}}"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}></picture></span></h1>
+      {{- else if and (eq .Look.Logo "mark") .Logomark}}<h1 class="status-brand"><img src="/{{.Logomark}}" alt="" width="40" height="40">{{.LabName}}</h1>
+      {{- else}}<h1>{{.LabName}}</h1>{{end}}
       <p class="hint">Whether its services are working</p>
     </header>
     {{if .Down}}{{notice "error" .Down}}{{else if .Rows}}{{notice "ok" "Everything is working."}}{{end}}

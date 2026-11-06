@@ -9,3 +9,14 @@ body.status-page { min-height: 100vh; }
 .status-row { display: flex; align-items: center; gap: var(--space-3); }
 .status-row strong { flex: 1; }
 .status-main footer { margin-top: var(--space-5); text-align: center; }
+/* The lab's logo (Name and look, 2026-11-06): the wide one at most 80 px
+   high, scaled by its width and height; a mark beside the name. Without a
+   dark version, the wide logo sits on a light panel in dark mode. */
+.status-logo-img { display: inline-flex; max-width: 100%; }
+.status-logo-img img { display: block; max-width: 100%; height: auto; }
+.status-logo-img img:not([width]) { height: 80px; width: auto; object-fit: contain; object-position: left center; }
+@media (prefers-color-scheme: dark) {
+  .status-logo-img.on-light { background: #fbf7f2; padding: 8px 14px; border-radius: 12px; }
+}
+.status-brand { display: flex; align-items: center; gap: var(--space-3); }
+.status-brand img { border-radius: 10px; }

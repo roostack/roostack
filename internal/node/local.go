@@ -88,6 +88,8 @@ type Node interface {
 	Disks() Disks
 	Memory() Memory
 	LeftData() LeftData
+	// CleanUp lists and deletes images nothing uses (images.go).
+	CleanUp() CleanUp
 	History() History
 	// Linked reports its direct links to other servers and GuestHost
 	// keeps other labs' backups (guesthost.go); Processor says what kind
@@ -335,6 +337,9 @@ type Local struct {
 	// cfg is the look for the files config file blocks wait for
 	// (configfiles.go).
 	cfg configWait
+	// cpu keeps the last reading of how busy the processors were
+	// (usage.go).
+	cpu cpuSampler
 }
 
 // services is a copy of the services this server runs.
@@ -724,6 +729,9 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	}
 	n.noteSSOApplied(ctx, a)
 	n.noteStatusPage(a)
+	// When each image was last named, so that one an update replaced is
+	// kept a week for going back (images.go).
+	n.noteImagesInUse(ctx)
 	act.Step("All changes applied")
 	return nil
 }

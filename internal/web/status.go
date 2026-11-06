@@ -11,6 +11,9 @@ const (
 	// StatusFailed is a service that stopped working, or that Roostack
 	// couldn't work out the files for.
 	StatusFailed = "failed"
+	// StatusOff is a service someone turned off for a while (SPEC.md
+	// §6.3.5).
+	StatusOff = "off"
 	// StatusRegistryStop is a service Roostack stopped because the registry
 	// withdrew its version as dangerous (SPEC.md §8.3.4).
 	StatusRegistryStop = "registry-stop"
@@ -33,6 +36,8 @@ const (
 type ServiceFacts struct {
 	// Reported is what its server says (StatusUnknown if it didn't).
 	Reported string
+	// Off: someone turned it off.
+	Off bool
 	// Stopped: the registry withdrew its version, and Roostack stopped it.
 	Stopped bool
 	// Updating, AwaitingData, Switching, Held and Waiting are the
@@ -49,6 +54,7 @@ func ServiceStatus(f ServiceFacts) string {
 		on     bool
 		status string
 	}{
+		{f.Off, StatusOff},
 		{f.Stopped, StatusRegistryStop},
 		{f.Updating, StatusUpdating},
 		{f.AwaitingData, StatusAwaitingData},

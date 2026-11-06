@@ -45,3 +45,19 @@ func Stop(o *Output, p *pkgspec.Package, lastBackup bool) {
 	// make its file: they're written again when it runs (SPEC.md §8.1).
 	o.ConfigFiles = nil
 }
+
+// Off trims a service's output to what stays while someone has turned it
+// off (SPEC.md §6.3.5): its network, and its Caddy
+// site, whose routes answer with a page saying it's turned off
+// (caddy.Route.Off, set by Service from instance.Off), so its addresses
+// and their certificates and records stay. Every container goes, its
+// databases too: backups keep their last dumps (backup.ErrDumpKept),
+// which nothing changes while it's off. Its checks go, so monitoring
+// doesn't count it as down.
+func Off(o *Output) {
+	network := "roostack-" + o.Service + ".network"
+	o.Quadlets = slices.DeleteFunc(o.Quadlets, func(f File) bool { return f.Name != network })
+	o.Units = nil
+	o.Backup.Prepare = slices.DeleteFunc(o.Backup.Prepare, func(s PrepareStep) bool { return s.Container != "" })
+	o.Ports, o.HostPorts, o.Monitors, o.ConfigFiles = nil, nil, nil, nil
+}

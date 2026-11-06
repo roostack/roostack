@@ -41,7 +41,9 @@ type Stop struct {
 // Output is what runs of a service on its server: generate.Service's, but
 // only its network and databases while Roostack has stopped it (SPEC.md
 // §8.3.4), it waits for its data to be brought in (SPEC.md §8.4) or it's
-// held after a restore that didn't finish (SPEC.md §6.9).
+// held after a restore that didn't finish (SPEC.md §6.9), and only its
+// network and its address's "turned off" page while someone has turned
+// it off (SPEC.md §6.3.5).
 func Output(lab config.Lab, s Service) (*generate.Output, error) {
 	out, err := generate.Service(lab, s.Package, s.Instance)
 	if err != nil {
@@ -54,6 +56,8 @@ func Output(lab config.Lab, s Service) (*generate.Output, error) {
 // trim leaves out of a service's output what doesn't run now (Output).
 func trim(out *generate.Output, s Service) {
 	switch {
+	case s.Instance != nil && s.Instance.Off != nil:
+		generate.Off(out)
 	case s.Stop != nil:
 		generate.Stop(out, s.Package, s.Stop.LastBackup)
 	case s.Instance != nil && s.Instance.AwaitingData:

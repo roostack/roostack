@@ -24,13 +24,17 @@
 {{with .Figures}}
 <ul class="figures">
   <li class="card"><span class="figure-label">Services</span><span class="figure-value">{{.Running}} <small>of {{.Services}} running</small></span>
-    <span class="figure-note{{if .Problems}} bad{{end}}">{{if .Problems}}{{.Problems}} not running{{else if .Busy}}{{.Busy}} getting ready{{else}}All running{{end}}</span></li>
+    <span class="figure-note{{if .Problems}} bad{{end}}">{{if .Problems}}{{.Problems}} not running{{else if .Busy}}{{.Busy}} getting ready{{else if .Off}}{{.Off}} turned off{{else}}All running{{end}}</span></li>
   <li class="card"><span class="figure-label">Servers</span><span class="figure-value">{{.Online}} <small>of {{.Servers}} online</small></span>
     <span class="figure-note{{if .ServerIssues}} warn{{end}}">{{if .ServerIssues}}{{.ServerIssues}} {{if eq .ServerIssues 1}}needs{{else}}need{{end}} attention{{else}}All up to date{{end}}</span></li>
   <li class="card"><span class="figure-label">Last backup</span><span class="figure-value">{{if .LastBackup.IsZero}}None yet{{else}}{{when .LastBackup}}{{end}}</span>
     <span class="figure-note{{if .NotBackedUp}} warn{{end}}">{{if .NotBackedUp}}{{.NotBackedUp}} {{if eq .NotBackedUp 1}}server{{else}}servers{{end}} not backed up yet{{else}}Every server{{end}}</span></li>
   {{if .DiskTotal}}<li class="card"><span class="figure-label">Disk space</span><span class="figure-value">{{size .DiskUsed}} <small>of {{size .DiskTotal}} used</small></span>
     <span class="figure-note{{if .DiskWarning}} warn{{end}}">{{with .DiskWarning}}{{.}}{{else}}On {{.Disks}} {{if eq .Disks 1}}disk{{else}}disks{{end}}{{end}}</span></li>{{end}}
+  {{if .UsageServers}}<li class="card"><span class="figure-label">Memory</span><span class="figure-value">{{size .MemUsed}} <small>of {{size .MemTotal}} used</small></span>
+    <span class="figure-note{{if .MemLevel}} warn{{end}}">{{if .MemLevel}}Nearly all in use{{else}}{{size .MemFree}} free{{end}}{{if gt .UsageServers 1}} on {{.UsageServers}} servers{{end}}</span></li>
+  <li class="card"><span class="figure-label">CPU</span><span class="figure-value">{{.CPUBusy}}% <small>busy</small></span>
+    <span class="figure-note{{if .CPULevel}} warn{{end}}">{{if .CPULevel}}Very busy{{else}}Across {{.CPUs}} {{if eq .CPUs 1}}processor{{else}}processors{{end}}{{end}}{{if gt .UsageServers 1}} on {{.UsageServers}} servers{{end}}</span></li>{{end}}
 </ul>
 {{end}}
 <section class="card">

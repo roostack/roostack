@@ -199,6 +199,37 @@ func TestMonitoringOwnerSettings(t *testing.T) {
 	}
 }
 
+// The status page has the lab's logo and colours (Name and look), with
+// the files beside it.
+func TestStatusPageLook(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	up := true
+	withMonitor(h, &up)
+	h.server.StatusPageDir, h.server.SSODir = t.TempDir(), t.TempDir()
+	ctx := context.Background()
+	os.WriteFile(h.server.lookPath("wide", "svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 100"/>`), 0o600)
+	h.store.SetSetting(ctx, settingSignInLogo, logoWide)
+	h.store.SetSetting(ctx, settingSignInFiles, "wide=svg;1")
+	h.store.SetSetting(ctx, settingSignInPalette, "nord")
+	page, err := h.server.renderStatusPage(ctx, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.server.writeStatusFiles(page, h.server.signInLook(ctx)); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`data-palette="nord"`, `href="/css/themes/nord.css"`, `<img src="/logo-wide.svg" alt="" width="480" height="80">`, "on-light"} {
+		if !strings.Contains(string(page), want) {
+			t.Errorf("the page lacks %q", want)
+		}
+	}
+	for _, f := range []string{"logo-wide.svg", "css/themes/nord.css"} {
+		if _, err := os.Stat(filepath.Join(h.server.StatusPageDir, f)); err != nil {
+			t.Errorf("%s isn't beside it: %v", f, err)
+		}
+	}
+}
+
 // A service whose public access is paused (SPEC.md §6.16) shows on the
 // public status page as paused, whatever its check says, since visitors
 // from outside get the paused page; it isn't counted as down there.

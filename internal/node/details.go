@@ -73,6 +73,8 @@ const sizeTTL = 24 * time.Hour
 type sizes struct {
 	mu       sync.Mutex
 	services map[string]int64 // each service's data
+	// left is each removed service's data still here (leftdata.go).
+	left map[string]int64
 	// dirs is each folder counted (a service's data folder, a backup
 	// drive's repository), by path: what's on which disk (disk.go).
 	dirs map[string]int64
@@ -140,12 +142,18 @@ func (n *Local) countSizesLocked() {
 				}
 			}
 		}
+		left := map[string]int64{}
+		for name, dirs := range n.leftFolders(services) {
+			if size, err := n.du(ctx, true, dirs...); err == nil {
+				left[name] = size
+			}
+		}
 		dir := n.Lab.Paths.BackupStoreDir()
 		guests, gerr := n.du(ctx, false, filepath.Join(dir, "guests"))
 		all, err := n.du(ctx, false, dir)
 		n.sizes.mu.Lock()
 		defer n.sizes.mu.Unlock()
-		n.sizes.counting, n.sizes.at, n.sizes.services, n.sizes.dirs = false, time.Now(), counted, dirs
+		n.sizes.counting, n.sizes.at, n.sizes.services, n.sizes.dirs, n.sizes.left = false, time.Now(), counted, dirs, left
 		n.sizes.backups, n.sizes.guests = -1, -1
 		if err == nil && gerr == nil {
 			n.sizes.backups, n.sizes.guests = all-guests, guests

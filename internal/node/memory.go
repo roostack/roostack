@@ -21,9 +21,10 @@ type MemoryInfo struct {
 
 // Memory is a server that can report its memory (Local and Remote), for
 // the install summary to compare a new service's needs with (SPEC.md
-// §8.3.4).
+// §8.3.4), and with how busy its processors are, for Home (usage.go).
 type Memory interface {
 	MemoryInfo(ctx context.Context) (MemoryInfo, error)
+	Usage(ctx context.Context) (Usage, error)
 }
 
 // Memory is this server, which reads its own memory.

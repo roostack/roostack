@@ -122,6 +122,8 @@ func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns 
 
 // fakeCatalog is the catalog and the installed services (ServiceCatalog).
 type fakeCatalog struct {
+	// offs are the services turned off or on (SetOff).
+	offs []string
 	// requiresSSO: packages have no sign-in of their own (sso.required).
 	requiresSSO bool
 	// ownSignIn: packages have a wall in front of their own sign-in.
@@ -320,6 +322,12 @@ func (f *fakeCatalog) RemoveLocalPackage(name string) error {
 }
 
 func (f *fakeCatalog) LocalPackagesDir() string { return "/var/lib/roostack/local-packages" }
+
+// SetOff notes each service turned off ("name off") or on ("name on").
+func (f *fakeCatalog) SetOff(_ context.Context, name string, off bool, by string) error {
+	f.offs = append(f.offs, name+map[bool]string{true: " off", false: " on"}[off]+" by "+by)
+	return nil
+}
 
 func (f *fakeCatalog) Remove(_ context.Context, name string) error {
 	f.removed = append(f.removed, name)
@@ -1173,7 +1181,106 @@ type fakeNode struct {
 	events   []store.Event
 	disk     *node.DiskSpace
 	disks    []node.DiskSpace
+	// usage is its memory and CPU (none when nil).
+	usage *node.Usage
+	// left is removed services' data on it (none when nil), and
+	// deletedLeft the names whose data was deleted.
+	cleanUp     *fakeCleanUp
+	leftMu      sync.Mutex
+	left        []node.LeftService
+	deletedLeft []string
 }
+
+// fakeCleanUp is a server's images nothing uses, for its Clean up page.
+type fakeCleanUp struct {
+	report  node.CleanUpReport
+	removed []string
+}
+
+func (f *fakeCleanUp) CleanUpReport(context.Context) (node.CleanUpReport, error) {
+	return f.report, nil
+}
+func (f *fakeCleanUp) SetAutoClean(_ context.Context, on bool) error {
+	f.report.AutoClean = on
+	return nil
+}
+func (f *fakeCleanUp) RemoveImages(_ context.Context, ids []string) (node.RemovedImages, error) {
+	var out node.RemovedImages
+	for _, id := range ids {
+		for i, img := range f.report.Old {
+			if img.ID == id {
+				f.removed = append(f.removed, id)
+				out.Removed++
+				out.Freed += img.Size
+				f.report.Old = slices.Delete(f.report.Old, i, i+1)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// CleanUp is the server's images, when the test gives it some.
+func (f *fakeNode) CleanUp() node.CleanUp {
+	if f.cleanUp == nil {
+		return nil
+	}
+	return f.cleanUp
+}
+
+// wasDeleted reports whether a removed service's data was deleted.
+func (f *fakeNode) wasDeleted(name string) bool {
+	f.leftMu.Lock()
+	defer f.leftMu.Unlock()
+	return slices.Contains(f.deletedLeft, name)
+}
+
+// LeftData is f while it has removed services' data.
+func (f *fakeNode) LeftData() node.LeftData {
+	if f.left == nil {
+		return nil
+	}
+	return f
+}
+
+func (f *fakeNode) LeftDataDirs(_ context.Context, name string) ([]string, error) {
+	for _, l := range f.left {
+		if l.Name == name {
+			return l.Dirs, nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *fakeNode) LeftServices(context.Context) ([]node.LeftService, error) {
+	f.leftMu.Lock()
+	defer f.leftMu.Unlock()
+	return slices.Clone(f.left), nil
+}
+
+func (f *fakeNode) DeleteLeftData(_ context.Context, name string) error {
+	f.leftMu.Lock()
+	defer f.leftMu.Unlock()
+	for i, l := range f.left {
+		if l.Name == name {
+			f.left = slices.Delete(f.left, i, i+1)
+			f.deletedLeft = append(f.deletedLeft, name)
+			return nil
+		}
+	}
+	return node.ErrNotFound
+}
+
+// Memory is f while it has usage: Home's memory and CPU.
+func (f *fakeNode) Memory() node.Memory {
+	if f.usage == nil {
+		return nil
+	}
+	return f
+}
+
+func (f *fakeNode) MemoryInfo(context.Context) (node.MemoryInfo, error) { return f.usage.Memory, nil }
+func (f *fakeNode) Usage(context.Context) (node.Usage, error)           { return *f.usage, nil }
 
 func (f *fakeNode) HistoryPage(_ context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
 	var out []store.Event

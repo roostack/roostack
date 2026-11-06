@@ -99,7 +99,11 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		return nil, nil, nil, err
 	}
 	// Disk use is counted right after the nightly backup, while restic's
-	// reads of the files are still cached (SPEC.md §6.7).
-	jobs.backups.AfterBackup = local.CountSizes
+	// reads of the files are still cached (SPEC.md §6.7), and old versions
+	// of services are cleaned up (SPEC.md §6.7, "Cleaning up").
+	jobs.backups.AfterBackup = func() {
+		local.CountSizes()
+		go local.CleanNightly()
+	}
 	return local, agentClient, jobs.coord, nil
 }

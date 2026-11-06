@@ -53,6 +53,9 @@ type ServiceView struct {
 	// WasOn names the server a service waiting to be restored ran on
 	// (Status is StatusWaiting).
 	WasOn string
+	// Off is who turned it off and when (Status is StatusOff), nil while
+	// it's on.
+	Off *config.Pause
 	// What its server reports: containers, ports, routes, data folders
 	// and size (nothing about a service should look like magic).
 	node.ServiceDetail
@@ -164,6 +167,8 @@ type Server struct {
 	codeMu     sync.Mutex
 	issues     serverIssues
 	hostChecks attention.HostChecks
+	// logoSizes are the sign-in page's wide logo's widths (signinlook.go).
+	logoSizes logoSizes
 	// bootID changes each time Roostack starts; the "restarting" page waits
 	// for a new one.
 	bootID string
@@ -263,6 +268,8 @@ type ServiceCatalog interface {
 	ServiceFiles(name string) (*manager.ServiceFiles, error)
 	// SetTitle changes what people call a service (never its name).
 	SetTitle(ctx context.Context, name, title string) error
+	// SetOff turns a service off for a while, or on again (SPEC.md §6.3.5).
+	SetOff(ctx context.Context, name string, off bool, by string) error
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
 	// SSOAtInstall says whether installing p on host (empty: this server)
 	// may turn single sign-on on from the start (SPEC.md §5.2).
@@ -387,6 +394,12 @@ type ServiceNode interface {
 	Updates() node.Updates
 	Settings() node.Settings
 	Disks() node.Disks
+	// Memory: its memory and CPU, for Home (nil if it can't say).
+	Memory() node.Memory
+	// LeftData: removed services' data on it (removed.go); CleanUp: images
+	// nothing uses (cleanup.go).
+	LeftData() node.LeftData
+	CleanUp() node.CleanUp
 	History() node.History
 }
 
@@ -498,7 +511,7 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "local-editor", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
-		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
+		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-look", "settings-sign-in", "settings-cleanup",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
 		"import", "import-folders", "photos", "photos-home", "photos-folders", "pause", "pause-close"} {
@@ -579,8 +592,6 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /partials/backups", s.require(auth.ManageServices, s.backupsPartial))
 	mux.Handle("GET /settings", s.requireOwner(s.settingsPage))
 	mux.Handle("GET /settings/people", s.requireOwner(s.usersPage))
-	mux.Handle("GET /settings/lab", s.requireOwner(s.labNamePage))
-	mux.Handle("POST /settings/lab", s.requireOwner(s.labNameSubmit))
 	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
@@ -691,6 +702,10 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /users/{id}/reset-2fa", s.requireOwner(s.userReset2FASubmit))
 	mux.Handle("POST /users/{id}/remove", s.requireOwner(s.userRemoveSubmit))
 	s.ssoRoutes(mux)
+	s.lookRoutes(mux)
+	s.signInRoutes(mux)
+	s.removedRoutes(mux)
+	s.cleanUpRoutes(mux)
 	mux.Handle("GET /backups/recovery-key", s.requireOwner(s.recoveryKeyShowPage))
 	mux.Handle("POST /backups/recovery-key", s.requireOwner(s.recoveryKeyShowSubmit))
 	mux.Handle("GET /backups/recovery-key/change", s.requireOwner(s.keyChangePage))
@@ -793,6 +808,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /services/{name}/update", s.require(auth.ManageServices, s.updateSubmit))
 	mux.Handle("POST /services/{name}/updates", s.require(auth.ManageServices, s.updatePolicySubmit))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
+	mux.Handle("POST /services/{name}/off", s.require(auth.ManageServices, s.serviceOffSubmit(true)))
+	mux.Handle("POST /services/{name}/on", s.require(auth.ManageServices, s.serviceOffSubmit(false)))
 
 	routes := s.errorPages(mux)
 	if gate != nil {

@@ -65,9 +65,22 @@ func TestInstallFlow(t *testing.T) {
 		}
 	}
 
-	code, _ := h.post("/install/immich", url.Values{"subdomain": {"pics"}, "setting.machine_learning": {"on"}}, h.srv.URL)
+	// Installing goes to the new service's page, which shows the install
+	// step by step (the maintainer, 2026-11-06).
+	services := h.server.Services
+	h.server.Services = func(ctx context.Context) ([]ServiceView, error) {
+		out, err := services(ctx)
+		if len(fm.installs) > 0 {
+			out = append(out, ServiceView{Name: "immich", Title: "Immich", Status: "installing"})
+		}
+		return out, err
+	}
+	code, body := h.post("/install/immich", url.Values{"subdomain": {"pics"}, "setting.machine_learning": {"on"}}, h.srv.URL)
 	if code != http.StatusOK || len(fm.installs) != 1 {
 		t.Fatalf("install: status %d, calls %d", code, len(fm.installs))
+	}
+	if !strings.Contains(body, "<title>Immich · Roostack</title>") {
+		t.Error("installing should go to the service's page")
 	}
 	req := fm.installs[0]
 	if req.Subdomain != "pics" || req.Settings["machine_learning"] != "on" {
@@ -998,10 +1011,14 @@ func TestLabName(t *testing.T) {
 	h.setSetup(fs)
 	h.server.LabName = "lab.example.com"
 	if _, body := h.get("/settings"); !strings.Contains(body, `<strong title="lab.example.com">lab.example.com</strong>`) ||
-		!strings.Contains(body, "Lab name") {
+		!strings.Contains(body, "Name and look") {
 		t.Error("the header and Settings should show the lab's name")
 	}
-	if code, _ := h.post("/settings/lab", url.Values{"name": {" "}}, h.srv.URL); code != http.StatusBadRequest {
+	// Its page was Lab name until 2026-11-06.
+	if code, body := h.get("/settings/lab"); code != http.StatusOK || !strings.Contains(body, "<h1>Name and look</h1>") {
+		t.Errorf("/settings/lab: %d, not Name and look", code)
+	}
+	if code, body := h.post("/settings/lab", url.Values{"name": {" "}}, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "<h1>Name and look</h1>") {
 		t.Errorf("an empty name: %d", code)
 	}
 	h.post("/settings/lab", url.Values{"name": {"The Smiths' lab"}}, h.srv.URL)
@@ -1378,6 +1395,41 @@ func TestServerDisks(t *testing.T) {
 	}
 }
 
+// Home shows the lab's memory and CPU, and Servers each server's
+// (docs/DESIGN.md "Layout"); a server that can't say is unknown there.
+func TestHomeUsage(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	_, body := h.get("/")
+	if strings.Contains(body, `figure-label">Memory`) {
+		t.Error("no figures from a server that can't say")
+	}
+	fm.usage = &node.Usage{Memory: node.MemoryInfo{Total: 8 * units.GB, Available: 5 * units.GB}, CPUs: 4, CPUBusy: 12}
+	_, body = h.get("/")
+	for _, want := range []string{`figure-label">Memory`, "3.0 GB <small>of 8.0 GB used", "5.0 GB free",
+		`figure-label">CPU`, "12% <small>busy", "Across 4 processors"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("home missing %q", want)
+		}
+	}
+	// Servers has each server's.
+	_, body = h.get("/servers")
+	for _, want := range []string{`title="37% used"`, "3.0 GB of 8.0 GB</small>", `title="12% busy"`, "12% of 4 processors"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("servers missing %q", want)
+		}
+	}
+	fm.usage = &node.Usage{Memory: node.MemoryInfo{Total: 8 * units.GB, Available: units.GB / 2}, CPUs: 1, CPUBusy: 95}
+	_, body = h.get("/partials/home")
+	for _, want := range []string{"Nearly all in use", "Very busy"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a busy server: home missing %q", want)
+		}
+	}
+	if _, body = h.get("/servers"); !strings.Contains(body, "meter meter-warning") || !strings.Contains(body, "95% of 1 processor") {
+		t.Error("a busy server: no warning on Servers")
+	}
+}
+
 // Before the lab has an address, services say so and can't go public
 // (SPEC.md §6.6).
 func TestServicesWithoutAddress(t *testing.T) {
@@ -1575,6 +1627,155 @@ func TestServicesAskedForOnlyWhereShown(t *testing.T) {
 	// A page that doesn't show them works when they can't be listed.
 	h.server.Services = func(context.Context) ([]ServiceView, error) { return nil, errors.New("a server didn't answer") }
 	if code, _ := h.get("/settings/lab"); code != http.StatusOK {
-		t.Errorf("Settings → Lab name without the services: %d", code)
+		t.Errorf("Settings → Name and look without the services: %d", code)
+	}
+}
+
+// Data left by removed services (SPEC.md §8.1): Services lists it once
+// there is some, by what the store noted or by its folder's name; Install
+// again fills in its name, title and server; Owners delete it, ticking
+// that they understand; removing a service notes what it was, and can
+// delete its data too.
+func TestRemovedServicesData(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	ctx := context.Background()
+	if _, body := h.get("/services"); strings.Contains(body, "Removed, data kept") {
+		t.Error("the view is offered with nothing removed")
+	}
+	fm.left = []node.LeftService{
+		{Name: "vaultwarden-2", Dirs: []string{"/srv/roostack/services/vaultwarden-2"}, Size: 2400 * units.MB},
+		{Name: "seafile", Dirs: []string{"/srv/roostack/services/seafile", "/srv/roostack/media/seafile"}, Size: -1},
+	}
+	h.store.RecordRemoved(ctx, store.RemovedService{Server: "n-0123456789", Name: "vaultwarden-2", Package: "vaultwarden", Title: "Passwords",
+		Version: "1.34.0-roostack.2", At: time.Date(2026, 11, 2, 9, 0, 0, 0, time.Local), By: "sam"})
+	if _, body := h.get("/services"); !strings.Contains(body, "Removed, data kept · 2") {
+		t.Error("Services doesn't offer the removed view")
+	}
+	_, body := h.get("/services?removed=1")
+	for _, want := range []string{"Passwords<small>vaultwarden 1.34.0</small>", "2 November 2026, by sam", "2.4 GB", "<code>seafile</code>",
+		"Removed before Roostack kept a record", "Counting…", `href="/install/vaultwarden?host=n-0123456789&amp;name=vaultwarden-2&amp;title=Passwords"`,
+		`data-dialog="delete-n-0123456789-seafile"`, `action="/services/removed/n-0123456789/seafile/delete"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the removed view lacks %q", want)
+		}
+	}
+	if _, body := h.get("/services?removed=1&delete=delete-n-0123456789-seafile"); !strings.Contains(body, `id="delete-n-0123456789-seafile" aria-labelledby="delete-n-0123456789-seafile-title" open>`) ||
+		!strings.Contains(body, "No backup has it.") {
+		t.Error("?delete= doesn't open the dialog, with what the backups have")
+	}
+	// Installing it again starts from its name, title and server.
+	if _, body := h.get("/install/vaultwarden?name=vaultwarden-2&title=Passwords&host=n-0123456789"); !strings.Contains(body, `name="name_suffix" value="2"`) ||
+		!strings.Contains(body, `name="title" value="Passwords"`) {
+		t.Error("Install again doesn't fill in its name and title")
+	}
+	// Deleting needs the tick.
+	h.post("/services/removed/n-0123456789/vaultwarden-2/delete", url.Values{}, h.srv.URL)
+	if fm.wasDeleted("vaultwarden-2") {
+		t.Fatal("deleted without the tick")
+	}
+	_, body = h.post("/services/removed/n-0123456789/vaultwarden-2/delete", url.Values{"sure": {"on"}}, h.srv.URL)
+	if !fm.wasDeleted("vaultwarden-2") || !strings.Contains(body, "Deleted vaultwarden-2&#39;s data.") {
+		t.Errorf("deleted %v", fm.deletedLeft)
+	}
+	if recs, _ := h.store.RemovedServices(ctx); len(recs) != 0 {
+		t.Errorf("its record is still there: %+v", recs)
+	}
+
+	// Removing a service notes what it was; with the tick, its data goes
+	// once it's off its server.
+	fm.left = append(fm.left, node.LeftService{Name: "vaultwarden", Dirs: []string{"/srv/roostack/services/vaultwarden"}, Size: 10})
+	if _, body := h.get("/services/vaultwarden/remove"); !strings.Contains(body, `name="delete_data"`) {
+		t.Error("the Remove page doesn't offer deleting its data")
+	}
+	h.post("/services/vaultwarden/remove", url.Values{}, h.srv.URL)
+	recs, _ := h.store.RemovedServices(ctx)
+	if len(recs) != 1 || recs[0].Package != "vaultwarden" || recs[0].Title != "Vaultwarden" || recs[0].By != "u" {
+		t.Errorf("removal noted as %+v", recs)
+	}
+	h.post("/services/vaultwarden/remove", url.Values{"delete_data": {"on"}}, h.srv.URL)
+	deadline := time.Now().Add(5 * time.Second)
+	for !fm.wasDeleted("vaultwarden") && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !fm.wasDeleted("vaultwarden") {
+		t.Error("its data wasn't deleted after removing it")
+	}
+}
+
+// A server's Clean up page (SPEC.md §6.7, "Cleaning up"): old versions of
+// services by what they were, Roostack's own leftovers, links to removed
+// services' data and kept copies, deleting what's chosen, and the nightly
+// clean-up's switch. Servers links to it.
+func TestCleanUpPage(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	day := time.Date(2026, 10, 21, 9, 0, 0, 0, time.Local)
+	fm.cleanUp = &fakeCleanUp{report: node.CleanUpReport{AutoClean: true,
+		Old: []node.ImageInfo{
+			{ID: "sha256:a", Names: []string{"docker.io/vaultwarden/server:1.33.0"}, Size: 300 * units.MB, Kind: node.ImageService, Service: "vaultwarden", Version: "1.33.0-roostack.1", LastUsed: day},
+			{ID: "sha256:b", Names: []string{"docker.io/library/nginx:1"}, Size: 50 * units.MB, Kind: node.ImageService},
+			{ID: "sha256:c", Size: 96 * units.MB, Kind: node.ImageOwn},
+		},
+		Kept: []node.ImageInfo{{ID: "sha256:k", Kind: node.ImageService, Service: "vaultwarden", Version: "1.34.0-roostack.1", KeptUntil: day.AddDate(0, 0, 20)}},
+	}}
+	if _, body := h.get("/servers"); !strings.Contains(body, `href="/settings/servers/n-0123456789/clean-up">Clean up nuc…`) {
+		t.Error("Servers doesn't link to cleaning up")
+	}
+	_, body := h.get("/settings/servers/n-0123456789/clean-up")
+	for _, want := range []string{"<h1>Clean up nuc</h1>", "Vaultwarden 1.33.0", "Vaultwarden, until 21 October 2026", "300.0 MB",
+		"docker.io/library/nginx", "Not known", "Kept for going back, so not listed: Vaultwarden 1.34.0 until 10 November 2026",
+		"Delete them · 96.0 MB", `name="on" checked`, `<a href="/servers">Servers</a><a href="/servers#server-n-0123456789">nuc</a>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Clean up lacks %q", want)
+		}
+	}
+	_, body = h.post("/settings/servers/n-0123456789/clean-up/remove", url.Values{"id": {"sha256:a", "sha256:k"}}, h.srv.URL)
+	if !slices.Equal(fm.cleanUp.removed, []string{"sha256:a"}) || !strings.Contains(body, "Deleted 1 image, freeing up to 300.0 MB.") {
+		t.Errorf("removed %v", fm.cleanUp.removed)
+	}
+	h.post("/settings/servers/n-0123456789/clean-up/auto", url.Values{}, h.srv.URL)
+	if fm.cleanUp.report.AutoClean {
+		t.Error("the nightly clean-up is still on")
+	}
+}
+
+// Turning a service off for a while (SPEC.md §6.3.5): its page offers it,
+// and once it's off says who and when, with Turn it on in place of Open;
+// it's "Off" everywhere, not a problem, and Members see it's off.
+func TestTurnServiceOff(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	_, body := h.get("/services/vaultwarden")
+	if !strings.Contains(body, "Turn it off for a while") || !strings.Contains(body, `action="/services/vaultwarden/off"`) {
+		t.Fatal("the service page doesn't offer turning it off")
+	}
+	h.post("/services/vaultwarden/off", url.Values{}, h.srv.URL)
+	if !slices.Equal(fm.offs, []string{"vaultwarden off by u"}) {
+		t.Errorf("turned off: %v", fm.offs)
+	}
+
+	since := time.Now().Add(-time.Hour)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Package: "vaultwarden", Status: StatusOff, URLs: []string{"https://vault.lab.example.com"},
+			Off: &config.Pause{Since: since, By: "sam"}}}, nil
+	}
+	_, body = h.get("/services/vaultwarden")
+	for _, want := range []string{"Vaultwarden is turned off.", "sam turned it off", `action="/services/vaultwarden/on"`, `class="status status-off">Off`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page of a service turned off lacks %q", want)
+		}
+	}
+	if strings.Contains(body, "Open Vaultwarden") || strings.Contains(body, "Turn it off for a while") {
+		t.Error("a service turned off offers Open, or turning it off")
+	}
+	h.post("/services/vaultwarden/on", url.Values{}, h.srv.URL)
+	if !slices.Contains(fm.offs, "vaultwarden on by u") {
+		t.Errorf("turned on: %v", fm.offs)
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "1 turned off") || strings.Contains(body, "not running") {
+		t.Error("Home counts a service turned off as a problem")
+	}
+	member, _ := loggedIn(t, auth.RoleMember)
+	member.server.Services = h.server.Services
+	if _, body := member.get("/"); !strings.Contains(body, "Turned off for now") {
+		t.Error("Members aren't told it's turned off")
 	}
 }

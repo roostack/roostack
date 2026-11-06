@@ -21,8 +21,8 @@
         {{if eq .Look.Logo "wide"}}
         <div class="signin-brand"><span class="signin-wide{{if not (.Look.Has "dark")}} on-light{{end}}">
           <picture>
-            {{if .Look.Has "dark"}}<source srcset="/look/dark?v={{.Look.Version}}" media="(prefers-color-scheme: dark)">{{end}}
-            <img src="/look/wide?v={{.Look.Version}}" alt="{{.LabName}}">
+            {{if .Look.Has "dark"}}<source srcset="/look/dark?v={{.Look.Version}}" media="(prefers-color-scheme: dark)"{{with .Look.Width "dark"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}>{{end}}
+            <img src="/look/wide?v={{.Look.Version}}" alt="{{.LabName}}"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}>
           </picture></span></div>
         {{else}}
         <div class="signin-brand">

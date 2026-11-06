@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"hash/fnv"
 	"net/http"
 	"strconv"
@@ -17,8 +18,18 @@ import (
 // (renderPart, renderLive), a redirect, and an error.
 
 func (s *Server) render(w http.ResponseWriter, page string, data map[string]any) {
+	// The lab's look (signinlook.go): the browser tab's icon, the
+	// sidebar's logo, and the theme of anyone who hasn't chosen one.
+	look, ok := data["Look"].(signInLook)
+	if !ok {
+		look = s.signInLook(context.Background())
+		data["Look"] = look
+	}
 	if u, ok := data["User"].(*store.User); ok && u != nil {
 		n := navFor(u, page)
+		if !validPalette(u.Palette) {
+			n.Palette, n.Accent = look.Palette, look.Accent
+		}
 		n.Monitoring = s.Monitor != nil
 		// A page shared by two places says which it's in now (adding a
 		// location for migrating photos is the media library form, under

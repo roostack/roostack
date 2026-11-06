@@ -674,7 +674,7 @@ func (l Lab) DisplayName() string {
 }
 
 // NameAt is the lab's name (DisplayName) as the config at path says when
-// it's called: the setup wizard and Settings → Lab name change it while
+// it's called: the setup wizard and Settings → Name and look change it while
 // Roostack runs, the wizard without restarting. If the file can't be
 // read, it's fallback's.
 func NameAt(path string, fallback Lab) func() string {

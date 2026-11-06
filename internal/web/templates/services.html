@@ -7,6 +7,10 @@
   </div>
   {{if .CanManage}}<div class="page-head-actions"><a class="button" href="/catalog">Add a service</a></div>{{end}}
 </div>
+{{/* Installed, or removed with their data kept (removed.go), once there
+     are any. */}}
+{{if .RemovedCount}}<nav class="period-choice view-choice" aria-label="Which services"><a href="/services"{{if not .ShowRemoved}} aria-current="true"{{end}}>Installed · {{len .Services}}</a><a href="/services?removed=1#removed"{{if .ShowRemoved}} aria-current="true"{{end}}>Removed, data kept · {{.RemovedCount}}</a></nav>{{end}}
+{{if .ShowRemoved}}{{template "services-removed" .}}{{else}}
 {{with .BuildActivity}}
 <section class="card section">
   <h2>Roostack's web proxy</h2>
@@ -23,6 +27,56 @@
   {{activity .}}
 </section>
 {{end}}
+{{end}}
+{{end}}
+
+{{/* Removed services' data (SPEC.md §8.1, "Data left by removed
+     services"): Install again for those who manage services, Delete for
+     Owners, in a modal dialog that loads when its backups were made as it
+     opens (data-load). */}}
+{{define "services-removed"}}
+<section class="card section" id="removed">
+  <div class="card-head"><h2>Removed, with their data kept</h2></div>
+  {{with .Deleted}}{{notice "ok" (printf "Deleted %s's data." .)}}{{end}}
+  <p class="hint">Removing a service keeps its data, so that installing it again will carry on where it left off. Delete it here once you're sure you won't want it back.</p>
+  {{if .Removed}}
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Service</th><th class="hide-phone">Was on</th><th class="hide-phone">Removed</th><th>Data</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {{range .Removed}}
+      <tr>
+        <td><div class="list-name"><span class="logo-tile">{{with .Logo}}<img src="{{.}}" alt="" width="40" height="40" loading="lazy">{{else}}{{icon "folder"}}{{end}}</span><div>
+          {{- if .Known}}{{.Title}}<small>{{.Package}} {{.AppVersion}}</small>{{else}}<code>{{.Name}}</code><small>Removed before Roostack kept a record of what it was</small>{{end}}</div></div></td>
+        <td class="hide-phone">{{.Server}}</td>
+        <td class="hide-phone">{{if .Known}}{{date .At}}{{with .By}}, by {{.}}{{end}}{{else}}<span class="hint">Not known</span>{{end}}</td>
+        <td>{{if ge .Size 0}}{{size .Size}}{{else}}<span class="hint">Counting…</span>{{end}}</td>
+        <td class="removed-actions">{{if .CanInstall}}<a class="table-action" href="/install/{{.Package}}?{{installAgain .Name .Title .ServerID}}">Install again<span class="sr-only"> {{.Label}}</span></a>{{end}}
+          {{- if $.IsOwner}} <a class="table-action danger-link" href="/services?removed=1&amp;delete={{.DialogID}}#removed" data-dialog="{{.DialogID}}" data-load="#{{.DialogID}}-body">Delete…<span class="sr-only"> {{.Label}}'s data</span></a>{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table></div>
+  <p class="hint">Sizes are counted once a day, after the nightly backup. Copies that restores and moves kept are on <a href="/servers">Servers</a>.</p>
+  {{else}}<p>Nothing is left: every removed service's data has been deleted.</p>{{end}}
+</section>
+{{if .IsOwner}}{{range .Removed}}
+<dialog class="dialog form-dialog" id="{{.DialogID}}" aria-labelledby="{{.DialogID}}-title"{{if eq $.OpenDelete .DialogID}} open{{end}}>
+  <div class="dialog-head"><h2 id="{{.DialogID}}-title">Delete {{.Label}}'s data?</h2>
+    <a class="icon-button" href="/services?removed=1#removed" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
+  <div class="dialog-body"><div id="{{.DialogID}}-body">
+  <form method="post" action="/services/removed/{{.ServerID}}/{{.Name}}/delete">
+    <p>Roostack will delete these folders on {{.Server}} for good, with everything in them{{if ge .Size 0}} ({{size .Size}}){{end}}:</p>
+    <ul>{{range .Dirs}}<li><code>{{.}}</code></li>{{end}}</ul>
+    <p>The passwords and keys Roostack kept for it will go too, so installing it again will start afresh.</p>
+    {{if eq $.OpenDelete .DialogID}}<p class="hint">{{if .Backups}}{{.Backups}} {{if eq .Backups 1}}backup still has{{else}}backups still have{{end}} it, the oldest from {{date .Oldest}}: you could restore it from one of them until they're pruned.
+      {{- else}}No backup has it.{{end}}</p>
+    {{else}}<p class="hint">Backups made before now will still have it until they're pruned.</p>{{end}}
+    <label class="check"><input type="checkbox" name="sure" required><span>I understand that this can't be undone</span></label>
+    <div class="dialog-actions"><button type="submit" class="danger">Delete for good</button><a class="button secondary" href="/services?removed=1#removed" data-close>Keep it</a></div>
+  </form>
+  </div></div>
+</dialog>
+{{end}}{{end}}
 {{end}}
 
 {{define "services-live"}}

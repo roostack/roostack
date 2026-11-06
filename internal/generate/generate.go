@@ -772,6 +772,7 @@ func (g *gen) caddySite() error {
 			MaxBodySize:    r.MaxBodySize,
 			ClientIPHeader: r.ClientIPHeader,
 			Wall:           g.ssoWall(name),
+			Off:            g.inst.Off != nil,
 		}
 		if g.sso && g.pkg.SSORoute() == name {
 			g.out.SSO = true

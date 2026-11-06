@@ -37,9 +37,10 @@ type settingsArea struct {
 }
 
 var settingsAreas = []settingsArea{
-	{"lab", "Lab", "Lab name", "/settings/lab"},
+	{"look", "Lab", "Name and look", "/settings/look"},
 	{"history", "Lab", "History", "/settings/history"},
 	{"people", "People and access", "People", "/settings/people"},
+	{"sign-in", "People and access", "Single sign-on", "/settings/sign-in"},
 	{"email", "People and access", "Email", "/settings/email"},
 	{"domain", "Network", "Your lab's address", "/settings/domain"},
 	{"home-network", "Network", "Where it is and DNS", "/settings/home-network"},
@@ -58,8 +59,10 @@ var settingsAreas = []settingsArea{
 // Icon is the area's icon in the sidebar (icons.go).
 func (a settingsArea) Icon() string {
 	switch a.ID {
-	case "lab":
+	case "look":
 		return "tag"
+	case "sign-in":
+		return "sign-in"
 	case "history":
 		return "history"
 	case "people":
@@ -216,7 +219,11 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 			set("updates", "Updates install every night after the backup", "")
 		}
 	}
-	set("lab", s.labName(), "")
+	set("look", s.lookSummary(r.Context()), "")
+	if s.SignIn != nil && s.SSO != nil {
+		on := len(s.SSO.SSOClients())
+		set("sign-in", fmt.Sprintf("On for %d %s", on, map[bool]string{true: "service", false: "services"}[on == 1]), "")
+	}
 	if servers, err := s.Manager.Servers(); err == nil {
 		summary, level := fmt.Sprintf("%d servers", len(servers)), "ok"
 		if len(servers) == 1 {
@@ -269,12 +276,18 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // settingsGroups are this lab's settings areas: Roostack Cloud only
-// while it's in use.
+// while it's in use, and single sign-on only with the sign-in page.
 func (s *Server) settingsGroups() []settingsGroup {
+	var hide []string
 	if s.Cloud == nil {
-		return settingsGroups("cloud")
+		hide = append(hide, "cloud")
 	}
-	return settingsGroups()
+	// Single sign-on only where the lab serves the sign-in page (the
+	// controller, which always does in a running Roostack).
+	if s.SignIn == nil || s.SSO == nil {
+		hide = append(hide, "sign-in")
+	}
+	return settingsGroups(hide...)
 }
 
 // withArea marks a page as a settings area, so the sidebar marks it.
@@ -400,7 +413,10 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		keptBy[mc.ID] = list
 	}
 	data["Kept"] = keptBy
-	// Each server's disk space, asked of each at once.
+	// Each server's disk space, asked of each at once, and its memory
+	// and CPU meanwhile.
+	var usage map[string]serverUsage
+	wg.Go(func() { usage = s.serverUsages(r, s.serverNodes()) })
 	spaces := make([]*serverDisks, len(servers))
 	for i, mc := range servers {
 		if n := s.Manager.NodeByID(mc.ID); n != nil {
@@ -413,6 +429,7 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		spaceBy[mc.ID] = spaces[i]
 	}
 	data["Spaces"] = spaceBy
+	data["Usage"] = usage
 	if s.Network != nil {
 		endpoint, _ := s.Store.Setting(r.Context(), endpointKey)
 		if v, ok := extra["Endpoint"].(string); ok {

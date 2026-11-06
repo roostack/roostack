@@ -78,6 +78,13 @@ var pausedPage = Page{503, "asleep", "Resting its wings.",
 	"{service} is closed to visitors from the internet for a while. Its owner will open it again soon. " +
 		"If you're at home, it's working as usual."}
 
+// offPage is what anyone reaching a service someone turned off sees
+// (SPEC.md §6.3.5): 503.html shows it when the
+// route set caddy.OffVar. No "Try again": it's off until someone turns it
+// on, and like the paused page it doesn't name the lab.
+var offPage = Page{503, "asleep", "Turned off for now.",
+	"{service} has been turned off for a while, and it will be back when its owner turns it on again. Nothing in it has been lost."}
+
 // CaddyPages are the files of the services' error pages, by file name, for
 // /etc/caddy/errors (Caddy's handle_errors serves <status>.html, or
 // error.html). They're Caddy templates: the service's title, whether it's
@@ -95,7 +102,8 @@ func CaddyPages(labName, ui string) map[string]string {
 		out[name] = caddyPage(p, labName, ui)
 	}
 	out["403.html"] = refusedPage()
-	out["503.html"] = `{{if eq (placeholder "http.vars.` + caddy.BlockedVar + `") "yes"}}` + publicPage(pausedPage) +
+	out["503.html"] = `{{if eq (placeholder "http.vars.` + caddy.OffVar + `") "yes"}}` + publicPage(offPage) +
+		`{{else if eq (placeholder "http.vars.` + caddy.BlockedVar + `") "yes"}}` + publicPage(pausedPage) +
 		`{{else}}` + out["503.html"] + `{{end}}`
 	return out
 }

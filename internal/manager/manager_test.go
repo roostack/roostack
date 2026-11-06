@@ -205,6 +205,33 @@ func TestInstallAndRemove(t *testing.T) {
 		t.Errorf("immich instance: %+v", im)
 	}
 
+	// Turned off for a while, only its network stays; turned on, it's
+	// back (SPEC.md §6.3.5).
+	container := filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")
+	if err := m.SetOff(ctx, "vaultwarden", true, "sam"); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if vw, _ := instance.Load(state.InstanceFile(m.Lab, "vaultwarden")); vw.Off == nil || vw.Off.By != "sam" {
+		t.Errorf("turned off: %+v", vw.Off)
+	}
+	if _, err := os.Stat(container); !os.IsNotExist(err) {
+		t.Error("turned off, its container's file is still there")
+	}
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-vaultwarden.network")); err != nil {
+		t.Errorf("turned off, its network goes: %v", err)
+	}
+	if u := m.AvailableUpdates(ctx)["vaultwarden"]; u != nil && !strings.Contains(u.Blocked, "Turn") {
+		t.Errorf("an update of a service turned off isn't blocked: %+v", u)
+	}
+	if err := m.SetOff(ctx, "vaultwarden", false, "sam"); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if _, err := os.Stat(container); err != nil {
+		t.Errorf("turned on, its container's file isn't back: %v", err)
+	}
+
 	// Remove keeps the data.
 	os.MkdirAll(filepath.Join(m.Lab.Paths.ServicesDir, "vaultwarden", "data"), 0o755)
 	if err := m.Remove(ctx, "vaultwarden"); err != nil {
