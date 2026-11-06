@@ -12,6 +12,7 @@ import (
 
 	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
@@ -46,6 +47,27 @@ const (
 type StatusPageSwitch interface {
 	StatusPageOn() bool
 	SetStatusPage(on bool) error
+	// StatusPageProgress is how turning it on or off is going.
+	StatusPageProgress() manager.StatusPageProgress
+}
+
+// statusNoticeFor is how long the card says the page was turned on or off.
+const statusNoticeFor = 10 * time.Minute
+
+// statusStage is where turning the status page on or off has got to, for
+// its card (SPEC.md §6.15, "While it's being turned on"): "applying"
+// until Caddy serves it as switched, "failed" if the apply failed
+// meanwhile, then "done" for a while, or "" for nothing to say.
+func statusStage(p manager.StatusPageProgress) string {
+	switch {
+	case p.Applying && p.Failed != "":
+		return "failed"
+	case p.Applying:
+		return "applying"
+	case !p.Applied.IsZero() && time.Since(p.Applied) < statusNoticeFor:
+		return "done"
+	}
+	return ""
 }
 
 // statusPageOn says whether the public status page is on.
@@ -299,6 +321,10 @@ func (s *Server) renderMonitoring(w http.ResponseWriter, r *http.Request, formEr
 		data["StatusHost"] = s.statusHost()
 	}
 	data["StatusOn"] = s.statusPageOn()
+	if s.StatusPage != nil {
+		p := s.StatusPage.StatusPageProgress()
+		data["StatusStage"], data["StatusProgress"] = statusStage(p), p
+	}
 	data["StatusChoices"] = s.statusChoices(ctx, append(slices.Clone(services), own...))
 	data["FormError"], data["Form"] = formErr, form
 	// The add form's dialog opens with a mistake to fix, or from ?add=check

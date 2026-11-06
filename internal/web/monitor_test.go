@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -131,10 +133,16 @@ func TestMonitoringOwnChecks(t *testing.T) {
 }
 
 // fakeStatusPage is the manager's status page switch.
-type fakeStatusPage struct{ on bool }
+type fakeStatusPage struct {
+	on       bool
+	progress manager.StatusPageProgress
+}
 
 func (f *fakeStatusPage) StatusPageOn() bool          { return f.on }
 func (f *fakeStatusPage) SetStatusPage(on bool) error { f.on = on; return nil }
+func (f *fakeStatusPage) StatusPageProgress() manager.StatusPageProgress {
+	return f.progress
+}
 
 // The Owner turns the status page on and chooses what it shows; the page
 // written shows just that, without addresses. Turning monitoring off
@@ -232,5 +240,44 @@ func TestServiceUptimeCard(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("the service's page lacks %q", want)
 		}
+	}
+}
+
+// While the status page is being turned on its card says Roostack is
+// applying it, polling, or why the apply failed, then that it's live, for
+// a while (SPEC.md §6.15, "While it's being turned on").
+func TestStatusPageProgressCard(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	up := true
+	withMonitor(h, &up)
+	sp := h.server.StatusPage.(*fakeStatusPage)
+	sp.on = true
+	const poll = `hx-select="#status-progress"`
+	for _, c := range []struct {
+		name  string
+		p     manager.StatusPageProgress
+		want  string
+		polls bool
+	}{
+		{"applying", manager.StatusPageProgress{Applying: true}, "Turning the page on…", true},
+		{"failed", manager.StatusPageProgress{Applying: true, Failed: "pulling an image: no space left"}, "pulling an image: no space left", true},
+		{"done", manager.StatusPageProgress{Applied: time.Now().Add(-time.Minute)}, "The page is on.", false},
+		{"long done", manager.StatusPageProgress{Applied: time.Now().Add(-time.Hour)}, "", false},
+	} {
+		sp.progress = c.p
+		_, body := h.get("/monitoring")
+		if c.want != "" && !strings.Contains(body, c.want) {
+			t.Errorf("%s: missing %q", c.name, c.want)
+		}
+		if strings.Contains(body, poll) != c.polls {
+			t.Errorf("%s: polling %v", c.name, !c.polls)
+		}
+		if c.want == "" && (strings.Contains(body, "The page is on.") || strings.Contains(body, "Turning the page")) {
+			t.Errorf("%s: still says something", c.name)
+		}
+	}
+	sp.on, sp.progress = false, manager.StatusPageProgress{Applying: true}
+	if _, body := h.get("/monitoring"); !strings.Contains(body, "Turning the page off…") {
+		t.Error("turning off: no notice")
 	}
 }

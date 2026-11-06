@@ -3,7 +3,9 @@ package manager
 import (
 	"context"
 	"testing"
+	"time"
 
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/systemd"
 )
 
@@ -45,5 +47,42 @@ func TestMonitorChecks(t *testing.T) {
 	m.Lab.Domain = ""
 	if checks := m.MonitorChecks(ctx); len(checks) != 0 {
 		t.Errorf("without an address: %+v", checks)
+	}
+}
+
+// Turning the status page on, as its card sees it (SPEC.md §6.15, "While
+// it's being turned on"): applying until an apply has carried the switch
+// to Caddy, then when it did; nothing before Roostack's first apply.
+func TestStatusPageProgress(t *testing.T) {
+	t.Parallel()
+	m, _ := newManager(t)
+	if p := m.StatusPageProgress(); p.Applying || !p.Applied.IsZero() {
+		t.Fatalf("before any apply: %+v", p)
+	}
+	m.mu.Lock()
+	m.startApplyLocked("Starting")
+	m.mu.Unlock()
+	m.Wait()
+	if p := m.StatusPageProgress(); p.Applying || !p.Applied.IsZero() {
+		t.Fatalf("after the first apply: %+v", p)
+	}
+
+	// Switched on in lab.yaml, its apply not yet run.
+	m.mu.Lock()
+	if err := m.saveLab(func(l *config.Lab) { l.Monitoring.StatusPage = true }); err != nil {
+		t.Fatal(err)
+	}
+	m.mu.Unlock()
+	if p := m.StatusPageProgress(); !p.Applying || p.Failed != "" {
+		t.Fatalf("switched on: %+v", p)
+	}
+
+	before := time.Now()
+	m.mu.Lock()
+	m.startApplyLocked("Turning the public status page on")
+	m.mu.Unlock()
+	m.Wait()
+	if p := m.StatusPageProgress(); p.Applying || p.Applied.Before(before) {
+		t.Errorf("applied: %+v", p)
 	}
 }

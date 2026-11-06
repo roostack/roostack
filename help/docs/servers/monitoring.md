@@ -72,6 +72,11 @@ your home network aren't: showing them would tell everyone you run them.
 The page is a plain file Roostack writes every minute; nothing on it runs
 code.
 
+Once you turn it on, the card will say while Roostack is adding the
+page's address, and then that it's live. If another change is still going
+(a service installing), this one will wait for it, so the address may say
+nobody roosts there for a minute or two.
+
 ## Turning it off
 
 **Turn monitoring off**, at the bottom of the page, will stop the checks

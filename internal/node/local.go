@@ -299,6 +299,9 @@ type Local struct {
 	// ssoApplied is single sign-on as the last successful apply left
 	// each service (noteSSOApplied), nil until the first.
 	ssoApplied map[string]ssoApplied
+	// statusApplied is the public status page as the last successful
+	// apply left Caddy (noteStatusPage).
+	statusApplied StatusPageApplied
 	// hooksCancel stops a service's running setup, when the service is
 	// removed or installed afresh meanwhile (errSetupStopped).
 	hooksCancel map[string]context.CancelCauseFunc
@@ -720,6 +723,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		}
 	}
 	n.noteSSOApplied(ctx, a)
+	n.noteStatusPage(a)
 	act.Step("All changes applied")
 	return nil
 }
