@@ -44,7 +44,9 @@ type ssoCard struct {
 	On        bool
 	// Wall: behind forward auth; otherwise an OIDC app.
 	Wall bool
-	Note string
+	// Required: the app has no sign-in of its own, so it can't be turned off.
+	Required bool
+	Note     string
 	// AppAdmins: the app makes the lab's Owners and Admins its admins;
 	// Existing is what it does with an account it already has (the
 	// package's sso.oidc.admins and existing_accounts). The card claims
@@ -162,7 +164,7 @@ func (s *Server) ssoCardFor(r *http.Request, name string, p *pkgspec.Package) *s
 	}
 	ctx := r.Context()
 	u := currentUser(r)
-	c := &ssoCard{Name: name, Title: p.Title, Note: p.SSO.Note, Wall: p.SSO.ForwardAuth != nil, SignInHost: s.SignInHost,
+	c := &ssoCard{Name: name, Title: p.Title, Note: p.SSO.Note, Wall: p.SSO.ForwardAuth != nil, Required: p.RequiresSSO(), SignInHost: s.SignInHost,
 		CanChoose: u != nil && u.Role == auth.RoleOwner, ClientID: name}
 	if o := p.SSO.OIDC; o != nil {
 		c.AppAdmins, c.Existing = o.Admins, o.ExistingAccounts

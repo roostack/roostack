@@ -743,6 +743,10 @@
       ]
      },
      {
+      "name": "required",
+      "type": "bool"
+     },
+     {
       "name": "env",
       "type": "map",
       "item": {
@@ -2047,6 +2051,11 @@
    "label": "Where signing in starts",
    "help": "Where on that address opening a link makes the app start signing in through the lab, so that someone already signed in on the lab's sign-in page lands signed in to the app. The sign-in page and Roostack's dashboard link there while single sign-on is on; left out, they link to the app's front page, where it shows its own button. A path with an optional query and fragment, which may use .SSO like the callback paths.",
    "example": "/oauth-login",
+   "link": "reference/packages#the-parts"
+  },
+  "sso.required": {
+   "label": "Requires single sign-on",
+   "help": "On for an app with no sign-in of its own, which nobody could use otherwise. Single sign-on is then always on, the Owner can't turn it off, and the service must run where single sign-on works.",
    "link": "reference/packages#the-parts"
   },
   "sso.secret_env": {

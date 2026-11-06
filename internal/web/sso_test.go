@@ -812,3 +812,23 @@ func TestInstallWithSSO(t *testing.T) {
 		t.Error("a package without single sign-on has the tick")
 	}
 }
+
+// A package requiring single sign-on has no tick on its install form, only
+// a sentence, and its card has no way to turn it off (SPEC.md §5.2).
+func TestRequiredSSOPages(t *testing.T) {
+	h, fm := loggedIn(t, "owner")
+	fm.requiresSSO = true
+	fs := &fakeSSO{on: map[string]bool{"forgejo": true}}
+	withSignIn(t, h, fs)
+	_, body := h.get("/install/forgejo")
+	if strings.Contains(body, `name="sso"`) || !strings.Contains(body, "has no sign-in of its own") {
+		t.Errorf("the install form:\n%s", body)
+	}
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "forgejo", Title: "Forgejo", Status: "running", Package: "forgejo", URLs: []string{"https://git.lab.example.com"}}}, nil
+	}
+	_, body = h.get("/services/forgejo")
+	if strings.Contains(body, "Turn off single sign-on") || !strings.Contains(body, "single sign-on stays on") {
+		t.Errorf("the card:\n%s", body)
+	}
+}

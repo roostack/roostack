@@ -520,8 +520,13 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 	if m.node(host) == nil {
 		return nil, "", usererr.New("Choose which server will run %s.", p.Title)
 	}
+	// A package requiring single sign-on can't run where it doesn't work;
+	// the summary, while the form is being filled in, goes on without it.
+	if why := m.ssoRequiredProblem(p, host); why != "" && !lenient {
+		return nil, "", usererr.New("%s", why)
+	}
 	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
-		Settings: map[string]any{}, SSO: req.SSO && m.ssoAtInstall(p, host)}
+		Settings: map[string]any{}, SSO: (req.SSO || p.RequiresSSO()) && m.ssoAtInstall(p, host)}
 	title, err := checkTitle(req.Title, p)
 	if err != nil {
 		return nil, "", err

@@ -98,6 +98,9 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	if to == from {
 		return usererr.New("%s is already running there.", p.Title)
 	}
+	if why := m.ssoRequiredProblem(p, to); why != "" {
+		return usererr.New("%s", why)
+	}
 	if err := m.checkArch(ctx, p, cmp.Or(in.Title, p.Title), to); err != nil {
 		return err
 	}

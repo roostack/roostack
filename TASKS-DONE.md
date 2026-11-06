@@ -560,6 +560,8 @@ The review of 2026-10-16 found no CI for either Go repository.
 
 ## Single sign-on: what's next (SPEC §5.2)
 
+- [x] An app with no sign-in of its own: `sso.required` (2026-11-06, SPEC §5.2), for Outline: always on, no way to turn it off, refused where it can't work
+
 - [x] Run the OpenID Foundation's conformance suite (Basic OP and Config OP plans) against the provider before a release (2026-10-20: both pass with no failures after fixing `auth_time`, `prompt=login`/`max_age`, POST to `/authorize` and revoking a reused code's tokens; claims now follow scopes, the Owner's choice; five deliberate warnings; SPEC §5.2, docs/ASSUMPTIONS.md V7)
 - [x] Connecting the remaining apps (SPEC §5.2, decided by the Owner 2026-10-20, built the same day): the `on: sso` hook (Forgejo), a key the app makes kept from a hook's output (`from_hook`, `saves`, a Connect action; Immich), and `sso.secret_env` for a secret inside JSON (Paperless-ngx); hook output scrubbed of secrets; the client secret deleted once it's off; the sign-in page says when an app's single sign-on is off. Registry packages on roostack-services' `claude/sso-enablement`
 - [x] Gitea (as Forgejo), Audiobookshelf and Wiki.js (as Immich), Papra (as Paperless-ngx) in the registry (2026-10-20, roostack-services' `claude/sso-more-apps`; the Owner chose read-and-edit for Wiki.js and single sign-on only for Papra; SPEC §5.2, docs/ASSUMPTIONS.md V11–V14)

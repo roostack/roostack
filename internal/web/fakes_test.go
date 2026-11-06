@@ -122,6 +122,8 @@ func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns 
 
 // fakeCatalog is the catalog and the installed services (ServiceCatalog).
 type fakeCatalog struct {
+	// requiresSSO: packages have no sign-in of their own (sso.required).
+	requiresSSO bool
 	// summaries are the install summaries asked for.
 	summaries []manager.InstallRequest
 	// serverMemory is the install summary's server (nuc, 3.6 GB free of 8
@@ -191,7 +193,11 @@ func (f *fakeCatalog) Package(name string) (*pkgspec.Package, error) {
 	if name != "immich" && name != "vaultwarden" && name != "forgejo" && name != "pingvin-share-x" {
 		return nil, manager.ErrNotFound
 	}
-	return pkgspec.Load(pkgtest.File(name))
+	p, err := pkgspec.Load(pkgtest.File(name))
+	if err == nil && f.requiresSSO && p.SSO != nil {
+		p.SSO.Required = true
+	}
+	return p, err
 }
 
 func (f *fakeCatalog) ServicePackage(name string) (*pkgspec.Package, error) { return f.Package(name) }
