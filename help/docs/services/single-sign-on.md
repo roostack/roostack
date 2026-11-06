@@ -138,7 +138,7 @@ services.
 - **Members** stay signed in to Roostack's pages for as long as their
   sign-in lasts.
 - **Owners and Admins** will still be signed out of Roostack's pages after
-  the time chosen under **Settings → People → Signing in** without using
+  the time chosen under **Settings → People → Signing in to Roostack** without using
   them (30 minutes unless you change it), since those pages can change the
   whole lab. They'll then enter their **two-factor code** on the sign-in
   page (an Admin without two-factor, their password) and carry on; their

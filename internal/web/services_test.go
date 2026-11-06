@@ -1627,7 +1627,7 @@ func TestServicesAskedForOnlyWhereShown(t *testing.T) {
 	// A page that doesn't show them works when they can't be listed.
 	h.server.Services = func(context.Context) ([]ServiceView, error) { return nil, errors.New("a server didn't answer") }
 	if code, _ := h.get("/settings/lab"); code != http.StatusOK {
-		t.Errorf("Settings → Lab name without the services: %d", code)
+		t.Errorf("Settings → Name and look without the services: %d", code)
 	}
 }
 
