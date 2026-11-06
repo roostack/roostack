@@ -58,6 +58,33 @@ you change the address; meanwhile the backups will still work.
     servers to the backup store port (TCP 8000) only, on Roostack's network
     only; its firewall drops everything else.
 
+## Cleaning up a server
+
+Each server's card has **Clean up**, for what takes space there that no
+service needs:
+
+- **Old versions of services:** each update downloads the service's new
+  version and keeps the one before so that Roostack can go back if the
+  new one doesn't work. Earlier ones, and those of removed services, are
+  listed with their sizes; tick the ones to delete. The version before
+  each service's last update will be kept for a week and isn't listed.
+- **Data from removed services** and **kept copies**, which have their
+  own lists (Services → Removed, data kept, and the server's card).
+- **Roostack's own** leftovers from building its web proxy.
+
+**By itself**, which is on unless you turn it off, Roostack will delete
+old versions of services a week after nothing uses them, every night
+after the backup, and History will say what it deleted.
+
+??? note "For technical users"
+
+    Images are listed with `podman images` and deleted with `podman image
+    rm`, as the `roostack` user. An image is in use while a container uses
+    it, a Quadlet file in `~roostack/.config/containers/systemd/` names
+    it, or an installed service's package names it (a turned-off service
+    keeps its images). When each image was last named is kept in the
+    server's settings (`images.seen`).
+
 ## Renaming or removing a server
 
 Under **Rename or remove** on a server's card:

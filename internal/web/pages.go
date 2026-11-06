@@ -116,7 +116,7 @@ func navTab(page string) string {
 		"cloud-open": "settings", "cloud-linked": "settings",
 		// Servers is a main area (docs/DESIGN.md "Layout"), though its pages
 		// are still under /settings.
-		"settings-servers": "servers", "settings-server-gone": "servers", "settings-server-unreachable": "servers",
+		"settings-servers": "servers", "settings-server-gone": "servers", "settings-server-unreachable": "servers", "settings-cleanup": "servers",
 		"setup-restore": "", "setup-joined": "", // first run, before anyone is logged in
 		"error": "", // any page's error (errors.go)
 	}[page]; ok {

@@ -88,6 +88,8 @@ type Node interface {
 	Disks() Disks
 	Memory() Memory
 	LeftData() LeftData
+	// CleanUp lists and deletes images nothing uses (images.go).
+	CleanUp() CleanUp
 	History() History
 	// Linked reports its direct links to other servers and GuestHost
 	// keeps other labs' backups (guesthost.go); Processor says what kind
@@ -727,6 +729,9 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	}
 	n.noteSSOApplied(ctx, a)
 	n.noteStatusPage(a)
+	// When each image was last named, so that one an update replaced is
+	// kept a week for going back (images.go).
+	n.noteImagesInUse(ctx)
 	act.Step("All changes applied")
 	return nil
 }

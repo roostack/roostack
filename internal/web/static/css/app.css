@@ -1118,6 +1118,8 @@ h1 + .area-heading { margin-top: 0; }
 /* ---------- Statistics (Visitors through the relay) ---------- */
 /* A row of choices for how far back (links; the current one marked). */
 .period-choice { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+/* A server's card links to cleaning it up (cleanup.go). */
+.clean-up-link { margin: var(--space-2) 0 0; }
 /* Which services Services lists: installed, or removed with their data
    kept (removed.go). */
 .view-choice { margin-bottom: var(--space-4); }

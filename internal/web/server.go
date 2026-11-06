@@ -391,8 +391,10 @@ type ServiceNode interface {
 	Disks() node.Disks
 	// Memory: its memory and CPU, for Home (nil if it can't say).
 	Memory() node.Memory
-	// LeftData: removed services' data on it (removed.go).
+	// LeftData: removed services' data on it (removed.go); CleanUp: images
+	// nothing uses (cleanup.go).
 	LeftData() node.LeftData
+	CleanUp() node.CleanUp
 	History() node.History
 }
 
@@ -504,7 +506,7 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "local-editor", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
-		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-look", "settings-sign-in",
+		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-look", "settings-sign-in", "settings-cleanup",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
 		"import", "import-folders", "photos", "photos-home", "photos-folders", "pause", "pause-close"} {
@@ -698,6 +700,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	s.lookRoutes(mux)
 	s.signInRoutes(mux)
 	s.removedRoutes(mux)
+	s.cleanUpRoutes(mux)
 	mux.Handle("GET /backups/recovery-key", s.requireOwner(s.recoveryKeyShowPage))
 	mux.Handle("POST /backups/recovery-key", s.requireOwner(s.recoveryKeyShowSubmit))
 	mux.Handle("GET /backups/recovery-key/change", s.requireOwner(s.keyChangePage))

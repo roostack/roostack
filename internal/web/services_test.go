@@ -1701,3 +1701,39 @@ func TestRemovedServicesData(t *testing.T) {
 		t.Error("its data wasn't deleted after removing it")
 	}
 }
+
+// A server's Clean up page (SPEC.md §6.7, "Cleaning up"): old versions of
+// services by what they were, Roostack's own leftovers, links to removed
+// services' data and kept copies, deleting what's chosen, and the nightly
+// clean-up's switch. Servers links to it.
+func TestCleanUpPage(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	day := time.Date(2026, 10, 21, 9, 0, 0, 0, time.Local)
+	fm.cleanUp = &fakeCleanUp{report: node.CleanUpReport{AutoClean: true,
+		Old: []node.ImageInfo{
+			{ID: "sha256:a", Names: []string{"docker.io/vaultwarden/server:1.33.0"}, Size: 300 * units.MB, Kind: node.ImageService, Service: "vaultwarden", Version: "1.33.0-roostack.1", LastUsed: day},
+			{ID: "sha256:b", Names: []string{"docker.io/library/nginx:1"}, Size: 50 * units.MB, Kind: node.ImageService},
+			{ID: "sha256:c", Size: 96 * units.MB, Kind: node.ImageOwn},
+		},
+		Kept: []node.ImageInfo{{ID: "sha256:k", Kind: node.ImageService, Service: "vaultwarden", Version: "1.34.0-roostack.1", KeptUntil: day.AddDate(0, 0, 20)}},
+	}}
+	if _, body := h.get("/servers"); !strings.Contains(body, `href="/settings/servers/n-0123456789/clean-up">Clean up nuc…`) {
+		t.Error("Servers doesn't link to cleaning up")
+	}
+	_, body := h.get("/settings/servers/n-0123456789/clean-up")
+	for _, want := range []string{"<h1>Clean up nuc</h1>", "Vaultwarden 1.33.0", "Vaultwarden, until 21 October 2026", "300.0 MB",
+		"docker.io/library/nginx", "Not known: from before Roostack noted it", "Kept for going back, so not listed: Vaultwarden 1.34.0 until 10 November 2026",
+		"Delete them · 96.0 MB", `name="on" checked`, `<a href="/servers">Servers</a><a href="/servers#server-n-0123456789">nuc</a>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Clean up lacks %q", want)
+		}
+	}
+	_, body = h.post("/settings/servers/n-0123456789/clean-up/remove", url.Values{"id": {"sha256:a", "sha256:k"}}, h.srv.URL)
+	if !slices.Equal(fm.cleanUp.removed, []string{"sha256:a"}) || !strings.Contains(body, "Deleted 1 image, freeing up to 300.0 MB.") {
+		t.Errorf("removed %v", fm.cleanUp.removed)
+	}
+	h.post("/settings/servers/n-0123456789/clean-up/auto", url.Values{}, h.srv.URL)
+	if fm.cleanUp.report.AutoClean {
+		t.Error("the nightly clean-up is still on")
+	}
+}

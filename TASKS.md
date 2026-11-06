@@ -312,7 +312,7 @@ From using `lab.grahamhq.com`. Fixed on Roostack's branch `claude/lab-notes-1106
 - [x] **The sign-in page's logo:** up to six times as wide and 80 px high, sized from its file so it scales down without gaps (SPEC §5.2)
 - [ ] **Turning a service off for a while** (proposed with mock-ups)
 - [x] **Data left by removed services:** Services → Removed, data kept, with Install again and Delete (a modal), and Delete its data too when removing (SPEC §8.1, "Data left by removed services")
-- [ ] **Storage clean-up:** old images and other leftovers, and deleting them (proposed with mock-ups)
+- [x] **Storage clean-up:** each server's Clean up page, and old versions of services deleted every night a week after nothing uses them (SPEC §6.7, "Cleaning up")
 - [x] **Single sign-on's own Settings page**, with a card on People (SPEC §5.2, "Single sign-on's own page")
 - [x] **Name and look:** the lab's name, logo and colours on one page, used by the sign-in page, the status page, Roostack's sidebar, its tab icon, and its default theme (SPEC §5.2, "The lab's name and look")
 - [ ] The registry's whole-index check fails on HedgeDoc 1.12.1-roostack.2: quay.io answers 404 for its pinned image again (found 2026-11-06, as with 1.12.0 on 2026-10-23)

@@ -101,6 +101,7 @@ var (
 	rtEvents   = []store.Event{{ID: 7, Started: rtAt, Finished: rtAt, Kind: "backup", Title: "Backed up", Status: "ok"}}
 	rtMemory   = MemoryInfo{Total: 8_000_000_000, Available: 3_000_000_000}
 	rtUsage    = Usage{Memory: rtMemory, CPUs: 4, CPUBusy: 37}
+	rtCleanUp  = CleanUpReport{Old: []ImageInfo{{ID: "sha256:abc", Names: []string{"ghcr.io/x/y:1"}, Size: 99, Kind: ImageService, Service: "y", LastUsed: rtAt}}, AutoClean: true}
 	rtLeft     = []LeftService{{Name: "pingvin", Dirs: []string{"/srv/roostack/services/pingvin"}, Size: 1234, Counted: rtAt}}
 	rtWGStatus = agent.WireGuardStatus{Configured: true, PublicKey: "pk", Address: "100.103.66.1/24", Handshakes: map[string]int64{"a": 1}}
 
@@ -170,6 +171,7 @@ func (f rtNode) Updater() Updater     { return f }
 func (f rtNode) Disks() Disks         { return f }
 func (f rtNode) Memory() Memory       { return f }
 func (f rtNode) LeftData() LeftData   { return f }
+func (f rtNode) CleanUp() CleanUp     { return f }
 func (f rtNode) History() History     { return f }
 func (f rtNode) Linked() Linked       { return f }
 func (f rtNode) GuestHost() GuestHost { return f }
@@ -273,6 +275,18 @@ func (f rtNode) Usage(context.Context) (Usage, error) {
 func (f rtNode) LeftDataDirs(_ context.Context, s string) ([]string, error) {
 	f.rec("LeftDataDirs", s)
 	return []string{"/srv/old"}, nil
+}
+func (f rtNode) CleanUpReport(context.Context) (CleanUpReport, error) {
+	f.rec("CleanUpReport")
+	return rtCleanUp, nil
+}
+func (f rtNode) RemoveImages(_ context.Context, ids []string) (RemovedImages, error) {
+	f.rec("RemoveImages", ids)
+	return RemovedImages{Removed: 1, Freed: 99}, nil
+}
+func (f rtNode) SetAutoClean(_ context.Context, on bool) error {
+	f.rec("SetAutoClean", on)
+	return nil
 }
 func (f rtNode) LeftServices(context.Context) ([]LeftService, error) {
 	f.rec("LeftServices")
@@ -730,6 +744,9 @@ func TestRoundTrip(t *testing.T) {
 		{"Usage", func() (any, error) { return r.Usage(ctx) }, []rtCall{call("Usage")}, rtUsage},
 		{"LeftDataDirs", func() (any, error) { return r.LeftDataDirs(ctx, "immich") }, []rtCall{call("LeftDataDirs", "immich")}, []string{"/srv/old"}},
 		{"LeftServices", func() (any, error) { return r.LeftServices(ctx) }, []rtCall{call("LeftServices")}, rtLeft},
+		{"CleanUpReport", func() (any, error) { return r.CleanUpReport(ctx) }, []rtCall{call("CleanUpReport")}, rtCleanUp},
+		{"RemoveImages", func() (any, error) { return r.RemoveImages(ctx, []string{"sha256:abc"}) }, []rtCall{call("RemoveImages", []string{"sha256:abc"})}, RemovedImages{Removed: 1, Freed: 99}},
+		{"SetAutoClean", func() (any, error) { return nil, r.SetAutoClean(ctx, false) }, []rtCall{call("SetAutoClean", false)}, nil},
 		{"DeleteLeftData", func() (any, error) { return nil, r.DeleteLeftData(ctx, "pingvin") }, []rtCall{call("DeleteLeftData", "pingvin")}, nil},
 		{"HistoryPage", func() (any, error) { return r.HistoryPage(ctx, rtSince, "backup", 50) },
 			[]rtCall{call("HistoryPage", rtSince, "backup", 50)}, rtEvents},
@@ -811,7 +828,7 @@ func TestRoundTrip(t *testing.T) {
 	// Every method that goes over the wire has a row.
 	local := map[string]bool{"Identity": true, "Address": true, "Close": true, "Pending": true, "SetUpWaiting": true, "DataDirs": true,
 		"Backups": true, "Restores": true, "Updates": true, "Settings": true, "Media": true, "Imports": true,
-		"Mover": true, "Updater": true, "Disks": true, "Memory": true, "LeftData": true, "History": true,
+		"Mover": true, "Updater": true, "Disks": true, "Memory": true, "LeftData": true, "CleanUp": true, "History": true,
 		"Linked": true, "GuestHost": true, "Processor": true, "Photos": true}
 	for prefix, v := range map[string]any{"": r, "Backups.": remoteBackups{}, "Restores.": remoteRestores{},
 		"Updates.": remoteUpdates{}, "Settings.": remoteSettings{}, "Media.": remoteMedia{}, "Imports.": remoteImports{}} {
@@ -843,6 +860,7 @@ func (bareNode) Updater() Updater     { return nil }
 func (bareNode) Disks() Disks         { return nil }
 func (bareNode) Memory() Memory       { return nil }
 func (bareNode) LeftData() LeftData   { return nil }
+func (bareNode) CleanUp() CleanUp     { return nil }
 func (bareNode) History() History     { return nil }
 func (bareNode) Linked() Linked       { return nil }
 func (bareNode) GuestHost() GuestHost { return nil }
@@ -925,6 +943,7 @@ func TestRoundTripWithout(t *testing.T) {
 		"Usage":          func() error { _, err := r.Usage(ctx); return err },
 		"LeftDataDirs":   func() error { _, err := r.LeftDataDirs(ctx, "immich"); return err },
 		"DeleteLeftData": func() error { return r.DeleteLeftData(ctx, "immich") },
+		"CleanUpReport":  func() error { _, err := r.CleanUpReport(ctx); return err },
 		"HistoryPage":    func() error { _, err := r.HistoryPage(ctx, time.Time{}, "", 10); return err },
 		"HistoryEvent":   func() error { _, err := r.HistoryEvent(ctx, 1); return err },
 		"CullHistory":    func() error { _, err := r.CullHistory(ctx, rtSince); return err },

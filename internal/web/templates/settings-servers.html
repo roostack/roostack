@@ -68,7 +68,8 @@
     <dt>{{icon "disk"}}Disk{{with index $.Spaces .ID}}{{if gt (len .Disks) 1}}s{{end}}{{end}}</dt>
     <dd>{{with index $.Spaces .ID}}
       {{template "disks-live" .}}
-    {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}</dd>
+    {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}
+      <p class="clean-up-link"><a href="/settings/servers/{{.ID}}/clean-up">Clean up {{.Name}}…</a> <small class="hint">· old versions of services, and data from removed ones</small></p></dd>
     <dt>{{icon "location"}}Where</dt>
     <dd>
       <form method="post" action="/settings/servers/{{.ID}}/location" class="inline-form">

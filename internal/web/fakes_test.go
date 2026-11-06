@@ -1166,9 +1166,47 @@ type fakeNode struct {
 	usage *node.Usage
 	// left is removed services' data on it (none when nil), and
 	// deletedLeft the names whose data was deleted.
+	cleanUp     *fakeCleanUp
 	leftMu      sync.Mutex
 	left        []node.LeftService
 	deletedLeft []string
+}
+
+// fakeCleanUp is a server's images nothing uses, for its Clean up page.
+type fakeCleanUp struct {
+	report  node.CleanUpReport
+	removed []string
+}
+
+func (f *fakeCleanUp) CleanUpReport(context.Context) (node.CleanUpReport, error) {
+	return f.report, nil
+}
+func (f *fakeCleanUp) SetAutoClean(_ context.Context, on bool) error {
+	f.report.AutoClean = on
+	return nil
+}
+func (f *fakeCleanUp) RemoveImages(_ context.Context, ids []string) (node.RemovedImages, error) {
+	var out node.RemovedImages
+	for _, id := range ids {
+		for i, img := range f.report.Old {
+			if img.ID == id {
+				f.removed = append(f.removed, id)
+				out.Removed++
+				out.Freed += img.Size
+				f.report.Old = slices.Delete(f.report.Old, i, i+1)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// CleanUp is the server's images, when the test gives it some.
+func (f *fakeNode) CleanUp() node.CleanUp {
+	if f.cleanUp == nil {
+		return nil
+	}
+	return f.cleanUp
 }
 
 // wasDeleted reports whether a removed service's data was deleted.
