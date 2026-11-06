@@ -1722,7 +1722,7 @@ func TestCleanUpPage(t *testing.T) {
 	}
 	_, body := h.get("/settings/servers/n-0123456789/clean-up")
 	for _, want := range []string{"<h1>Clean up nuc</h1>", "Vaultwarden 1.33.0", "Vaultwarden, until 21 October 2026", "300.0 MB",
-		"docker.io/library/nginx", "Not known: from before Roostack noted it", "Kept for going back, so not listed: Vaultwarden 1.34.0 until 10 November 2026",
+		"docker.io/library/nginx", "Not known", "Kept for going back, so not listed: Vaultwarden 1.34.0 until 10 November 2026",
 		"Delete them · 96.0 MB", `name="on" checked`, `<a href="/servers">Servers</a><a href="/servers#server-n-0123456789">nuc</a>`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Clean up lacks %q", want)

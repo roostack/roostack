@@ -61,7 +61,7 @@ func (s *Server) ssoSummaryFor(r *http.Request) *ssoSummary {
 		return nil
 	}
 	ctx := r.Context()
-	v := &ssoSummary{Host: s.SignInHost, Remember: s.signInRememberDefault(ctx)}
+	v := &ssoSummary{Host: s.signInAddress(), Remember: s.signInRememberDefault(ctx)}
 	if tf, _ := s.Store.Setting(ctx, settingSignInTwoFactor); tf == "everyone" {
 		v.TwoFactorEveryone = true
 	}
@@ -123,4 +123,13 @@ func (s *Server) signInSettingsSubmit(w http.ResponseWriter, r *http.Request) {
 	what := s.saveSignInChoices(r)
 	s.Store.Audit(r.Context(), currentUser(r), "settings", "single sign-on"+what)
 	redirect(w, r, "/settings/sign-in?saved=1#signing-in")
+}
+
+// signInAddress is the sign-in page's address, or "" while the lab has
+// none (SignInHost is then "login." alone).
+func (s *Server) signInAddress() string {
+	if s.Domain == "" {
+		return ""
+	}
+	return s.SignInHost
 }

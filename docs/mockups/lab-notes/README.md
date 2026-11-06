@@ -4,6 +4,12 @@ The maintainer's notes from using `lab.grahamhq.com` asked for nine things. Four
 
 **Decided (the maintainer, 2026-11-06):** build all five as recommended, with one change: item 5's confirmation to delete a removed service's data is a modal dialog over the list (`showModal`), not a dialog in the page.
 
+**Built (2026-11-07)** on the branch `claude/lab-notes-1106`, and checked on dev VM 9; SPEC §5.2, §6.3.5, §6.7 and §8.1 say how. Where the build differs from the pages here:
+
+- Servers links to each server's Clean up page without saying how much could be freed (that would ask Podman on every view of Servers).
+- A service turned off has no monitoring checks while it's off, so the status page leaves it out rather than showing "Off".
+- The settings behind Name and look keep their names (`signin.*`): renaming them would only have changed the names.
+
 The pages were saved from dev VM 9 running that branch, so the sidebar, header and styles are the real ones; only what's in each page's middle is mocked. What's new is outlined with a dashed line. **Open them** through a web server at the repo root, so the real CSS loads:
 
 ```sh

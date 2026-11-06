@@ -83,7 +83,7 @@ func (i ImageInfo) Repository() string {
 	if len(i.Names) == 0 {
 		return ""
 	}
-	name := i.Names[0]
+	name, _, _ := strings.Cut(i.Names[0], "@") // pulled by digest
 	if at := strings.LastIndex(name, ":"); at > strings.LastIndex(name, "/") {
 		name = name[:at]
 	}

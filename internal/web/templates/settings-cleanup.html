@@ -27,8 +27,8 @@
         {{range .}}
         <tr>
           <td><input type="checkbox" name="id" value="{{.ID}}" checked aria-label="{{.What}}"></td>
-          <td><div class="list-name"><span class="logo-tile">{{icon "services"}}</span><div>{{.What}}{{with .Component}}<small>{{.}}</small>{{end}}{{if .Title}}<small class="hint wrap">{{.Repository}}</small>{{end}}</div></div></td>
-          <td class="hide-phone">{{if .Title}}{{if .Installed}}{{.Title}}{{else}}{{.Title}}, removed{{end}}{{if not .LastUsed.IsZero}}, until {{date .LastUsed}}{{end}}{{else}}<span class="hint">Not known: from before Roostack noted it</span>{{end}}</td>
+          <td class="wrap"><div class="list-name"><span class="logo-tile">{{icon "services"}}</span><div>{{.What}}{{with .Component}}<small>{{.}}</small>{{end}}{{if .Title}}<small class="hint wrap">{{.Repository}}</small>{{end}}</div></div></td>
+          <td class="hide-phone wrap">{{if .Title}}{{if .Installed}}{{.Title}}{{else}}{{.Title}}, removed{{end}}{{if not .LastUsed.IsZero}}, until {{date .LastUsed}}{{end}}{{else}}<span class="hint">Not known</span>{{end}}</td>
           <td>{{size .Size}}</td>
         </tr>
         {{end}}

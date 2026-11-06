@@ -10,7 +10,7 @@
 </div>
 <ul class="figures">
   <li class="card"><span class="figure-label">Services</span><span class="figure-value">{{$v.On}} <small>of {{len $v.Services}} with single sign-on</small></span>
-    <span class="figure-note">{{with $v.Others}}{{joinAnd .}} {{if eq (len .) 1}}has its{{else}}have their{{end}} own accounts{{else}}Every service can use it{{end}}</span></li>
+    <span class="figure-note">{{if $v.Others}}{{joinAnd $v.Others}} {{if eq (len $v.Others) 1}}has its{{else}}have their{{end}} own accounts{{else if $v.Services}}Every service can use it{{else}}No services yet{{end}}</span></li>
   <li class="card"><span class="figure-label">People</span><span class="figure-value">{{$v.People}} <small>can sign in</small></span>
     <span class="figure-note{{if $v.NoEmail}} warn{{end}}">{{if $v.NoEmail}}{{$v.NoEmail}} {{if eq $v.NoEmail 1}}has{{else}}have{{end}} no email address{{else}}Everyone has an email address{{end}}</span></li>
   <li class="card"><span class="figure-label">Sign-in page</span>

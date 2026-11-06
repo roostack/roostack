@@ -35,8 +35,8 @@ func (s *Server) renderLook(w http.ResponseWriter, r *http.Request, status int, 
 	data["Look"] = s.signInLook(r.Context())
 	data["Themes"] = Themes
 	data["LookSaved"] = r.URL.Query().Get("look") == "saved"
-	if s.SignInHost != "" {
-		data["SignInHost"] = s.SignInHost
+	if h := s.signInAddress(); h != "" {
+		data["SignInHost"] = h
 	}
 	data["StatusHost"] = s.statusHost()
 	for k, v := range extra {

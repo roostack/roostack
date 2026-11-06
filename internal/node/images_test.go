@@ -85,6 +85,9 @@ func TestCleanUp(t *testing.T) {
 	if o := rep.Old[0]; o.Service != "photos" || o.Version != "3.3.3-roostack.1" || o.Kind != ImageService || o.Repository() != "ghcr.io/immich-app/immich-server" {
 		t.Errorf("the old version: %+v", o)
 	}
+	if r := (ImageInfo{Names: []string{"ghcr.io/kozea/radicale@sha256:62e2"}}).Repository(); r != "ghcr.io/kozea/radicale" {
+		t.Errorf("an image pulled by digest is named %q", r)
+	}
 	if rep.Old[2].Kind != ImageOwn {
 		t.Errorf("an image left from a build is %q, want Roostack's own", rep.Old[2].Kind)
 	}
