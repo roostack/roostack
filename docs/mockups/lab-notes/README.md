@@ -2,6 +2,8 @@
 
 The maintainer's notes from using `lab.grahamhq.com` asked for nine things. Four were small and are built on the branch `claude/lab-notes-1106` (memory and CPU on Home, Seafile's and others' admin kept home-only, landing on the service after installing, a wider and taller sign-in logo). These are the other five, proposed here for the maintainer to choose before anything is built.
 
+**Decided (the maintainer, 2026-11-06):** build all five as recommended, with one change: item 5's confirmation to delete a removed service's data is a modal dialog over the list (`showModal`), not a dialog in the page.
+
 The pages were saved from dev VM 9 running that branch, so the sidebar, header and styles are the real ones; only what's in each page's middle is mocked. What's new is outlined with a dashed line. **Open them** through a web server at the repo root, so the real CSS loads:
 
 ```sh

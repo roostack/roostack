@@ -1,0 +1,75 @@
+{{define "title"}}Name and look{{end}}
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Name and look</h1>
+    <p class="lede">Your lab's name, logo, and colours, wherever the lab shows itself: the sign-in page, the status page, and Roostack's own pages.</p>
+  </div>
+</div>
+<div class="grid">
+<div class="span-7 grid-column">
+<section class="card" id="name">
+  <h2>Name</h2>
+  {{with .NameError}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <form method="post" action="/settings/lab">
+    <label>Name <input name="name" value="{{.LabName}}" maxlength="60" required></label>
+    <p class="hint">Shown at the top of every page, and to other labs you share backup storage with (as "{{.LabName}}'s storage").
+      Roostack will restart to use a new name everywhere, which will take a few seconds.</p>
+    <button type="submit" class="secondary">Save the name</button>
+  </form>
+</section>
+<section class="card" id="logo">
+  <h2>Logo and colours</h2>
+  {{with .LookError}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .LookSaved}}{{notice "ok" "Saved. The lab will look like this from now on."}}{{end}}
+  <form method="post" action="/settings/look" enctype="multipart/form-data" class="look-form">
+    <fieldset>
+      <legend>Logo</legend>
+      <label class="check"><input type="radio" name="logo" value="mark"{{if eq .Look.Logo "mark"}} checked{{end}}>
+        <span>A mark, with the name beside it<small>Square, like an app icon. It will also be the icon in the browser tab.</small></span></label>
+      <div class="logo-sub logo-for-mark">
+        {{if .Look.Has "mark"}}<img class="logo-now" src="/brand/mark?v={{.Look.Version}}" alt="The mark now" width="56" height="56">{{end}}
+        <label>{{if .Look.Has "mark"}}Replace it{{else}}The mark{{end}} <input type="file" name="logo_mark" accept="image/png,image/svg+xml"><small>PNG or SVG, square, up to 200 KB.</small></label>
+      </div>
+      <label class="check"><input type="radio" name="logo" value="wide"{{if eq .Look.Logo "wide"}} checked{{end}}>
+        <span>A wide logo, with the name in it<small>It will be shown on its own in place of the name, at most {{.Look.Height}} pixels high on the sign-in page and {{.Look.SidebarHeight}} in Roostack's sidebar. Up to six times as wide as it is tall.</small></span></label>
+      <div class="logo-sub logo-for-wide">
+        {{if .Look.Has "wide"}}<img class="logo-now wide" src="/brand/wide?v={{.Look.Version}}" alt="The wide logo now"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}>{{end}}
+        <label>The logo <input type="file" name="logo_wide" accept="image/png,image/svg+xml"><small>PNG or SVG, up to 200 KB.</small></label>
+        <label>For dark mode <span class="hint">(optional)</span> <input type="file" name="logo_dark" accept="image/png,image/svg+xml">
+          <small>A version with light lettering. Without one, the logo will sit on a light panel when the device is in dark mode so dark lettering stays readable.</small></label>
+        {{if .Look.Has "dark"}}<label class="check"><input type="checkbox" name="remove_dark"><span>Remove the dark mode version</span></label>{{end}}
+        <label>Browser tab icon <span class="hint">(optional)</span> <input type="file" name="logo_icon" accept="image/png,image/svg+xml">
+          <small>Square. Without one, the tab will show Roostack's hen.</small></label>
+        {{if .Look.Has "icon"}}<label class="check"><input type="checkbox" name="remove_icon"><span>Remove the browser tab icon</span></label>{{end}}
+      </div>
+      <label class="check"><input type="radio" name="logo" value=""{{if eq .Look.Logo ""}} checked{{end}}>
+        <span>None<small>Roostack's hen, with the name beside it.</small></span></label>
+    </fieldset>
+    <fieldset>
+      <legend>Colours</legend>
+      <div class="theme-swatches">
+        {{range .Themes}}<label class="theme-swatch" data-palette="{{.ID}}"><input type="radio" name="palette" value="{{.ID}}"{{if eq .ID $.Look.Palette}} checked{{end}}>
+          <span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>{{.Name}}</span></label>{{end}}
+      </div>
+      <p class="hint">For the sign-in page and the status page, and Roostack's pages for anyone who hasn't chosen their own
+        (<a href="/account/appearance">Your account → Appearance</a>). Light or dark follows each visitor's device. Every theme is checked to be easy to read in both.</p>
+    </fieldset>
+    <button type="submit">Save</button>
+  </form>
+</section>
+</div>
+<section class="card span-5" id="where">
+  <h2>Where it's shown</h2>
+  <p class="hint">Roostack's sidebar</p>
+  <div class="look-preview look-preview-sidebar">{{template "sidebar-lab" .}}</div>
+  <p class="hint">The sign-in page{{with .SignInHost}}, at <code>{{.}}</code>{{end}}</p>
+  <div class="look-thumb" data-palette="{{.Look.Palette}}" aria-hidden="true"><div class="look-thumb-card">{{template "look-brand" .}}<strong>Sign in</strong><span></span><span></span><i></i></div></div>
+  <p class="hint">The status page{{with .StatusHost}}, at <code>{{.}}</code>{{end}}</p>
+  <div class="look-thumb" data-palette="{{.Look.Palette}}" aria-hidden="true"><div class="look-thumb-card">{{template "look-brand" .}}<small>Whether its services are working</small><b></b><b></b></div></div>
+</section>
+</div>
+{{end}}
+
+
+{{define "page-help"}}{{help "settings" "Name and look"}}{{end}}

@@ -78,7 +78,7 @@ restore is still linked.
 ## What your lab tells Roostack Cloud each day
 
 After it checks in each day, your lab tells Roostack Cloud its name (as it
-is now, in Settings → Lab name) and three more things, and nothing else:
+is now, in Settings → Name and look) and three more things, and nothing else:
 
 - **The email addresses of the people here who get the lab's problems**
   (each person's address on their account page, if they get **Problems**:

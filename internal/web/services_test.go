@@ -1011,10 +1011,14 @@ func TestLabName(t *testing.T) {
 	h.setSetup(fs)
 	h.server.LabName = "lab.example.com"
 	if _, body := h.get("/settings"); !strings.Contains(body, `<strong title="lab.example.com">lab.example.com</strong>`) ||
-		!strings.Contains(body, "Lab name") {
+		!strings.Contains(body, "Name and look") {
 		t.Error("the header and Settings should show the lab's name")
 	}
-	if code, _ := h.post("/settings/lab", url.Values{"name": {" "}}, h.srv.URL); code != http.StatusBadRequest {
+	// Its page was Lab name until 2026-11-06.
+	if code, body := h.get("/settings/lab"); code != http.StatusOK || !strings.Contains(body, "<h1>Name and look</h1>") {
+		t.Errorf("/settings/lab: %d, not Name and look", code)
+	}
+	if code, body := h.post("/settings/lab", url.Values{"name": {" "}}, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "<h1>Name and look</h1>") {
 		t.Errorf("an empty name: %d", code)
 	}
 	h.post("/settings/lab", url.Values{"name": {"The Smiths' lab"}}, h.srv.URL)

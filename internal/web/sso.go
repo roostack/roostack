@@ -31,8 +31,6 @@ func (s *Server) ssoRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /settings/people/groups/{id}", s.requireOwner(s.groupSaveSubmit))
 	mux.Handle("POST /settings/people/groups/{id}/remove", s.requireOwner(s.groupRemoveSubmit))
 	mux.Handle("POST /users/{id}/details", s.requireOwner(s.userDetailsSubmit))
-	mux.Handle("POST /settings/people/sign-in-page", s.requireOwner(s.lookSubmit))
-	mux.Handle("GET /settings/people/look/{part}", s.requireOwner(s.lookPreview))
 }
 
 // ssoCard is the card's data.

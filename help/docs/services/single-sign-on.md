@@ -86,6 +86,13 @@ more to undo it, then delete the app's client secret. Forgejo will keep its
 a sign-in method that's in use); the button will then lead to a page saying
 single sign-on is off.
 
+## The whole picture
+
+**Settings → Single sign-on** shows it all in one place: which services
+use it and who can use each, which ones keep their own accounts, who can't
+sign in yet because they have no email address, and whether the sign-in
+page is working. **Settings → People** has a card of it too.
+
 ## Who can sign in
 
 **Everyone in the lab**, or the **groups and people** you choose. Make
@@ -104,8 +111,8 @@ line will say so. In other apps, admins are chosen in the app itself.
 The sign-in page asks for a username (or email address) and the person's
 Roostack password, then their two-factor code if they use one. **Keep me
 signed in** will keep them signed in on that device for 30 days; otherwise
-until the browser closes, and at most 12 hours. Under **Settings → People
-→ Signing in** you can untick it by default, or ask everyone for
+until the browser closes, and at most 12 hours. Under **Settings → Single
+sign-on → Signing in** you can untick it by default, or ask everyone for
 two-factor (Owners always need it, and Admins whenever Roostack's pages
 can be reached from the internet).
 
@@ -153,18 +160,8 @@ exploits blocked, a strict limit on password tries).
 
 ## Its look
 
-On **Settings → People → Sign-in page**:
-
-- **Name:** your lab's name (**Settings → Lab name**).
-- **Logo:** a square **mark** shown beside the name (also the browser tab's
-  icon), or a **wide logo** with the name in it, shown in its place. A
-  wide logo can have a version for dark mode; without one, it will sit on a
-  light panel when the device is in dark mode so that dark lettering stays
-  readable. Or none: Roostack's hen.
-- **Colours:** one of Roostack's themes. Light or dark follows each
-  visitor's device.
-
-PNG or SVG, up to 200 KB. SVGs with scripts are refused.
+The sign-in page has the lab's name, logo, and colours, chosen on
+**Settings → [Name and look](../settings/index.md#name-and-look)**.
 
 ??? note "For technical users"
 

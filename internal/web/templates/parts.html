@@ -1005,3 +1005,9 @@
 </ul>
 <p class="hint">{{.Total}}</p>
 {{end}}
+
+{{/* The lab's logo, or the hen, with its name, small (Name and look's previews, and Single sign-on's). */}}
+{{define "look-brand"}}{{$l := .Look}}
+{{- if eq $l.Logo "wide"}}<img src="/brand/wide?v={{$l.Version}}" alt=""{{with $l.SidebarWidth "wide"}} width="{{.}}" height="{{$l.SidebarHeight}}"{{end}}>
+{{- else}}<span class="look-thumb-name">{{if eq $l.Logo "mark"}}<img src="/brand/mark?v={{$l.Version}}" alt="" width="22" height="22">{{else}}{{brandMark}}{{end}}{{.LabName}}</span>{{end}}
+{{- end}}

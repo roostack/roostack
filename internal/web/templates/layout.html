@@ -1,13 +1,16 @@
 <!doctype html>
-{{- $palette := palette}}{{with .Nav}}{{$palette = .Palette}}{{end -}}
+{{- $palette := palette}}{{with .Look}}{{$palette = .Palette}}{{end}}{{with .Nav}}{{$palette = .Palette}}{{end -}}
 <html lang="en" data-palette="{{$palette}}"{{with .Nav}}{{with .Accent}} data-accent="{{.}}"{{end}}{{if ne .Theme "auto"}} data-mode="{{.Theme}}"{{end}}{{end}}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <title>{{template "title" .}} · Roostack</title>
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="/static/favicon.ico" sizes="16x16 32x32 48x48">
+  {{- /* The lab's mark, or its wide logo's tab icon (Name and look), in
+       place of the hen. */}}
+  {{if and .Look (or (eq .Look.Logo "mark") (and (eq .Look.Logo "wide") (.Look.Has "icon")))}}<link rel="icon" href="/brand/icon?v={{.Look.Version}}">
+  {{- else}}<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/favicon.ico" sizes="16x16 32x32 48x48">{{end}}
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/tokens.css">
@@ -32,8 +35,7 @@
   {{with and (not .Wizard) (not .Own) .Nav}}
   <div class="shell">
     <aside class="sidebar" id="sidebar" aria-label="Roostack">
-      <a class="sidebar-lab" href="/">{{brandMark}}<span class="sidebar-lab-name"><span>Roostack</span>
-        {{- with $.LabName}}<strong title="{{.}}">{{.}}</strong>{{else}}<strong>Your lab</strong>{{end}}</span></a>
+      {{template "sidebar-lab" $}}
       <div class="sidebar-nav">
       <nav class="nav-group" aria-label="Your lab">
         <a class="nav-item" href="/"{{if eq .Active "home"}} aria-current="page"{{end}}>{{icon "home-page"}}Home</a>
@@ -125,3 +127,16 @@
 {{template "area-nav" .}}{{end}}{{end}}
 {{template "content" .}}
 {{end}}
+
+{{/* The lab at the top of the sidebar: its wide logo, with "Roostack"
+     small under it, or its mark or Roostack's hen beside its name (Name
+     and look). A wide logo without a dark version sits on a light panel
+     in dark mode, as on the sign-in page. */}}
+{{define "sidebar-lab"}}{{$l := .Look}}
+{{- if eq $l.Logo "wide"}}<a class="sidebar-lab sidebar-lab-wide" href="/"><span class="sidebar-logo{{if not ($l.Has "dark")}} on-light{{end}}"><picture>
+          {{- if $l.Has "dark"}}<source srcset="/brand/dark?v={{$l.Version}}" media="(prefers-color-scheme: dark)"{{with $l.SidebarWidth "dark"}} width="{{.}}" height="{{$l.SidebarHeight}}"{{end}}>{{end -}}
+          <img src="/brand/wide?v={{$l.Version}}" alt="{{or .LabName "Your lab"}}"{{with $l.SidebarWidth "wide"}} width="{{.}}" height="{{$l.SidebarHeight}}"{{end}}></picture></span>
+        <span class="sidebar-lab-name"><span>Roostack</span></span></a>
+{{- else}}<a class="sidebar-lab" href="/">{{if eq $l.Logo "mark"}}<img class="brand-mark" src="/brand/mark?v={{$l.Version}}" alt="" width="32" height="32">{{else}}{{brandMark}}{{end}}<span class="sidebar-lab-name"><span>Roostack</span>
+        {{- with .LabName}}<strong title="{{.}}">{{.}}</strong>{{else}}<strong>Your lab</strong>{{end}}</span></a>{{end}}
+{{- end}}

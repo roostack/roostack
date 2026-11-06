@@ -392,7 +392,8 @@ sso:
 
   Owners and Admins can turn it on (it changes a service, like the WAF switch); only Owners change who can sign in.
 - **Installing:** a service whose package supports it has single sign-on on by default when the lab has it set up, so new apps start with it. **As built (2026-11-06; the Owner chose the tick):** the install form has "Sign in with your lab's account (recommended)", ticked, wherever the service's page could turn it on (a package that has it, the lab's address, this server: `Manager.SSOAtInstall`), for Owners and Admins alike; `InstallRequest.SSO` sets `instance.SSO` before the first apply, so the app's sso hook runs once it's set up. It had been designed but not built: every service started with it off. Considered: a lab-wide setting picking whether it starts ticked (not now), and turning it on with no choice.
-- **Settings → People:** groups; each person's services; the Sign-in page (below).
+- **Settings → People:** groups; each person's services; a card of single sign-on (below). Until 2026-11-06 it also had the sign-in page's look and its two choices.
+- **Single sign-on's own page — as built (2026-11-06), the maintainer's choice from mock-ups ([docs/mockups/lab-notes](docs/mockups/lab-notes/README.md)):** on a real lab what single sign-on needs was spread over People and each service's page, with nothing showing the whole. **Settings → Single sign-on** (`/settings/sign-in`, after People; only where the lab serves the sign-in page) has three figures (how many services use it of those whose packages can, naming the ones that keep their own accounts; how many people can sign in, and how many of them have no email address, which the apps need; whether the sign-in page is working, and where), a table of the services that can use it (on, off, turning on or needing attention, as their card's `Progress` says, and who can use each, linking to the card to change it: turning it on can need the app's own settings, so the table doesn't do it itself), the sign-in page in miniature with where it is, and its two choices (keeping people signed in for 30 days unless they untick it, and two-factor for everyone), which moved from People → Signing in. People keeps a **Single sign-on** card: which services use it, whether the sign-in page is working, and who needs two-factor, with a link; its own **Signing in to Roostack** has Roostack's pages' choices only. `ssoSummaryFor` serves both. Considered: calling it "Sign-in page" (the service pages and help already say single sign-on).
 - **The dashboard** shows each person only the services they can use; Owners and Admins still see every service.
 - **Mock-ups (2026-10-20):** [docs/mockups/sso](docs/mockups/sso/README.md): the sign-in page, Mealie's and Stirling-PDF's cards, and People with groups and the sign-in page's look.
 - **While it's being set up — as built (2026-11-06):** turning it on or off showed nothing on the card except while an sso hook was running, and the hook only starts once the apply has finished, so on the first real lab the page said "On" at once and nothing more, whatever happened next (Plik and Gokapi stopping as they started, Forgejo's hook failing). Now the card says where it's got to, for every app (`ssoCard.Progress`), polling every 3 seconds until something settles:
@@ -405,16 +406,25 @@ sso:
 
 #### The look of the sign-in page
 
-The sign-in page uses the design system, so its look is a few lab-wide choices on Settings → People → Sign-in page:
+The sign-in page uses the design system, so its look is a few lab-wide choices, on Settings → Name and look since 2026-11-06 (below; on Settings → People → Sign-in page before):
 
-- **the name:** the lab name (Settings → Lab name), already shown in the sidebar and on error pages;
+- **the name:** the lab name, already shown in the sidebar and on error pages;
 - **a logo**, one of three kinds (the Owner, 2026-10-20: a mark with the name, or a full-width logo with the name in it). PNG or SVG, at most 200 KB.
   - **A mark, with the name beside it:** square, like an app icon, in place of the hen. It's also the page's icon in the browser tab.
   - **A wide logo, with the name in it:** shown on its own in place of the name, up to six times as wide as it is tall and at most 80 px high (until 2026-11-06, four times and 56 px: the maintainer found a text logo didn't fit, and with its padding looked small). Its `img` has the width and height it would have at 80 px (from a PNG's size, or an SVG's width and height or else its viewBox, read once per upload), so it scales down to the card's width without leaving space above and below, and an SVG with only a viewBox still has a size; an SVG that doesn't say is 80 px high, fitted in its box. An SVG's proportions are checked at upload too when it says its size. The name is still the page's title and what screen readers say. Optionally, a version for dark mode; without one, the logo sits on a light panel when the device is in dark mode so that dark lettering stays readable. Optionally, a square icon for the browser tab; without one, the hen.
   - **None:** the hen, with the name.
 - **colours:** one of the built-in themes and its accent (§3.2), so every choice passes the contrast checks in light and dark; the page follows the visitor's device for light or dark.
 
-Later, the same choices could become the lab's default look for new people and Roostack's own login page. Considered: custom CSS (easy to break, and nothing a non-technical Owner would use); free colour pickers (can fail contrast).
+Considered: custom CSS (easy to break, and nothing a non-technical Owner would use); free colour pickers (can fail contrast).
+
+#### The lab's name and look — as built (2026-11-06)
+
+The maintainer, from a real lab: the logo belongs to the lab, not only its sign-in page. Chosen from mock-ups ([docs/mockups/lab-notes](docs/mockups/lab-notes/README.md)), with every recommendation taken:
+
+- **Settings → Name and look** (`/settings/look`) replaced Settings → Lab name (`/settings/lab` redirects there, and still takes the name's form): the name, then the logo and colours as above, then **Where it's shown**: the sidebar's top, and the sign-in and status pages in miniature, in the lab's theme.
+- **Everywhere the lab shows itself:** the sign-in page as before; the public **status page** (§6.15), whose header has the wide logo in place of the name (still its heading for screen readers) or the mark beside it, in the lab's theme, the files copied beside its `index.html` (`logo-wide.svg` and so on, and the theme's stylesheet), and written again as soon as the look is saved; Roostack's **sidebar**, with the mark in place of the hen, or the wide logo at most 40 px high with "Roostack" small under it (on a light panel in dark mode without a dark version, as on the sign-in page), so people still know what they're using; and the **browser tab's icon** on Roostack's pages (the mark, or the wide logo's tab icon).
+- **Colours:** the lab's theme is also Roostack's for anyone who hasn't chosen their own under Your account → Appearance (`render` puts it in the nav when a person's palette isn't one of the themes), and the login page's before anyone signs in.
+- **Files:** where they were (`look-<part>.<png|svg>` in the sign-in page's folder), served to anyone at `/brand/<part>` and `/brand/icon` on Roostack's address (the sign-in page shows them to anyone anyway); `/settings/people/look/<part>` is gone. The settings keep their names (`signin.*`). Considered: renaming them `look.*` with a store migration (only the names would change).
 
 #### Security
 

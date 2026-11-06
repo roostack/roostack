@@ -83,8 +83,8 @@ If you're locked out, see [Locked out](../trouble/locked-out.md).
 ## Signing in
 
 People are signed out after a while without activity: 30 minutes, unless
-an Owner chooses otherwise under **Signing in** at the bottom of
-**Settings → People** (15 minutes to 4 hours, or never). Opening a page or
+an Owner chooses otherwise under **Signing in to Roostack** at the bottom
+of **Settings → People** (15 minutes to 4 hours, or never). Opening a page or
 sending a form counts as activity; pages refreshing themselves don't, so
 a screen left open goes back to the login page when the time's up.
 

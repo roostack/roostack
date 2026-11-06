@@ -21,9 +21,13 @@ import (
 	"roostack.cloud/roostack/internal/usererr"
 )
 
-// The sign-in page's look (SPEC.md §5.2, "The look of the sign-in page"):
-// the lab's name, a logo, and one of the built-in themes. Chosen by the
-// Owner on Settings → People.
+// The lab's look (SPEC.md §5.2, "The look of the sign-in page", and "The
+// lab's name and look"): a logo and one of the built-in themes, with the
+// lab's name. Chosen by the Owner on Settings → Name and look (labname.go;
+// on People until 2026-11-06), and used by the sign-in page, the status
+// page, and Roostack's own pages: the sidebar, the browser tab's icon,
+// and the theme of anyone who hasn't chosen their own. The settings keep
+// their first names (signin.*).
 
 // Settings for the sign-in page (store settings).
 const (
@@ -90,6 +94,36 @@ func (l signInLook) Width(part string) int { return l.widths[part] }
 
 // Height is logoHeight, for templates.
 func (signInLook) Height() int { return logoHeight }
+
+// sidebarLogoHeight is the tallest the wide logo is in Roostack's sidebar.
+const sidebarLogoHeight = 40
+
+// SidebarWidth is a wide logo file's width when sidebarLogoHeight tall
+// (0 if its file doesn't say).
+func (l signInLook) SidebarWidth(part string) int {
+	if w := l.widths[part]; w > 0 {
+		return max(1, w*sidebarLogoHeight/logoHeight)
+	}
+	return 0
+}
+
+// SidebarHeight is sidebarLogoHeight, for templates.
+func (signInLook) SidebarHeight() int { return sidebarLogoHeight }
+
+// ThemeName is the look's theme's name (Teal).
+func (l signInLook) ThemeName() string {
+	if t := theme(l.Palette); t != nil {
+		return t.Name
+	}
+	return l.Palette
+}
+
+// lookSummary is Name and look's line on the Settings overview.
+func (s *Server) lookSummary(ctx context.Context) string {
+	l := s.signInLook(ctx)
+	logo := map[string]string{logoMark: "its mark", logoWide: "a wide logo", "": "Roostack's hen"}[l.Logo]
+	return s.labName() + " · " + logo + ", " + l.ThemeName()
+}
 
 // logoSizes keeps the wide logo's widths for the files' version, so that
 // pages don't read the files each time.

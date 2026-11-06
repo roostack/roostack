@@ -304,7 +304,7 @@ What every repeating job in Roostack, Cloud, and the registry asks of shared ser
 
 ## A real lab's notes (the maintainer, 2026-11-06)
 
-From using `lab.grahamhq.com`. Fixed on Roostack's branch `claude/lab-notes-1106` and the registry's `claude/private-admin-paths` (not pushed); the rest proposed in [docs/mockups/lab-notes/](docs/mockups/lab-notes/README.md), waiting for the maintainer.
+From using `lab.grahamhq.com`. Fixed on Roostack's branch `claude/lab-notes-1106` and the registry's `claude/private-admin-paths` (not pushed); the rest proposed in [docs/mockups/lab-notes/](docs/mockups/lab-notes/README.md) and agreed by the maintainer (2026-11-06: every recommendation, with item 5's confirmation as a modal), then built on the same branch.
 
 - [x] **No memory or CPU on Home:** neither had ever been shown, and CPU wasn't read. Home has Memory and CPU figures, Servers a meter of each per server (`node.Usage`, `GET /v1/usage`; docs/DESIGN.md "Memory and CPU on Home"; ASSUMPTIONS L22)
 - [x] **Seafile's admin public:** `private_paths` for Seafile (`/sys` and its admin APIs), Gokapi (`/users`, `/logs`) and Plik (its admin API), read from each app's source; new `-roostack.3` revisions on the registry's branch `claude/private-admin-paths`. ProjectSend's admin area is the app itself; AliasVault's `/admin` was already private. Not yet checked on a lab
@@ -313,8 +313,8 @@ From using `lab.grahamhq.com`. Fixed on Roostack's branch `claude/lab-notes-1106
 - [ ] **Turning a service off for a while** (proposed with mock-ups)
 - [ ] **Data left by removed services:** a Removed filter on Services, deleting it for good, reinstalling over it (proposed with mock-ups)
 - [ ] **Storage clean-up:** old images and other leftovers, and deleting them (proposed with mock-ups)
-- [ ] **Single sign-on's own Settings page**, linked from People with its status (proposed with mock-ups)
-- [ ] **A brand page for the lab:** the logo for the sign-in page, the status page, and Roostack's own pages (proposed with mock-ups)
+- [x] **Single sign-on's own Settings page**, with a card on People (SPEC §5.2, "Single sign-on's own page")
+- [x] **Name and look:** the lab's name, logo and colours on one page, used by the sign-in page, the status page, Roostack's sidebar, its tab icon, and its default theme (SPEC §5.2, "The lab's name and look")
 - [ ] The registry's whole-index check fails on HedgeDoc 1.12.1-roostack.2: quay.io answers 404 for its pinned image again (found 2026-11-06, as with 1.12.0 on 2026-10-23)
 
 ## The big red button (SPEC §6.16, decided 2026-10-22)

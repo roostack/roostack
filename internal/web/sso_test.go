@@ -680,14 +680,23 @@ func TestPeopleSSO(t *testing.T) {
 		t.Errorf("bad email: %d", code)
 	}
 	_, body = h.get("/settings/people")
-	for _, want := range []string{`id="groups"`, `id="sign-in-page"`, "login.lab.example.com", `data-palette="nord"`, "Margaret Smith",
-		"Ask everyone for two-factor"} {
+	for _, want := range []string{`id="groups"`, `id="sso"`, `href="/settings/sign-in"`, "Single sign-on settings", "Margaret Smith",
+		"Signing in to Roostack"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("People missing %q", want)
 		}
 	}
-	// The sign-in page's two choices.
-	h.post("/settings/signing-in", url.Values{"idle": {"30"}, "sso": {"1"}, "signin_two_factor": {"on"}}, h.srv.URL)
+	if strings.Contains(body, "Ask everyone for two-factor") || strings.Contains(body, `id="sign-in-page"`) {
+		t.Error("People still has the sign-in page's look or choices (Single sign-on and Name and look have them)")
+	}
+	// The sign-in page's two choices, on Single sign-on.
+	_, body = h.get("/settings/sign-in")
+	for _, want := range []string{"<h1>Single sign-on</h1>", "Ask everyone for two-factor", "login.lab.example.com", `href="/settings/look"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Single sign-on missing %q", want)
+		}
+	}
+	h.post("/settings/sign-in", url.Values{"signin_two_factor": {"on"}}, h.srv.URL)
 	if v, _ := h.store.Setting(ctx, settingSignInTwoFactor); v != "everyone" {
 		t.Errorf("two-factor %q", v)
 	}
@@ -789,14 +798,91 @@ func TestSignInWideLogoSize(t *testing.T) {
 			t.Errorf("sign-in page missing %q", want)
 		}
 	}
-	if _, body := h.get("/settings/people"); !strings.Contains(body, `alt="The wide logo now" width="480" height="80"`) {
-		t.Error("People's preview has no size")
+	if _, body := h.get("/settings/look"); !strings.Contains(body, `alt="The wide logo now" width="480" height="80"`) {
+		t.Error("Name and look's preview has no size")
 	}
 	// A new upload is read again; one without a size has none.
 	os.WriteFile(h.server.lookPath("wide", "svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`), 0o600)
 	h.store.SetSetting(ctx, settingSignInFiles, "wide=svg;2")
 	if _, body := call(t, srv, c, "GET", signInHost, "/sign-in", nil); !strings.Contains(body, `src="/look/wide?v=2" alt="">`) {
 		t.Error("a logo without a size has one")
+	}
+}
+
+// Single sign-on's own page: which services use it and who can use
+// each, the services keeping their own accounts, people without an
+// email address, and where the sign-in page is.
+func TestSignInSettingsPage(t *testing.T) {
+	h, _ := loggedIn(t, "owner")
+	withSignIn(t, h, &fakeSSO{on: map[string]bool{"mealie": true}})
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "mealie", Title: "Recipes", Package: "mealie", Status: "running"},
+			{Name: "stirling-pdf", Title: "Stirling-PDF", Package: "stirling-pdf", Status: "running"},
+			{Name: "vaultwarden", Title: "Vaultwarden", Package: "vaultwarden", Status: "running"}}, nil
+	}
+	hash, _ := authkit.HashPassword("a long password")
+	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: "member"}) // no email address
+	_, body := h.get("/settings/sign-in")
+	for _, want := range []string{"1 <small>of 2 with single sign-on", "Vaultwarden has its own accounts", "1 has no email address",
+		`<a href="/services/mealie">Recipes</a><small>Mealie</small>`, `<span class="pill pill-ok">On</span>`, "Everyone in the lab",
+		`href="/services/stirling-pdf#sso">Turn on…`, "login.lab.example.com"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Single sign-on lacks %q", want)
+		}
+	}
+	if _, body := h.get("/settings"); !strings.Contains(body, "Single sign-on") || !strings.Contains(body, "On for 1 service") {
+		t.Error("Settings lacks Single sign-on, or its summary")
+	}
+	if _, body := h.get("/settings/people"); !strings.Contains(body, "On for 1 of 2") {
+		t.Error("People's card doesn't say which services use it")
+	}
+}
+
+// Roostack's own pages use the lab's look (Name and look): its wide logo
+// in the sidebar, its mark as the tab's icon, and its theme for whoever
+// hasn't chosen their own; the files are public.
+func TestLookOnRoostacksPages(t *testing.T) {
+	h, _ := loggedIn(t, "owner")
+	withSignIn(t, h, &fakeSSO{on: map[string]bool{}})
+	h.server.LabName = "Test lab"
+	ctx := context.Background()
+	os.WriteFile(h.server.lookPath("wide", "svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 100"/>`), 0o600)
+	os.WriteFile(h.server.lookPath("mark", "png"), pngOf(t, 64, 64), 0o600)
+	h.store.SetSetting(ctx, settingSignInFiles, "wide=svg mark=png;7")
+	h.store.SetSetting(ctx, settingSignInPalette, "nord")
+
+	h.store.SetSetting(ctx, settingSignInLogo, logoWide)
+	_, body := h.get("/")
+	for _, want := range []string{`class="sidebar-lab sidebar-lab-wide"`, `src="/brand/wide?v=7" alt="Test lab" width="240" height="40"`,
+		`data-palette="nord"`, `href="/static/favicon.svg"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("with a wide logo, Home lacks %q", want)
+		}
+	}
+	h.store.SetSetting(ctx, settingSignInLogo, logoMark)
+	_, body = h.get("/")
+	for _, want := range []string{`<img class="brand-mark" src="/brand/mark?v=7"`, `<link rel="icon" href="/brand/icon?v=7">`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("with a mark, Home lacks %q", want)
+		}
+	}
+	// Someone who chose a theme keeps it.
+	u, _ := h.store.UserByUsername(ctx, "u")
+	h.store.SetPalette(ctx, u.ID, "gruvbox")
+	if _, body := h.get("/"); !strings.Contains(body, `data-palette="gruvbox"`) {
+		t.Error("a chosen theme gave way to the lab's")
+	}
+	// The files need no login (the sign-in page and the tab use them).
+	resp, err := http.Get(h.srv.URL + "/brand/mark")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "image/png" {
+		t.Errorf("/brand/mark: %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	if code, _ := h.get("/settings/people/look/mark"); code != http.StatusNotFound {
+		t.Errorf("the old preview address: %d", code)
 	}
 }
 

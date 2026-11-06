@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -23,8 +24,16 @@ import (
 // what went wrong.
 
 // statusPageFiles are the static files the page links to, by their path
-// under static/ (and on the page).
-var statusPageFiles = []string{"css/tokens.css", "css/themes/teal.css", "css/app.css", "css/status.css", "fonts/space-grotesk-latin.woff2"}
+// under static/ (and on the page), besides its theme's (statusTheme).
+var statusPageFiles = []string{"css/tokens.css", "css/app.css", "css/status.css", "fonts/space-grotesk-latin.woff2"}
+
+// statusTheme is the theme's stylesheet the page links to: the lab's
+// (Name and look, since 2026-11-06; Teal before).
+func statusTheme(palette string) string { return "css/themes/" + palette + ".css" }
+
+// statusLogo is a logo file's name on the page (logo-wide.svg): the lab's
+// logo (Name and look), copied beside the page.
+func statusLogo(part, kind string) string { return "logo-" + part + "." + kind }
 
 var statusPageTemplate = sync.OnceValues(func() (*template.Template, error) {
 	return template.New("status-page.html").Funcs(templateFuncs()).ParseFS(templateFS, "templates/status-page.html")
@@ -44,7 +53,7 @@ func (s *Server) WriteStatusPage(ctx context.Context) {
 	}
 	page, err := s.renderStatusPage(ctx, time.Now())
 	if err == nil {
-		err = s.writeStatusFiles(page)
+		err = s.writeStatusFiles(page, s.signInLook(ctx))
 	}
 	if err != nil {
 		s.Log.Error("writing the status page", "err", err)
@@ -79,7 +88,14 @@ func (s *Server) renderStatusPage(ctx context.Context, now time.Time) ([]byte, e
 			down = append(down, st.Name)
 		}
 	}
-	data := map[string]any{"LabName": s.labName(), "Rows": rows, "Updated": now.Format("15:04")}
+	look := s.signInLook(ctx)
+	data := map[string]any{"LabName": s.labName(), "Rows": rows, "Updated": now.Format("15:04"), "Look": look,
+		"Theme": statusTheme(look.Palette)}
+	for _, part := range []string{"mark", "wide", "dark"} {
+		if look.Has(part) {
+			data["Logo"+part] = statusLogo(part, look.Files[part])
+		}
+	}
 	switch {
 	case len(down) == 0:
 	case len(down) == len(rows):
@@ -101,11 +117,20 @@ func (s *Server) renderStatusPage(ctx context.Context, now time.Time) ([]byte, e
 }
 
 // writeStatusFiles writes the page, and the files it links to where
-// they've changed (a new Roostack's stylesheet), each replaced whole so
-// Caddy never serves half of one.
-func (s *Server) writeStatusFiles(page []byte) error {
+// they've changed (a new Roostack's stylesheet, the lab's logo), each
+// replaced whole so Caddy never serves half of one.
+func (s *Server) writeStatusFiles(page []byte, look signInLook) error {
 	files := map[string][]byte{"index.html": page}
-	for _, name := range statusPageFiles {
+	for _, part := range []string{"mark", "wide", "dark"} {
+		if kind := look.Files[part]; kind != "" {
+			b, err := os.ReadFile(s.lookPath(part, kind))
+			if err != nil {
+				return err
+			}
+			files[statusLogo(part, kind)] = b
+		}
+	}
+	for _, name := range append(slices.Clone(statusPageFiles), statusTheme(look.Palette)) {
 		b, err := fs.ReadFile(staticFS, "static/"+name)
 		if err != nil {
 			return err
