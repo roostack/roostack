@@ -216,3 +216,27 @@ func sameSet(a, b []string) bool {
 	slices.Sort(b)
 	return slices.Equal(a, b)
 }
+
+// serviceOffSubmit turns a service off for a while, or on again (SPEC.md
+// §6.3.5): Owners and Admins, like other changes
+// to a service.
+func (s *Server) serviceOffSubmit(off bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		u := currentUser(r)
+		err := s.Manager.SetOff(r.Context(), name, off, u.Username)
+		switch msg, isForm := usererr.Message(err); {
+		case errors.Is(err, manager.ErrNotFound):
+			http.NotFound(w, r)
+			return
+		case isForm:
+			s.renderServiceWith(w, r, map[string]any{"OffError": msg}, true)
+			return
+		case err != nil:
+			s.serverError(w, err)
+			return
+		}
+		s.Store.Audit(r.Context(), u, map[bool]string{true: "service off", false: "service on"}[off], name)
+		redirect(w, r, "/services/"+name)
+	}
+}

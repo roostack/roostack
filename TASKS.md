@@ -310,7 +310,7 @@ From using `lab.grahamhq.com`. Fixed on Roostack's branch `claude/lab-notes-1106
 - [x] **Seafile's admin public:** `private_paths` for Seafile (`/sys` and its admin APIs), Gokapi (`/users`, `/logs`) and Plik (its admin API), read from each app's source; new `-roostack.3` revisions on the registry's branch `claude/private-admin-paths`. ProjectSend's admin area is the app itself; AliasVault's `/admin` was already private. Not yet checked on a lab
 - [x] **After installing, the service's page** rather than Home (SPEC §6.3.3, "Where installing leads")
 - [x] **The sign-in page's logo:** up to six times as wide and 80 px high, sized from its file so it scales down without gaps (SPEC §5.2)
-- [ ] **Turning a service off for a while** (proposed with mock-ups)
+- [x] **Turning a service off for a while:** Turn it off / Turn it on, its address showing a "turned off" page, and `roostack service off|on` (SPEC §6.3.5)
 - [x] **Data left by removed services:** Services → Removed, data kept, with Install again and Delete (a modal), and Delete its data too when removing (SPEC §8.1, "Data left by removed services")
 - [x] **Storage clean-up:** each server's Clean up page, and old versions of services deleted every night a week after nothing uses them (SPEC §6.7, "Cleaning up")
 - [x] **Single sign-on's own Settings page**, with a card on People (SPEC §5.2, "Single sign-on's own page")

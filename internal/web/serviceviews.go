@@ -47,6 +47,7 @@ func ServiceViews(ctx context.Context, lab config.Lab, services []state.Service,
 		facts.Updating = src.Updating(s.Name()) != nil
 		facts.AwaitingData, facts.Switching = s.Instance.AwaitingData, src.Switching(s.Name())
 		facts.Held, facts.Waiting = s.Instance.Held != nil, s.Instance.Waiting
+		facts.Off, v.Off = s.Instance.Off != nil, s.Instance.Off
 		v.Status = ServiceStatus(facts)
 		if s.Instance.Waiting {
 			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).

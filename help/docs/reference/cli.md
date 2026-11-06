@@ -73,6 +73,18 @@ web server config from `lab.yaml` and `services/*.yaml`, then starts,
 restarts, or stops what changed, and applies the firewall. `-dry-run` shows
 the plan without changing anything.
 
+## Turning a service off
+
+```bash
+sudo roostack service off immich   # stop it, and keep it stopped
+sudo roostack service on immich    # start it again
+```
+
+The same as **Turn it off for a while** on the service's page: its data,
+settings and last backup are kept, and its address shows a page saying
+it's turned off. Run it on the controller; it changes the service's file
+as the `roostack` user, then tells the running Roostack to apply it.
+
 ## Looking at packages
 
 These change nothing and don't need a Roostack server:

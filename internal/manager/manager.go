@@ -829,6 +829,48 @@ func (m *Manager) SetTitle(ctx context.Context, name, title string) error {
 	return in.Save(state.InstanceFile(m.Lab, name))
 }
 
+// SetOff turns a service off for a while, or on again (SPEC.md §6.3.5),
+// by (a username; empty from the command line), and applies the change. A service waiting for its data, held
+// after a restore, waiting to be restored, or updating is refused: each
+// has its own way back.
+func (m *Manager) SetOff(ctx context.Context, name string, off bool, by string) error {
+	if !instance.ValidName(name) {
+		return ErrNotFound
+	}
+	if off && m.Updating(name) != nil {
+		return usererr.New("It's updating: turn it off once the update has finished.")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	path := state.InstanceFile(m.Lab, name)
+	in, err := instance.Load(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	switch {
+	case off && in.Off != nil, !off && in.Off == nil:
+		return nil
+	case off && in.AwaitingData:
+		return usererr.New("It's waiting for its data: bring it in, or remove the service.")
+	case off && (in.Held != nil || in.Waiting):
+		return usererr.New("It's stopped until its restore is sorted out: see its page.")
+	}
+	title := cmp.Or(in.Title, name)
+	if off {
+		in.Off = &config.Pause{Since: time.Now(), By: by}
+	} else {
+		in.Off = nil
+	}
+	if err := in.Save(path); err != nil {
+		return err
+	}
+	m.startApplyLocked(map[bool]string{true: "Turning " + title + " off", false: "Turning " + title + " on"}[off])
+	return nil
+}
+
 // ServicePackage is an installed service's package, with the service's
 // own title if it has one (a second copy, SPEC.md §8.2).
 func (m *Manager) ServicePackage(name string) (*pkgspec.Package, error) {

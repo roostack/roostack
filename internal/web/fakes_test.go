@@ -122,6 +122,8 @@ func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns 
 
 // fakeCatalog is the catalog and the installed services (ServiceCatalog).
 type fakeCatalog struct {
+	// offs are the services turned off or on (SetOff).
+	offs []string
 	// summaries are the install summaries asked for.
 	summaries []manager.InstallRequest
 	// serverMemory is the install summary's server (nuc, 3.6 GB free of 8
@@ -309,6 +311,12 @@ func (f *fakeCatalog) RemoveLocalPackage(name string) error {
 }
 
 func (f *fakeCatalog) LocalPackagesDir() string { return "/var/lib/roostack/local-packages" }
+
+// SetOff notes each service turned off ("name off") or on ("name on").
+func (f *fakeCatalog) SetOff(_ context.Context, name string, off bool, by string) error {
+	f.offs = append(f.offs, name+map[bool]string{true: " off", false: " on"}[off]+" by "+by)
+	return nil
+}
 
 func (f *fakeCatalog) Remove(_ context.Context, name string) error {
 	f.removed = append(f.removed, name)

@@ -14,11 +14,19 @@
   </div>
   <div class="page-head-actions">
     <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
-    {{if and .Service.URLs (not .Service.Install) (not .Service.NoAddress) (ne .Service.Status "registry-stop") (ne .Service.Status "awaiting-data") (ne .Service.Status "held")}}
+    {{if and .Service.Off .CanManage}}<form method="post" action="/services/{{.Service.Name}}/on"><button type="submit">Turn it on</button></form>
+    {{- else if and .Service.URLs (not .Service.Install) (not .Service.NoAddress) (ne .Service.Status "registry-stop") (ne .Service.Status "awaiting-data") (ne .Service.Status "held") (ne .Service.Status "off")}}
     <a class="button" href="{{or .Service.Start (index .Service.URLs 0)}}" target="_blank" rel="noopener">Open {{.Service.Title}}{{template "new-window"}}</a>{{end}}
   </div>
 </div>
   {{if and .PhotoCard (eq .Service.Status "running")}}{{template "photos-cta" .PhotoCard}}{{end}}
+  {{with .Service.Off}}{{$t := $.Service.Title}}
+  {{/* Turned off for a while (SPEC.md §6.3.5). */}}
+  <div id="off" class="notice notice-warn" role="status">
+    <p><strong>{{$t}} is turned off.</strong> {{with .By}}{{.}} turned it off{{else}}It was turned off from the server's command line{{end}} {{when .Since}},
+      and Roostack will keep it off until someone turns it on again.</p>
+    <p>Its data and settings are kept, and so is its last backup. Anyone who opens its address is getting a page saying it's turned off.</p>
+  </div>{{end}}
   {{with .Withdrawal}}{{$t := $.Service.Title}}
   {{/* The registry withdrew its version (SPEC.md §8.3.4). */}}
   <div id="withdrawn" class="notice{{if .Stopped}} notice-error{{else if eq .Shown "warning"}} notice-warn{{end}}" role="{{if .Stopped}}alert{{else}}status{{end}}">
@@ -427,6 +435,24 @@
     {{end}}
     {{with .SetupActivity}}
     <section class="card"><div class="card-head"><h2>Setup</h2></div>{{activity .}}</section>
+    {{end}}
+    {{if and .CanManage (not .Service.Off) (not .Service.Install) (ne .Service.Status "waiting") (ne .Service.Status "awaiting-data") (ne .Service.Status "held") (ne .Service.Status "updating")}}
+    {{/* Turning it off for a while (SPEC.md §6.3.5). */}}
+    <section class="card" id="turn-off">
+      <details class="action"{{if or (eq .OpenAction "turn-off") .OffError}} open{{end}}>
+        <summary>Turn it off for a while</summary>
+        {{with .OffError}}<p class="error" role="alert">{{.}}</p>{{end}}
+        <p class="hint">For a service you don't need for now, or one you'd rather nobody used until you've looked at something.</p>
+        <p>Roostack will stop {{.Service.Title}} and turn its address off, and it will stay off, after restarts too, until you turn it on again here. Nothing will be deleted:</p>
+        <ul>
+          <li>its data and settings will stay as they are;</li>
+          <li>its last backup will be kept, and backups won't take a new copy of its database while it's off;</li>
+          <li>its address and ports will stay reserved for it, and updates will wait.</li>
+        </ul>
+        <p>Everyone who opens it will get a page saying it's turned off.</p>
+        <form method="post" action="/services/{{.Service.Name}}/off"><button type="submit" class="outline-danger">Turn {{.Service.Title}} off</button></form>
+      </details>
+    </section>
     {{end}}
     {{if eq .Service.Status "waiting"}}
     {{if .IsOwner}}<p>{{confirm (printf "/services/%s/remove-waiting" .Service.Name)

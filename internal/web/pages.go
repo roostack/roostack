@@ -550,6 +550,8 @@ func (f *homeFigures) addDisks(servers []*serverDisks) {
 // backup" is true of every server).
 type homeFigures struct {
 	Services, Running, Busy, Problems int
+	// Off counts services someone turned off.
+	Off int
 	// ServerIssues counts servers needing attention: one that didn't
 	// answer, a change or OS update that didn't finish, a restart due, a
 	// disk running low.
@@ -586,6 +588,8 @@ func homeFiguresOf(services []ServiceView, servers []serverView) homeFigures {
 			f.Running++
 		case "installing", "updating", "starting":
 			f.Busy++
+		case StatusOff:
+			f.Off++ // someone chose it: not a problem
 		default:
 			f.Problems++
 		}

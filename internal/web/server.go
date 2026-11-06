@@ -53,6 +53,9 @@ type ServiceView struct {
 	// WasOn names the server a service waiting to be restored ran on
 	// (Status is StatusWaiting).
 	WasOn string
+	// Off is who turned it off and when (Status is StatusOff), nil while
+	// it's on.
+	Off *config.Pause
 	// What its server reports: containers, ports, routes, data folders
 	// and size (nothing about a service should look like magic).
 	node.ServiceDetail
@@ -265,6 +268,8 @@ type ServiceCatalog interface {
 	ServiceFiles(name string) (*manager.ServiceFiles, error)
 	// SetTitle changes what people call a service (never its name).
 	SetTitle(ctx context.Context, name, title string) error
+	// SetOff turns a service off for a while, or on again (SPEC.md §6.3.5).
+	SetOff(ctx context.Context, name string, off bool, by string) error
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
 	// SSOAtInstall says whether installing p on host (empty: this server)
 	// may turn single sign-on on from the start (SPEC.md §5.2).
@@ -803,6 +808,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /services/{name}/update", s.require(auth.ManageServices, s.updateSubmit))
 	mux.Handle("POST /services/{name}/updates", s.require(auth.ManageServices, s.updatePolicySubmit))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
+	mux.Handle("POST /services/{name}/off", s.require(auth.ManageServices, s.serviceOffSubmit(true)))
+	mux.Handle("POST /services/{name}/on", s.require(auth.ManageServices, s.serviceOffSubmit(false)))
 
 	routes := s.errorPages(mux)
 	if gate != nil {

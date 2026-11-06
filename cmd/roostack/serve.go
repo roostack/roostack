@@ -483,7 +483,7 @@ func (c *controller) wirePublic() {
 					log.Error("reading lab.yaml's pauses of public access", "err", err)
 					continue
 				}
-				log.Info("reading lab.yaml's pauses of public access again (roostack public)")
+				log.Info("reading lab.yaml's pauses of public access again, and applying (roostack public or roostack service)")
 				c.mgr.ReloadPauses(lab.Public.Pause)
 			}
 		}

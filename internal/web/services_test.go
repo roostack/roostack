@@ -1737,3 +1737,45 @@ func TestCleanUpPage(t *testing.T) {
 		t.Error("the nightly clean-up is still on")
 	}
 }
+
+// Turning a service off for a while (SPEC.md §6.3.5): its page offers it,
+// and once it's off says who and when, with Turn it on in place of Open;
+// it's "Off" everywhere, not a problem, and Members see it's off.
+func TestTurnServiceOff(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	_, body := h.get("/services/vaultwarden")
+	if !strings.Contains(body, "Turn it off for a while") || !strings.Contains(body, `action="/services/vaultwarden/off"`) {
+		t.Fatal("the service page doesn't offer turning it off")
+	}
+	h.post("/services/vaultwarden/off", url.Values{}, h.srv.URL)
+	if !slices.Equal(fm.offs, []string{"vaultwarden off by u"}) {
+		t.Errorf("turned off: %v", fm.offs)
+	}
+
+	since := time.Now().Add(-time.Hour)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Package: "vaultwarden", Status: StatusOff, URLs: []string{"https://vault.lab.example.com"},
+			Off: &config.Pause{Since: since, By: "sam"}}}, nil
+	}
+	_, body = h.get("/services/vaultwarden")
+	for _, want := range []string{"Vaultwarden is turned off.", "sam turned it off", `action="/services/vaultwarden/on"`, `class="status status-off">Off`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page of a service turned off lacks %q", want)
+		}
+	}
+	if strings.Contains(body, "Open Vaultwarden") || strings.Contains(body, "Turn it off for a while") {
+		t.Error("a service turned off offers Open, or turning it off")
+	}
+	h.post("/services/vaultwarden/on", url.Values{}, h.srv.URL)
+	if !slices.Contains(fm.offs, "vaultwarden on by u") {
+		t.Errorf("turned on: %v", fm.offs)
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "1 turned off") || strings.Contains(body, "not running") {
+		t.Error("Home counts a service turned off as a problem")
+	}
+	member, _ := loggedIn(t, auth.RoleMember)
+	member.server.Services = h.server.Services
+	if _, body := member.get("/"); !strings.Contains(body, "Turned off for now") {
+		t.Error("Members aren't told it's turned off")
+	}
+}

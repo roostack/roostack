@@ -96,6 +96,7 @@
       <td class="hide-phone">{{with .Server}}{{.}}{{else}}<span class="hint">None</span>{{end}}</td>
       <td class="hide-phone">{{if not .LastBackup.IsZero}}<span class="num">{{when .LastBackup}}</span>{{else if .Server}}Not yet{{end}}</td>
       <td>{{if $.CanManage}}<a class="table-action" href="/services/{{.Name}}">Manage<span class="sr-only"> {{.Title}}</span></a>
+        {{- else if eq .Status "off"}}<span class="hint">Turned off for now</span>
         {{- else}}{{range $i, $u := .URLs}}{{if not $i}}<a class="table-action" href="{{or $svc.Start $u}}" target="_blank" rel="noopener">Open<span class="sr-only"> {{$svc.Title}}</span>{{template "new-window"}}</a>{{end}}{{end}}{{end}}</td>
     </tr>
     {{end}}
