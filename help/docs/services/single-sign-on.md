@@ -58,6 +58,13 @@ as it's installed, and the first person to sign in becomes its administrator. Wh
 (made when you installed it), some apps find it by your username or email
 and some can't: the card's note says which, and what to do.
 
+Some apps have a sign-in of their own that can't use the lab's, such as
+Docmost. They can still go behind your lab's sign-in page, and the install
+page and the service's page will call it that rather than single sign-on.
+It protects the way in, so only the people you choose can even reach the
+app, but it doesn't sign them in: they'll sign in on your lab's page, then
+again with the app's own account.
+
 Some apps can't take single sign-on: Jellyfin, Plex, ntfy, and Radicale,
 whose phone, TV, and desktop apps sign in by themselves, and, for now,
 Uptime Kuma, PhotoPrism, Lychee, and Ghost.

@@ -739,6 +739,10 @@
           }
          ]
         }
+       },
+       {
+        "name": "own_sign_in",
+        "type": "bool"
        }
       ]
      },
@@ -1987,6 +1991,11 @@
    "label": "Why",
    "help": "Why it's safe without signing in to the lab, such as the app checking its own tokens there.",
    "example": "The phone apps' API, which checks the app's own tokens.",
+   "link": "reference/packages#the-parts"
+  },
+  "sso.forward_auth.own_sign_in": {
+   "label": "Keeps its own sign-in behind the wall",
+   "help": "The app has a sign-in of its own that stays in use, so the wall will only protect the way in. Roostack will tell people that it won't sign them in to the app, and won't call it single sign-on.",
    "link": "reference/packages#the-parts"
   },
   "sso.forward_auth.route": {

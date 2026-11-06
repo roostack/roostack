@@ -291,7 +291,9 @@ routes:
       `bypass_paths` will stay outside it, each with the `reason` it's
       safe. Its containers may read who someone is from the `Remote-User`,
       `Remote-Email`, `Remote-Name`, and `Remote-Groups` headers; Roostack
-      removes any a visitor sends.
+      removes any a visitor sends. `own_sign_in: true` says the app keeps
+      its own sign-in behind the wall (Docmost): the wall will only protect
+      the way in, and Roostack will say so and won't call it single sign-on.
 
     `required: true` is for an app with no sign-in of its own (Outline):
     nobody could use it otherwise, so single sign-on is always on and the

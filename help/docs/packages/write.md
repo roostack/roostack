@@ -269,6 +269,11 @@ takes its OIDC settings decides what the part needs:
   with `{{ json .SSO.ClientSecret }}` where the secret goes.
 - **No sign-in of its own** (Stirling-PDF): `forward_auth`, a wall in
   front of it.
+- **A sign-in of its own that can't use the lab's** (Docmost): `forward_auth`
+  with `own_sign_in: true`. People will sign in twice, and the wall will
+  keep everyone else away from the app's own sign-in page. List under
+  `bypass_paths` what phone apps or share links need, or the note can say
+  they won't work.
 
 The registry's Forgejo, Immich, and Paperless-ngx packages show each.
 [The package reference](../reference/packages.md) has every field.

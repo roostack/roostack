@@ -832,3 +832,24 @@ func TestRequiredSSOPages(t *testing.T) {
 		t.Errorf("the card:\n%s", body)
 	}
 }
+
+// A wall in front of an app's own sign-in says it won't sign anyone in, and
+// isn't called single sign-on (SPEC.md §5.2).
+func TestOwnSignInPages(t *testing.T) {
+	h, fm := loggedIn(t, "owner")
+	fm.ownSignIn = true
+	withSignIn(t, h, &fakeSSO{on: map[string]bool{"forgejo": true}})
+	_, body := h.get("/install/forgejo")
+	if !strings.Contains(body, "Protect it with your lab's sign-in page") || !strings.Contains(body, "won't sign them in") ||
+		strings.Contains(body, "Sign in with your lab's account") {
+		t.Errorf("the install form:\n%s", body)
+	}
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "forgejo", Title: "Forgejo", Status: "running", Package: "forgejo", URLs: []string{"https://git.example.com"}}}, nil
+	}
+	_, body = h.get("/services/forgejo")
+	if !strings.Contains(body, "Lab sign-in page") || !strings.Contains(body, "doesn't sign them in") ||
+		strings.Contains(body, "Turn off single sign-on") || !strings.Contains(body, "Stop using the lab&#39;s sign-in page") {
+		t.Errorf("the card:\n%s", body)
+	}
+}
