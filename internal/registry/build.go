@@ -250,12 +250,23 @@ func buildPackage(root, name string, lookup func(string) ([]string, error), seen
 			newest = pkg
 		}
 	}
-	// An image gone from its registry: the newest version must be fixed
-	// (it's what labs install), but an older one is only said, so one
-	// project rebuilding a tag can't stop the whole registry publishing.
-	// Labs running it keep their copy; it's never offered (ImageGone).
+	// An image gone from its registry: the newest version labs can install
+	// must be fixed, but another is only said, so one project rebuilding a
+	// tag can't stop the whole registry publishing. A newer version that's
+	// withdrawn doesn't count, so when a project takes a release back
+	// (HedgeDoc's 1.12.1, 2026-11-06), withdrawing it is the fix. Labs
+	// running it keep their copy; it's never offered (ImageGone).
+	offered := ""
+	for version := range p.Versions {
+		blocked := slices.ContainsFunc(facts.Withdrawals, func(w RegistryWithdraw) bool {
+			return w.Version == version && (&Withdrawal{Level: w.Level}).Blocks()
+		})
+		if !blocked && (offered == "" || pkgspec.CompareVersions(version, offered) > 0) {
+			offered = version
+		}
+	}
 	for _, version := range slices.Sorted(maps.Keys(gone)) {
-		if newest != nil && version == newest.Version {
+		if version == offered {
 			errs = append(errs, fmt.Sprintf("%s.yaml: %v", version, gone[version]))
 			continue
 		}

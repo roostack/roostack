@@ -645,6 +645,17 @@ func TestBuildImageGone(t *testing.T) {
 	if _, err := build(); err == nil || !strings.Contains(err.Error(), "1.34.4-roostack.1.yaml: "+gone+": registry answered 404") {
 		t.Errorf("the newest version's image gone: %v", err)
 	}
+	// A project took that release back: withdrawing it is the fix, and the
+	// version before is what labs are offered.
+	r.write("packages/vaultwarden/registry.yaml", "tier: official\nmaintainers: [roostack]\nwithdrawals:\n"+
+		"  - version: 1.34.4-roostack.1\n    level: warning\n    reason: The project took this release back.\n")
+	ix, err = build()
+	if err != nil {
+		t.Fatalf("the newest version withdrawn: %v", err)
+	}
+	if v, _, _ := ix.Packages["vaultwarden"].Offer("dev", "amd64"); v != "1.34.3-roostack.1" {
+		t.Errorf("offered %q", v)
+	}
 }
 
 // registry.yaml's roost_ac flag (Cloud's DESIGN §5) goes into the signed
