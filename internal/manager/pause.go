@@ -391,7 +391,9 @@ func (m *Manager) ReloadPauses(pause config.PublicPause) {
 	l := m.labNow()
 	l.Public.Pause = pause
 	m.saved.Store(&l)
-	m.startApplyNowLocked("Pausing or opening public access from the server's command line")
+	// roostack public, or roostack service off or on (which changes a
+	// service's file, read again by the apply).
+	m.startApplyNowLocked("Applying a change from the server's command line")
 }
 
 // publicServices are the named services, each of which must have a

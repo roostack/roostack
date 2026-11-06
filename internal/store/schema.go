@@ -387,7 +387,22 @@ var schema = []string{
 // migrations change the schema after schemaVersion, in order: migrations[i]
 // takes a database to version schemaVersion+i+1. Never edit one that has
 // shipped.
-var migrations = []string{}
+var migrations = []string{
+	// 38 (2026-11-06): the services removed with their data kept, so that
+	// Services can say what each one was (SPEC.md §8.1, "Data left by
+	// removed services"). One row per service and server; installing it
+	// again and removing it again replaces it.
+	`CREATE TABLE removed_services (
+		server     TEXT NOT NULL,
+		name       TEXT NOT NULL,
+		package    TEXT NOT NULL,
+		title      TEXT NOT NULL,
+		version    TEXT NOT NULL,
+		removed_at INTEGER NOT NULL,
+		removed_by TEXT NOT NULL,
+		PRIMARY KEY (server, name)
+	)`,
+}
 
 // Open opens (creating if needed) and migrates the database.
 func Open(path string) (*Store, error) {

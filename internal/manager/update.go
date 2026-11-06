@@ -231,6 +231,11 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 			u.Blocked = fmt.Sprintf("This version has no build for %s's kind of processor (%s), so it can't run there. "+
 				"Roostack will offer it once it has one.", m.serverName(in.HostOr(m.Lab.NodeID)), a)
 		}
+		// Updating starts it to check it works: it waits until someone
+		// turns it on again (SPEC.md §6.3.5).
+		if in.Off != nil && u.Blocked == "" {
+			u.Blocked = "Turn " + s.Title() + " on first: updating will start it to check that the new version works."
+		}
 		if rec := m.LastUpdate(ctx, s.Name()); rec != nil && rec.To == p.Version && rec.Result != UpdateDone {
 			u.FailedBefore = true
 		}

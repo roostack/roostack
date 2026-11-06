@@ -117,53 +117,19 @@
   </form>
 </section>
 
-<section class="card span-5" id="sign-in-page">
-  <div class="card-head"><h2>Sign-in page</h2>{{with .SignInURL}}<a class="more" href="{{.}}" target="_blank" rel="noopener">Open it{{template "new-window"}}</a>{{end}}</div>
-  <p class="hint">What people see at <code>{{.SignInHost}}</code> when they sign in to a service.</p>
-  {{with .LookError}}<p class="error" role="alert">{{.}}</p>{{end}}
-  {{if .LookSaved}}{{notice "ok" "Saved. The sign-in page will look like this from now on."}}{{end}}
-  <form method="post" action="/settings/people/sign-in-page" enctype="multipart/form-data" class="look-form">
-    <dl class="facts">
-      <dt>Name</dt><dd>{{.LabName}} <small class="hint">· the lab's name, <a href="/settings/lab">change it</a></small></dd>
-    </dl>
-    <fieldset>
-      <legend>Logo</legend>
-      <label class="check"><input type="radio" name="logo" value="mark"{{if eq .Look.Logo "mark"}} checked{{end}}>
-        <span>A mark, with the name beside it<small>Square, like an app icon. It will also be the page's icon in the browser tab.</small></span></label>
-      <div class="logo-sub logo-for-mark">
-        {{if .Look.Has "mark"}}<img class="logo-now" src="/settings/people/look/mark?v={{.Look.Version}}" alt="The mark now" width="56" height="56">{{end}}
-        <label>{{if .Look.Has "mark"}}Replace it{{else}}The mark{{end}} <input type="file" name="logo_mark" accept="image/png,image/svg+xml"><small>PNG or SVG, square, up to 200 KB.</small></label>
-      </div>
-      <label class="check"><input type="radio" name="logo" value="wide"{{if eq .Look.Logo "wide"}} checked{{end}}>
-        <span>A wide logo, with the name in it<small>It will be shown on its own in place of the name. Up to four times as wide as it is tall.</small></span></label>
-      <div class="logo-sub logo-for-wide">
-        {{if .Look.Has "wide"}}<img class="logo-now wide" src="/settings/people/look/wide?v={{.Look.Version}}" alt="The wide logo now" height="56">{{end}}
-        <label>The logo <input type="file" name="logo_wide" accept="image/png,image/svg+xml"><small>PNG or SVG, up to 200 KB.</small></label>
-        <label>For dark mode <span class="hint">(optional)</span> <input type="file" name="logo_dark" accept="image/png,image/svg+xml">
-          <small>A version with light lettering. Without one, the logo will sit on a light panel when the device is in dark mode so dark lettering stays readable.</small></label>
-        {{if .Look.Has "dark"}}<label class="check"><input type="checkbox" name="remove_dark"><span>Remove the dark mode version</span></label>{{end}}
-        <label>Browser tab icon <span class="hint">(optional)</span> <input type="file" name="logo_icon" accept="image/png,image/svg+xml">
-          <small>Square. Without one, the tab will show Roostack's hen.</small></label>
-        {{if .Look.Has "icon"}}<label class="check"><input type="checkbox" name="remove_icon"><span>Remove the browser tab icon</span></label>{{end}}
-      </div>
-      <label class="check"><input type="radio" name="logo" value=""{{if eq .Look.Logo ""}} checked{{end}}>
-        <span>None<small>Roostack's hen, with the name beside it.</small></span></label>
-    </fieldset>
-    <fieldset>
-      <legend>Colours</legend>
-      <div class="theme-swatches">
-        {{range .Themes}}<label class="theme-swatch" data-palette="{{.ID}}"><input type="radio" name="palette" value="{{.ID}}"{{if eq .ID $.Look.Palette}} checked{{end}}>
-          <span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>{{.Name}}</span></label>{{end}}
-      </div>
-      <p class="hint">Light or dark follows each visitor's device. Every theme is checked to be easy to read in both.</p>
-    </fieldset>
-    <button type="submit">Save</button>
-  </form>
-</section>
+{{with .SSOSummary}}<section class="card span-5" id="sso">
+  <div class="card-head"><h2>Single sign-on</h2><a class="more" href="/settings/sign-in">Settings</a></div>
+  <dl class="facts">
+    <dt>Services</dt><dd>{{if .On}}On for {{.On}} of {{len .Services}}{{with .OnTitles}} <small class="hint">· {{joinAnd .}}</small>{{end}}{{else if .Services}}Off for all {{len .Services}}{{else}}None can use it yet{{end}}</dd>
+    <dt>Sign-in page</dt><dd>{{if .Served}}<span class="dot dot-ok" aria-hidden="true"></span>Working at <code>{{.Host}}</code>{{else if not .Host}}Waiting for the lab's address{{else if not .On}}Not needed until a service uses it{{else}}<span class="dot dot-problem" aria-hidden="true"></span>Not working yet at <code>{{.Host}}</code>{{end}}</dd>
+    <dt>Two-factor</dt><dd>{{if .TwoFactorEveryone}}Everyone{{else}}Owners, and Admins when Roostack's pages are on the internet{{end}}</dd>
+  </dl>
+  <p><a class="button secondary" href="/settings/sign-in">Single sign-on settings</a></p>
+</section>{{end}}
 {{end}}
 
 <section class="card span-12" id="signing-in">
-  <h2>Signing in</h2>
+  <h2>Signing in{{if .SSO}} to Roostack{{end}}</h2>
   {{if .SignInSaved}}{{notice "ok" "Saved. It will apply from each person's next page."}}{{end}}
   <form method="post" action="/settings/signing-in">
     <label>Sign people out {{if .SSO}}of Roostack's pages {{end}}after <select name="idle" class="inline">
@@ -174,13 +140,7 @@
     <label class="check"><input type="checkbox" class="switch" role="switch" name="remember"{{if .OfferRemember}} checked{{end}}>
       <span>Offer "Keep me signed in" on {{if .SSO}}Roostack's {{else}}the {{end}}login page<small>For someone's own device: they'll stay signed in on that browser for
         30 days without the limit above.</small></span></label>
-    {{if .SSO}}
-    <input type="hidden" name="sso" value="1">
-    <label class="check"><input type="checkbox" class="switch" role="switch" name="signin_remember"{{if .SignInRemember}} checked{{end}}>
-      <span>On the sign-in page for services, keep people signed in for 30 days unless they untick it<small>Services are what family use every day; Roostack's own pages will keep the shorter limit above.</small></span></label>
-    <label class="check"><input type="checkbox" class="switch" role="switch" name="signin_two_factor"{{if .SignInTwoFactor}} checked{{end}}>
-      <span>Ask everyone for two-factor on the sign-in page for services<small>Owners always need it, and Admins whenever Roostack's pages can be reached from the internet.</small></span></label>
-    {{end}}
+    {{if .SSO}}<p class="hint">The sign-in page for services has its own choices, on <a href="/settings/sign-in#signing-in">Single sign-on</a>.</p>{{end}}
     <button type="submit" class="secondary">Save</button>
   </form>
 </section>

@@ -28,10 +28,11 @@
 4. Check **What it sets up**, just above the button (see below), then
    choose **Install**.
 
-Roostack will download the service, start it, and give it its web address,
-which usually takes a few minutes. While it does, the service will show
-**installing**, and its page will list each step: done, in progress (with
-how long so far), or still to come, with the full log under **Details**.
+Roostack will take you to the service's page and download the service,
+start it, and give it its web address, which usually takes a few minutes.
+While it does, the service will show **installing**, and its page will
+list each step: done, in progress (with how long so far), or still to
+come, with the full log under **Details**.
 The home page and **Services** will show which step it's on, and its
 address will become a link once it's running.
 

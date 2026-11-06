@@ -302,6 +302,21 @@ What every repeating job in Roostack, Cloud, and the registry asks of shared ser
 - [x] **Why Roostack Cloud isn't offered for backups** (found 2026-11-06): it was left out without a word unless the lab was linked and its account had backup storage. Now always listed, greyed out with why when it can't be chosen (not linked, no backup storage, or Roostack Cloud not answering: `Manager.CloudBackupOff`), with a link to Settings → Roostack Cloud for the Owner (the Owner's choice, 2026-11-06; `TestBackupPlan`)
 - [ ] **The lab's VPN** (the Owner, 2026-11-06; SPEC §6.12, "Reaching private services from away"): private stays the local network only; a WireGuard VPN becomes a standard part of a lab, with its own status and settings, devices added by QR code or file, and access to other home devices through it; with clear instructions for reaching private services remotely, especially on a cloud server. Design and mock-ups first, then build
 
+## A real lab's notes (the maintainer, 2026-11-06)
+
+From using `lab.grahamhq.com`. Fixed on Roostack's branch `claude/lab-notes-1106` and the registry's `claude/private-admin-paths` (not pushed); the rest proposed in [docs/mockups/lab-notes/](docs/mockups/lab-notes/README.md) and agreed by the maintainer (2026-11-06: every recommendation, with item 5's confirmation as a modal), then built on the same branch.
+
+- [x] **No memory or CPU on Home:** neither had ever been shown, and CPU wasn't read. Home has Memory and CPU figures, Servers a meter of each per server (`node.Usage`, `GET /v1/usage`; docs/DESIGN.md "Memory and CPU on Home"; ASSUMPTIONS L22)
+- [x] **Seafile's admin public:** `private_paths` for Seafile (`/sys` and its admin APIs), Gokapi (`/users`, `/logs`) and Plik (its admin API), read from each app's source; new `-roostack.3` revisions on the registry's branch `claude/private-admin-paths`. ProjectSend's admin area is the app itself; AliasVault's `/admin` was already private. Not yet checked on a lab
+- [x] **After installing, the service's page** rather than Home (SPEC §6.3.3, "Where installing leads")
+- [x] **The sign-in page's logo:** up to six times as wide and 80 px high, sized from its file so it scales down without gaps (SPEC §5.2)
+- [x] **Turning a service off for a while:** Turn it off / Turn it on, its address showing a "turned off" page, and `roostack service off|on` (SPEC §6.3.5)
+- [x] **Data left by removed services:** Services → Removed, data kept, with Install again and Delete (a modal), and Delete its data too when removing (SPEC §8.1, "Data left by removed services")
+- [x] **Storage clean-up:** each server's Clean up page, and old versions of services deleted every night a week after nothing uses them (SPEC §6.7, "Cleaning up")
+- [x] **Single sign-on's own Settings page**, with a card on People (SPEC §5.2, "Single sign-on's own page")
+- [x] **Name and look:** the lab's name, logo and colours on one page, used by the sign-in page, the status page, Roostack's sidebar, its tab icon, and its default theme (SPEC §5.2, "The lab's name and look")
+- [ ] The registry's whole-index check fails on HedgeDoc 1.12.1-roostack.2: quay.io answers 404 for its pinned image again (found 2026-11-06, as with 1.12.0 on 2026-10-23)
+
 ## The big red button (SPEC §6.16, decided 2026-10-22)
 
 Waited for the code-quality review to finish (the maintainer, 2026-10-22); the maintainer started the build on 2026-10-23. Everything is decided, `built_with:`'s shape included (docs/RED-BUTTON-PLAN.md §4.1).

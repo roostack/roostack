@@ -20,11 +20,16 @@ import (
 func TestSchemaMatchesOldMigrations(t *testing.T) {
 	old := oldDatabase(t, len(oldMigrations))
 	defer old.Close()
-	s, err := Open(filepath.Join(t.TempDir(), "new.db"))
+	// The schema alone, without the migrations since.
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "new.db")+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer db.Close()
+	s := &Store{db: db}
+	if err := s.step(schema, schemaVersion); err != nil {
+		t.Fatal(err)
+	}
 	want, got := describe(t, old), describe(t, s.db)
 	if len(want) < 100 {
 		t.Fatalf("the old database's description is too short to prove anything:\n%s", strings.Join(want, "\n"))
@@ -44,14 +49,14 @@ func TestSchemaMatchesOldMigrations(t *testing.T) {
 }
 
 // TestOpenAtSchemaVersion opens a database the old steps built, as the dev
-// VMs' labs are: it carries on untouched, data and all.
+// VMs' labs are: it carries on, data and all, with the migrations since
+// the squash, ending up as a new database would.
 func TestOpenAtSchemaVersion(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "old.db")
 	old := oldDatabaseAt(t, path, len(oldMigrations))
 	if _, err := old.Exec(`INSERT INTO settings (key, value) VALUES ('lab.id', 'lab-0123456789')`); err != nil {
 		t.Fatal(err)
 	}
-	before := describe(t, old)
 	old.Close()
 
 	s, err := Open(path)
@@ -62,8 +67,13 @@ func TestOpenAtSchemaVersion(t *testing.T) {
 	if id, err := s.LabID(context.Background()); err != nil || id != "lab-0123456789" {
 		t.Errorf("lab ID after opening: %q %v", id, err)
 	}
-	if after := describe(t, s.db); strings.Join(after, "\n") != strings.Join(before, "\n") {
-		t.Error("opening a database at the schema's version changed its schema")
+	fresh, err := Open(filepath.Join(t.TempDir(), "new.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	if after, want := describe(t, s.db), describe(t, fresh.db); strings.Join(after, "\n") != strings.Join(want, "\n") {
+		t.Error("a database at the schema's version, migrated, differs from a new one")
 	}
 }
 

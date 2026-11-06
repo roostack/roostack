@@ -117,6 +117,10 @@ type Route struct {
 	// Wall puts the route behind single sign-on's forward auth (SPEC.md
 	// §5.2); nil: none.
 	Wall *Wall
+	// Off: someone turned the service off (SPEC.md §6.3.5): everyone who
+	// may reach the route gets a page saying so (OffVar), and nothing is
+	// passed on.
+	Off bool
 }
 
 // Wall is forward auth in front of a route (SPEC.md §5.2): Caddy asks
@@ -190,6 +194,10 @@ const WAFVar = "roostack_waf"
 // rather than "Still hatching" by it.
 const BlockedVar = "roostack_blocked"
 
+// OffVar is set on a turned-off service's request (Route.Off): the error
+// pages' 503.html shows the "turned off" page by it.
+const OffVar = "roostack_off"
+
 // AppSecMaxBody is how much of a request's body the bouncer sends to
 // AppSec (SPEC.md §6.10 item 4). The bouncer otherwise reads the whole
 // body into memory first (a video upload), and CrowdSec refuses a body
@@ -216,6 +224,16 @@ func Site(service string, routes []Route) (string, error) {
 		private := map[bool]string{true: "yes", false: "no"}[r.Private]
 		fmt.Fprintf(&b, "\tvars {\n\t\troostack_name %s\n\t\troostack_title %s\n\t\troostack_private %s\n\t}\n",
 			cmp.Or(r.Service, service), quoteTitle(r.Title), private)
+		if r.Off {
+			// Turned off: who could reach it is told so, and nothing is
+			// passed on. A private route still drops outsiders.
+			if r.Private {
+				fmt.Fprintf(&b, "\t@%s-external %s\n", r.ID, r.notPrivate("\t"))
+				fmt.Fprintf(&b, "\tabort @%s-external\n", r.ID)
+			}
+			fmt.Fprintf(&b, "\tvars %s yes\n\terror 503\n}\n", OffVar)
+			continue
+		}
 		if r.Private {
 			fmt.Fprintf(&b, "\t@%s-external %s\n", r.ID, r.notPrivate("\t"))
 			fmt.Fprintf(&b, "\tabort @%s-external\n", r.ID)

@@ -13,8 +13,9 @@ import (
 )
 
 // What the controller reads about a server on the lab API: its disks
-// (disk.go), memory (memory.go), data services left behind (leftdata.go)
-// and history (history.go).
+// (disk.go), memory and CPU (memory.go, usage.go), data services left
+// behind (leftdata.go), images nothing uses (images.go) and history
+// (history.go).
 
 // cullRequest forgets history from before a time (Unix seconds).
 type cullRequest struct {
@@ -28,6 +29,7 @@ type cullReply struct{ Deleted int64 }
 func (r *Remote) Disks() Disks       { return r }
 func (r *Remote) Memory() Memory     { return r }
 func (r *Remote) LeftData() LeftData { return r }
+func (r *Remote) CleanUp() CleanUp   { return r }
 func (r *Remote) History() History   { return r }
 
 // DiskSpaces asks the server.
@@ -44,6 +46,14 @@ func (r *Remote) MemoryInfo(ctx context.Context) (MemoryInfo, error) {
 	return out, err
 }
 
+// Usage asks the server. One from before Usage answers 404, and Home
+// shows its memory and CPU as unknown.
+func (r *Remote) Usage(ctx context.Context) (Usage, error) {
+	var out Usage
+	err := r.call(ctx, http.MethodGet, "/v1/usage", nil, &out)
+	return out, err
+}
+
 // LeftDataDirs asks the server over the lab API.
 func (r *Remote) LeftDataDirs(ctx context.Context, name string) ([]string, error) {
 	var out []string
@@ -53,6 +63,56 @@ func (r *Remote) LeftDataDirs(ctx context.Context, name string) ([]string, error
 		return nil, ErrNotFound
 	}
 	return out, err
+}
+
+// LeftServices asks the server. One from before answers 404, and its
+// removed services' data isn't listed.
+func (r *Remote) LeftServices(ctx context.Context) ([]LeftService, error) {
+	var out []LeftService
+	err := r.call(ctx, http.MethodGet, "/v1/left-services", nil, &out)
+	if re := (*labnet.RemoteError)(nil); errors.As(err, &re) && re.Status == http.StatusNotFound {
+		return nil, nil
+	}
+	return out, err
+}
+
+// DeleteLeftData asks the server.
+func (r *Remote) DeleteLeftData(ctx context.Context, name string) error {
+	err := r.call(ctx, http.MethodPost, servicePath(name, "/left-data/delete"), nil, nil)
+	if re := (*labnet.RemoteError)(nil); errors.As(err, &re) && re.Status == http.StatusNotFound {
+		return ErrNotFound
+	}
+	return err
+}
+
+// removeImagesRequest names the images to delete; autoCleanRequest turns
+// the nightly clean-up on or off.
+type (
+	removeImagesRequest struct {
+		IDs []string `json:"ids"`
+	}
+	autoCleanRequest struct {
+		On bool `json:"on"`
+	}
+)
+
+// CleanUpReport asks the server.
+func (r *Remote) CleanUpReport(ctx context.Context) (CleanUpReport, error) {
+	var out CleanUpReport
+	err := r.call(ctx, http.MethodGet, "/v1/clean-up", nil, &out)
+	return out, err
+}
+
+// RemoveImages asks the server.
+func (r *Remote) RemoveImages(ctx context.Context, ids []string) (RemovedImages, error) {
+	var out RemovedImages
+	err := r.call(ctx, http.MethodPost, "/v1/clean-up/remove", removeImagesRequest{IDs: ids}, &out)
+	return out, err
+}
+
+// SetAutoClean asks the server.
+func (r *Remote) SetAutoClean(ctx context.Context, on bool) error {
+	return r.call(ctx, http.MethodPost, "/v1/clean-up/auto", autoCleanRequest{On: on}, nil)
 }
 
 // HistoryPage asks the server.
@@ -85,9 +145,30 @@ func (s *Server) hostRoutes(handle handleFunc) {
 	disks("GET /v1/disks", func(d Disks, r *http.Request) (any, error) { return d.DiskSpaces(r.Context()) })
 	memory := capRoute(handle, offered(n.Memory))
 	memory("GET /v1/memory", func(m Memory, r *http.Request) (any, error) { return m.MemoryInfo(r.Context()) })
+	memory("GET /v1/usage", func(m Memory, r *http.Request) (any, error) { return m.Usage(r.Context()) })
 	leftData := capRoute(handle, offered(n.LeftData))
 	leftData("GET /v1/services/{service}/left-data", func(l LeftData, r *http.Request) (any, error) {
 		return l.LeftDataDirs(r.Context(), svcOf(r))
+	})
+	leftData("GET /v1/left-services", func(l LeftData, r *http.Request) (any, error) { return l.LeftServices(r.Context()) })
+	cleanUp := capRoute(handle, offered(n.CleanUp))
+	cleanUp("GET /v1/clean-up", func(c CleanUp, r *http.Request) (any, error) { return c.CleanUpReport(r.Context()) })
+	cleanUp("POST /v1/clean-up/remove", func(c CleanUp, r *http.Request) (any, error) {
+		req, err := body[removeImagesRequest](r)
+		if err != nil {
+			return nil, err
+		}
+		return c.RemoveImages(r.Context(), req.IDs)
+	})
+	cleanUp("POST /v1/clean-up/auto", func(c CleanUp, r *http.Request) (any, error) {
+		req, err := body[autoCleanRequest](r)
+		if err != nil {
+			return nil, err
+		}
+		return nil, c.SetAutoClean(r.Context(), req.On)
+	})
+	leftData("POST /v1/services/{service}/left-data/delete", func(l LeftData, r *http.Request) (any, error) {
+		return nil, l.DeleteLeftData(r.Context(), svcOf(r))
 	})
 
 	history := capRoute(handle, offered(n.History))

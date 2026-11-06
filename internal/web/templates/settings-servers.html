@@ -17,7 +17,7 @@
 {{if not .Only}}
 <section class="card section">
   <div class="table-wrap"><table class="list">
-    <thead><tr><th>Server</th><th>State</th><th class="hide-phone">Services</th><th class="hide-phone">Disk</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <thead><tr><th>Server</th><th>State</th><th class="hide-phone">Services</th><th class="hide-phone">Disk</th><th class="hide-phone">Memory</th><th class="hide-phone">CPU</th><th><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>
       {{range .Servers}}
       <tr>
@@ -31,6 +31,11 @@
         <td class="hide-phone wrap">{{range $i, $s := .Services}}{{if $i}}, {{end}}{{$s}}{{else}}<span class="hint">None</span>{{end}}</td>
         <td class="hide-phone">{{with index $.Spaces .ID}}{{with .Summary}}<div class="meter{{with .Level}} meter-{{.}}{{end}}" title="{{.Percent}}% used"><span data-width="{{.Percent}}"></span></div>
           <small class="hint">{{size .Used}} of {{size .Total}}</small>{{end}}{{else}}<span class="hint">Unknown</span>{{end}}</td>
+        {{with index $.Usage .ID}}<td class="hide-phone"><div class="meter{{with .MemLevel}} meter-{{.}}{{end}}" title="{{.MemPercent}}% used"><span data-width="{{.MemPercent}}"></span></div>
+          <small class="hint">{{size .MemUsed}} of {{size .MemTotal}}</small></td>
+        <td class="hide-phone"><div class="meter{{with .CPULevel}} meter-{{.}}{{end}}" title="{{.CPUBusy}}% busy"><span data-width="{{.CPUBusy}}"></span></div>
+          <small class="hint">{{.CPUBusy}}% of {{.CPUs}} {{if eq .CPUs 1}}processor{{else}}processors{{end}}</small></td>
+        {{- else}}<td class="hide-phone"><span class="hint">Unknown</span></td><td class="hide-phone"><span class="hint">Unknown</span></td>{{end}}
         <td><a class="table-action" href="/settings/servers/{{.ID}}">Settings<span class="sr-only"> for {{.Name}}</span></a></td>
       </tr>
       {{end}}
@@ -63,7 +68,8 @@
     <dt>{{icon "disk"}}Disk{{with index $.Spaces .ID}}{{if gt (len .Disks) 1}}s{{end}}{{end}}</dt>
     <dd>{{with index $.Spaces .ID}}
       {{template "disks-live" .}}
-    {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}</dd>
+    {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}
+      <p class="clean-up-link"><a href="/settings/servers/{{.ID}}/clean-up">Clean up {{.Name}}…</a> <small class="hint">· old versions of services, and data from removed ones</small></p></dd>
     <dt>{{icon "location"}}Where</dt>
     <dd>
       <form method="post" action="/settings/servers/{{.ID}}/location" class="inline-form">

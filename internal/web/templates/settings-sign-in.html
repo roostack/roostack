@@ -1,0 +1,64 @@
+{{define "title"}}Single sign-on{{end}}
+{{define "content"}}
+{{$v := .SSO}}
+<div class="page-head">
+  <div>
+    <h1>Single sign-on</h1>
+    <p class="lede">One account for the lab's services: people sign in once, at the lab's sign-in page, with their Roostack username and password, and each service with single sign-on lets them in.</p>
+  </div>
+  {{if $v.Served}}<div class="page-head-actions"><a class="button secondary" href="https://{{$v.Host}}" target="_blank" rel="noopener">Open the sign-in page{{template "new-window"}}</a></div>{{end}}
+</div>
+<ul class="figures">
+  <li class="card"><span class="figure-label">Services</span><span class="figure-value">{{$v.On}} <small>of {{len $v.Services}} with single sign-on</small></span>
+    <span class="figure-note">{{if $v.Others}}{{joinAnd $v.Others}} {{if eq (len $v.Others) 1}}has its{{else}}have their{{end}} own accounts{{else if $v.Services}}Every service can use it{{else}}No services yet{{end}}</span></li>
+  <li class="card"><span class="figure-label">People</span><span class="figure-value">{{$v.People}} <small>can sign in</small></span>
+    <span class="figure-note{{if $v.NoEmail}} warn{{end}}">{{if $v.NoEmail}}{{$v.NoEmail}} {{if eq $v.NoEmail 1}}has{{else}}have{{end}} no email address{{else}}Everyone has an email address{{end}}</span></li>
+  <li class="card"><span class="figure-label">Sign-in page</span>
+    <span class="figure-value">{{if $v.Served}}Working{{else if not $v.Host}}No address yet{{else if not $v.On}}Not needed yet{{else}}Not working yet{{end}}</span>
+    <span class="figure-note{{if and $v.Host $v.On (not $v.Served)}} warn{{end}}">{{with $v.Host}}{{.}}{{else}}It needs the lab's address{{end}}</span></li>
+</ul>
+<div class="grid section">
+<section class="card span-8" id="services">
+  <div class="card-head"><h2>Services</h2></div>
+  {{if $v.Services}}
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Service</th><th>Single sign-on</th><th class="hide-phone">Who can use it</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {{range $v.Services}}
+      <tr>
+        <td><div class="list-name"><span class="logo-tile">{{with .Logo}}<img src="{{.}}" alt="" width="40" height="40" loading="lazy">{{else}}{{icon "services"}}{{end}}</span><div><a href="/services/{{.Name}}">{{.Title}}</a>{{with .App}}<small>{{.}}</small>{{end}}</div></div></td>
+        <td>{{if or (eq .Progress "applying") (eq .Progress "connecting") (eq .Progress "restarting")}}<span class="pill pill-info">{{if .On}}Turning on{{else}}Turning off{{end}}</span>
+          {{- else if or (eq .Progress "failed") (eq .Progress "hook-failed") (eq .Progress "stuck")}}<span class="pill pill-bad">Needs attention</span>
+          {{- else if .On}}<span class="pill pill-ok">On</span>{{else}}<span class="pill">Off</span>{{end}}</td>
+        <td class="hide-phone">{{if .On}}{{.Who}}{{else}}<span class="hint">Its own accounts</span>{{end}}</td>
+        <td><a class="table-action" href="/services/{{.Name}}#sso">{{if .On}}Change{{else}}Turn on…{{end}}<span class="sr-only"> {{.Title}}</span></a></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table></div>
+  <p class="hint">Who can use each one is chosen on its page, or with <a href="/settings/people#groups">groups on People</a>.</p>
+  {{else}}<p>None of your services can use single sign-on yet.{{with $v.Others}} {{joinAnd .}} {{if eq (len .) 1}}has its{{else}}have their{{end}} own accounts.{{end}}</p>{{end}}
+</section>
+<section class="card span-4" id="sign-in-page">
+  <div class="card-head"><h2>The sign-in page</h2>{{if $v.Served}}<a class="more" href="https://{{$v.Host}}" target="_blank" rel="noopener">Open it{{template "new-window"}}</a>{{end}}</div>
+  <div class="look-thumb" data-palette="{{.Look.Palette}}" aria-hidden="true"><div class="look-thumb-card">{{template "look-brand" .}}<strong>Sign in</strong><span></span><span></span><i></i></div></div>
+  {{with $v.Host}}<p>At <code>{{.}}</code>. It's public while any service using it is, or Roostack's own pages are.</p>
+  {{else}}<p>It will be at <code>login.</code> and your lab's address, once it has one: <a href="/setup/domain">give your lab an address</a>.</p>{{end}}
+  <p class="hint">Its name, logo, and colours are the lab's: change them on <a href="/settings/look">Name and look</a>.</p>
+</section>
+<section class="card span-12" id="signing-in">
+  <h2>Signing in</h2>
+  {{if .Saved}}{{notice "ok" "Saved. It will apply from each person's next sign-in."}}{{end}}
+  <form method="post" action="/settings/sign-in">
+    <label class="check"><input type="checkbox" class="switch" role="switch" name="signin_remember"{{if $v.Remember}} checked{{end}}>
+      <span>Keep people signed in for 30 days unless they untick it<small>Services are what family use every day; Roostack's own pages will keep their own limit (<a href="/settings/people#signing-in">People → Signing in to Roostack</a>).</small></span></label>
+    <label class="check"><input type="checkbox" class="switch" role="switch" name="signin_two_factor"{{if $v.TwoFactorEveryone}} checked{{end}}>
+      <span>Ask everyone for two-factor<small>Owners always need it, and Admins whenever Roostack's pages can be reached from the internet.</small></span></label>
+    <button type="submit" class="secondary">Save</button>
+  </form>
+</section>
+</div>
+{{end}}
+
+
+{{define "page-help"}}{{help "services/single-sign-on" "Single sign-on"}}{{end}}

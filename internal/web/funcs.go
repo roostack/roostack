@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"html/template"
+	"net/url"
 	"path"
 	"slices"
 	"strings"
@@ -71,6 +72,11 @@ func templateFuncs() template.FuncMap {
 		"shownRepo": labrestore.Shown,
 		// date is a day, e.g. 28 September 2027.
 		"date": func(t time.Time) string { return t.Local().Format("2 January 2006") },
+		// installAgain is the install form's query to install a removed
+		// service again over its data: its name, title and server.
+		"installAgain": func(name, title, host string) template.URL {
+			return template.URL(url.Values{"name": {name}, "title": {title}, "host": {host}}.Encode())
+		},
 		// has says whether a list has an item.
 		"has": func(list []string, item string) bool { return slices.Contains(list, item) },
 		// joinAnd lists names for people: "Films, TV and Music".

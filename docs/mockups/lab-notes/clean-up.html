@@ -1,0 +1,133 @@
+<!doctype html><html lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+  <title>Clean up nuc · Roostack (mock-up)</title>
+  <link rel="icon" href="/internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/internal/web/static/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" href="/internal/web/static/apple-touch-icon.png">
+  <link rel="preload" href="/internal/web/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/tokyo-night.css">
+  
+  <link rel="stylesheet" href="/internal/web/static/css/app.css">
+  <script src="/internal/web/static/alpine-3.17.4.min.js" defer></script>
+  
+  <link rel="stylesheet" href="mock.css">
+</head>
+
+<body x-data="{ menu: false }" x-on:keydown.escape.window="menu = false" x-bind:class="menu && 'menu-open'">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="/"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Smiths&#39; lab">Smiths&#39; lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="/services"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        
+        <a class="nav-item" href="/backups"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="/servers" aria-current="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+        <a class="nav-item" href="/monitoring"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Monitoring</a>
+        
+        <a class="nav-item" href="/settings"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+        
+      </nav>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="/help/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="/account" class="who-link"><span class="avatar" aria-hidden="true">S</span>
+            <span class="who-name"><strong title="sam">sam</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" x-show="menu" x-cloak x-on:click="menu = false"></div>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" x-on:click="menu = true; $nextTick(() => document.querySelector('#sidebar .nav-item').focus())" aria-controls="sidebar" x-bind:aria-expanded="menu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="/servers">Servers</a><a href="/servers#server-n-1">nuc</a><strong aria-current="page">Clean up</strong></nav>
+        <a class="page-help" href="/help/servers/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Servers<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+      </header>
+      <main class="page">
+<div class="page-head">
+  <div>
+    <h1>Clean up nuc</h1>
+    <p class="lede">What's taking space on nuc that no service needs, and deleting it. Nothing here is a service's data.</p>
+  </div>
+</div>
+<ul class="figures mock-figures">
+  <li class="card"><span class="figure-label">System disk</span><span class="figure-value">38.6 GB <small>free of 120 GB</small></span><span class="figure-note">Counted today 02:20</span></li>
+  <li class="card"><span class="figure-label">Could be freed</span><span class="figure-value">8.9 GB</span><span class="figure-note">Below, in four kinds</span></li>
+</ul>
+<div class="grid section">
+<section class="card span-8">
+  <div class="card-head"><h2>Old versions of services</h2><span class="more">5.3 GB</span></div>
+  <p>Each update downloads the service's new version, and Roostack keeps the one before so that it can go back if the new one doesn't work. These are from earlier updates and removed services, and nothing uses them now.</p>
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th><span class="sr-only">Choose</span></th><th>Version</th><th class="hide-phone">Used by</th><th>Size</th></tr></thead>
+    <tbody>
+      <tr><td><input type="checkbox" checked aria-label="Immich 3.3.3"></td><td><div class="list-name"><span class="logo-tile"><img src="/internal/testdata/packages/immich/icon.png" alt="" width="40" height="40"></span><div>Immich 3.3.3<small>the server</small></div></div></td><td class="hide-phone">Photos, until 21 October</td><td>1.9 GB</td></tr>
+      <tr><td><input type="checkbox" checked aria-label="Immich 3.3.3, machine learning"></td><td><div class="list-name"><span class="logo-tile"><img src="/internal/testdata/packages/immich/icon.png" alt="" width="40" height="40"></span><div>Immich 3.3.3<small>machine learning</small></div></div></td><td class="hide-phone">Photos, until 21 October</td><td>2.6 GB</td></tr>
+      <tr><td><input type="checkbox" checked aria-label="Pingvin Share X 1.13.0"></td><td><div class="list-name"><span class="logo-tile"><img src="/internal/testdata/packages/pingvin-share-x/icon.png" alt="" width="40" height="40"></span><div>Pingvin Share X 1.13.0</div></div></td><td class="hide-phone">Removed on 2 November</td><td>412 MB</td></tr>
+      <tr><td><input type="checkbox" checked aria-label="Mealie 3.28.1"></td><td><div class="list-name"><span class="logo-tile"><img src="/internal/testdata/packages/mealie/icon.png" alt="" width="40" height="40"></span><div>Mealie 3.28.1</div></div></td><td class="hide-phone">Mealie, until 30 October</td><td>398 MB</td></tr>
+    </tbody>
+  </table></div>
+  <p class="hint">Kept for going back, so not listed: Vaultwarden 1.37.3, until 13 November (a week after its update).</p>
+  <button type="button" class="outline-danger">Delete 4 old versions · 5.3 GB</button>
+  <details class="mock-tech"><summary>What Roostack will run</summary>
+    <pre class="output">podman image rm ghcr.io/immich-app/immich-server@sha256:3f1c… ghcr.io/immich-app/immich-machine-learning@sha256:9a0e… …</pre>
+    <p class="hint">As the <code>roostack</code> user. An image a container still uses is never removed: Podman refuses, and the page says so.</p></details>
+</section>
+<div class="span-4 grid-column">
+  <section class="card">
+    <div class="card-head"><h2>Data from removed services</h2><span class="more">3.5 GB</span></div>
+    <p>Three removed services' data, kept in case they're installed again.</p>
+    <p><a class="button secondary" href="services-removed.html">Look at it on Services…</a></p>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Kept copies</h2><span class="more">0 B</span></div>
+    <p class="hint">None on nuc. Restores and moves keep a copy of what they replaced, listed under <a href="servers.html">nuc's card</a>.</p>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Roostack's own</h2><span class="more">96 MB</span></div>
+    <p>What's left from building Roostack's web proxy (Caddy) before its last update.</p>
+    <button type="button" class="secondary">Delete · 96 MB</button>
+  </section>
+</div>
+<section class="card span-12">
+  <h2>By itself</h2>
+  <label class="check mock-new"><input type="checkbox" class="switch" role="switch" checked>
+    <span>Delete old versions of services a week after nothing uses them<small>Roostack will check every night after the backup and say what it deleted in History. It will always keep the version before each service's last update for a week.</small></span></label>
+</section>
+</div>
+
+</main>
+      <footer class="site">Roostack <span class="version" title="Roostack's version">v0.1.3-2-ge32d9b27-dirty</span> · <a href="/about">About</a> · <a href="/design" target="_blank" rel="noopener">Design system<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></footer>
+    </div>
+  </div>
+  
+<script src="mock.js"></script>
+</body>
+</html>
+
+
+

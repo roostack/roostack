@@ -1,0 +1,80 @@
+{{define "title"}}Clean up {{.Ref.Name}}{{end}}
+{{define "content"}}
+{{$name := .Ref.Name}}
+<div class="page-head">
+  <div>
+    <h1>Clean up {{$name}}</h1>
+    <p class="lede">What's taking space on {{$name}} that no service needs, and deleting it. Nothing here is a service's data.</p>
+  </div>
+</div>
+{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+{{with .DoneText}}{{notice "ok" .}}{{end}}
+<ul class="figures">
+  {{with .Disk}}<li class="card"><span class="figure-label">Disk space</span><span class="figure-value">{{size (sub .Total .Used)}} <small>free of {{size .Total}}</small></span>
+    <span class="figure-note{{with .Level}} warn{{end}}">{{.Percent}}% used</span></li>{{end}}
+  <li class="card"><span class="figure-label">Could be freed</span><span class="figure-value">{{size .Freeable}}</span><span class="figure-note">Up to: images share parts</span></li>
+</ul>
+<div class="grid section">
+<section class="card span-8" id="services">
+  <div class="card-head"><h2>Old versions of services</h2><span class="more">{{size .OldVersions.Total}}</span></div>
+  <p>Each update downloads the service's new version, and Roostack keeps the one before so that it can go back if the new one doesn't work.
+    These are from earlier updates and removed services, and nothing uses them now.</p>
+  {{with .OldVersions.Images}}
+  <form method="post" action="/settings/servers/{{$.Ref.ID}}/clean-up/remove">
+    <div class="table-wrap"><table class="list">
+      <thead><tr><th><span class="sr-only">Choose</span></th><th>Version</th><th class="hide-phone">Used by</th><th>Size</th></tr></thead>
+      <tbody>
+        {{range .}}
+        <tr>
+          <td><input type="checkbox" name="id" value="{{.ID}}" checked aria-label="{{.What}}"></td>
+          <td class="wrap"><div class="list-name"><span class="logo-tile">{{icon "services"}}</span><div>{{.What}}{{with .Component}}<small>{{.}}</small>{{end}}{{if .Title}}<small class="hint wrap">{{.Repository}}</small>{{end}}</div></div></td>
+          <td class="hide-phone wrap">{{if .Title}}{{if .Installed}}{{.Title}}{{else}}{{.Title}}, removed{{end}}{{if not .LastUsed.IsZero}}, until {{date .LastUsed}}{{end}}{{else}}<span class="hint">Not known</span>{{end}}</td>
+          <td>{{size .Size}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table></div>
+    {{if $.Kept}}<p class="hint">Kept for going back, so not listed: {{range $i, $k := $.Kept}}{{if $i}}; {{end}}{{$k.What}} until {{date $k.KeptUntil}}{{end}}.</p>{{end}}
+    <button type="submit" class="outline-danger">Delete the chosen versions</button>
+  </form>
+  <details class="section"><summary class="hint">What Roostack will run</summary>
+    <p class="hint"><code>podman image rm</code> for each, as the <code>roostack</code> user on {{$name}}. Podman refuses to delete an image a container is using, and the page will say so.</p></details>
+  {{else}}<p class="hint">None: every version here is in use{{if $.Kept}}, or kept for going back ({{range $i, $k := $.Kept}}{{if $i}}; {{end}}{{$k.What}} until {{date $k.KeptUntil}}{{end}}){{end}}.</p>{{end}}
+</section>
+<div class="span-4 grid-column">
+  <section class="card" id="removed">
+    <div class="card-head"><h2>Data from removed services</h2><span class="more">{{size .RemovedTotal}}</span></div>
+    {{if .RemovedCount}}<p>{{.RemovedCount}} removed {{if eq .RemovedCount 1}}service's data, kept in case it's{{else}}services' data, kept in case they're{{end}} installed again.</p>
+    <p><a class="button secondary" href="/services?removed=1#removed">Look at it on Services…</a></p>
+    {{else}}<p class="hint">None on {{$name}}.</p>{{end}}
+  </section>
+  <section class="card" id="kept">
+    <div class="card-head"><h2>Kept copies</h2></div>
+    {{if .KeptCopies}}<p>{{.KeptTotal}}, from restores and moves.</p><p><a class="button secondary" href="/servers#server-{{.Ref.ID}}">Look at them on Servers…</a></p>
+    {{else}}<p class="hint">None on {{$name}}. Restores and moves keep a copy of what they replaced, listed on its card under Servers.</p>{{end}}
+  </section>
+  <section class="card" id="own">
+    <div class="card-head"><h2>Roostack's own</h2><span class="more">{{size .OwnImages.Total}}</span></div>
+    {{if .OwnImages.Images}}<p>What's left from building Roostack's own images, such as its web proxy, before their latest build.</p>
+    <form method="post" action="/settings/servers/{{.Ref.ID}}/clean-up/remove">
+      {{range .OwnImages.IDs}}<input type="hidden" name="id" value="{{.}}">{{end}}
+      <button type="submit" class="secondary">Delete them · {{size .OwnImages.Total}}</button>
+    </form>
+    {{else}}<p class="hint">Nothing left over.</p>{{end}}
+  </section>
+</div>
+<section class="card span-12" id="auto">
+  <h2>By itself</h2>
+  {{if .AutoSaved}}{{notice "ok" "Saved."}}{{end}}
+  <form method="post" action="/settings/servers/{{.Ref.ID}}/clean-up/auto">
+    <label class="check"><input type="checkbox" class="switch" role="switch" name="on"{{if .AutoClean}} checked{{end}}>
+      <span>Delete old versions of services a week after nothing uses them<small>Roostack checks every night after the backup, and History will say what it deleted.
+        It will always keep the version before each service's last update for a week.</small></span></label>
+    <button type="submit" class="secondary">Save</button>
+  </form>
+</section>
+</div>
+{{end}}
+
+{{define "crumbs"}}<a href="/servers">Servers</a><a href="/servers#server-{{.Ref.ID}}">{{.Ref.Name}}</a><strong aria-current="page">Clean up</strong>{{end}}
+{{define "page-help"}}{{help "servers" "Servers"}}{{end}}

@@ -29,9 +29,11 @@ func (s *Server) renderUsers(w http.ResponseWriter, r *http.Request, status int,
 		"Roles": []string{auth.RoleOwner, auth.RoleAdmin, auth.RoleMember},
 		// Signing out after inactivity (session.go).
 		"IdleMinutes": int(s.idleLimit(r.Context()).Minutes()), "IdleChoices": idleChoices,
-		"OfferRemember": s.offerRemember(r.Context()), "SignInSaved": r.URL.Query().Get("signin") == "saved",
-		"LookSaved": r.URL.Query().Get("look") == "saved"}
+		"OfferRemember": s.offerRemember(r.Context()), "SignInSaved": r.URL.Query().Get("signin") == "saved"}
 	s.addPeopleSSO(r.Context(), data)
+	if sum := s.ssoSummaryFor(r); sum != nil {
+		data["SSOSummary"] = sum
+	}
 	for k, v := range extra {
 		data[k] = v
 	}

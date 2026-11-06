@@ -81,6 +81,11 @@ type Instance struct {
 	// closed for a while, until someone lifts it. The lab's own pauses
 	// (everything, or by what services are built with) are in lab.yaml.
 	PublicPause *config.Pause `yaml:"public_pause,omitempty"`
+	// Off: someone turned the service off for a while (SPEC.md §6.3.5):
+	// nothing of it runs but its network, and its address answers with a
+	// page saying it's turned off, until someone turns it on again. Its
+	// data, settings, names and ports stay.
+	Off *config.Pause `yaml:"off,omitempty"`
 	// PublicAnyway are the security advisories the Owner chose to keep
 	// this version public despite (SPEC.md §6.16): Roostack doesn't pause
 	// it for them. Another version (an update) isn't covered.

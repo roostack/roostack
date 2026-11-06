@@ -27,6 +27,7 @@ Commands:
   validate Check a package file and the registry's package policy
   node     Join this server to a lab
   public   Pause public access to services, open it again, or see what's paused
+  service  Turn a service off for a while, or on again
   registry The service registry's keys and signed index
 
 Run 'roostack <command> -h' for command flags.
@@ -82,6 +83,8 @@ func run(cmd string, args []string) error {
 		return nodeCmd(args)
 	case "public":
 		return publicCmd(args)
+	case "service":
+		return serviceCmd(args)
 	case "registry":
 		return registryCmd(args)
 	case "-h", "--help", "help":

@@ -18,11 +18,24 @@ When you remove a service:
 
 Only Owners and Admins can remove services.
 
-!!! tip "Removing it for good"
+## Its data, later
 
-    To free the space, delete its data folders from the server once you're
-    sure you don't need them. Backups made before you removed it still
-    contain its data, until they're tidied away (after six months at most).
+Removed services whose data is kept are listed under **Services →
+Removed, data kept**: what each one was, which server it was on, when and
+by whom it was removed, and how much space its data takes (counted once a
+day, after the nightly backup). From there:
+
+- **Install again** will open the install form with its name, title and
+  server filled in, so it carries on with its data;
+- **Delete…** (Owners only) will delete its folders and the passwords
+  Roostack kept for it, for good, once you tick that you understand.
+
+An Owner can also tick **Delete its data too** when removing a service:
+Roostack will delete it once the service has stopped.
+
+Backups made before then will still contain its data until they're tidied
+away (after six months at most), and the Delete dialog will say how many
+there are and when the oldest is from.
 
 ??? note "For technical users"
 
@@ -32,4 +45,11 @@ Only Owners and Admins can remove services.
     removes its Podman network (`podman network rm roostack-<name>`), which
     the next install will make again. Data under `/srv/roostack/services/<name>/` and
     `/srv/roostack/media/<name>/` is never touched. Its Podman secrets are
-    kept too, so reinstalling can read the data.
+    kept too, so reinstalling can read the data. The controller notes the
+    removal in its database (`removed_services`).
+
+    **Delete…** asks the service's server to run `podman unshare rm -rf`
+    on those folders as the `roostack` user, and `podman secret rm` on its
+    secrets (`roostack-<name>-…`, but not another service's whose name
+    starts with it, such as `immich-2`'s). The server refuses while the
+    service is still its own, or while its Quadlet files are still there.

@@ -49,6 +49,7 @@ func (Base) Updater() node.Updater     { return nil }
 func (Base) Disks() node.Disks         { return nil }
 func (Base) Memory() node.Memory       { return nil }
 func (Base) LeftData() node.LeftData   { return nil }
+func (Base) CleanUp() node.CleanUp     { return nil }
 func (Base) History() node.History     { return nil }
 func (Base) Linked() node.Linked       { return nil }
 func (Base) GuestHost() node.GuestHost { return nil }

@@ -79,6 +79,32 @@ tick it, choose the port on the server, and **Save**. The page will then
 show the address to connect to. Extra connections are open to your home
 network only.
 
+## Turning it off for a while
+
+**Turn it off for a while**, near the bottom of its page (Owners and
+Admins), will stop the service and keep it stopped, after restarts too,
+until someone turns it on again: for a service you don't need for now, or
+one you'd rather nobody used until you've looked at something. Nothing is
+deleted:
+
+- its data and settings will stay as they are, and so will its last
+  backup; backups won't take a new copy of its database while it's off;
+- its address and ports stay reserved for it, and anyone who opens its
+  address will get a page saying it's turned off;
+- updates will wait until it's on again.
+
+Its page will say who turned it off and when, with **Turn it on**. It
+shows as **Off** on Home and Services, which isn't counted as a problem,
+and monitoring won't check it meanwhile.
+
+??? note "For technical users"
+
+    It's `off:` in the service's file (`/var/lib/roostack/services/<name>.yaml`),
+    with who and when. The apply then removes its Quadlet files except its
+    network's, which stops its containers, and its Caddy site answers
+    with a 503 and the "turned off" page. From the server:
+    `sudo roostack service off <name>` and `sudo roostack service on <name>`.
+
 ## Updates
 
 When the service registry has a newer version of a service, its page will

@@ -44,16 +44,27 @@ func TestCaddyPages(t *testing.T) {
 	}
 }
 
-// The 503 page is the paused page (SPEC.md §6.16) when the route set
-// caddy.BlockedVar, and "Still hatching" otherwise; the paused page doesn't
-// reload itself, offer "Try again", say why, or name the lab.
+// The 503 page is the turned-off page (SPEC.md §6.3.5) when the route set
+// caddy.OffVar, the paused page (SPEC.md §6.16) when it set
+// caddy.BlockedVar, and "Still hatching" otherwise; neither of the first
+// two reloads itself, offers "Try again", says why, or names the lab.
 func TestPausedPage(t *testing.T) {
 	p := CaddyPages(`The Smiths' lab`, "https://roost.lab.example.com")["503.html"]
-	blocked := `{{if eq (placeholder "http.vars.roostack_blocked") "yes"}}`
-	if !strings.HasPrefix(p, blocked) {
+	off := `{{if eq (placeholder "http.vars.roostack_off") "yes"}}`
+	blocked := `{{else if eq (placeholder "http.vars.roostack_blocked") "yes"}}`
+	if !strings.HasPrefix(p, off) {
 		t.Fatalf("503.html doesn't start by choosing:\n%.300s", p)
 	}
-	paused, hatching, ok := strings.Cut(strings.TrimPrefix(p, blocked), "</html>{{else}}<!doctype")
+	offPage, rest, ok := strings.Cut(strings.TrimPrefix(p, off), "</html>"+blocked)
+	if !ok || !strings.Contains(offPage, "<h1>Turned off for now.</h1>") || !strings.Contains(offPage, tplService+" has been turned off for a while") {
+		t.Fatalf("the turned-off page:\n%.600s", offPage)
+	}
+	for _, leak := range []string{"Smiths", "roost.lab.example.com", "Try again", "<details>", "refresh"} {
+		if strings.Contains(offPage, leak) {
+			t.Errorf("the turned-off page has %q", leak)
+		}
+	}
+	paused, hatching, ok := strings.Cut(rest, "</html>{{else}}<!doctype")
 	if !ok || !strings.Contains(paused, "<h1>Resting its wings.</h1>") || !strings.Contains(paused, tplService+" is closed to visitors from the internet") ||
 		!strings.Contains(hatching, "Still hatching.") || !strings.HasSuffix(strings.TrimSpace(hatching), "{{end}}") {
 		t.Errorf("the two pages:\n%s", p)

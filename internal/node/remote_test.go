@@ -59,6 +59,11 @@ func (f *fakeNode) ServiceDetails(context.Context) (map[string]ServiceDetail, er
 func (f *fakeNode) MemoryInfo(context.Context) (MemoryInfo, error) {
 	return MemoryInfo{Total: 8_000_000_000, Available: 3_600_000_000}, nil
 }
+
+func (f *fakeNode) Usage(ctx context.Context) (Usage, error) {
+	m, _ := f.MemoryInfo(ctx)
+	return Usage{Memory: m, CPUs: 2, CPUBusy: 12}, nil
+}
 func (f *fakeNode) BuiltIns(context.Context) ([]BuiltIn, error) {
 	f.builtIns.Add(1)
 	return []BuiltIn{{Name: "Roostack agent", Kind: "roostack", Status: "active (running)"}}, nil
@@ -174,6 +179,9 @@ func TestRemote(t *testing.T) {
 	}
 	if m, err := r.MemoryInfo(ctx); err != nil || m.Total != 8_000_000_000 || m.Available != 3_600_000_000 {
 		t.Errorf("memory = %+v, %v", m, err)
+	}
+	if u, err := r.Usage(ctx); err != nil || u.Memory.Available != 3_600_000_000 || u.CPUs != 2 || u.CPUBusy != 12 {
+		t.Errorf("usage = %+v, %v", u, err)
 	}
 	if b, err := r.BuiltIns(ctx); err != nil || len(b) != 1 || b[0].Name != "Roostack agent" {
 		t.Errorf("built-ins = %+v, %v", b, err)

@@ -256,12 +256,10 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "install", s.installAudit(p, req))
-	if req.BringData {
-		// Its page says it waits for its data, with the way in.
-		redirect(w, r, "/services/"+url.PathEscape(cmp.Or(req.Name, p.Name)))
-		return
-	}
-	redirect(w, r, "/")
+	// Its page shows the install step by step (and, for data being
+	// brought, that it waits for it, with the way in): the maintainer,
+	// 2026-11-06, over Home, where it's one row among the others.
+	redirect(w, r, "/services/"+url.PathEscape(cmp.Or(req.Name, p.Name)))
 }
 
 // installAudit is the audit entry for an install: the service, where it
@@ -401,6 +399,12 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		servers = ms
 	}
 	host, _ := get("host")
+	// Installing again over a removed service's data (Services → Removed,
+	// removed.go): its name, title and server.
+	if q := r.URL.Query(); submitted == nil && (q.Get("name") == p.Name || strings.HasPrefix(q.Get("name"), p.Name+"-")) {
+		suffix = strings.TrimPrefix(strings.TrimPrefix(q.Get("name"), p.Name), "-")
+		title, host = cmp.Or(q.Get("title"), title), q.Get("host")
+	}
 	// In a lab mixing processors, the servers it has no version for
 	// aren't offered, and the form says why (SPEC.md §8.3.3); it starts
 	// on one it can run on.
@@ -511,14 +515,19 @@ func (s *Server) removePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := r.PathValue("name")
-	s.render(w, "remove", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Package": p, "Name": name, "DataDirs": s.Manager.DataDirs(name)})
+	s.render(w, "remove", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Package": p, "Name": name, "DataDirs": s.Manager.DataDirs(name),
+		"IsOwner": auth.Can(currentUser(r).Role, auth.ManageHost)})
 }
 
 func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.servicePkg(w, r); !ok {
+	p, ok := s.servicePkg(w, r)
+	if !ok {
 		return
 	}
 	name := r.PathValue("name")
+	// What it was, for Services → Removed (removed.go): asked before it's
+	// gone.
+	removed := s.removedRecord(r, name, p)
 	err := s.Manager.Remove(r.Context(), name)
 	if errors.Is(err, manager.ErrNotFound) {
 		redirect(w, r, "/")
@@ -529,6 +538,16 @@ func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "remove", name)
+	if removed != nil {
+		if err := s.Store.RecordRemoved(r.Context(), *removed); err != nil {
+			s.Log.Warn("noting a removed service", "service", name, "err", err)
+		}
+		// Its data too, when the Owner ticked it, once the change has
+		// stopped it on its server.
+		if r.FormValue("delete_data") == "on" && auth.Can(currentUser(r).Role, auth.ManageHost) {
+			s.deleteLeftDataLater(removed.Server, name, currentUser(r))
+		}
+	}
 	redirect(w, r, "/")
 }
 
