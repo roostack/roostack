@@ -477,3 +477,24 @@ func TestCloudKeptPrivate(t *testing.T) {
 	}
 	_ = fm
 }
+
+// A service's own sub-pages (its public access, removing it) keep it
+// marked in the sidebar's list of services, as its page does.
+func TestServiceSubpagesMarkTheService(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.access = []manager.RouteAccess{{Route: "web", Host: "passwords.lab.example.com"}}
+	for _, path := range []string{"/services/vaultwarden", "/services/vaultwarden/public/web", "/services/vaultwarden/remove"} {
+		code, body := h.get(path)
+		if code != http.StatusOK || !strings.Contains(body, `<a class="nav-sub" href="/services/vaultwarden" aria-current="page">`) ||
+			!strings.Contains(body, `<a class="nav-item" href="/services" aria-current="true">`) {
+			t.Errorf("%s (%d): Vaultwarden isn't marked in the sidebar", path, code)
+		}
+	}
+	// Adding a service lists them too, none marked.
+	for _, path := range []string{"/catalog", "/catalog/add", "/install/immich"} {
+		_, body := h.get(path)
+		if !strings.Contains(body, `<a class="nav-sub" href="/services/vaultwarden">`) || strings.Contains(body, `href="/services/vaultwarden" aria-current`) {
+			t.Errorf("%s: the sidebar doesn't list Vaultwarden unmarked", path)
+		}
+	}
+}

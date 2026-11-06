@@ -79,7 +79,7 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 		cancel()
 	}
 	u := currentUser(r)
-	data := map[string]any{"User": u, "Registry": s.registryView(), "IsOwner": auth.Can(u.Role, auth.ManageHost)}
+	data := map[string]any{"User": u, pageServicesKey: s.sidebarServices(r), "Registry": s.registryView(), "IsOwner": auth.Can(u.Role, auth.ManageHost)}
 	items, err := s.Manager.Catalog()
 	if err != nil {
 		s.serverError(w, err)
@@ -468,6 +468,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 	policy := s.Manager.CheckPackage(p)
 	owner := auth.Can(u.Role, auth.ManageHost)
 	return map[string]any{
+		pageServicesKey: s.sidebarServices(r),
 		"Policy":        policy,
 		"IsOwner":       owner,
 		"CanInstall":    len(policy.Problems) == 0 || (policy.Local && owner),
@@ -504,7 +505,7 @@ func (s *Server) removePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := r.PathValue("name")
-	s.render(w, "remove", map[string]any{"User": currentUser(r), "Package": p, "Name": name, "DataDirs": s.Manager.DataDirs(name)})
+	s.render(w, "remove", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Package": p, "Name": name, "DataDirs": s.Manager.DataDirs(name)})
 }
 
 func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {

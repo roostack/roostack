@@ -298,7 +298,9 @@ What every repeating job in Roostack, Cloud, and the registry asks of shared ser
 
 ## To discuss with the user
 
-Nothing at the moment.
+- [ ] **Single sign-on when installing** (found 2026-11-06): SPEC §5.2 says a service whose package supports it "has single sign-on on by default when the lab has it set up", but installing never sets `instance.SSO`, and the install form has no choice for it, so every service starts with it off. To decide: the default (on when the lab has an address, as SPEC says), a "Sign in with your lab's account" tick on the install form, and whether a lab-wide setting picks the default.
+- [ ] **Why Roostack Cloud isn't offered for backups** (found 2026-11-06): the choice is listed only when the lab is linked and its account has backup storage (`manager.cloudChoice`: a quota above zero); otherwise it's left out with no word why. Show it either way, saying what's missing (link the lab, or ask for backup storage), with a link.
+- [ ] **Private pages on a lab on the internet** (asked 2026-11-06): a private service there is reachable only through an SSH tunnel (the help's "Private on a cloud server"), which is for technical users. Options: a lab VPN as a first-class flow (WireGuard on the server, devices added with a QR code, as Roostack Cloud's wg-ops does); private addresses behind the lab's sign-in instead (public, but Caddy asks for a lab account first, which the sign-in page already has); or both.
 
 ## The big red button (SPEC §6.16, decided 2026-10-22)
 
@@ -330,6 +332,8 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
   - [ ] Later: the AI first pass, once the watcher works without it
 
 ## Single sign-on: what's next (SPEC §5.2)
+
+- [x] A service's own pages (public access, removing it) keep it marked in the sidebar, and the Services pages built without `pageData` (those two, the catalog, installing, adding a package of your own) list the services there at all (2026-11-06, `TestServiceSubpagesMarkTheService`); the service page's header no longer touches what's below it, and the catalog's "Add your own" card has its space above
 
 - [ ] Run the conformance suite again before each release that changes `internal/sso` or the sign-in page (docs/SSO-CONFORMANCE.md)
 - [ ] Add the `sso` part to the registry's Mealie and Stirling-PDF packages (as in `internal/testdata/packages`), once a Roostack release has it (`requires.roostack`)
