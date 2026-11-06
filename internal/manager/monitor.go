@@ -4,11 +4,13 @@ import (
 	"context"
 	"net"
 	"strconv"
+	"time"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/monitor"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/usererr"
 )
@@ -123,6 +125,36 @@ func (m *Manager) SetStatusPage(on bool) error {
 	}
 	m.startApplyLocked("Turning the public status page " + map[bool]string{true: "on", false: "off"}[on])
 	return nil
+}
+
+// StatusPageProgress is how turning the status page on or off is going,
+// for its card (SPEC.md §6.15, "While it's being turned on").
+type StatusPageProgress struct {
+	// Applying: the switch changed, and Caddy doesn't serve it that way
+	// yet; Failed is the apply's error if one failed meanwhile.
+	Applying bool
+	Failed   string
+	// Applied is when an apply last turned it on or off since Roostack
+	// started, zero if none has.
+	Applied time.Time
+}
+
+// StatusPageProgress is how turning the status page on or off is going,
+// from this server's last successful apply (its Caddy serves the page).
+func (m *Manager) StatusPageProgress() StatusPageProgress {
+	l, ok := m.Node.(interface{ StatusPageApplied() node.StatusPageApplied })
+	if !ok {
+		return StatusPageProgress{}
+	}
+	a := l.StatusPageApplied()
+	if a.Known && a.On != m.StatusPageOn() {
+		p := StatusPageProgress{Applying: true}
+		if !a.Running {
+			p.Failed = a.LastErr
+		}
+		return p
+	}
+	return StatusPageProgress{Applied: a.At}
 }
 
 // withStatusPage is the lab's settings with the status page's switch as

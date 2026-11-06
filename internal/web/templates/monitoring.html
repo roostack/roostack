@@ -89,6 +89,7 @@
   <p>{{if .StatusOn}}Anyone can see{{else}}Turned on, anyone can see{{end}} the services you tick at
     {{if .StatusOn}}<a href="https://{{.StatusHost}}" target="_blank" rel="noopener">{{.StatusHost}}{{template "new-window"}}</a>{{else}}<code>{{.StatusHost}}</code>{{end}}:
     whether each is up and its uptime. Never an address or what went wrong.</p>
+  {{template "status-progress" .}}
   <form method="post" action="/monitoring/status-page" class="stack">
     <input type="hidden" name="choices" value="yes">
     {{if .StatusChoices}}
@@ -144,4 +145,27 @@
     </dl>
   </details>
 </section>
+{{end}}
+
+{{define "status-progress"}}
+{{/* Turning the status page on or off (SPEC.md §6.15, "While it's being
+     turned on"): Roostack applying it, which can wait for another change
+     to finish, then that it's done. Polls while it's under way, swapping
+     only this part. */}}
+{{if eq .StatusStage "applying"}}
+<p id="status-progress" class="notice" role="status" hx-get="/monitoring" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-select="#status-progress" hx-swap="outerHTML">
+  {{if .StatusOn}}<strong>Turning the page on…</strong> Roostack is adding {{.StatusHost}} to the lab's web addresses: until it has, the address will say
+    nobody roosts there. If another change is still going (a service installing), this one will follow it.
+  {{else}}<strong>Turning the page off…</strong> Roostack is taking {{.StatusHost}} out of the lab's web addresses.{{end}}</p>
+{{else if eq .StatusStage "failed"}}
+<div id="status-progress" class="notice notice-error" role="alert" hx-get="/monitoring" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-select="#status-progress" hx-swap="outerHTML">
+  <p><strong>The page isn't {{if .StatusOn}}on{{else}}off{{end}} yet:</strong> Roostack couldn't apply the change, and will try again with the next one.</p>
+  <pre class="output">{{.StatusProgress.Failed}}</pre>
+</div>
+{{else if eq .StatusStage "done"}}
+<p id="status-progress" class="notice notice-ok" role="status">
+  {{if .StatusOn}}<strong>The page is on.</strong> It went live {{when .StatusProgress.Applied}} at
+    <a href="https://{{.StatusHost}}" target="_blank" rel="noopener">{{.StatusHost}}{{template "new-window"}}</a>.
+  {{else}}<strong>The page is off.</strong> {{.StatusHost}} stopped showing it {{when .StatusProgress.Applied}}.{{end}}</p>
+{{else}}<span id="status-progress" hidden></span>{{end}}
 {{end}}
