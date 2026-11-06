@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"time"
@@ -31,6 +32,19 @@ func (m *Manager) SSOAvailable(name string) (bool, string) {
 		return false, "Single sign-on works for services on this server (the lab's main one) for now. Move " + p.Title + " here to use it."
 	}
 	return true, ""
+}
+
+// ssoAtInstall says whether a service of p installed on host could have
+// single sign-on on from the start: SSOAvailable's rules, before there's
+// a service to ask about.
+func (m *Manager) ssoAtInstall(p *pkgspec.Package, host string) bool {
+	return p.SSO != nil && m.Lab.HasAddress() && cmp.Or(host, m.Lab.NodeID) == m.Lab.NodeID
+}
+
+// SSOAtInstall says whether installing p on host (empty: this server) may
+// turn single sign-on on from the start, for the install form's tick.
+func (m *Manager) SSOAtInstall(p *pkgspec.Package, host string) bool {
+	return m.ssoAtInstall(p, host)
 }
 
 // SetSSO turns single sign-on on or off for a service, then applies the

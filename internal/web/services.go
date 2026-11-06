@@ -311,6 +311,9 @@ func (s *Server) installRequest(r *http.Request, form url.Values, p *pkgspec.Pac
 		Public: s.onInternet() && auth.Can(currentUser(r).Role, auth.ManageHost) && form.Get("public") == "on",
 		// Bringing its data (SPEC.md §8.4): the Owner only.
 		BringData: form.Get("data") == "bring" && auth.Can(currentUser(r).Role, auth.ManageHost),
+		// Single sign-on from the start (SPEC.md §5.2): the form's tick,
+		// for Owners and Admins alike, as on the service's page.
+		SSO: form.Get("sso") == "on",
 	}
 	// The media libraries ticked for the server chosen (SPEC.md §8.1).
 	if form.Get("libraries_chosen") != "" {
@@ -431,6 +434,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		unsafe = p.Routes[route].Public.Unsafe
 	}
 	_, public := get("public")
+	_, ssoTicked := get("sso")
 	asked, _ := s.Manager.SignalSharing()
 
 	// The summary of what it sets up, for the form as it stands (SPEC.md
@@ -477,6 +481,8 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"BringData":     owner && submitted != nil && submitted["data"] != nil && submitted["data"][0] == "bring",
 		"Internet":      s.onInternet(),
 		"Public":        owner && (submitted == nil || public),
+		"SSOOffered":    s.Manager.SSOAtInstall(p, ""),
+		"SSOOn":         submitted == nil || ssoTicked,
 		"Unsafe":        unsafe,
 		"SharingAsked":  asked,
 		"User":          u,

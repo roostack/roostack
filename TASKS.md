@@ -298,9 +298,9 @@ What every repeating job in Roostack, Cloud, and the registry asks of shared ser
 
 ## To discuss with the user
 
-- [ ] **Single sign-on when installing** (found 2026-11-06): SPEC §5.2 says a service whose package supports it "has single sign-on on by default when the lab has it set up", but installing never sets `instance.SSO`, and the install form has no choice for it, so every service starts with it off. To decide: the default (on when the lab has an address, as SPEC says), a "Sign in with your lab's account" tick on the install form, and whether a lab-wide setting picks the default.
-- [ ] **Why Roostack Cloud isn't offered for backups** (found 2026-11-06): the choice is listed only when the lab is linked and its account has backup storage (`manager.cloudChoice`: a quota above zero); otherwise it's left out with no word why. Show it either way, saying what's missing (link the lab, or ask for backup storage), with a link.
-- [ ] **Private pages on a lab on the internet** (asked 2026-11-06): a private service there is reachable only through an SSH tunnel (the help's "Private on a cloud server"), which is for technical users. Options: a lab VPN as a first-class flow (WireGuard on the server, devices added with a QR code, as Roostack Cloud's wg-ops does); private addresses behind the lab's sign-in instead (public, but Caddy asks for a lab account first, which the sign-in page already has); or both.
+- [x] **Single sign-on when installing** (found 2026-11-06): it had been designed but never built. The Owner chose a tick on the install form, on by default (SPEC §5.2, as built 2026-11-06; `TestInstallWithSSO` in web and manager)
+- [x] **Why Roostack Cloud isn't offered for backups** (found 2026-11-06): it was left out without a word unless the lab was linked and its account had backup storage. Now always listed, greyed out with why when it can't be chosen (not linked, no backup storage, or Roostack Cloud not answering: `Manager.CloudBackupOff`), with a link to Settings → Roostack Cloud for the Owner (the Owner's choice, 2026-11-06; `TestBackupPlan`)
+- [ ] **The lab's VPN** (the Owner, 2026-11-06; SPEC §6.12, "Reaching private services from away"): private stays the local network only; a WireGuard VPN becomes a standard part of a lab, with its own status and settings, devices added by QR code or file, and access to other home devices through it; with clear instructions for reaching private services remotely, especially on a cloud server. Design and mock-ups first, then build
 
 ## The big red button (SPEC §6.16, decided 2026-10-22)
 

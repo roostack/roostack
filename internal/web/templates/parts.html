@@ -613,7 +613,10 @@
         {{- else if .Options.OwnDisk}}<label class="plan-choice"><input type="radio" name="choice" value="drive" x-model="choice">
           <span><strong>Its own disk</strong><small>{{.Server.Name}}'s disk</small></span></label>{{end}}
         {{if .Options.Cloud}}<label class="plan-choice"><input type="radio" name="choice" value="cloud" x-model="choice">
-          <span><strong>Roostack Cloud</strong><small>Off-site, set up for you</small></span></label>{{end}}
+          <span><strong>Roostack Cloud</strong><small>Off-site, set up for you</small></span></label>
+        {{- else if .Options.CloudOff}}{{/* Listed even when it can't be chosen, saying why (the Owner, 2026-11-06). */}}
+        <label class="plan-choice"><input type="radio" name="choice" value="cloud" disabled aria-describedby="cloud-off">
+          <span><strong>Roostack Cloud</strong><small>{{if eq .Options.CloudOff "unlinked"}}Link this lab first{{else if eq .Options.CloudOff "no-storage"}}No backup storage yet{{else}}Not answering just now{{end}}</small></span></label>{{end}}
         <label class="plan-choice"><input type="radio" name="choice" value="online" x-model="choice">
           <span><strong>Online storage</strong><small>Backblaze B2, Wasabi, S3</small></span></label>
         <label class="plan-choice"><input type="radio" name="choice" value="friend" x-model="choice">
@@ -621,6 +624,10 @@
         {{if and .Options.Servers (not .Wizard)}}<label class="plan-choice"><input type="radio" name="choice" value="server" x-model="choice">
           <span><strong>Another Roostack instance</strong><small>A disk on a remote Roostack server</small></span></label>{{end}}
       </div>
+      {{with .Options.CloudOff}}<p class="hint" id="cloud-off">
+        {{- if eq . "unlinked"}}Roostack Cloud can keep this lab's backups off-site, encrypted so that it can't read them, once the lab is linked to it{{if $.Options.CloudFix}}: <a href="/settings/cloud">link it to Roostack Cloud</a>{{else}}. Ask the lab's Owner to link it{{end}}.
+        {{- else if eq . "no-storage"}}This lab is linked to Roostack Cloud, but its account doesn't include backup storage yet{{if $.Options.CloudFix}}: see <a href="/settings/cloud">Roostack Cloud</a> for your account{{end}}.
+        {{- else}}Roostack couldn't reach Roostack Cloud just now, so its backups can't be chosen: reload this page to try again.{{end}}</p>{{end}}
 
       {{if and (not .Options.CanDrives) .Options.OwnDisk}}{{with .Options.OwnDisk}}
       <div x-show="choice === 'drive'">

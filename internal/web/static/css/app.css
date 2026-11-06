@@ -939,6 +939,9 @@ ul.guests .space-used { background: var(--chart-3); }
 .plan-choice { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0; padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
 .plan-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+/* A choice listed but not available yet (Roostack Cloud before the lab
+   is linked), with why under the choices. */
+.plan-choice:has(input:disabled) { opacity: 0.6; cursor: not-allowed; }
 .plan-choice span { display: grid; }
 .plan-invite { margin-top: var(--space-3); }
 .plan-invite label { margin-bottom: var(--space-1); font-weight: 600; }

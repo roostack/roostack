@@ -52,7 +52,10 @@ away from home, and it's a different kind of storage from a disk.
 ## Roostack Cloud
 
 If your lab is [linked to Roostack Cloud](../settings/cloud.md), you can
-back up to Roostack Cloud's own storage, in Australia. There's nothing to
+back up to Roostack Cloud's own storage, in Australia. The chooser always
+lists Roostack Cloud; until it can be chosen, it's greyed out and says
+why: the lab isn't linked yet, its account doesn't include backup storage
+yet, or Roostack Cloud didn't answer just then. There's nothing to
 set up: no account, keys, or address. The chooser, and then the backup in
 the plan, show how much of your plan's space is used (as Roostack Cloud
 measured it, once a day). If your account has several labs, they share
