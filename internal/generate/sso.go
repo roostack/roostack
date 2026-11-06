@@ -76,10 +76,11 @@ const (
 )
 
 // SSOOn reports whether single sign-on is on for a service: the Owner
-// turned it on, its package takes it, and the lab has an address for the
-// sign-in page. Only the controller runs it for now.
+// turned it on, or its package requires it (so a new version requiring it
+// needs no switch), its package takes it, and the lab has an address for
+// the sign-in page. Only the controller runs it for now.
 func SSOOn(lab config.Lab, p *pkgspec.Package, in *instance.Instance) bool {
-	return in.SSO && p.SSO != nil && lab.HasAddress() && !lab.IsNode()
+	return (in.SSO || p.RequiresSSO()) && p.SSO != nil && lab.HasAddress() && !lab.IsNode()
 }
 
 // SSOReaches reports whether an app's containers reach the sign-in page:

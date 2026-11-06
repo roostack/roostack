@@ -486,6 +486,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"Internet":      s.onInternet(),
 		"Public":        owner && (submitted == nil || public),
 		"SSOOffered":    s.Manager.SSOAtInstall(p, ""),
+		"SSORequired":   p.RequiresSSO(),
 		"SSOOn":         submitted == nil || ssoTicked,
 		"Unsafe":        unsafe,
 		"SharingAsked":  asked,

@@ -385,6 +385,8 @@ Finished work, by phase, with the headings of [TASKS.md](TASKS.md), where the op
 
 ## More services (the Owner, 2026-10-18; SPEC §8.1 "More services")
 
+- [x] Outline, BookStack, Docmost and Wiki.js 3 in the registry (2026-11-06, roostack/services, SPEC §8.1 "Wikis"; ASSUMPTIONS V18 to V20): each installed on VM3, backed up, and restored; removal tried on Wiki.js 3
+
 - [x] Done 2026-10-18, each tried on VM3: HedgeDoc, Wiki.js, Papra, Linkwarden, Paperless-ngx; Immich updated to 3.3.3, Vaultwarden to 1.37.4, Forgejo to 15.0.10; Mealie, Gitea, Miniflux, Lychee, Actual Budget, ntfy, Uptime Kuma, Radicale, Audiobookshelf; Stirling-PDF; Ghost (MySQL) and PhotoPrism (MariaDB), 2026-10-19
 - **Media libraries** (design locked 2026-10-19 with a mock-up, SPEC §8.1 "Media libraries"): libraries per server (drive folder, share, or a folder on the server), chosen per service, read-only and not backed up, `ro,rslave`; "read as owner" through idmapped mounts
   - [x] Agent (2026-10-19): list a drive's or folder's folders, sample readability and the main owner, mount and unmount a library (fstab: drive by UUID read-only, then a bind, optionally idmapped), a view folder per service, refusals; tried on VM3 with its sandbox (unplug, replug, reboot)
@@ -559,6 +561,8 @@ The review of 2026-10-16 found no CI for either Go repository.
 - [x] Single sign-on for services (SPEC §5.2; research in docs/SSO-RESEARCH.md; mock-ups in docs/mockups/sso). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library, groups in the first version, two-factor as for Roostack with a choice to ask everyone, 30-day "keep me signed in" ticked, the look on People with a mark or a wide logo. Built and checked end to end on VM3 the same day with Mealie (OIDC) and Stirling-PDF (the wall): docs/ASSUMPTIONS.md V1–V6; the conformance suite passes (V7)
 
 ## Single sign-on: what's next (SPEC §5.2)
+
+- [x] An app with no sign-in of its own: `sso.required` (2026-11-06, SPEC §5.2), for Outline: always on, no way to turn it off, refused where it can't work
 
 - [x] Run the OpenID Foundation's conformance suite (Basic OP and Config OP plans) against the provider before a release (2026-10-20: both pass with no failures after fixing `auth_time`, `prompt=login`/`max_age`, POST to `/authorize` and revoking a reused code's tokens; claims now follow scopes, the Owner's choice; five deliberate warnings; SPEC §5.2, docs/ASSUMPTIONS.md V7)
 - [x] Connecting the remaining apps (SPEC §5.2, decided by the Owner 2026-10-20, built the same day): the `on: sso` hook (Forgejo), a key the app makes kept from a hook's output (`from_hook`, `saves`, a Connect action; Immich), and `sso.secret_env` for a secret inside JSON (Paperless-ngx); hook output scrubbed of secrets; the client secret deleted once it's off; the sign-in page says when an app's single sign-on is off. Registry packages on roostack-services' `claude/sso-enablement`

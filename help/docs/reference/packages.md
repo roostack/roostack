@@ -293,6 +293,12 @@ routes:
       `Remote-Email`, `Remote-Name`, and `Remote-Groups` headers; Roostack
       removes any a visitor sends.
 
+    `required: true` is for an app with no sign-in of its own (Outline):
+    nobody could use it otherwise, so single sign-on is always on and the
+    Owner can't turn it off. The service must run where single sign-on
+    works: it can't be installed without the lab's address, or on or moved
+    to another server.
+
     `oidc.start_path` says where on the app's address opening a link
     makes it start signing in through the lab (Gokapi's `/oauth-login`),
     so that someone already signed in on the lab's sign-in page lands

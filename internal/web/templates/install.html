@@ -88,7 +88,11 @@
     {{end}}
     {{end}}
     {{/* Single sign-on from the start, on by default (SPEC.md §5.2). */}}
-    {{if .SSOOffered}}
+    {{if .SSORequired}}
+    {{if .SSOOffered}}<p class="hint">{{.Package.Title}} has no sign-in of its own, so people will sign in to it on your lab's sign-in page, with the
+      password and two-factor they already use{{with .Package.SSO.Note}}. {{.}}{{end}}{{if .Servers}} That works for services on this server for now, so it will need to run here.{{end}}</p>
+    {{else}}{{notice "warn" (printf "%s has no sign-in of its own, so it needs your lab's sign-in page, and that needs your lab's address first." .Package.Title) "link=/setup/domain" "linkText=Give it one"}}{{end}}
+    {{else if .SSOOffered}}
     <label class="check"><input type="checkbox" name="sso" {{if .SSOOn}}checked{{end}}>
       <span>Sign in with your lab's account (recommended)<small>People will sign in to {{.Package.Title}} on your lab's sign-in page, with the
         password and two-factor they already use{{with .Package.SSO.Note}}. {{.}}{{end}}{{if .Servers}} It works for services on this

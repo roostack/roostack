@@ -98,8 +98,11 @@ pull request for each update from its own branch,
 `update/<package>/<version>`, holding only its new file. The pull request
 says what changed (each image, its old and new digest, whether it was
 rebuilt), links the project's notes for the version when the package names
-them, and is labelled `update` and `update:<kind>`. An update whose branch
-exists is proposed already and left alone; when a newer update of a
+them, and is labelled `update` and `update:<kind>`. An update whose branch has had
+a pull request is left alone (proposed, or closed by someone, so a
+rejected update isn't opened again); a branch a run pushed before failing,
+without its pull request, gets one (the Watch workflow does the same, after
+its first runs wedged on one, 2026-10-29). When a newer update of a
 package comes, the older one's pull request is closed and its branch
 deleted. Packages it couldn't decide about go into the run's summary.
 

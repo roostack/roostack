@@ -14,6 +14,10 @@ import (
 type SSO struct {
 	OIDC        *SSOOIDC        `yaml:"oidc"`
 	ForwardAuth *SSOForwardAuth `yaml:"forward_auth"`
+	// Required says the app has no sign-in of its own (Outline), so nobody
+	// could sign in without this: single sign-on is always on, no Owner
+	// turns it off, and the service must run where it works (RequiresSSO).
+	Required bool `yaml:"required"`
 	// Env is added to the named containers while single sign-on is on,
 	// replacing their own value of the same name: several apps fail on an
 	// empty value, so a template that renders nothing isn't enough.
@@ -127,6 +131,10 @@ func ValidStartPath(p string) bool {
 	path, query, _ := strings.Cut(rest, "?")
 	return ValidRedirectPath(path) && startQueryRe.MatchString(query) && startQueryRe.MatchString(fragment)
 }
+
+// RequiresSSO says the app has no sign-in of its own, so single sign-on
+// is always on for it (SSO.Required).
+func (p *Package) RequiresSSO() bool { return p.SSO != nil && p.SSO.Required }
 
 // SSORoute is the route single sign-on is on ("" without it).
 func (p *Package) SSORoute() string {

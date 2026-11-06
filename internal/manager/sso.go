@@ -41,6 +41,19 @@ func (m *Manager) ssoAtInstall(p *pkgspec.Package, host string) bool {
 	return p.SSO != nil && m.Lab.HasAddress() && cmp.Or(host, m.Lab.NodeID) == m.Lab.NodeID
 }
 
+// ssoRequiredProblem says why a package requiring single sign-on can't run
+// on host, in a sentence for the form or the move page ("" if it can, or
+// if its package doesn't require it): nobody could sign in to it there.
+func (m *Manager) ssoRequiredProblem(p *pkgspec.Package, host string) string {
+	switch {
+	case !p.RequiresSSO() || m.ssoAtInstall(p, host):
+		return ""
+	case !m.Lab.HasAddress():
+		return p.Title + " has no sign-in of its own, so it needs your lab's sign-in page, and that needs your lab's address first."
+	}
+	return p.Title + " has no sign-in of its own, so it needs your lab's sign-in page, which works for services on this server (the lab's main one) for now. Run it here."
+}
+
 // SSOAtInstall says whether installing p on host (empty: this server) may
 // turn single sign-on on from the start, for the install form's tick.
 func (m *Manager) SSOAtInstall(p *pkgspec.Package, host string) bool {
@@ -51,6 +64,11 @@ func (m *Manager) SSOAtInstall(p *pkgspec.Package, host string) bool {
 // change: the app's settings and secret, or its wall, and the sign-in
 // page (SPEC.md §5.2).
 func (m *Manager) SetSSO(ctx context.Context, name string, on bool) error {
+	if !on {
+		if p, _, err := m.installedService(name); err == nil && p.RequiresSSO() {
+			return usererr.New("%s has no sign-in of its own, so single sign-on stays on: nobody could sign in without it.", p.Title)
+		}
+	}
 	if on {
 		if ok, why := m.SSOAvailable(name); !ok {
 			if why == "" {

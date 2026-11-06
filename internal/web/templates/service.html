@@ -653,9 +653,10 @@ Image: {{.Image}}</code></pre>
     </dl>
     {{if and .HasHook .Hook.Output}}<pre class="output">{{.Hook.Output}}</pre>{{end}}
   </details>
-  <div class="sso-off">
+  {{if .Required}}<p class="hint">{{.Title}} has no sign-in of its own, so single sign-on stays on.</p>
+  {{else}}<div class="sso-off">
     {{confirm (printf "/services/%s/sso" .Name) (printf "Turn off single sign-on for %s? %s" .Title (offText .)) "Turn off single sign-on…" "quiet danger" "sso=off"}}
-  </div>
+  </div>{{end}}
   {{else}}
   {{template "sso-hook" .}}
   {{if and .Available .Connect}}
