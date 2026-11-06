@@ -204,6 +204,19 @@ type BackupPlan struct {
 	Prepare []PrepareStep
 }
 
+// KeptDirs are the folders a restore sets aside and can put back: what's
+// backed up, and the live folders of the databases whose dumps are, which
+// a backup doesn't hold (SPEC.md §6.9, "What a restore keeps").
+func (b BackupPlan) KeptDirs() []string {
+	dirs := slices.Clone(b.Include)
+	for _, s := range b.Prepare {
+		if s.DataDir != "" {
+			dirs = append(dirs, s.DataDir)
+		}
+	}
+	return dirs
+}
+
 // PrepareStep is one backup prepare action.
 type PrepareStep struct {
 	Type string // pkgspec.DBSQLite, DBPostgres, DBMySQL or DBMariaDB
@@ -216,6 +229,8 @@ type PrepareStep struct {
 	Schemas []string
 	// Source is the host path of the live file (sqlite).
 	Source string
+	// DataDir is the host path of the live database's folder (a server's).
+	DataDir string
 	// Target is the host path the consistent copy is written to.
 	Target string
 }
@@ -591,7 +606,7 @@ func (g *gen) postgres(name string, d *pkgspec.Database) error {
 	if d.BackedUp() {
 		g.out.Backup.Prepare = append(g.out.Backup.Prepare, PrepareStep{
 			Type: pkgspec.DBPostgres, Container: unit, User: db.User, Database: db.Name,
-			Target: filepath.Join(g.dumpDir(), name+".sql"),
+			DataDir: dataDir, Target: filepath.Join(g.dumpDir(), name+".sql"),
 		})
 	}
 	return nil
@@ -672,7 +687,7 @@ func (g *gen) mysql(name string, d *pkgspec.Database) error {
 	if d.BackedUp() {
 		g.out.Backup.Prepare = append(g.out.Backup.Prepare, PrepareStep{
 			Type: d.Type, Container: unit, User: db.User, Database: db.Name, Schemas: schemas,
-			Target: filepath.Join(g.dumpDir(), name+".sql"),
+			DataDir: dataDir, Target: filepath.Join(g.dumpDir(), name+".sql"),
 		})
 	}
 	return nil

@@ -385,6 +385,7 @@ Finished work, by phase, with the headings of [TASKS.md](TASKS.md), where the op
 
 ## More services (the Owner, 2026-10-18; SPEC §8.1 "More services")
 
+- [x] **A restore keeps the live database** (2026-11-07, SPEC §6.9 "What a restore keeps", ASSUMPTIONS L22): found 2026-11-06 on VM3, where a restore lost what changed since the backup, with no copy, and left tables added since
 - [x] Outline, BookStack, Docmost and Wiki.js 3 in the registry (2026-11-06, roostack/services, SPEC §8.1 "Wikis"; ASSUMPTIONS V18 to V20): each installed on VM3, backed up, and restored; removal tried on Wiki.js 3
 
 - [x] Done 2026-10-18, each tried on VM3: HedgeDoc, Wiki.js, Papra, Linkwarden, Paperless-ngx; Immich updated to 3.3.3, Vaultwarden to 1.37.4, Forgejo to 15.0.10; Mealie, Gitea, Miniflux, Lychee, Actual Budget, ntfy, Uptime Kuma, Radicale, Audiobookshelf; Stirling-PDF; Ghost (MySQL) and PhotoPrism (MariaDB), 2026-10-19

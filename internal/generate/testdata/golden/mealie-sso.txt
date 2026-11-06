@@ -93,4 +93,4 @@ roostack-mealie-sso-client-secret generate=true setting=""
 /srv/roostack/services/mealie/data/mealie.db-wal
 
 ==> backup prepare
-{Type:sqlite Container: User: Database: Source:/srv/roostack/services/mealie/data/mealie.db Target:/srv/roostack/services/mealie/db-dump/main.sqlite3}
+{Type:sqlite Container: User: Database: Source:/srv/roostack/services/mealie/data/mealie.db DataDir: Target:/srv/roostack/services/mealie/db-dump/main.sqlite3}

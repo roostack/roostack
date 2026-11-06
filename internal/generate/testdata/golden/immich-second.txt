@@ -169,4 +169,4 @@ roostack-immich-family-db-main-password generate=true setting=""
 ==> backup exclude
 
 ==> backup prepare
-{Type:postgres Container:roostack-immich-family-db-main User:immich_family Database:immich_family Source: Target:/srv/roostack/services/immich-family/db-dump/main.sql}
+{Type:postgres Container:roostack-immich-family-db-main User:immich_family Database:immich_family Source: DataDir:/srv/roostack/services/immich-family/db/main Target:/srv/roostack/services/immich-family/db-dump/main.sql}

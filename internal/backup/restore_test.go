@@ -269,7 +269,8 @@ func TestMySQLLoadDumps(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := os.ReadFile(log)
-	want := "-h 127.0.0.1 -u seafile -e DROP DATABASE IF EXISTS seafile; CREATE DATABASE seafile; " +
+	want := "-h 127.0.0.1 -u seafile -e DO 1\n" +
+		"-h 127.0.0.1 -u seafile -e DROP DATABASE IF EXISTS seafile; CREATE DATABASE seafile; " +
 		"DROP DATABASE IF EXISTS seafile_ccnet; DROP DATABASE IF EXISTS seafile_seahub\n" +
 		"-h 127.0.0.1 -u seafile seafile\nstdin: USE seafile_ccnet;\n" +
 		"-h 127.0.0.1 -u seafile -e DO 1; CREATE DATABASE IF NOT EXISTS seafile_ccnet; CREATE DATABASE IF NOT EXISTS seafile_seahub\n"
@@ -278,5 +279,80 @@ func TestMySQLLoadDumps(t *testing.T) {
 	}
 	if !slices.Equal(units.calls, []string{"start roostack-seafile-db-main.service"}) {
 		t.Errorf("units: %q", units.calls)
+	}
+}
+
+// A restore keeps the live database, as a backup holds only its dump, and
+// its database starts empty before the dump goes in. Putting the copy back
+// brings the database back as it was, not from the older dump beside it
+// (SPEC.md §6.9, "What a restore keeps").
+func TestRestoreKeepsLiveDatabase(t *testing.T) {
+	t.Parallel()
+	repo := testRepo(t)
+	ctx := context.Background()
+	root := t.TempDir()
+	dump := filepath.Join(root, "app", "db-dump")
+	live := filepath.Join(root, "app", "db", "main")
+	writeFile(t, filepath.Join(dump, "main.sql"), "from the backup")
+	writeFile(t, filepath.Join(live, "PG_VERSION"), "at the backup")
+	svc := &generate.Output{Service: "app", Units: []string{"roostack-app-app.service", "roostack-app-db-main.service"}, Backup: generate.BackupPlan{
+		Include: []string{dump},
+		Prepare: []generate.PrepareStep{{Type: pkgspec.DBPostgres, Container: "roostack-app-db-main", User: "app", Database: "app",
+			DataDir: live, Target: filepath.Join(dump, "main.sql")}},
+	}}
+	if _, err := repo.Backup(ctx, BackupOptions{Paths: []string{dump}, Tags: []string{TagRoostack, ServiceTag("app")}, Host: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(live, "PG_VERSION"), "changed since")
+
+	var ran []string
+	units := &fakeUnits{}
+	r := &Restorer{Repo: repo, Units: units, Launch: func(ctx context.Context, _ []string, name string, args ...string) *exec.Cmd {
+		i := slices.Index(args, "roostack-app-db-main")
+		ran = append(ran, args[i+1])
+		if args[i+1] == "pg_restore" {
+			if entries, err := os.ReadDir(live); err != nil || len(entries) != 0 {
+				t.Errorf("the dump went in over %v, %v: the folder should be new", entries, err)
+			}
+		}
+		return exec.CommandContext(ctx, "true")
+	}, Now: func() time.Time { return time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC) }}
+	res, err := r.RestoreService(ctx, svc, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(ran, ",") != "pg_isready,pg_restore" {
+		t.Errorf("ran %v, want a wait for the database, then the dump", ran)
+	}
+	aside := res.MovedAside[live]
+	if got, _ := os.ReadFile(filepath.Join(aside, "PG_VERSION")); string(got) != "changed since" {
+		t.Errorf("kept database holds %q (at %q): what changed since the backup is lost", got, aside)
+	}
+
+	ran = nil
+	writeFile(t, filepath.Join(live, "PG_VERSION"), "after the restore")
+	r.Now = func() time.Time { return time.Date(2026, 11, 6, 13, 0, 0, 0, time.UTC) }
+	if err := r.PutBack(ctx, svc, aside); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(live, "PG_VERSION")); string(got) != "changed since" {
+		t.Errorf("after putting it back the database holds %q", got)
+	}
+	if len(ran) != 0 {
+		t.Errorf("ran %v: a database that went back whole has no dump to load", ran)
+	}
+}
+
+// A database that doesn't answer in time stops the restore with a reason.
+func TestLoadDumpsWaitsForTheDatabase(t *testing.T) {
+	t.Parallel()
+	r := &Restorer{Units: &fakeUnits{}, DBWait: time.Millisecond, Launch: func(ctx context.Context, _ []string, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "false")
+	}}
+	err := r.LoadDumps(context.Background(), &generate.Output{Backup: generate.BackupPlan{Prepare: []generate.PrepareStep{{
+		Type: pkgspec.DBPostgres, Container: "roostack-app-db-main", User: "app", Database: "app", Target: "/nowhere",
+	}}}})
+	if err == nil || !strings.Contains(err.Error(), "roostack-app-db-main didn't answer") {
+		t.Errorf("err = %v", err)
 	}
 }

@@ -127,4 +127,4 @@ roostack-forgejo-sso-client-secret generate=true setting=""
 ==> backup exclude
 
 ==> backup prepare
-{Type:postgres Container:roostack-forgejo-db-main User:forgejo Database:forgejo Source: Target:/srv/roostack/services/forgejo/db-dump/main.sql}
+{Type:postgres Container:roostack-forgejo-db-main User:forgejo Database:forgejo Source: DataDir:/srv/roostack/services/forgejo/db/main Target:/srv/roostack/services/forgejo/db-dump/main.sql}
