@@ -1162,7 +1162,20 @@ type fakeNode struct {
 	events   []store.Event
 	disk     *node.DiskSpace
 	disks    []node.DiskSpace
+	// usage is its memory and CPU (none when nil).
+	usage *node.Usage
 }
+
+// Memory is f while it has usage: Home's memory and CPU.
+func (f *fakeNode) Memory() node.Memory {
+	if f.usage == nil {
+		return nil
+	}
+	return f
+}
+
+func (f *fakeNode) MemoryInfo(context.Context) (node.MemoryInfo, error) { return f.usage.Memory, nil }
+func (f *fakeNode) Usage(context.Context) (node.Usage, error)           { return *f.usage, nil }
 
 func (f *fakeNode) HistoryPage(_ context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
 	var out []store.Event

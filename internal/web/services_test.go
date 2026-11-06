@@ -65,9 +65,22 @@ func TestInstallFlow(t *testing.T) {
 		}
 	}
 
-	code, _ := h.post("/install/immich", url.Values{"subdomain": {"pics"}, "setting.machine_learning": {"on"}}, h.srv.URL)
+	// Installing goes to the new service's page, which shows the install
+	// step by step (the maintainer, 2026-11-06).
+	services := h.server.Services
+	h.server.Services = func(ctx context.Context) ([]ServiceView, error) {
+		out, err := services(ctx)
+		if len(fm.installs) > 0 {
+			out = append(out, ServiceView{Name: "immich", Title: "Immich", Status: "installing"})
+		}
+		return out, err
+	}
+	code, body := h.post("/install/immich", url.Values{"subdomain": {"pics"}, "setting.machine_learning": {"on"}}, h.srv.URL)
 	if code != http.StatusOK || len(fm.installs) != 1 {
 		t.Fatalf("install: status %d, calls %d", code, len(fm.installs))
+	}
+	if !strings.Contains(body, "<title>Immich · Roostack</title>") {
+		t.Error("installing should go to the service's page")
 	}
 	req := fm.installs[0]
 	if req.Subdomain != "pics" || req.Settings["machine_learning"] != "on" {
@@ -1375,6 +1388,41 @@ func TestServerDisks(t *testing.T) {
 	}
 	if _, body := h.get("/"); !strings.Contains(body, "This server&#39;s USB drive BACKUP is running out") {
 		t.Error("the full drive needs attention")
+	}
+}
+
+// Home shows the lab's memory and CPU, and Servers each server's
+// (docs/DESIGN.md "Layout"); a server that can't say is unknown there.
+func TestHomeUsage(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	_, body := h.get("/")
+	if strings.Contains(body, `figure-label">Memory`) {
+		t.Error("no figures from a server that can't say")
+	}
+	fm.usage = &node.Usage{Memory: node.MemoryInfo{Total: 8 * units.GB, Available: 5 * units.GB}, CPUs: 4, CPUBusy: 12}
+	_, body = h.get("/")
+	for _, want := range []string{`figure-label">Memory`, "3.0 GB <small>of 8.0 GB used", "5.0 GB free",
+		`figure-label">CPU`, "12% <small>busy", "Across 4 processors"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("home missing %q", want)
+		}
+	}
+	// Servers has each server's.
+	_, body = h.get("/servers")
+	for _, want := range []string{`title="37% used"`, "3.0 GB of 8.0 GB</small>", `title="12% busy"`, "12% of 4 processors"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("servers missing %q", want)
+		}
+	}
+	fm.usage = &node.Usage{Memory: node.MemoryInfo{Total: 8 * units.GB, Available: units.GB / 2}, CPUs: 1, CPUBusy: 95}
+	_, body = h.get("/partials/home")
+	for _, want := range []string{"Nearly all in use", "Very busy"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a busy server: home missing %q", want)
+		}
+	}
+	if _, body = h.get("/servers"); !strings.Contains(body, "meter meter-warning") || !strings.Contains(body, "95% of 1 processor") {
+		t.Error("a busy server: no warning on Servers")
 	}
 }
 

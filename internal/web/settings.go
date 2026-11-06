@@ -400,7 +400,10 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		keptBy[mc.ID] = list
 	}
 	data["Kept"] = keptBy
-	// Each server's disk space, asked of each at once.
+	// Each server's disk space, asked of each at once, and its memory
+	// and CPU meanwhile.
+	var usage map[string]serverUsage
+	wg.Go(func() { usage = s.serverUsages(r, s.serverNodes()) })
 	spaces := make([]*serverDisks, len(servers))
 	for i, mc := range servers {
 		if n := s.Manager.NodeByID(mc.ID); n != nil {
@@ -413,6 +416,7 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		spaceBy[mc.ID] = spaces[i]
 	}
 	data["Spaces"] = spaceBy
+	data["Usage"] = usage
 	if s.Network != nil {
 		endpoint, _ := s.Store.Setting(r.Context(), endpointKey)
 		if v, ok := extra["Endpoint"].(string); ok {

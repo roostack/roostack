@@ -13,7 +13,10 @@ The servers talk to each other over their own private, encrypted network,
 so a server elsewhere is as easy to manage as one at home.
 
 The Owner manages servers under **Servers**, which shows each
-one's role, services, disk space, and whether it's up to date.
+one's role, services, disk space, memory, CPU, and whether it's up to
+date. The home page adds up the memory and CPU of every server: memory in
+use is what the server can't free without swapping, and CPU is the share
+of its processors' time they were busy over the last few seconds.
 
 - [Add a server](add.md)
 - [Move a service](move.md) to another server

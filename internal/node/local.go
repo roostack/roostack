@@ -335,6 +335,9 @@ type Local struct {
 	// cfg is the look for the files config file blocks wait for
 	// (configfiles.go).
 	cfg configWait
+	// cpu keeps the last reading of how busy the processors were
+	// (usage.go).
+	cpu cpuSampler
 }
 
 // services is a copy of the services this server runs.

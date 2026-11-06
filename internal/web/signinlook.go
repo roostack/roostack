@@ -3,15 +3,18 @@ package web
 import (
 	"bytes"
 	"context"
+	"encoding/xml"
 	"errors"
 	"image/png"
 	"io"
 	"io/fs"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"roostack.cloud/roostack/internal/fsutil"
@@ -53,6 +56,15 @@ var logoParts = []string{"mark", "wide", "dark", "icon"}
 // maxLogo is a logo file's largest size.
 const maxLogo = 200_000
 
+// wideRatio is how many times as wide as it is tall a wide logo may be,
+// and logoHeight the tallest it's shown, in CSS pixels. The maintainer
+// (2026-11-06, on a real lab): a text logo didn't fit four times, and at
+// 56 px with its padding it was small.
+const (
+	wideRatio  = 6
+	logoHeight = 80
+)
+
 // signInLook is the sign-in page's look, for its template.
 type signInLook struct {
 	Palette, Accent string
@@ -62,10 +74,108 @@ type signInLook struct {
 	// Version changes with each upload.
 	Files   map[string]string
 	Version string
+	// widths are the wide logo's and its dark version's widths when
+	// logoHeight tall, where their files say their size (logoWidths).
+	widths map[string]int
 }
 
 // Has reports whether a logo file is there.
 func (l signInLook) Has(part string) bool { return l.Files[part] != "" }
+
+// Width is a wide logo file's width when logoHeight tall (0 if its file
+// doesn't say), for its img's width and height: with them, an SVG with
+// only a viewBox still has a size to scale down from in a box that fits
+// its content, and the page doesn't move as it loads.
+func (l signInLook) Width(part string) int { return l.widths[part] }
+
+// Height is logoHeight, for templates.
+func (signInLook) Height() int { return logoHeight }
+
+// logoSizes keeps the wide logo's widths for the files' version, so that
+// pages don't read the files each time.
+type logoSizes struct {
+	mu      sync.Mutex
+	version string
+	widths  map[string]int
+}
+
+// logoWidths reads the wide logo's and its dark version's sizes, once
+// for each version of the files.
+func (s *Server) logoWidths(l signInLook) map[string]int {
+	s.logoSizes.mu.Lock()
+	defer s.logoSizes.mu.Unlock()
+	if s.logoSizes.widths != nil && s.logoSizes.version == l.Version {
+		return s.logoSizes.widths
+	}
+	widths := map[string]int{}
+	for _, part := range []string{"wide", "dark"} {
+		if !l.Has(part) {
+			continue
+		}
+		data, err := os.ReadFile(s.lookPath(part, l.Files[part]))
+		if err != nil {
+			continue
+		}
+		if w, h, ok := imageSize(data, l.Files[part]); ok {
+			widths[part] = max(1, int(math.Round(w*logoHeight/h)))
+		}
+	}
+	s.logoSizes.version, s.logoSizes.widths = l.Version, widths
+	return widths
+}
+
+// imageSize is a PNG's size in pixels, or an SVG's from its width and
+// height (in px or without a unit), else its viewBox; ok is false when
+// it doesn't say.
+func imageSize(data []byte, kind string) (w, h float64, ok bool) {
+	if kind == "png" {
+		cfg, err := png.DecodeConfig(bytes.NewReader(data))
+		if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
+			return 0, 0, false
+		}
+		return float64(cfg.Width), float64(cfg.Height), true
+	}
+	d := xml.NewDecoder(bytes.NewReader(data))
+	d.Strict = false
+	for {
+		tok, err := d.Token()
+		if err != nil {
+			return 0, 0, false
+		}
+		el, isStart := tok.(xml.StartElement)
+		if !isStart {
+			continue
+		}
+		if el.Name.Local != "svg" {
+			return 0, 0, false
+		}
+		attr := map[string]string{}
+		for _, a := range el.Attr {
+			attr[a.Name.Local] = strings.TrimSpace(a.Value)
+		}
+		w, wok := svgLength(attr["width"])
+		h, hok := svgLength(attr["height"])
+		if wok && hok {
+			return w, h, true
+		}
+		box := strings.FieldsFunc(attr["viewBox"], func(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '\n' || r == '\r' })
+		if len(box) == 4 {
+			w, werr := strconv.ParseFloat(box[2], 64)
+			h, herr := strconv.ParseFloat(box[3], 64)
+			if werr == nil && herr == nil && w > 0 && h > 0 {
+				return w, h, true
+			}
+		}
+		return 0, 0, false
+	}
+}
+
+// svgLength is an SVG length in px or without a unit; a percentage or
+// another unit doesn't give a size.
+func svgLength(v string) (float64, bool) {
+	f, err := strconv.ParseFloat(strings.TrimSuffix(v, "px"), 64)
+	return f, err == nil && f > 0 && !math.IsInf(f, 0)
+}
 
 func (s *Server) signInLook(ctx context.Context) signInLook {
 	get := func(k string) string { v, _ := s.Store.Setting(ctx, k); return v }
@@ -87,6 +197,9 @@ func (s *Server) signInLook(ctx context.Context) signInLook {
 	// A kind without its file shows the hen.
 	if (l.Logo == logoMark && !l.Has("mark")) || (l.Logo == logoWide && !l.Has("wide")) {
 		l.Logo = ""
+	}
+	if l.Has("wide") || l.Has("dark") {
+		l.widths = s.logoWidths(l)
 	}
 	return l
 }
@@ -177,14 +290,15 @@ func (s *Server) lookApp(w http.ResponseWriter, r *http.Request) {
 
 // checkLogo checks an uploaded logo file and says its kind: a PNG, or an
 // SVG with nothing that runs (it's also served sandboxed). wide: a wide
-// logo, up to four times as wide as it is tall.
+// logo, up to wideRatio times as wide as it is tall (an SVG's only when
+// it says its size).
 func checkLogo(data []byte, wide bool) (string, error) {
 	if len(data) > maxLogo {
 		return "", usererr.New("That file is too big: a logo can be at most 200 KB.")
 	}
 	if cfg, err := png.DecodeConfig(bytes.NewReader(data)); err == nil {
-		if wide && (cfg.Width > 4*cfg.Height || cfg.Width <= cfg.Height) {
-			return "", usererr.New("A wide logo must be wider than it is tall, and at most four times as wide.")
+		if wide && (cfg.Width > wideRatio*cfg.Height || cfg.Width <= cfg.Height) {
+			return "", errWideRatio
 		}
 		if !wide && (cfg.Width > cfg.Height*11/10 || cfg.Height > cfg.Width*11/10) {
 			return "", usererr.New("A mark must be square (or nearly).")
@@ -201,10 +315,16 @@ func checkLogo(data []byte, wide bool) (string, error) {
 		if onAttr(text) {
 			return "", usererr.New("That SVG has scripts in it. Save it again without them or use a PNG.")
 		}
+		if w, h, ok := imageSize(data, "svg"); ok && wide && (w > wideRatio*h || w <= h) {
+			return "", errWideRatio
+		}
 		return "svg", nil
 	}
 	return "", usererr.New("A logo must be a PNG or SVG file.")
 }
+
+// errWideRatio says how wide a wide logo may be.
+var errWideRatio = usererr.New("A wide logo must be wider than it is tall, and at most six times as wide.")
 
 // onAttr finds an event handler attribute (onload=, onclick=, …).
 func onAttr(text string) bool {

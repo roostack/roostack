@@ -13,8 +13,8 @@ import (
 )
 
 // What the controller reads about a server on the lab API: its disks
-// (disk.go), memory (memory.go), data services left behind (leftdata.go)
-// and history (history.go).
+// (disk.go), memory and CPU (memory.go, usage.go), data services left
+// behind (leftdata.go) and history (history.go).
 
 // cullRequest forgets history from before a time (Unix seconds).
 type cullRequest struct {
@@ -41,6 +41,14 @@ func (r *Remote) DiskSpaces(ctx context.Context) ([]DiskSpace, error) {
 func (r *Remote) MemoryInfo(ctx context.Context) (MemoryInfo, error) {
 	var out MemoryInfo
 	err := r.call(ctx, http.MethodGet, "/v1/memory", nil, &out)
+	return out, err
+}
+
+// Usage asks the server. One from before Usage answers 404, and Home
+// shows its memory and CPU as unknown.
+func (r *Remote) Usage(ctx context.Context) (Usage, error) {
+	var out Usage
+	err := r.call(ctx, http.MethodGet, "/v1/usage", nil, &out)
 	return out, err
 }
 
@@ -85,6 +93,7 @@ func (s *Server) hostRoutes(handle handleFunc) {
 	disks("GET /v1/disks", func(d Disks, r *http.Request) (any, error) { return d.DiskSpaces(r.Context()) })
 	memory := capRoute(handle, offered(n.Memory))
 	memory("GET /v1/memory", func(m Memory, r *http.Request) (any, error) { return m.MemoryInfo(r.Context()) })
+	memory("GET /v1/usage", func(m Memory, r *http.Request) (any, error) { return m.Usage(r.Context()) })
 	leftData := capRoute(handle, offered(n.LeftData))
 	leftData("GET /v1/services/{service}/left-data", func(l LeftData, r *http.Request) (any, error) {
 		return l.LeftDataDirs(r.Context(), svcOf(r))

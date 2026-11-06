@@ -519,6 +519,10 @@ p.error[role="alert"] { background: var(--bad-bg); color: var(--bad); padding: v
    (Home: services, servers, last backup, disk space). */
 .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
 .figures > .card { display: grid; gap: 2px; align-content: start; padding: var(--space-4); }
+/* Six figures (with memory and CPU, 2026-11-06): three to a row, or all
+   six on a wide screen, rather than four and two. */
+@media (min-width: 901px) { .figures:has(> :nth-child(6)) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1440px) { .figures:has(> :nth-child(6)) { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 .figure-label { font-size: var(--text-xs); font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .figure-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; font-family: var(--font-display); font-size: 1.6rem;
   font-weight: var(--weight-bold); letter-spacing: -0.02em; line-height: 1.25; }
@@ -1150,7 +1154,11 @@ h1 + .area-heading { margin-top: 0; }
 .signin-brand > .brand-mark, .signin-mark { width: 44px; height: 44px; flex: none; border-radius: 12px; }
 .signin-brand strong { font-family: var(--font-display); font-size: var(--text-lg, 1.2rem); }
 .signin-wide { display: inline-flex; max-width: 100%; }
-.signin-wide img { display: block; height: 56px; width: auto; max-width: 100%; object-fit: contain; }
+/* Its width and height attributes are its size at most 80 px tall
+   (signInLook.Width), so it scales down to fit; a file that doesn't say
+   its size is 80 px tall, fitted within its box. */
+.signin-wide img { display: block; max-width: 100%; height: auto; }
+.signin-wide img:not([width]) { height: 80px; width: auto; object-fit: contain; object-position: left center; }
 /* A wide logo without a dark version sits on a light panel in dark mode,
    so dark lettering stays readable. */
 @media (prefers-color-scheme: dark) {
@@ -1205,7 +1213,8 @@ button.wide { width: 100%; }
 .logo-sub label { display: block; margin: 0; }
 .logo-sub input[type="file"] { display: block; margin-top: var(--space-1); max-width: 100%; }
 .logo-now { border-radius: 14px; }
-.logo-now.wide { border-radius: 0; height: 56px; width: auto; max-width: 100%; }
+.logo-now.wide { border-radius: 0; max-width: 100%; height: auto; }
+.logo-now.wide:not([width]) { height: 80px; width: auto; object-fit: contain; object-position: left center; }
 .look-form:not(:has(input[name="logo"][value="mark"]:checked)) .logo-for-mark,
 .look-form:not(:has(input[name="logo"][value="wide"]:checked)) .logo-for-wide { display: none; }
 .theme-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--space-2); }

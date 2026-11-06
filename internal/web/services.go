@@ -256,12 +256,10 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "install", s.installAudit(p, req))
-	if req.BringData {
-		// Its page says it waits for its data, with the way in.
-		redirect(w, r, "/services/"+url.PathEscape(cmp.Or(req.Name, p.Name)))
-		return
-	}
-	redirect(w, r, "/")
+	// Its page shows the install step by step (and, for data being
+	// brought, that it waits for it, with the way in): the maintainer,
+	// 2026-11-06, over Home, where it's one row among the others.
+	redirect(w, r, "/services/"+url.PathEscape(cmp.Or(req.Name, p.Name)))
 }
 
 // installAudit is the audit entry for an install: the service, where it

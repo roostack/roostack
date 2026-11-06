@@ -1,9 +1,12 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"html"
+	"image"
+	"image/png"
 	"io"
 	"log/slog"
 	"net/http"
@@ -717,6 +720,83 @@ func TestCheckLogo(t *testing.T) {
 	}
 	if _, err := checkLogo(make([]byte, maxLogo+1), false); err == nil {
 		t.Error("too big")
+	}
+	// A wide logo may be up to six times as wide as it is tall (four
+	// until 2026-11-06), an SVG's checked when it says its size.
+	for name, c := range map[string]struct {
+		data []byte
+		ok   bool
+	}{
+		"PNG 6:1":     {pngOf(t, 600, 100), true},
+		"PNG 7:1":     {pngOf(t, 700, 100), false},
+		"SVG 6:1":     {[]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 100"/>`), true},
+		"SVG 7:1":     {[]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="700" height="100"/>`), false},
+		"SVG square":  {[]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0,0,10,10"/>`), false},
+		"SVG no size": {[]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="100%"/>`), true},
+	} {
+		if _, err := checkLogo(c.data, true); (err == nil) != c.ok {
+			t.Errorf("%s as a wide logo: %v", name, err)
+		}
+	}
+}
+
+// pngOf is a blank PNG of a size.
+func pngOf(t *testing.T, w, h int) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	if err := png.Encode(&b, image.NewGray(image.Rect(0, 0, w, h))); err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
+}
+
+// An image's size: a PNG's pixels, an SVG's width and height in px (or
+// without a unit), else its viewBox.
+func TestImageSize(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string][2]float64{
+		`<svg xmlns="http://www.w3.org/2000/svg" width="300px" height="50" viewBox="0 0 1 1"/>`: {300, 50},
+		`<?xml version="1.0"?><!-- a comment --><svg viewBox=" 0 0 612.5 100 "/>`:               {612.5, 100},
+		`<svg width="100%" height="100%" viewBox="0,0,400,80"/>`:                                {400, 80},
+		`<svg width="10em" height="2em"/>`:                                                      {},
+		`<svg/>`:                                                                                {},
+		`<html><svg width="1" height="1"/></html>`:                                              {},
+	} {
+		w, h, ok := imageSize([]byte(in), "svg")
+		if ok != (want != [2]float64{}) || w != want[0] || h != want[1] {
+			t.Errorf("%s: %v x %v, %v; want %v", in, w, h, ok, want)
+		}
+	}
+	if w, h, ok := imageSize(pngOf(t, 640, 128), "png"); !ok || w != 640 || h != 128 {
+		t.Errorf("PNG: %v x %v, %v", w, h, ok)
+	}
+}
+
+// The sign-in page gives a wide logo its size at 80 px high, so it
+// scales down to the card without space above and below; one whose file
+// doesn't say has none, and the CSS makes it 80 px high.
+func TestSignInWideLogoSize(t *testing.T) {
+	h, _ := loggedIn(t, "owner")
+	srv, c := withSignIn(t, h, &fakeSSO{on: map[string]bool{}})
+	ctx := context.Background()
+	os.WriteFile(h.server.lookPath("wide", "svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 100"/>`), 0o600)
+	os.WriteFile(h.server.lookPath("dark", "png"), pngOf(t, 500, 100), 0o600)
+	h.store.SetSetting(ctx, settingSignInLogo, logoWide)
+	h.store.SetSetting(ctx, settingSignInFiles, "wide=svg dark=png;1")
+	_, body := call(t, srv, c, "GET", signInHost, "/sign-in", nil)
+	for _, want := range []string{`src="/look/wide?v=1" alt="" width="480" height="80"`, `media="(prefers-color-scheme: dark)" width="400" height="80"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("sign-in page missing %q", want)
+		}
+	}
+	if _, body := h.get("/settings/people"); !strings.Contains(body, `alt="The wide logo now" width="480" height="80"`) {
+		t.Error("People's preview has no size")
+	}
+	// A new upload is read again; one without a size has none.
+	os.WriteFile(h.server.lookPath("wide", "svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`), 0o600)
+	h.store.SetSetting(ctx, settingSignInFiles, "wide=svg;2")
+	if _, body := call(t, srv, c, "GET", signInHost, "/sign-in", nil); !strings.Contains(body, `src="/look/wide?v=2" alt="">`) {
+		t.Error("a logo without a size has one")
 	}
 }
 

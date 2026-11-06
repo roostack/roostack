@@ -164,6 +164,8 @@ type Server struct {
 	codeMu     sync.Mutex
 	issues     serverIssues
 	hostChecks attention.HostChecks
+	// logoSizes are the sign-in page's wide logo's widths (signinlook.go).
+	logoSizes logoSizes
 	// bootID changes each time Roostack starts; the "restarting" page waits
 	// for a new one.
 	bootID string
@@ -387,6 +389,8 @@ type ServiceNode interface {
 	Updates() node.Updates
 	Settings() node.Settings
 	Disks() node.Disks
+	// Memory: its memory and CPU, for Home (nil if it can't say).
+	Memory() node.Memory
 	History() node.History
 }
 

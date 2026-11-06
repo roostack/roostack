@@ -13,6 +13,7 @@ import (
 
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/store"
@@ -335,8 +336,14 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 		data["Servers"] = servers
 		f := homeFiguresOf(data["Services"].([]ServiceView), servers)
 		nodes := s.serverNodes()
+		// Their memory and CPU while their disks are asked for.
+		var usage map[string]serverUsage
+		var wg sync.WaitGroup
+		wg.Go(func() { usage = s.serverUsages(r, nodes) })
 		disks := s.homeDisks(r, nodes)
+		wg.Wait()
 		f.addDisks(disks)
+		f.addUsage(usage)
 		// A server with a disk running low needs attention too.
 		low := map[string]bool{}
 		for _, sd := range disks {
@@ -438,6 +445,88 @@ func (s *Server) homeDisks(r *http.Request, nodes []serverNode) []*serverDisks {
 	return out
 }
 
+// usageWait is how long Home waits for a server's memory and CPU: a
+// server that doesn't answer shouldn't hold the page up, which refreshes
+// itself every ten seconds anyway.
+const usageWait = 3 * time.Second
+
+// serverUsage is a server's memory and CPU, as Home adds them up and
+// Servers shows them (docs/DESIGN.md "Layout").
+type serverUsage struct {
+	MemUsed, MemTotal int64
+	MemPercent        int
+	CPUs, CPUBusy     int
+}
+
+// usageHigh is the share of memory or CPU in use that Home colours as a
+// warning. Neither is a problem in itself (a busy server is working), so
+// it never needs attention; it's there for whoever wonders why a service
+// is slow.
+const usageHigh = 90
+
+// MemLevel and CPULevel are the meters' levels: "warning" from usageHigh.
+func (u serverUsage) MemLevel() string { return usageLevel(u.MemPercent) }
+func (u serverUsage) CPULevel() string { return usageLevel(u.CPUBusy) }
+
+func usageLevel(percent int) string {
+	if percent >= usageHigh {
+		return attention.Warning
+	}
+	return ""
+}
+
+// serverUsages asks every server for its memory and CPU at once, by
+// server ID; a server that can't say or doesn't answer in usageWait is
+// left out.
+func (s *Server) serverUsages(r *http.Request, nodes []serverNode) map[string]serverUsage {
+	ctx, cancel := context.WithTimeout(r.Context(), usageWait)
+	defer cancel()
+	got := make([]*serverUsage, len(nodes))
+	var wg sync.WaitGroup
+	for i, mn := range nodes {
+		m := mn.node.Memory()
+		if m == nil {
+			continue
+		}
+		wg.Go(func() {
+			u, err := m.Usage(ctx)
+			if err != nil {
+				s.Log.Debug("server usage", "server", mn.view.Name, "err", err)
+				return
+			}
+			used := max(0, u.Memory.Total-u.Memory.Available)
+			got[i] = &serverUsage{MemUsed: used, MemTotal: u.Memory.Total, MemPercent: percentOf(used, u.Memory.Total),
+				CPUs: u.CPUs, CPUBusy: u.CPUBusy}
+		})
+	}
+	wg.Wait()
+	out := map[string]serverUsage{}
+	for i, u := range got {
+		if u != nil {
+			out[nodes[i].view.ID] = *u
+		}
+	}
+	return out
+}
+
+// addUsage adds the lab's memory and CPU to the figures: every server
+// that answered, memory added up and CPU weighted by each server's
+// processors.
+func (f *homeFigures) addUsage(servers map[string]serverUsage) {
+	var busy int
+	for _, u := range servers {
+		f.MemUsed += u.MemUsed
+		f.MemTotal += u.MemTotal
+		f.CPUs += u.CPUs
+		busy += u.CPUBusy * u.CPUs
+		f.UsageServers++
+	}
+	f.MemPercent = percentOf(f.MemUsed, f.MemTotal)
+	if f.CPUs > 0 {
+		f.CPUBusy = busy / f.CPUs
+	}
+}
+
 // addDisks adds the lab's disk space to the figures: every disk of every
 // server that answered, and the first one running low.
 func (f *homeFigures) addDisks(servers []*serverDisks) {
@@ -473,7 +562,21 @@ type homeFigures struct {
 	Disks               int
 	DiskTotal, DiskUsed int64
 	DiskWarning         string
+	// UsageServers is how many servers said how busy they are; MemUsed
+	// and MemTotal, their memory together; CPUs and CPUBusy, their
+	// processors together.
+	UsageServers      int
+	MemUsed, MemTotal int64
+	MemPercent        int
+	CPUs, CPUBusy     int
 }
+
+// MemFree is the memory the servers that answered have free.
+func (f homeFigures) MemFree() int64 { return max(0, f.MemTotal-f.MemUsed) }
+
+// MemLevel and CPULevel are the lab's figures' levels, as a server's.
+func (f homeFigures) MemLevel() string { return usageLevel(f.MemPercent) }
+func (f homeFigures) CPULevel() string { return usageLevel(f.CPUBusy) }
 
 func homeFiguresOf(services []ServiceView, servers []serverView) homeFigures {
 	f := homeFigures{Services: len(services), Servers: len(servers)}

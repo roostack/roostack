@@ -135,9 +135,9 @@
         <label>{{if .Look.Has "mark"}}Replace it{{else}}The mark{{end}} <input type="file" name="logo_mark" accept="image/png,image/svg+xml"><small>PNG or SVG, square, up to 200 KB.</small></label>
       </div>
       <label class="check"><input type="radio" name="logo" value="wide"{{if eq .Look.Logo "wide"}} checked{{end}}>
-        <span>A wide logo, with the name in it<small>It will be shown on its own in place of the name. Up to four times as wide as it is tall.</small></span></label>
+        <span>A wide logo, with the name in it<small>It will be shown on its own in place of the name, at most {{.Look.Height}} pixels high. Up to six times as wide as it is tall.</small></span></label>
       <div class="logo-sub logo-for-wide">
-        {{if .Look.Has "wide"}}<img class="logo-now wide" src="/settings/people/look/wide?v={{.Look.Version}}" alt="The wide logo now" height="56">{{end}}
+        {{if .Look.Has "wide"}}<img class="logo-now wide" src="/settings/people/look/wide?v={{.Look.Version}}" alt="The wide logo now"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}>{{end}}
         <label>The logo <input type="file" name="logo_wide" accept="image/png,image/svg+xml"><small>PNG or SVG, up to 200 KB.</small></label>
         <label>For dark mode <span class="hint">(optional)</span> <input type="file" name="logo_dark" accept="image/png,image/svg+xml">
           <small>A version with light lettering. Without one, the logo will sit on a light panel when the device is in dark mode so dark lettering stays readable.</small></label>

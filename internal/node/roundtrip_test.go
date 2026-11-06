@@ -100,6 +100,7 @@ var (
 	rtDisks    = []DiskSpace{{Kind: "system", Mount: "/", Total: 100, Used: 40, Free: 60, Services: 10, Counted: rtAt}}
 	rtEvents   = []store.Event{{ID: 7, Started: rtAt, Finished: rtAt, Kind: "backup", Title: "Backed up", Status: "ok"}}
 	rtMemory   = MemoryInfo{Total: 8_000_000_000, Available: 3_000_000_000}
+	rtUsage    = Usage{Memory: rtMemory, CPUs: 4, CPUBusy: 37}
 	rtWGStatus = agent.WireGuardStatus{Configured: true, PublicKey: "pk", Address: "100.103.66.1/24", Handshakes: map[string]int64{"a": 1}}
 
 	rtDrives   = []agent.Drive{{ID: "uuid:1", Kind: "usb", Name: "T7", Size: 1000, Free: 500, Usable: true}}
@@ -263,6 +264,10 @@ func (f rtNode) DiskSpaces(context.Context) ([]DiskSpace, error) {
 func (f rtNode) MemoryInfo(context.Context) (MemoryInfo, error) {
 	f.rec("MemoryInfo")
 	return rtMemory, nil
+}
+func (f rtNode) Usage(context.Context) (Usage, error) {
+	f.rec("Usage")
+	return rtUsage, nil
 }
 func (f rtNode) LeftDataDirs(_ context.Context, s string) ([]string, error) {
 	f.rec("LeftDataDirs", s)
@@ -713,6 +718,7 @@ func TestRoundTrip(t *testing.T) {
 
 		{"DiskSpaces", func() (any, error) { return r.DiskSpaces(ctx) }, []rtCall{call("DiskSpaces")}, rtDisks},
 		{"MemoryInfo", func() (any, error) { return r.MemoryInfo(ctx) }, []rtCall{call("MemoryInfo")}, rtMemory},
+		{"Usage", func() (any, error) { return r.Usage(ctx) }, []rtCall{call("Usage")}, rtUsage},
 		{"LeftDataDirs", func() (any, error) { return r.LeftDataDirs(ctx, "immich") }, []rtCall{call("LeftDataDirs", "immich")}, []string{"/srv/old"}},
 		{"HistoryPage", func() (any, error) { return r.HistoryPage(ctx, rtSince, "backup", 50) },
 			[]rtCall{call("HistoryPage", rtSince, "backup", 50)}, rtEvents},
@@ -905,6 +911,7 @@ func TestRoundTripWithout(t *testing.T) {
 		"CheckHealth":   func() error { _, err := r.CheckHealth(ctx, "immich"); return err },
 		"DiskSpaces":    func() error { _, err := r.DiskSpaces(ctx); return err },
 		"MemoryInfo":    func() error { _, err := r.MemoryInfo(ctx); return err },
+		"Usage":         func() error { _, err := r.Usage(ctx); return err },
 		"LeftDataDirs":  func() error { _, err := r.LeftDataDirs(ctx, "immich"); return err },
 		"HistoryPage":   func() error { _, err := r.HistoryPage(ctx, time.Time{}, "", 10); return err },
 		"HistoryEvent":  func() error { _, err := r.HistoryEvent(ctx, 1); return err },
