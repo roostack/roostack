@@ -77,6 +77,11 @@ type ServiceView struct {
 	// Held: it's held stopped after a restore (or a move) that didn't
 	// finish (Status is StatusHeld; SPEC.md §6.9).
 	Held *instance.Hold
+	// Start is where its Open links go while single sign-on is on and its
+	// package says where the app starts signing in through the lab
+	// (sso.oidc.start_path), "" for its address. Filled in by the web
+	// layer (withStart).
+	Start string
 }
 
 // Server serves the web UI.

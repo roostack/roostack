@@ -679,6 +679,10 @@
         }
        },
        {
+        "name": "start_path",
+        "type": "string"
+       },
+       {
         "name": "redirect_uris",
         "type": "list",
         "item": {
@@ -794,6 +798,7 @@
   "ssoAppScheme": "^[a-z][a-z0-9+.-]*:/[^\\s]*$",
   "ssoGroupName": "^[a-z][a-z0-9_-]{0,31}$",
   "ssoRedirectPath": "^(/([A-Za-z0-9._:~-]|%[0-9A-F]{2})*)+$",
+  "ssoStartQuery": "^([A-Za-z0-9._:~/=\u0026+?-]|%[0-9A-F]{2})*$",
   "subdomain": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
   "version": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
  },
@@ -2036,6 +2041,12 @@
    "label": "OIDC, on the address",
    "help": "The route whose address the redirect paths are on.",
    "example": "web",
+   "link": "reference/packages#the-parts"
+  },
+  "sso.oidc.start_path": {
+   "label": "Where signing in starts",
+   "help": "Where on that address opening a link makes the app start signing in through the lab, so that someone already signed in on the lab's sign-in page lands signed in to the app. The sign-in page and Roostack's dashboard link there while single sign-on is on; left out, they link to the app's front page, where it shows its own button. A path with an optional query and fragment, which may use .SSO like the callback paths.",
+   "example": "/oauth-login",
    "link": "reference/packages#the-parts"
   },
   "sso.secret_env": {

@@ -43,6 +43,14 @@ type SSOOIDC struct {
 	// RedirectPaths are where the sign-in page may send people back to on
 	// that address, exactly (e.g. /login).
 	RedirectPaths []string `yaml:"redirect_paths"`
+	// StartPath is where on that address opening a link starts the app's
+	// sign-in through the lab, so that someone signed in on the sign-in
+	// page lands signed in to the app (Gokapi's /oauth-login): the sign-in
+	// page and Roostack's dashboard link there while single sign-on is on.
+	// A path with an optional query, which may use templates like the
+	// redirect paths. Left out, they link to the app's front page, where
+	// the app shows its own button.
+	StartPath string `yaml:"start_path"`
 	// RedirectURIs are other addresses it may send them to, for the app's
 	// own phone apps (app.immich:///oauth-callback): never http or https,
 	// which could be anyone's site.
@@ -96,6 +104,9 @@ var (
 	// escapes (%20), which a templated path's values get from pathescape
 	// (Forgejo's /user/oauth2/<the lab's name>/callback).
 	redirectPathRe = regexp.MustCompile(`^(/([A-Za-z0-9._:~-]|%[0-9A-F]{2})*)+$`)
+	// startQueryRe is a start path's query or fragment: plain letters,
+	// digits, the unreserved signs, = & + / : ? and percent escapes.
+	startQueryRe = regexp.MustCompile(`^([A-Za-z0-9._:~/=&+?-]|%[0-9A-F]{2})*$`)
 	// groupNameRe is a group's name in the groups claim.
 	groupNameRe = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
 	// appSchemeRe is a phone app's own address scheme (RFC 8252 §7.1).
@@ -106,6 +117,15 @@ var (
 // rendered, is a plain path.
 func ValidRedirectPath(p string) bool {
 	return redirectPathRe.MatchString(p) && !strings.Contains(p, "//")
+}
+
+// ValidStartPath says whether a rendered sso.oidc.start_path is a plain
+// path, as a redirect path is, with an optional query and fragment (an
+// app whose own scripts route by it: Vaultwarden's /#/sso?identifier=…).
+func ValidStartPath(p string) bool {
+	rest, fragment, _ := strings.Cut(p, "#")
+	path, query, _ := strings.Cut(rest, "?")
+	return ValidRedirectPath(path) && startQueryRe.MatchString(query) && startQueryRe.MatchString(fragment)
 }
 
 // SSORoute is the route single sign-on is on ("" without it).
@@ -145,6 +165,11 @@ func (p *Package) validateSSO(v *validator) {
 				!templated && !ValidRedirectPath(rp) {
 				v.addf("sso.oidc.redirect_paths[%d]: %q must be a path starting with /, with only letters, digits, and - _ . : ~ /", i, rp)
 			}
+		}
+		// Templated, it's checked once it's rendered (generate).
+		if sp := o.StartPath; sp != "" && (strings.Contains(sp, "{{") && !strings.HasPrefix(sp, "/") ||
+			!strings.Contains(sp, "{{") && !ValidStartPath(sp)) {
+			v.addf("sso.oidc.start_path: %q must be a path starting with /, with only letters, digits, and - _ . : ~ /, and an optional query after ? and fragment after #", sp)
 		}
 		if g := o.Groups; g != nil {
 			if !groupNameRe.MatchString(g.Users) || !groupNameRe.MatchString(g.Admins) {

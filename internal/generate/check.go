@@ -74,6 +74,9 @@ func Check(p *pkgspec.Package) error {
 					if _, err := SSORedirects(lab, p, in); err != nil {
 						return err
 					}
+					if _, err := SSOStart(lab, p, in); err != nil {
+						return err
+					}
 				}
 				for _, h := range p.Hooks {
 					inputs := map[string]string{}

@@ -33,6 +33,33 @@ func TestSSORedirectsTemplated(t *testing.T) {
 	}
 }
 
+// Where signing in starts (sso.oidc.start_path) is rendered like the
+// redirect paths, on the route's address, query and all; none without
+// one, and an error for one that isn't a path once rendered.
+func TestSSOStart(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("forgejo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "forgejo-sso.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := testLab()
+	lab.Name = "Smith family"
+	if got, err := SSOStart(lab, p, in); err != nil || got != "" {
+		t.Errorf("without one: %q, %v", got, err)
+	}
+	p.SSO.OIDC.StartPath = "/user/oauth2/{{ pathescape .SSO.ProviderName }}?redirect_to=%2F"
+	if got, err := SSOStart(lab, p, in); err != nil || got != "https://git.lab.example.com/user/oauth2/Smith%20family?redirect_to=%2F" {
+		t.Errorf("templated: %q, %v", got, err)
+	}
+	p.SSO.OIDC.StartPath = "/user/{{ .SSO.ProviderName }}"
+	if _, err := SSOStart(lab, p, in); err == nil || !strings.Contains(err.Error(), "isn't a plain path") {
+		t.Errorf("a space once rendered: %v", err)
+	}
+}
+
 // An sso hook is told on or off, gets the client secret only while it's
 // on, and its fingerprint follows what it's given (the lab's address),
 // never a secret's value.

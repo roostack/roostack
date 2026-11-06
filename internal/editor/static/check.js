@@ -378,6 +378,11 @@
   const hasInstallHook = (p) => (p.hooks || []).some((h) => h && h.on === "install");
   const hasSavingAction = (p, key) => (p.hooks || []).some((h) => h && h.on === "action" && h.saves === key);
   const validRedirectPath = (rp) => re.ssoRedirectPath.test(rp) && !rp.includes("//");
+  const validStartPath = (sp) => {
+    const h = sp.indexOf("#"), rest = h < 0 ? sp : sp.slice(0, h), fragment = h < 0 ? "" : sp.slice(h + 1);
+    const q = rest.indexOf("?"), path = q < 0 ? rest : rest.slice(0, q), query = q < 0 ? "" : rest.slice(q + 1);
+    return validRedirectPath(path) && re.ssoStartQuery.test(query) && re.ssoStartQuery.test(fragment);
+  };
   const validPort = (n) => n > 0 && n < 65536;
   const isAbs = (s) => s.startsWith("/");
   const validPath = (s) => re.path.test(s);
@@ -427,6 +432,10 @@
         const templated = rp.includes("{{");
         if ((templated && !rp.startsWith("/")) || (!templated && !validRedirectPath(rp))) add(`sso.oidc.redirect_paths[${i}]: ${goQuote(rp)} must be a path starting with /, with only letters, digits, and - _ . : ~ /`);
       });
+      if (!isNil(o.start_path) && o.start_path !== "") {
+        const sp = o.start_path, templated = sp.includes("{{");
+        if ((templated && !sp.startsWith("/")) || (!templated && !validStartPath(sp))) add(`sso.oidc.start_path: ${goQuote(sp)} must be a path starting with /, with only letters, digits, and - _ . : ~ /, and an optional query after ? and fragment after #`);
+      }
       const g = o.groups;
       if (!isNil(g)) {
         if (!re.ssoGroupName.test(g.users) || !re.ssoGroupName.test(g.admins)) add("sso.oidc.groups: users and admins must each be a lowercase name (letters, digits, -, and _)");
@@ -1113,6 +1122,7 @@
     const sso = p.sso || {};
     for (const c of sortedKeys(sso.env)) for (const k of sortedKeys(sso.env[c])) where.push([`sso.env.${c}.${k}`, sso.env[c][k], null]);
     if (sso.oidc) (sso.oidc.redirect_paths || []).forEach((rp, i) => where.push([`sso.oidc.redirect_paths[${i}]`, rp, null]));
+    if (sso.oidc && !isNil(sso.oidc.start_path) && sso.oidc.start_path !== "") where.push(["sso.oidc.start_path", sso.oidc.start_path, null]);
     // Where secrets may go: sso.secret_env (the client secret) and config
     // files (it and the secret settings).
     const secretsIn = {};

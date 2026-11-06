@@ -590,6 +590,11 @@ sso.oidc.redirect_paths:
   help: Where the sign-in page may send people back to on that address, exactly as the app's OIDC settings say (its callback path). A path may use .SSO, such as Forgejo's /user/oauth2/{{ pathescape .SSO.ProviderName }}/callback.
   example: /auth/login
   link: reference/packages#the-parts
+sso.oidc.start_path:
+  label: Where signing in starts
+  help: Where on that address opening a link makes the app start signing in through the lab, so that someone already signed in on the lab's sign-in page lands signed in to the app. The sign-in page and Roostack's dashboard link there while single sign-on is on; left out, they link to the app's front page, where it shows its own button. A path with an optional query and fragment, which may use .SSO like the callback paths.
+  example: /oauth-login
+  link: reference/packages#the-parts
 sso.oidc.groups:
   label: Group names the app expects
   help: 'The two groups the app is told about in its groups claim, renamed for an app that expects its own words: users (everyone with access) and admins (the lab''s Owners and Admins). Immich and Audiobookshelf read user and admin.'

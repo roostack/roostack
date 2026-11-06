@@ -136,7 +136,8 @@ func addPerson(t *testing.T, st *store.Store, name, role string) int64 {
 func TestSignInOIDC(t *testing.T) {
 	h := newHarness(t, "")
 	h.server.LabName = "Smiths' lab"
-	srv, c := withSignIn(t, h, &fakeSSO{on: map[string]bool{"mealie": true}})
+	fs := &fakeSSO{on: map[string]bool{"mealie": true}}
+	srv, c := withSignIn(t, h, fs)
 	addPerson(t, h.store, "mum", "member")
 
 	authorize := sso.PathAuthorize + "?" + url.Values{"client_id": {"mealie"}, "redirect_uri": {"https://recipes.lab.example.com/login"},
@@ -179,8 +180,14 @@ func TestSignInOIDC(t *testing.T) {
 	}
 
 	// The sign-in page itself lists what she can use.
-	if _, body := call(t, srv, c, "GET", signInHost, "/", nil); !strings.Contains(body, "Hello, mum") || !strings.Contains(body, "recipes.lab.example.com") {
+	if _, body := call(t, srv, c, "GET", signInHost, "/", nil); !strings.Contains(body, "Hello, mum") || !strings.Contains(body, `href="https://recipes.lab.example.com/"`) {
 		t.Errorf("home:\n%s", body)
+	}
+	// Where the app starts signing in through the lab, if its package
+	// says: a click signs her in (SPEC.md §5.2).
+	fs.start = map[string]string{"mealie": "https://recipes.lab.example.com/login?direct=1"}
+	if _, body := call(t, srv, c, "GET", signInHost, "/", nil); !strings.Contains(body, `href="https://recipes.lab.example.com/login?direct=1"`) {
+		t.Error("home doesn't link to where Mealie starts signing in")
 	}
 
 	// Without access: who to ask.
@@ -444,6 +451,31 @@ func TestServiceSSOCard(t *testing.T) {
 	}
 	if code, _ := ha.post("/services/mealie/sso/access", url.Values{"who": {"chosen"}}, ha.srv.URL); code != http.StatusForbidden {
 		t.Errorf("an Admin choosing who: %d", code)
+	}
+}
+
+// Open links go where the app starts signing in through the lab, while
+// single sign-on is on and the package says where: the service's page
+// for those who manage it, and the dashboard's list for a Member.
+func TestServiceOpenStartsSignIn(t *testing.T) {
+	h, _ := loggedIn(t, "owner")
+	fs := &fakeSSO{on: map[string]bool{"mealie": true}, start: map[string]string{"mealie": "https://recipes.lab.example.com/login?direct=1"}}
+	withSignIn(t, h, fs)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "mealie", Title: "Mealie", Status: "running", Package: "mealie", URLs: []string{"https://recipes.lab.example.com"}}}, nil
+	}
+	if _, body := h.get("/services/mealie"); !strings.Contains(body, `href="https://recipes.lab.example.com/login?direct=1" target="_blank" rel="noopener">Open Mealie`) {
+		t.Error("service page: Open doesn't start signing in")
+	}
+	m, _ := loggedIn(t, "member")
+	withSignIn(t, m, fs)
+	m.server.Services = h.server.Services
+	if _, body := m.get("/"); !strings.Contains(body, `href="https://recipes.lab.example.com/login?direct=1" target="_blank" rel="noopener">Open`) {
+		t.Error("dashboard: Open doesn't start signing in")
+	}
+	fs.on["mealie"] = false
+	if _, body := h.get("/services/mealie"); !strings.Contains(body, `href="https://recipes.lab.example.com" target="_blank" rel="noopener">Open Mealie`) {
+		t.Error("off: Open doesn't go to its address")
 	}
 }
 

@@ -15,7 +15,7 @@
   <div class="page-head-actions">
     <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
     {{if and .Service.URLs (not .Service.Install) (not .Service.NoAddress) (ne .Service.Status "registry-stop") (ne .Service.Status "awaiting-data") (ne .Service.Status "held")}}
-    <a class="button" href="{{index .Service.URLs 0}}" target="_blank" rel="noopener">Open {{.Service.Title}}{{template "new-window"}}</a>{{end}}
+    <a class="button" href="{{or .Service.Start (index .Service.URLs 0)}}" target="_blank" rel="noopener">Open {{.Service.Title}}{{template "new-window"}}</a>{{end}}
   </div>
 </div>
   {{if and .PhotoCard (eq .Service.Status "running")}}{{template "photos-cta" .PhotoCard}}{{end}}
