@@ -1630,3 +1630,74 @@ func TestServicesAskedForOnlyWhereShown(t *testing.T) {
 		t.Errorf("Settings → Lab name without the services: %d", code)
 	}
 }
+
+// Data left by removed services (SPEC.md §8.1): Services lists it once
+// there is some, by what the store noted or by its folder's name; Install
+// again fills in its name, title and server; Owners delete it, ticking
+// that they understand; removing a service notes what it was, and can
+// delete its data too.
+func TestRemovedServicesData(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	ctx := context.Background()
+	if _, body := h.get("/services"); strings.Contains(body, "Removed, data kept") {
+		t.Error("the view is offered with nothing removed")
+	}
+	fm.left = []node.LeftService{
+		{Name: "vaultwarden-2", Dirs: []string{"/srv/roostack/services/vaultwarden-2"}, Size: 2400 * units.MB},
+		{Name: "seafile", Dirs: []string{"/srv/roostack/services/seafile", "/srv/roostack/media/seafile"}, Size: -1},
+	}
+	h.store.RecordRemoved(ctx, store.RemovedService{Server: "n-0123456789", Name: "vaultwarden-2", Package: "vaultwarden", Title: "Passwords",
+		Version: "1.34.0-roostack.2", At: time.Date(2026, 11, 2, 9, 0, 0, 0, time.Local), By: "sam"})
+	if _, body := h.get("/services"); !strings.Contains(body, "Removed, data kept · 2") {
+		t.Error("Services doesn't offer the removed view")
+	}
+	_, body := h.get("/services?removed=1")
+	for _, want := range []string{"Passwords<small>vaultwarden 1.34.0</small>", "2 November 2026, by sam", "2.4 GB", "<code>seafile</code>",
+		"Removed before Roostack kept a record", "Counting…", `href="/install/vaultwarden?host=n-0123456789&amp;name=vaultwarden-2&amp;title=Passwords"`,
+		`data-dialog="delete-n-0123456789-seafile"`, `action="/services/removed/n-0123456789/seafile/delete"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the removed view lacks %q", want)
+		}
+	}
+	if _, body := h.get("/services?removed=1&delete=delete-n-0123456789-seafile"); !strings.Contains(body, `id="delete-n-0123456789-seafile" aria-labelledby="delete-n-0123456789-seafile-title" open>`) ||
+		!strings.Contains(body, "No backup has it.") {
+		t.Error("?delete= doesn't open the dialog, with what the backups have")
+	}
+	// Installing it again starts from its name, title and server.
+	if _, body := h.get("/install/vaultwarden?name=vaultwarden-2&title=Passwords&host=n-0123456789"); !strings.Contains(body, `name="name_suffix" value="2"`) ||
+		!strings.Contains(body, `name="title" value="Passwords"`) {
+		t.Error("Install again doesn't fill in its name and title")
+	}
+	// Deleting needs the tick.
+	h.post("/services/removed/n-0123456789/vaultwarden-2/delete", url.Values{}, h.srv.URL)
+	if fm.wasDeleted("vaultwarden-2") {
+		t.Fatal("deleted without the tick")
+	}
+	_, body = h.post("/services/removed/n-0123456789/vaultwarden-2/delete", url.Values{"sure": {"on"}}, h.srv.URL)
+	if !fm.wasDeleted("vaultwarden-2") || !strings.Contains(body, "Deleted vaultwarden-2&#39;s data.") {
+		t.Errorf("deleted %v", fm.deletedLeft)
+	}
+	if recs, _ := h.store.RemovedServices(ctx); len(recs) != 0 {
+		t.Errorf("its record is still there: %+v", recs)
+	}
+
+	// Removing a service notes what it was; with the tick, its data goes
+	// once it's off its server.
+	fm.left = append(fm.left, node.LeftService{Name: "vaultwarden", Dirs: []string{"/srv/roostack/services/vaultwarden"}, Size: 10})
+	if _, body := h.get("/services/vaultwarden/remove"); !strings.Contains(body, `name="delete_data"`) {
+		t.Error("the Remove page doesn't offer deleting its data")
+	}
+	h.post("/services/vaultwarden/remove", url.Values{}, h.srv.URL)
+	recs, _ := h.store.RemovedServices(ctx)
+	if len(recs) != 1 || recs[0].Package != "vaultwarden" || recs[0].Title != "Vaultwarden" || recs[0].By != "u" {
+		t.Errorf("removal noted as %+v", recs)
+	}
+	h.post("/services/vaultwarden/remove", url.Values{"delete_data": {"on"}}, h.srv.URL)
+	deadline := time.Now().Add(5 * time.Second)
+	for !fm.wasDeleted("vaultwarden") && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !fm.wasDeleted("vaultwarden") {
+		t.Error("its data wasn't deleted after removing it")
+	}
+}

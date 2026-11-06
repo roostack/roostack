@@ -311,7 +311,7 @@ From using `lab.grahamhq.com`. Fixed on Roostack's branch `claude/lab-notes-1106
 - [x] **After installing, the service's page** rather than Home (SPEC §6.3.3, "Where installing leads")
 - [x] **The sign-in page's logo:** up to six times as wide and 80 px high, sized from its file so it scales down without gaps (SPEC §5.2)
 - [ ] **Turning a service off for a while** (proposed with mock-ups)
-- [ ] **Data left by removed services:** a Removed filter on Services, deleting it for good, reinstalling over it (proposed with mock-ups)
+- [x] **Data left by removed services:** Services → Removed, data kept, with Install again and Delete (a modal), and Delete its data too when removing (SPEC §8.1, "Data left by removed services")
 - [ ] **Storage clean-up:** old images and other leftovers, and deleting them (proposed with mock-ups)
 - [x] **Single sign-on's own Settings page**, with a card on People (SPEC §5.2, "Single sign-on's own page")
 - [x] **Name and look:** the lab's name, logo and colours on one page, used by the sign-in page, the status page, Roostack's sidebar, its tab icon, and its default theme (SPEC §5.2, "The lab's name and look")

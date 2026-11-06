@@ -101,6 +101,7 @@ var (
 	rtEvents   = []store.Event{{ID: 7, Started: rtAt, Finished: rtAt, Kind: "backup", Title: "Backed up", Status: "ok"}}
 	rtMemory   = MemoryInfo{Total: 8_000_000_000, Available: 3_000_000_000}
 	rtUsage    = Usage{Memory: rtMemory, CPUs: 4, CPUBusy: 37}
+	rtLeft     = []LeftService{{Name: "pingvin", Dirs: []string{"/srv/roostack/services/pingvin"}, Size: 1234, Counted: rtAt}}
 	rtWGStatus = agent.WireGuardStatus{Configured: true, PublicKey: "pk", Address: "100.103.66.1/24", Handshakes: map[string]int64{"a": 1}}
 
 	rtDrives   = []agent.Drive{{ID: "uuid:1", Kind: "usb", Name: "T7", Size: 1000, Free: 500, Usable: true}}
@@ -272,6 +273,14 @@ func (f rtNode) Usage(context.Context) (Usage, error) {
 func (f rtNode) LeftDataDirs(_ context.Context, s string) ([]string, error) {
 	f.rec("LeftDataDirs", s)
 	return []string{"/srv/old"}, nil
+}
+func (f rtNode) LeftServices(context.Context) ([]LeftService, error) {
+	f.rec("LeftServices")
+	return rtLeft, nil
+}
+func (f rtNode) DeleteLeftData(_ context.Context, s string) error {
+	f.rec("DeleteLeftData", s)
+	return nil
 }
 func (f rtNode) HistoryPage(_ context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
 	f.rec("HistoryPage", before, kind, limit)
@@ -720,6 +729,8 @@ func TestRoundTrip(t *testing.T) {
 		{"MemoryInfo", func() (any, error) { return r.MemoryInfo(ctx) }, []rtCall{call("MemoryInfo")}, rtMemory},
 		{"Usage", func() (any, error) { return r.Usage(ctx) }, []rtCall{call("Usage")}, rtUsage},
 		{"LeftDataDirs", func() (any, error) { return r.LeftDataDirs(ctx, "immich") }, []rtCall{call("LeftDataDirs", "immich")}, []string{"/srv/old"}},
+		{"LeftServices", func() (any, error) { return r.LeftServices(ctx) }, []rtCall{call("LeftServices")}, rtLeft},
+		{"DeleteLeftData", func() (any, error) { return nil, r.DeleteLeftData(ctx, "pingvin") }, []rtCall{call("DeleteLeftData", "pingvin")}, nil},
 		{"HistoryPage", func() (any, error) { return r.HistoryPage(ctx, rtSince, "backup", 50) },
 			[]rtCall{call("HistoryPage", rtSince, "backup", 50)}, rtEvents},
 		{"HistoryPage all", func() (any, error) { return r.HistoryPage(ctx, time.Time{}, "", 500) },
@@ -890,32 +901,33 @@ func TestRoundTripWithout(t *testing.T) {
 		"Settings.SetBackupDestination":  func() error { return settings.SetBackupDestination(ctx, BackupDestination{}) },
 		"Settings.SetRestartPolicy":      func() error { return settings.SetRestartPolicy(ctx, "window", 4) },
 
-		"ExportData":    func() error { return r.ExportData(ctx, "immich", 0, time.Time{}, io.Discard) },
-		"ImportData":    func() error { return r.ImportData(ctx, "immich", 0, strings.NewReader(""), 0) },
-		"ListData":      func() error { _, err := r.ListData(ctx, "immich", 0); return err },
-		"PruneData":     func() error { return r.PruneData(ctx, "immich", 0, nil) },
-		"CommitData":    func() error { _, err := r.CommitData(ctx, "immich", kept.BeforeMove); return err },
-		"SetAsideData":  func() error { _, err := r.SetAsideData(ctx, "immich", "x"); return err },
-		"DataSize":      func() error { _, err := r.DataSize(ctx, "immich"); return err },
-		"LoadDumps":     func() error { return r.LoadDumps(ctx, "immich") },
-		"StopService":   func() error { return r.StopService(ctx, "immich") },
-		"StartService":  func() error { return r.StartService(ctx, "immich") },
-		"ExportSecrets": func() error { _, err := r.ExportSecrets(ctx, "immich"); return err },
-		"ImportSecrets": func() error { return r.ImportSecrets(ctx, nil) },
-		"KeptCopies":    func() error { _, err := r.KeptCopies(ctx); return err },
-		"PutBackKept":   func() error { return r.PutBackKept(ctx, "/k") },
-		"RemoveKept":    func() error { return r.RemoveKept(ctx, "/k") },
-		"StartUpdate":   func() error { _, err := r.StartUpdate(ctx, UpdateRequest{}); return err },
-		"UpdateStatus":  func() error { _, err := r.UpdateStatus(ctx, "u-1"); return err },
-		"FinishUpdate":  func() error { return r.FinishUpdate(ctx, "u-1") },
-		"CheckHealth":   func() error { _, err := r.CheckHealth(ctx, "immich"); return err },
-		"DiskSpaces":    func() error { _, err := r.DiskSpaces(ctx); return err },
-		"MemoryInfo":    func() error { _, err := r.MemoryInfo(ctx); return err },
-		"Usage":         func() error { _, err := r.Usage(ctx); return err },
-		"LeftDataDirs":  func() error { _, err := r.LeftDataDirs(ctx, "immich"); return err },
-		"HistoryPage":   func() error { _, err := r.HistoryPage(ctx, time.Time{}, "", 10); return err },
-		"HistoryEvent":  func() error { _, err := r.HistoryEvent(ctx, 1); return err },
-		"CullHistory":   func() error { _, err := r.CullHistory(ctx, rtSince); return err },
+		"ExportData":     func() error { return r.ExportData(ctx, "immich", 0, time.Time{}, io.Discard) },
+		"ImportData":     func() error { return r.ImportData(ctx, "immich", 0, strings.NewReader(""), 0) },
+		"ListData":       func() error { _, err := r.ListData(ctx, "immich", 0); return err },
+		"PruneData":      func() error { return r.PruneData(ctx, "immich", 0, nil) },
+		"CommitData":     func() error { _, err := r.CommitData(ctx, "immich", kept.BeforeMove); return err },
+		"SetAsideData":   func() error { _, err := r.SetAsideData(ctx, "immich", "x"); return err },
+		"DataSize":       func() error { _, err := r.DataSize(ctx, "immich"); return err },
+		"LoadDumps":      func() error { return r.LoadDumps(ctx, "immich") },
+		"StopService":    func() error { return r.StopService(ctx, "immich") },
+		"StartService":   func() error { return r.StartService(ctx, "immich") },
+		"ExportSecrets":  func() error { _, err := r.ExportSecrets(ctx, "immich"); return err },
+		"ImportSecrets":  func() error { return r.ImportSecrets(ctx, nil) },
+		"KeptCopies":     func() error { _, err := r.KeptCopies(ctx); return err },
+		"PutBackKept":    func() error { return r.PutBackKept(ctx, "/k") },
+		"RemoveKept":     func() error { return r.RemoveKept(ctx, "/k") },
+		"StartUpdate":    func() error { _, err := r.StartUpdate(ctx, UpdateRequest{}); return err },
+		"UpdateStatus":   func() error { _, err := r.UpdateStatus(ctx, "u-1"); return err },
+		"FinishUpdate":   func() error { return r.FinishUpdate(ctx, "u-1") },
+		"CheckHealth":    func() error { _, err := r.CheckHealth(ctx, "immich"); return err },
+		"DiskSpaces":     func() error { _, err := r.DiskSpaces(ctx); return err },
+		"MemoryInfo":     func() error { _, err := r.MemoryInfo(ctx); return err },
+		"Usage":          func() error { _, err := r.Usage(ctx); return err },
+		"LeftDataDirs":   func() error { _, err := r.LeftDataDirs(ctx, "immich"); return err },
+		"DeleteLeftData": func() error { return r.DeleteLeftData(ctx, "immich") },
+		"HistoryPage":    func() error { _, err := r.HistoryPage(ctx, time.Time{}, "", 10); return err },
+		"HistoryEvent":   func() error { _, err := r.HistoryEvent(ctx, 1); return err },
+		"CullHistory":    func() error { _, err := r.CullHistory(ctx, rtSince); return err },
 
 		"Media.Drives":           func() error { _, err := media.Drives(ctx); return err },
 		"Media.Libraries":        func() error { _, err := media.Libraries(ctx); return err },

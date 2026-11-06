@@ -1164,6 +1164,54 @@ type fakeNode struct {
 	disks    []node.DiskSpace
 	// usage is its memory and CPU (none when nil).
 	usage *node.Usage
+	// left is removed services' data on it (none when nil), and
+	// deletedLeft the names whose data was deleted.
+	leftMu      sync.Mutex
+	left        []node.LeftService
+	deletedLeft []string
+}
+
+// wasDeleted reports whether a removed service's data was deleted.
+func (f *fakeNode) wasDeleted(name string) bool {
+	f.leftMu.Lock()
+	defer f.leftMu.Unlock()
+	return slices.Contains(f.deletedLeft, name)
+}
+
+// LeftData is f while it has removed services' data.
+func (f *fakeNode) LeftData() node.LeftData {
+	if f.left == nil {
+		return nil
+	}
+	return f
+}
+
+func (f *fakeNode) LeftDataDirs(_ context.Context, name string) ([]string, error) {
+	for _, l := range f.left {
+		if l.Name == name {
+			return l.Dirs, nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *fakeNode) LeftServices(context.Context) ([]node.LeftService, error) {
+	f.leftMu.Lock()
+	defer f.leftMu.Unlock()
+	return slices.Clone(f.left), nil
+}
+
+func (f *fakeNode) DeleteLeftData(_ context.Context, name string) error {
+	f.leftMu.Lock()
+	defer f.leftMu.Unlock()
+	for i, l := range f.left {
+		if l.Name == name {
+			f.left = slices.Delete(f.left, i, i+1)
+			f.deletedLeft = append(f.deletedLeft, name)
+			return nil
+		}
+	}
+	return node.ErrNotFound
 }
 
 // Memory is f while it has usage: Home's memory and CPU.

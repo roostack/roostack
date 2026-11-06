@@ -63,6 +63,26 @@ func (r *Remote) LeftDataDirs(ctx context.Context, name string) ([]string, error
 	return out, err
 }
 
+// LeftServices asks the server. One from before answers 404, and its
+// removed services' data isn't listed.
+func (r *Remote) LeftServices(ctx context.Context) ([]LeftService, error) {
+	var out []LeftService
+	err := r.call(ctx, http.MethodGet, "/v1/left-services", nil, &out)
+	if re := (*labnet.RemoteError)(nil); errors.As(err, &re) && re.Status == http.StatusNotFound {
+		return nil, nil
+	}
+	return out, err
+}
+
+// DeleteLeftData asks the server.
+func (r *Remote) DeleteLeftData(ctx context.Context, name string) error {
+	err := r.call(ctx, http.MethodPost, servicePath(name, "/left-data/delete"), nil, nil)
+	if re := (*labnet.RemoteError)(nil); errors.As(err, &re) && re.Status == http.StatusNotFound {
+		return ErrNotFound
+	}
+	return err
+}
+
 // HistoryPage asks the server.
 func (r *Remote) HistoryPage(ctx context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
 	q := url.Values{"kind": {kind}, "limit": {strconv.Itoa(limit)}}
@@ -97,6 +117,10 @@ func (s *Server) hostRoutes(handle handleFunc) {
 	leftData := capRoute(handle, offered(n.LeftData))
 	leftData("GET /v1/services/{service}/left-data", func(l LeftData, r *http.Request) (any, error) {
 		return l.LeftDataDirs(r.Context(), svcOf(r))
+	})
+	leftData("GET /v1/left-services", func(l LeftData, r *http.Request) (any, error) { return l.LeftServices(r.Context()) })
+	leftData("POST /v1/services/{service}/left-data/delete", func(l LeftData, r *http.Request) (any, error) {
+		return nil, l.DeleteLeftData(r.Context(), svcOf(r))
 	})
 
 	history := capRoute(handle, offered(n.History))

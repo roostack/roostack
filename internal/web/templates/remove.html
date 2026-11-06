@@ -9,8 +9,11 @@
   <p>{{.Package.Title}} will be stopped and removed from your lab.</p>
   <p><strong>Your data will be kept.</strong> It will stay in:</p>
   <ul>{{range .DataDirs}}<li><code>{{.}}</code></li>{{end}}</ul>
-  <p class="hint">Installing {{.Package.Title}} again later will use this data.</p>
+  <p class="hint">Installing {{.Package.Title}} again later will use this data. It will be listed under
+    <a href="/services?removed=1#removed">Services → Removed, data kept</a>, where you can delete it.</p>
   <form method="post" action="/services/{{.Name}}/remove">
+    {{if .IsOwner}}<label class="check"><input type="checkbox" name="delete_data"><span>Delete its data too, for good<small>Once {{.Package.Title}} has stopped, Roostack will delete
+      these folders and the passwords it kept for it. Backups made before now will still have it until they're pruned.</small></span></label>{{end}}
     <button type="submit" class="danger">Remove {{.Package.Title}}</button>
   </form>
 </section>

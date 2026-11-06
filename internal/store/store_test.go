@@ -480,3 +480,23 @@ func TestDeleteIdleSessions(t *testing.T) {
 		t.Errorf("idle %v, kept %v, recent %v", alive("idle"), alive("kept"), alive("recent"))
 	}
 }
+
+// Removals are noted per server and service, the latest replacing an
+// earlier one, and forgotten once their data is deleted.
+func TestRemovedServices(t *testing.T) {
+	t.Parallel()
+	s := open(t)
+	ctx := context.Background()
+	at := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
+	s.RecordRemoved(ctx, RemovedService{Server: "n-1", Name: "pingvin", Package: "pingvin-share-x", Title: "Pingvin Share X", Version: "1.13.0-roostack.1", At: at, By: "sam"})
+	s.RecordRemoved(ctx, RemovedService{Server: "n-1", Name: "stirling", Package: "stirling-pdf", Title: "Stirling-PDF", Version: "1.5.0-roostack.1", At: at.Add(-time.Hour), By: "sam"})
+	s.RecordRemoved(ctx, RemovedService{Server: "n-1", Name: "pingvin", Package: "pingvin-share-x", Title: "Files", Version: "1.13.0-roostack.2", At: at.Add(time.Hour), By: "alex"})
+	got, err := s.RemovedServices(ctx)
+	if err != nil || len(got) != 2 || got[0].Name != "pingvin" || got[0].Title != "Files" || got[0].By != "alex" || !got[0].At.Equal(at.Add(time.Hour)) {
+		t.Fatalf("removed = %+v, %v", got, err)
+	}
+	s.ForgetRemoved(ctx, "n-1", "pingvin")
+	if got, _ := s.RemovedServices(ctx); len(got) != 1 || got[0].Name != "stirling" {
+		t.Errorf("after forgetting: %+v", got)
+	}
+}

@@ -624,6 +624,7 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 	s.pauseData(data)
 	// Visitors through the relay, for those who manage services.
 	data["Relayed"] = s.Manager.RelayOn() && auth.Can(currentUser(r).Role, auth.ManageServices)
+	s.addRemoved(r, data)
 	s.render(w, "services", data)
 }
 

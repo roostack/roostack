@@ -391,6 +391,8 @@ type ServiceNode interface {
 	Disks() node.Disks
 	// Memory: its memory and CPU, for Home (nil if it can't say).
 	Memory() node.Memory
+	// LeftData: removed services' data on it (removed.go).
+	LeftData() node.LeftData
 	History() node.History
 }
 
@@ -695,6 +697,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	s.ssoRoutes(mux)
 	s.lookRoutes(mux)
 	s.signInRoutes(mux)
+	s.removedRoutes(mux)
 	mux.Handle("GET /backups/recovery-key", s.requireOwner(s.recoveryKeyShowPage))
 	mux.Handle("POST /backups/recovery-key", s.requireOwner(s.recoveryKeyShowSubmit))
 	mux.Handle("GET /backups/recovery-key/change", s.requireOwner(s.keyChangePage))
