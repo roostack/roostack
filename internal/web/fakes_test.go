@@ -205,6 +205,8 @@ func (f *fakeCatalog) ServiceFiles(name string) (*manager.ServiceFiles, error) {
 			Secrets: []generate.ConfigSecret{{Name: "roostack-" + name + "-token", Title: "Admin token"}}}}}, nil
 }
 
+func (f *fakeCatalog) SSOAtInstall(p *pkgspec.Package, _ string) bool { return p.SSO != nil }
+
 func (f *fakeCatalog) Install(_ context.Context, _ string, req manager.InstallRequest) error {
 	if f.failWith != nil {
 		return f.failWith
@@ -466,8 +468,10 @@ type fakeBackupPlan struct {
 	destRepo    string // the main backup's repository ("": fakeMainRepo)
 	copies      []manager.BackupCopy
 	providers   []string
-	// cloudBackup offers Roostack Cloud as a backup destination.
+	// cloudBackup offers Roostack Cloud as a backup destination;
+	// otherwise cloudOff is why not (manager.CloudOffUnlinked when "").
 	cloudBackup bool
+	cloudOff    string
 
 	// What servers' credentials can do at their backups, by reference
 	// (else by kind), and what a removed server keeps (plan_test.go).
@@ -545,6 +549,16 @@ func (f *fakeBackupPlan) BackupChoices(context.Context) ([]manager.BackupChoice,
 		out = append(out, manager.BackupChoice{Ref: destination.Cloud, Title: "Roostack Cloud", Note: "This lab uses 120.0 GB of 500.0 GB."})
 	}
 	return out, nil
+}
+
+func (f *fakeBackupPlan) CloudBackupOff(context.Context) string {
+	switch {
+	case f.cloudBackup:
+		return ""
+	case f.cloudOff != "":
+		return f.cloudOff
+	}
+	return manager.CloudOffUnlinked
 }
 
 func (f *fakeBackupPlan) BackupKind(_ context.Context, _, ref string) string {

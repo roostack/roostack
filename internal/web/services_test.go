@@ -670,10 +670,20 @@ func TestBackupPlan(t *testing.T) {
 	if code != http.StatusBadRequest || !strings.Contains(body, "bucket name") || strings.Contains(body, "SUPERSECRET") {
 		t.Errorf("bad provider: %d", code)
 	}
-	// Roostack Cloud, when the lab's account may use it.
-	if _, body := h.get("/backups?add=2"); strings.Contains(body, `value="cloud"`) {
-		t.Error("Roostack Cloud offered without it")
+	// Roostack Cloud, when the lab's account may use it; listed either
+	// way, saying why it can't be chosen (the Owner, 2026-11-06).
+	for off, want := range map[string]string{
+		manager.CloudOffUnlinked:    `once the lab is linked to it: <a href="/settings/cloud">link it to Roostack Cloud</a>.`,
+		manager.CloudOffNoStorage:   "its account doesn't include backup storage yet",
+		manager.CloudOffUnreachable: "Roostack couldn't reach Roostack Cloud just now",
+	} {
+		fm.cloudOff = off
+		_, body := h.get("/backups?add=2")
+		if !strings.Contains(body, `<input type="radio" name="choice" value="cloud" disabled aria-describedby="cloud-off">`) || !strings.Contains(body, want) {
+			t.Errorf("%s: Roostack Cloud isn't listed as unavailable, saying %q", off, want)
+		}
 	}
+	fm.cloudOff = ""
 	fm.cloudBackup = true
 	if _, body := h.get("/backups?add=2"); !strings.Contains(body, `value="cloud"`) || !strings.Contains(body, "120.0 GB of 500.0 GB") {
 		t.Error("Roostack Cloud not offered")

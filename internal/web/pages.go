@@ -180,13 +180,21 @@ func (s *Server) pageData(r *http.Request) map[string]any {
 	u := currentUser(r)
 	return map[string]any{
 		"User":          u,
-		pageServicesKey: &pageServices{fetch: func() ([]ServiceView, error) { return s.servicesFor(r) }},
+		pageServicesKey: s.sidebarServices(r),
 		"CanManage":     auth.Can(u.Role, auth.ManageServices),
 		"IsOwner":       auth.Can(u.Role, auth.ManageHost),
 		"Internet":      s.onInternet(),
 		"Apply":         s.applyStatus(),
 		"Server":        s.serverRefOf(r),
 	}
+}
+
+// sidebarServices fetches the lab's services for the sidebar's list
+// under Services, only if the page renders it. A page under Services
+// that builds its data without pageData adds it, or the sidebar lists no
+// services there.
+func (s *Server) sidebarServices(r *http.Request) *pageServices {
+	return &pageServices{fetch: func() ([]ServiceView, error) { return s.servicesFor(r) }}
 }
 
 // pageServicesKey is where pageData keeps the lab's services for a page,

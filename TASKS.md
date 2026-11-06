@@ -298,7 +298,9 @@ What every repeating job in Roostack, Cloud, and the registry asks of shared ser
 
 ## To discuss with the user
 
-Nothing at the moment.
+- [x] **Single sign-on when installing** (found 2026-11-06): it had been designed but never built. The Owner chose a tick on the install form, on by default (SPEC §5.2, as built 2026-11-06; `TestInstallWithSSO` in web and manager)
+- [x] **Why Roostack Cloud isn't offered for backups** (found 2026-11-06): it was left out without a word unless the lab was linked and its account had backup storage. Now always listed, greyed out with why when it can't be chosen (not linked, no backup storage, or Roostack Cloud not answering: `Manager.CloudBackupOff`), with a link to Settings → Roostack Cloud for the Owner (the Owner's choice, 2026-11-06; `TestBackupPlan`)
+- [ ] **The lab's VPN** (the Owner, 2026-11-06; SPEC §6.12, "Reaching private services from away"): private stays the local network only; a WireGuard VPN becomes a standard part of a lab, with its own status and settings, devices added by QR code or file, and access to other home devices through it; with clear instructions for reaching private services remotely, especially on a cloud server. Design and mock-ups first, then build
 
 ## The big red button (SPEC §6.16, decided 2026-10-22)
 
@@ -330,6 +332,8 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
   - [ ] Later: the AI first pass, once the watcher works without it
 
 ## Single sign-on: what's next (SPEC §5.2)
+
+- [x] A service's own pages (public access, removing it) keep it marked in the sidebar, and the Services pages built without `pageData` (those two, the catalog, installing, adding a package of your own) list the services there at all (2026-11-06, `TestServiceSubpagesMarkTheService`); the service page's header no longer touches what's below it, and the catalog's "Add your own" card has its space above
 
 - [ ] Run the conformance suite again before each release that changes `internal/sso` or the sign-in page (docs/SSO-CONFORMANCE.md)
 - [ ] Add the `sso` part to the registry's Mealie and Stirling-PDF packages (as in `internal/testdata/packages`), once a Roostack release has it (`requires.roostack`)

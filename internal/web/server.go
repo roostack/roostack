@@ -259,6 +259,9 @@ type ServiceCatalog interface {
 	// SetTitle changes what people call a service (never its name).
 	SetTitle(ctx context.Context, name, title string) error
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
+	// SSOAtInstall says whether installing p on host (empty: this server)
+	// may turn single sign-on on from the start (SPEC.md §5.2).
+	SSOAtInstall(p *pkgspec.Package, host string) bool
 	// InstallSummary is what installing with these choices would set up
 	// (SPEC.md §8.3.4); PackageFile and PackageIcon are a catalog
 	// package's file and logo.
@@ -327,6 +330,9 @@ type LabServers interface {
 // copies and the places they can go.
 type BackupPlan interface {
 	BackupChoices(ctx context.Context) ([]manager.BackupChoice, error)
+	// CloudBackupOff is why Roostack Cloud backup isn't among them (a
+	// manager.CloudOff reason), or "".
+	CloudBackupOff(ctx context.Context) string
 	BackupTargetOf(ctx context.Context, serverID string) (store.BackupTarget, string, bool)
 	BackupCopiesOf(ctx context.Context, serverID string) []manager.BackupCopy
 	AddBackupCopy(ctx context.Context, serverID, ref string) error

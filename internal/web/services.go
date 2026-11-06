@@ -79,7 +79,7 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 		cancel()
 	}
 	u := currentUser(r)
-	data := map[string]any{"User": u, "Registry": s.registryView(), "IsOwner": auth.Can(u.Role, auth.ManageHost)}
+	data := map[string]any{"User": u, pageServicesKey: s.sidebarServices(r), "Registry": s.registryView(), "IsOwner": auth.Can(u.Role, auth.ManageHost)}
 	items, err := s.Manager.Catalog()
 	if err != nil {
 		s.serverError(w, err)
@@ -311,6 +311,9 @@ func (s *Server) installRequest(r *http.Request, form url.Values, p *pkgspec.Pac
 		Public: s.onInternet() && auth.Can(currentUser(r).Role, auth.ManageHost) && form.Get("public") == "on",
 		// Bringing its data (SPEC.md §8.4): the Owner only.
 		BringData: form.Get("data") == "bring" && auth.Can(currentUser(r).Role, auth.ManageHost),
+		// Single sign-on from the start (SPEC.md §5.2): the form's tick,
+		// for Owners and Admins alike, as on the service's page.
+		SSO: form.Get("sso") == "on",
 	}
 	// The media libraries ticked for the server chosen (SPEC.md §8.1).
 	if form.Get("libraries_chosen") != "" {
@@ -431,6 +434,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		unsafe = p.Routes[route].Public.Unsafe
 	}
 	_, public := get("public")
+	_, ssoTicked := get("sso")
 	asked, _ := s.Manager.SignalSharing()
 
 	// The summary of what it sets up, for the form as it stands (SPEC.md
@@ -468,6 +472,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 	policy := s.Manager.CheckPackage(p)
 	owner := auth.Can(u.Role, auth.ManageHost)
 	return map[string]any{
+		pageServicesKey: s.sidebarServices(r),
 		"Policy":        policy,
 		"IsOwner":       owner,
 		"CanInstall":    len(policy.Problems) == 0 || (policy.Local && owner),
@@ -476,6 +481,8 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"BringData":     owner && submitted != nil && submitted["data"] != nil && submitted["data"][0] == "bring",
 		"Internet":      s.onInternet(),
 		"Public":        owner && (submitted == nil || public),
+		"SSOOffered":    s.Manager.SSOAtInstall(p, ""),
+		"SSOOn":         submitted == nil || ssoTicked,
 		"Unsafe":        unsafe,
 		"SharingAsked":  asked,
 		"User":          u,
@@ -504,7 +511,7 @@ func (s *Server) removePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := r.PathValue("name")
-	s.render(w, "remove", map[string]any{"User": currentUser(r), "Package": p, "Name": name, "DataDirs": s.Manager.DataDirs(name)})
+	s.render(w, "remove", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Package": p, "Name": name, "DataDirs": s.Manager.DataDirs(name)})
 }
 
 func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {

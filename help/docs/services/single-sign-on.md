@@ -11,7 +11,12 @@ says so). Your lab needs its address first: the sign-in page is at
 
 ## Turning it on
 
-On the service's page, under **Single sign-on**, choose who can sign in,
+When you install an app that can use it, the install form has **Sign in
+with your lab's account**, ticked: leave it ticked and the app will start
+with single sign-on on. It's offered once your lab has an address, for
+apps on the lab's main server.
+
+Later, on the service's page, under **Single sign-on**, choose who can sign in,
 then **Turn on single sign-on**. Owners and Admins can turn it on; only an
 Owner chooses who can sign in. Roostack will then:
 

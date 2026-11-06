@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/attention"
+	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/labnet"
@@ -135,8 +136,13 @@ type planOptions struct {
 	OwnDisk                  *manager.BackupChoice
 	Selected                 string
 	Online, Friends, Servers []manager.BackupChoice
-	// Cloud is Roostack Cloud backup, when this lab's account may use it.
-	Cloud *manager.BackupChoice
+	// Cloud is Roostack Cloud backup, when this lab's account may use it;
+	// otherwise CloudOff is why not (a manager.CloudOff reason), and
+	// CloudFix whether this person can put it right (the Owner, who links
+	// the lab). Both are empty when its backups already go there.
+	Cloud    *manager.BackupChoice
+	CloudOff string
+	CloudFix bool
 }
 
 func kindTitle(kind string) string {
@@ -393,6 +399,10 @@ func (s *Server) planOptions(r *http.Request, m serverRef, main store.BackupTarg
 				o.OwnDisk = &c
 			}
 		}
+	}
+	if o.Cloud == nil && !used[destination.Cloud] {
+		o.CloudOff = s.Manager.CloudBackupOff(ctx)
+		o.CloudFix = auth.Can(currentUser(r).Role, auth.ManageHost)
 	}
 	return o
 }

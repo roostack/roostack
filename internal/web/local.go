@@ -24,13 +24,13 @@ import (
 const localUploadMax = manager.LocalPackageMaxBytes + pkgspec.IconMaxBytes + 64<<10
 
 func (s *Server) localAddPage(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "local-add", map[string]any{"User": currentUser(r), "Dir": s.Manager.LocalPackagesDir()})
+	s.render(w, "local-add", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Dir": s.Manager.LocalPackagesDir()})
 }
 
 func (s *Server) localAddSubmit(w http.ResponseWriter, r *http.Request) {
 	fail := func(msg string) {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "local-add", map[string]any{"User": currentUser(r), "Dir": s.Manager.LocalPackagesDir(), "Error": msg})
+		s.render(w, "local-add", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Dir": s.Manager.LocalPackagesDir(), "Error": msg})
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, localUploadMax)
 	if err := r.ParseMultipartForm(localUploadMax); err != nil {
@@ -76,7 +76,7 @@ func (s *Server) localAddSubmit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) localEditorPage(w http.ResponseWriter, r *http.Request) {
 	markup := editor.Markup(editor.Options{Where: editor.InRoostack, Version: s.Version, Help: "/help/",
 		Check: "/catalog/editor/check", Add: "/catalog/add"})
-	s.render(w, "local-editor", map[string]any{"User": currentUser(r), "Editor": template.HTML(markup),
+	s.render(w, "local-editor", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Editor": template.HTML(markup),
 		"Scripts": editor.Scripts, "Stylesheet": editor.Stylesheet})
 }
 

@@ -460,3 +460,34 @@ func TestSSOHookFailsThenRetry(t *testing.T) {
 		t.Errorf("after Try again: %+v", st)
 	}
 }
+
+// Installing with single sign-on ticked turns it on from the start (SPEC.md
+// §5.2), and its hook runs as when it's turned on later; on another
+// server, or for a lab without an address, the tick is ignored.
+func TestInstallWithSSO(t *testing.T) {
+	m, _, _, _ := newHookManager(t)
+	ctx := context.Background()
+	p, err := m.Package("forgejo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.SSOAtInstall(p, "") || m.SSOAtInstall(p, "n-0000000099") {
+		t.Error("offered on another server, or not on this one")
+	}
+	req := forgejoRequest()
+	req.SSO = true
+	if err := m.Install(ctx, "forgejo", req); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if ok, _ := m.SSOAvailable("forgejo"); !ok {
+		t.Fatal("not available")
+	}
+	if _, in, err := m.installedService("forgejo"); err != nil || !in.SSO {
+		t.Errorf("installed without single sign-on: %v", err)
+	}
+	m.Lab.Domain = ""
+	if m.SSOAtInstall(p, "") {
+		t.Error("offered without the lab's address")
+	}
+}

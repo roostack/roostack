@@ -692,3 +692,26 @@ func TestSSOCardClaims(t *testing.T) {
 		}
 	}
 }
+
+// Installing offers single sign-on, ticked, for a package that has it
+// (SPEC.md §5.2: on by default), and passes the choice on; a package
+// without it has no tick.
+func TestInstallWithSSO(t *testing.T) {
+	h, fm := loggedIn(t, "owner")
+	_, body := h.get("/install/forgejo")
+	if !strings.Contains(body, `<input type="checkbox" name="sso" checked>`) || !strings.Contains(body, "Sign in with your lab&#39;s account") &&
+		!strings.Contains(body, "Sign in with your lab's account") {
+		t.Errorf("no single sign-on tick, ticked, for Forgejo")
+	}
+	form := url.Values{"setting.admin_username": {"mum"}, "setting.admin_email": {"mum@example.com"},
+		"setting.admin_password": {"correct horse"}, "sso": {"on"}}
+	h.post("/install/forgejo", form, h.srv.URL)
+	form.Del("sso")
+	h.post("/install/forgejo", form, h.srv.URL)
+	if len(fm.installs) != 2 || !fm.installs[0].SSO || fm.installs[1].SSO {
+		t.Errorf("the tick wasn't passed on: %+v", fm.installs)
+	}
+	if _, body := h.get("/install/vaultwarden"); strings.Contains(body, `name="sso"`) {
+		t.Error("a package without single sign-on has the tick")
+	}
+}

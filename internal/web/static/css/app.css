@@ -604,6 +604,11 @@ code.nowrap { white-space: nowrap; }
 @supports (color: color-mix(in srgb, red 50%, blue)) { .view-switch { background: var(--glass-2); box-shadow: inset 0 0 0 1px var(--edge-strong); } }
 @media (prefers-reduced-motion: reduce) { .view-switch::before, .view-switch span { transition: none; } }
 .views .technical-only { display: none; }
+/* The views are one block of the page, so they space what's inside them
+   as the page spaces its own blocks: the service page's header and its
+   Open button would otherwise touch the notice or card below. */
+.views { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); align-content: start; }
+.views > * { margin-block: 0; min-width: 0; }
 .views:has(.view-switch input:checked) .friendly-only { display: none; }
 .views:has(.view-switch input:checked) .technical-only { display: grid; }
 
@@ -934,6 +939,9 @@ ul.guests .space-used { background: var(--chart-3); }
 .plan-choice { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0; padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
 .plan-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+/* A choice listed but not available yet (Roostack Cloud before the lab
+   is linked), with why under the choices. */
+.plan-choice:has(input:disabled) { opacity: 0.6; cursor: not-allowed; }
 .plan-choice span { display: grid; }
 .plan-invite { margin-top: var(--space-3); }
 .plan-invite label { margin-bottom: var(--space-1); font-weight: 600; }

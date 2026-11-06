@@ -87,6 +87,11 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 	// Under Services, the sidebar lists them, for those who can open them.
 	if n, ok := data["Nav"].(nav); ok && n.Active == "services" && n.Backups {
 		current, _ := data["Service"].(ServiceView)
+		if current.Name == "" && !n.Adding {
+			// A service's own sub-page (its public access, removing or
+			// moving it) names it alone; it's still the service shown.
+			current.Name, _ = data["Name"].(string)
+		}
 		n.InService = current.Name != ""
 		services, ok := data["Services"].([]ServiceView)
 		if p, lazy := data[pageServicesKey].(*pageServices); !ok && lazy {

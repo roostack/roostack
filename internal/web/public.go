@@ -148,7 +148,7 @@ func (s *Server) renderPublic(w http.ResponseWriter, r *http.Request, formErr st
 		return
 	}
 	asked, share := s.Manager.SignalSharing()
-	data := map[string]any{"User": currentUser(r), "Package": p, "Name": r.PathValue("name"), "Route": ra,
+	data := map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Package": p, "Name": r.PathValue("name"), "Route": ra,
 		"SharingAsked": asked, "Share": share, "Error": formErr}
 	s.addPublicUI(data)
 	if !s.onInternet() {

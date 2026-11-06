@@ -87,6 +87,13 @@
     {{end}}{{end}}
     {{end}}
     {{end}}
+    {{/* Single sign-on from the start, on by default (SPEC.md §5.2). */}}
+    {{if .SSOOffered}}
+    <label class="check"><input type="checkbox" name="sso" {{if .SSOOn}}checked{{end}}>
+      <span>Sign in with your lab's account (recommended)<small>People will sign in to {{.Package.Title}} on your lab's sign-in page, with the
+        password and two-factor they already use{{with .Package.SSO.Note}}. {{.}}{{end}}{{if .Servers}} It works for services on this
+        server for now.{{end}} You can turn it off on its page later.</small></span></label>
+    {{end}}
     {{if or .Servers .LibraryGroups}}
     <hr class="form-rule">
     <h2 class="form-section">Where it runs</h2>

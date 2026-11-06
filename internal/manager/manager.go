@@ -369,6 +369,11 @@ type InstallRequest struct {
 	// its databases run, its install-only settings aren't asked for and
 	// its install hooks don't run (the Owner only, in the web layer).
 	BringData bool
+	// SSO turns single sign-on on from the start (SPEC.md §5.2, the
+	// install form's tick, on by default), where the service's page could
+	// turn it on (SSOAvailable): a package that has it, on a lab with an
+	// address, on this server. It's ignored anywhere else.
+	SSO bool
 }
 
 // clashError says what to do about a web address or port that another
@@ -476,6 +481,11 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err := in.Save(state.InstanceFile(m.Lab, id)); err != nil {
 		return err
 	}
+	if in.SSO {
+		m.ssoMu.Lock()
+		m.ssoClients = nil // read again: the sign-in page has a new app
+		m.ssoMu.Unlock()
+	}
 	if setUp {
 		m.setUp = append(m.setUp, id)
 	}
@@ -511,7 +521,7 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 		return nil, "", usererr.New("Choose which server will run %s.", p.Title)
 	}
 	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
-		Settings: map[string]any{}}
+		Settings: map[string]any{}, SSO: req.SSO && m.ssoAtInstall(p, host)}
 	title, err := checkTitle(req.Title, p)
 	if err != nil {
 		return nil, "", err

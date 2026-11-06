@@ -75,17 +75,30 @@ type CloudBackup interface {
 	RegisterIdentity(ctx context.Context) error
 }
 
+// Why Roostack Cloud backup can't be chosen (CloudBackupOff), for the
+// backup chooser to say so rather than leave it out (the Owner,
+// 2026-11-06).
+const (
+	CloudOffUnlinked    = "unlinked"    // the lab isn't linked to Roostack Cloud
+	CloudOffNoStorage   = "no-storage"  // its account has no backup storage
+	CloudOffUnreachable = "unreachable" // Roostack Cloud didn't answer
+)
+
 // cloudChoice is Roostack Cloud backup as a choice, if this lab's account
-// may use it (a storage grant, in the pilot).
-func (m *Manager) cloudChoice(ctx context.Context) (BackupChoice, bool) {
+// may use it (a storage grant, in the pilot); otherwise why not (a
+// CloudOff reason).
+func (m *Manager) cloudChoice(ctx context.Context) (BackupChoice, string) {
 	if m.CloudBackup == nil {
-		return BackupChoice{}, false
+		return BackupChoice{}, CloudOffUnlinked
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	u, err := m.CloudBackup.StorageUsage(ctx)
-	if err != nil || u.QuotaBytes <= 0 {
-		return BackupChoice{}, false
+	if err != nil {
+		return BackupChoice{}, CloudOffUnreachable
+	}
+	if u.QuotaBytes <= 0 {
+		return BackupChoice{}, CloudOffNoStorage
 	}
 	used := fmt.Sprintf("This lab uses %s of %s.", units.Bytes(u.UsedBytes), units.Bytes(u.QuotaBytes))
 	if u.AccountUsedBytes > u.UsedBytes {
@@ -95,7 +108,14 @@ func (m *Manager) cloudChoice(ctx context.Context) (BackupChoice, bool) {
 			units.Bytes(u.QuotaBytes), units.Bytes(u.UsedBytes))
 	}
 	return BackupChoice{Ref: destination.Cloud, Title: "Roostack Cloud",
-		Note: "Encrypted with your recovery key before it leaves; Roostack Cloud can't read it. " + used}, true
+		Note: "Encrypted with your recovery key before it leaves; Roostack Cloud can't read it. " + used}, ""
+}
+
+// CloudBackupOff says why Roostack Cloud backup can't be chosen now (a
+// CloudOff reason), or "" when it can.
+func (m *Manager) CloudBackupOff(ctx context.Context) string {
+	_, off := m.cloudChoice(ctx)
+	return off
 }
 
 // cloudPruneKeys are the controller's keys to the lab's folders in
@@ -153,7 +173,7 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 		}
 		out = append(out, BackupChoice{Ref: ref, Title: p.Name, Note: note})
 	}
-	if c, ok := m.cloudChoice(ctx); ok {
+	if c, off := m.cloudChoice(ctx); off == "" {
 		out = append(out, c)
 	}
 	return out, nil
