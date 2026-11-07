@@ -3,6 +3,7 @@ package generate
 import (
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1158,5 +1159,59 @@ func TestRefused(t *testing.T) {
 	}
 	if public, _ := Service(testLab(), p, in); !public.Public {
 		t.Error("not public without the refusal")
+	}
+}
+
+func TestKeepIDUser(t *testing.T) {
+	keepID := func(ns string, extra map[string]any) pkgspec.Quadlet {
+		sec := map[string]any{"UserNS": ns}
+		maps.Copy(sec, extra)
+		return pkgspec.Quadlet{"Container": sec}
+	}
+	data := []pkgspec.Mount{{Storage: "data", Path: "/data"}}
+	app := &pkgspec.Container{Quadlet: keepID("keep-id:uid=1000,gid=1000", nil), Mounts: data}
+	tests := []struct {
+		name string
+		p    pkgspec.Package
+		c    *pkgspec.Container
+		want string
+	}{
+		{"keep-id", pkgspec.Package{}, app, "1000:1000"},
+		{"the same user set", pkgspec.Package{}, &pkgspec.Container{Quadlet: keepID("keep-id:uid=1000,gid=1000", map[string]any{"User": "1000:1000"}), Mounts: data}, "1000:1000"},
+		{"the same user, no group", pkgspec.Package{}, &pkgspec.Container{Quadlet: keepID("keep-id:uid=1000,gid=1000", map[string]any{"User": "1000"}), Mounts: data}, "1000:1000"},
+		{"no keep-id", pkgspec.Package{}, &pkgspec.Container{Mounts: data}, ""},
+		{"keep-id alone", pkgspec.Package{}, &pkgspec.Container{Quadlet: keepID("keep-id", nil), Mounts: data}, ""},
+		{"no group", pkgspec.Package{}, &pkgspec.Container{Quadlet: keepID("keep-id:uid=1000", nil), Mounts: data}, ""},
+		{"root", pkgspec.Package{}, &pkgspec.Container{Quadlet: keepID("keep-id:uid=0,gid=0", nil), Mounts: data}, ""},
+		{"another user", pkgspec.Package{}, &pkgspec.Container{Quadlet: keepID("keep-id:uid=1000,gid=1000", map[string]any{"User": "33"}), Mounts: data}, ""},
+		{"a group line", pkgspec.Package{}, &pkgspec.Container{Quadlet: keepID("keep-id:uid=1000,gid=1000", map[string]any{"Group": "100"}), Mounts: data}, ""},
+		{"libraries", pkgspec.Package{}, &pkgspec.Container{Quadlet: app.Quadlet, Mounts: []pkgspec.Mount{{Storage: "data", Path: "/data"}, {Libraries: true, Path: "/media"}}}, ""},
+		{"a device", pkgspec.Package{}, &pkgspec.Container{Quadlet: app.Quadlet, Mounts: data, Devices: []pkgspec.Device{{}}}, ""},
+		{"a config file", pkgspec.Package{ConfigFiles: map[string]*pkgspec.ConfigFile{"c": {}}}, app, ""},
+		{"sharing as the same user", pkgspec.Package{Containers: map[string]*pkgspec.Container{"app": app, "worker": {Quadlet: app.Quadlet, Mounts: data}}}, app, "1000:1000"},
+		{"sharing as another user", pkgspec.Package{Containers: map[string]*pkgspec.Container{"app": app, "worker": {Quadlet: keepID("keep-id:uid=33,gid=33", nil), Mounts: data}}}, app, ""},
+		{"beside a container without keep-id", pkgspec.Package{Containers: map[string]*pkgspec.Container{"app": app, "worker": {Mounts: data}}}, app, ""},
+		{"beside one with no storage", pkgspec.Package{Containers: map[string]*pkgspec.Container{"app": app, "web": {}}}, app, "1000:1000"},
+		{"no storage of its own", pkgspec.Package{Containers: map[string]*pkgspec.Container{"web": {Quadlet: app.Quadlet}, "worker": {Mounts: data}}}, &pkgspec.Container{Quadlet: app.Quadlet}, "1000:1000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := keepIDUser(&tt.p, tt.c); got != tt.want {
+				t.Errorf("keepIDUser = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// A package's lines must stay as they were: every server generates from
+// the same parsed package.
+func TestRunAsUserLeavesThePackage(t *testing.T) {
+	q := pkgspec.Quadlet{"Container": {"UserNS": "keep-id:uid=1000,gid=1000"}}
+	got := runAsUser(q, "1000:1000")
+	if got["Container"]["User"] != "1000:1000" || got["Container"]["UserNS"] != nil {
+		t.Errorf("runAsUser = %v", got)
+	}
+	if q["Container"]["UserNS"] == nil || q["Container"]["User"] != nil {
+		t.Errorf("the package's lines changed: %v", q)
 	}
 }

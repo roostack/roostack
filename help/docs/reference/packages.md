@@ -404,7 +404,9 @@ routes:
 
     The file is written as Roostack's user, which is the container's root
     (or its user with `UserNS=keep-id`), and only that user can read it.
-    So the app must read it as root, or as the user `keep-id` maps. Give
+    So the app must read it as root, or as the user `keep-id` maps: a
+    package with a config file will keep `keep-id` as written, and its
+    files will belong to Roostack's user on the server. Give
     an app that changes its data folder's owner at start a storage entry
     of its own for the file, mounted `readonly`. Use it for what the app
     can't take from its environment.
@@ -517,7 +519,12 @@ inside the service, written exactly as here:
 | `Install` | None |
 
 Forgejo's `UserNS=keep-id:uid=1000,gid=1000` and Immich's database
-`ShmSize=128m` are examples. If a package needs another key, ask for it
+`ShmSize=128m` are examples. Roostack runs a container with
+`UserNS=keep-id:uid=…,gid=…` as that user and adds `:U` to its storage
+mounts, without `keep-id`, because `keep-id` makes Podman change the owner
+of every file in the image. It keeps `keep-id` as written if the package
+has a config file, if the container reads libraries or uses a device, or
+if containers sharing storage run as different users. If a package needs another key, ask for it
 to be added to the policy, saying what it's for. A package of your own
 may break the policy: check it with `roostack validate -local`, and see
 [Add your own](../services/add.md#your-own) for adding it to your lab.

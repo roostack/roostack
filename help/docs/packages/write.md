@@ -152,7 +152,10 @@ Give each container what the app's own documentation asks for:
 
 If the app runs as a fixed user and its files must belong to that user,
 add `UserNS: keep-id:uid=1000,gid=1000` under `quadlet: Container:`, as
-Forgejo's package does. Only some Quadlet lines are allowed:
+Forgejo's package does. Roostack will run the app as that user and give
+it its storage folders each time it starts, so on the server those
+folders will belong to one of the high numbers Podman uses for that
+user. Only some Quadlet lines are allowed:
 [what a package may not do](../reference/packages.md#what-a-package-may-not-do)
 lists them, and what to use instead of the others.
 

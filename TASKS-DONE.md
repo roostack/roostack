@@ -385,6 +385,7 @@ Finished work, by phase, with the headings of [TASKS.md](TASKS.md), where the op
 
 ## More services (the Owner, 2026-10-18; SPEC §8.1 "More services")
 
+- [x] **Slow first start with `keep-id`** (2026-11-07; SPEC §6.7, ASSUMPTIONS B3b, B3c): Roostack runs such a container as its numeric user with `:U` on its storage, without needing new package revisions (`generate.keepIDUser`); a package with a config file, a container reading libraries or using a device, and containers sharing storage as different users stay on `keep-id`
 - [x] **A restore keeps the live database** (2026-11-07, SPEC §6.9 "What a restore keeps", ASSUMPTIONS L23): found 2026-11-06 on VM3, where a restore lost what changed since the backup, with no copy, and left tables added since
 - [x] Outline, BookStack, Docmost and Wiki.js 3 in the registry (2026-11-06, roostack/services, SPEC §8.1 "Wikis"; ASSUMPTIONS V18 to V20): each installed on VM3, backed up, and restored; removal tried on Wiki.js 3
 
