@@ -14,6 +14,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] A7: Intel GPU (`/dev/dri`) passthrough with `keep-groups`
 - [ ] 🟡 **1.6 Reconciler:** plan/apply, `roostack apply [--dry-run]` (`internal/reconcile`, `internal/state`)
 - [ ] 🟡 **1.7 Proxy:** Caddyfile generation ✅ (checked with real Caddy); Caddy image Containerfile written, not built
+  - [ ] **Soon (the maintainer, 2026-11-07): publish Caddy's image on GHCR** (SPEC §6.5, "A published Caddy image"): built by the Release workflow for amd64 and arm64, named by digest in each release, pulled instead of built, with no fallback. Check first whether the build is reproducible, so that CI can compare it with what's published, and how an existing lab moves over.
+  - [ ] Labs pin Caddy 2.11.4 and Cloud's edge 2.11.7: check whether labs should move up before the first published image
 - [ ] 🟡 **1.8 roostack-agent:** socket API with peer-credential checks; port sysctl; nftables firewall (ruleset checked with `nft -c`)
 - [ ] 🟡 **1.9 Web UI skeleton**
   - [ ] Mark untested catalog packages (Immich) before release (not needed while in development). 2026-10-18: Forgejo and Immich work end to end on arm64 (ASSUMPTIONS R7), so neither needs the mark there; Immich hasn't run on amd64 yet
