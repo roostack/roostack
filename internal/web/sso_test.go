@@ -935,6 +935,19 @@ func TestLookImages(t *testing.T) {
 	if _, err := os.Stat(h.server.lookPath("wide", "png")); err == nil {
 		t.Error("the wide logo's file is still there")
 	}
+	// Nor does it stay on the public status page.
+	h.server.StatusPageDir = t.TempDir()
+	stale := filepath.Join(h.server.StatusPageDir, statusLogo("wide", "png"))
+	os.WriteFile(stale, wide, 0o644)
+	if err := h.server.writeStatusFiles([]byte("page"), h.server.signInLook(ctx)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Error("the deleted logo is still on the status page")
+	}
+	if _, err := os.Stat(filepath.Join(h.server.StatusPageDir, statusLogo("dark", "png"))); err != nil {
+		t.Errorf("a logo still there left the status page: %v", err)
+	}
 }
 
 // Changing someone is a dialog: ?person= opens it, and refused details
