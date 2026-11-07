@@ -199,6 +199,8 @@ func (c *Coordinator) runChain(ctx context.Context, chain []Job) {
 			continue
 		case errors.Is(err, ErrInterrupted):
 			c.Log.Info("job paused for reboot", "job", job.Name)
+		case errors.Is(err, context.Canceled) && ctx.Err() != nil:
+			c.Log.Info("job stopped because Roostack is stopping", "job", job.Name)
 		default:
 			c.Log.Error("job failed", "job", job.Name, "err", err)
 		}

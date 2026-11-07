@@ -210,7 +210,7 @@ func (s *Service) Job() maintenance.Job {
 				act.Printf("Roostack's agent restarted (upgrading Roostack restarts it), and the run is carrying on: " +
 					"following it until it ends.")
 				if res, err = s.follow(ctx, mark); err != nil {
-					act.Finish(err) // Roostack is stopping: the next start records it
+					handOver(act)
 					return err
 				}
 			} else {
@@ -223,6 +223,15 @@ func (s *Service) Job() maintenance.Job {
 			return s.record(ctx, act, res, err)
 		},
 	}
+}
+
+// handOver ends the log of a run this Roostack can't follow any more,
+// because it's stopping (upgrading Roostack restarts it). That isn't the
+// run failing: the run carries on, and the next start records how it ended
+// in a log of its own (Resume).
+func handOver(act *activity.Log) {
+	act.Step("Roostack is restarting, and will record how this run ended when it starts again")
+	act.Finish(nil)
 }
 
 // record saves a run's result and says it in its log, forgets the run's
@@ -333,7 +342,7 @@ func (s *Service) Resume(ctx context.Context) {
 				"following the run until it ends to record how it went.")
 			res, err := s.follow(ctx, mark)
 			if err != nil {
-				act.Finish(err) // Roostack is stopping again
+				handOver(act)
 				return err
 			}
 			if res.Output != "" {
