@@ -32,10 +32,16 @@ Logo
     shown in its place, up to six times as wide as it is tall (at most 80
     pixels high on the sign-in and status pages, and 40 in Roostack's
     sidebar), with an optional version for dark mode and tab icon. Without
-    a dark version, a wide logo will sit on a light panel when the device
-    is in dark mode so that dark lettering stays readable. Or none:
-    Roostack's hen. PNG or SVG, up to 200 KB; SVGs with scripts are
-    refused.
+    a dark version, a wide logo will sit on a light panel in dark mode so
+    that dark lettering stays readable. Or none: Roostack's hen. PNG or
+    SVG, up to 200 KB; SVGs with scripts are refused. **Your images** shows
+    every image you've added, whichever kind is in use, and you can replace
+    or delete each one. If you delete the logo in use, Roostack's hen will
+    take its place.
+
+    Roostack's own pages use the dark version when the page is dark, which
+    your account's **Appearance** can choose apart from your device. The
+    sign-in and status pages follow each visitor's device.
 
 Colours
 :   One of Roostack's themes, for the sign-in and status pages, and for

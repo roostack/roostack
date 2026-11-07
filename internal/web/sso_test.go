@@ -886,6 +886,57 @@ func TestLookOnRoostacksPages(t *testing.T) {
 	}
 }
 
+// Name and look shows every image there is, whichever kind is in use, and
+// each can be replaced or deleted.
+func TestLookImages(t *testing.T) {
+	h, _ := loggedIn(t, "owner")
+	withSignIn(t, h, &fakeSSO{on: map[string]bool{}})
+	ctx := context.Background()
+	wide, mark := pngOf(t, 300, 100), pngOf(t, 64, 64)
+	if code, body := h.postForm("/settings/look", map[string]string{"palette": DefaultPalette, "logo": logoWide},
+		map[string][]byte{"logo_wide": wide, "logo_dark": wide, "logo_icon": mark, "logo_mark": mark}); code >= 400 {
+		t.Fatalf("saving: %d %s", code, body)
+	}
+	_, body := h.get("/settings/look")
+	for _, want := range []string{"/brand/mark?v=", "/brand/wide?v=", "/brand/dark?v=", "/brand/icon-file?v=",
+		`name="remove_mark"`, `name="remove_wide"`, `name="remove_dark"`, `name="remove_icon"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page lacks %q", want)
+		}
+	}
+	// The icon's own file, whatever the tab shows now.
+	if code, _ := h.get("/brand/icon-file"); code != 200 {
+		t.Errorf("/brand/icon-file: %d", code)
+	}
+	// Both wide logos, for CSS to choose from, in the sidebar and previews.
+	if strings.Contains(body, "prefers-color-scheme: dark)\"") || !strings.Contains(body, `class="for-dark" src="/brand/dark?v=`) {
+		t.Error("the dark version isn't there for the page's mode to choose")
+	}
+	// Replacing wins over deleting.
+	if code, _ := h.postForm("/settings/look", map[string]string{"palette": DefaultPalette, "logo": logoWide, "remove_dark": "on"}, map[string][]byte{"logo_dark": wide}); code >= 400 {
+		t.Fatal(code)
+	}
+	if !h.server.signInLook(ctx).Has("dark") {
+		t.Error("a replaced file was deleted")
+	}
+	// Deleting one that isn't in use leaves the logo alone.
+	h.postForm("/settings/look", map[string]string{"palette": DefaultPalette, "logo": logoWide, "remove_mark": "on"}, nil)
+	if l := h.server.signInLook(ctx); l.Has("mark") || l.Logo != logoWide {
+		t.Errorf("after deleting the mark: %+v", l)
+	}
+	// Deleting the logo in use means the hen, and its file is gone.
+	if code, body := h.postForm("/settings/look", map[string]string{"palette": DefaultPalette, "logo": logoWide, "remove_wide": "on"}, nil); code >= 400 {
+		t.Fatalf("deleting the logo in use: %d %s", code, body)
+	}
+	l := h.server.signInLook(ctx)
+	if l.Has("wide") || l.Logo != "" || !l.Has("dark") || !l.Has("icon") {
+		t.Errorf("after deleting the wide logo: %+v", l)
+	}
+	if _, err := os.Stat(h.server.lookPath("wide", "png")); err == nil {
+		t.Error("the wide logo's file is still there")
+	}
+}
+
 // Changing someone is a dialog: ?person= opens it, and refused details
 // open it again with the mistake.
 func TestPersonDialog(t *testing.T) {
