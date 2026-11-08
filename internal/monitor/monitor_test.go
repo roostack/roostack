@@ -27,12 +27,16 @@ type scripted struct {
 	now    time.Time
 	up     bool
 	paused string
+	gone   bool // the check isn't listed
 }
 
 func newScripted(t *testing.T, s *store.Store) *scripted {
 	sc := &scripted{now: time.Date(2026, 10, 19, 9, 0, 0, 0, time.UTC), up: true}
 	sc.m = &Monitor{Store: s, Now: func() time.Time { return sc.now },
 		Checks: func(context.Context) []Check {
+			if sc.gone {
+				return nil
+			}
 			return []Check{{Key: "service:vault:web", Kind: KindService, Name: "Vaultwarden", Service: "vault", URL: "https://vault.test/", Paused: sc.paused, Alert: true}}
 		},
 		Prober: func(_ context.Context, c Check) store.MonitorResult {
@@ -98,6 +102,36 @@ func TestDownAfterThree(t *testing.T) {
 	o, _ = s.MonitorOutages(context.Background(), "service:vault:web", time.Time{})
 	if len(o) != 1 || o[0].Ended.IsZero() {
 		t.Errorf("outage after recovery %+v", o)
+	}
+}
+
+// A check that's down and stops being listed (its service turned off)
+// isn't down any more: its outage ends, and when it's listed again it
+// starts afresh.
+func TestGone(t *testing.T) {
+	s, ctx := openStore(t), context.Background()
+	sc := newScripted(t, s)
+	sc.up = false
+	for range DownAfter {
+		sc.round(t)
+	}
+	sc.gone = true
+	goneAt := sc.now
+	sc.m.Round(ctx)
+	if _, ok := sc.m.Status("service:vault:web"); ok {
+		t.Fatal("still listed")
+	}
+	o, _ := s.MonitorOutages(ctx, "service:vault:web", time.Time{})
+	if len(o) != 1 || !o[0].Ended.Equal(goneAt) {
+		t.Fatalf("outage %+v", o)
+	}
+	sc.gone, sc.up = false, true
+	sc.now = sc.now.Add(time.Hour)
+	if st := sc.round(t); st.State != StateUp || st.Fails != 0 {
+		t.Errorf("listed again: %+v", st)
+	}
+	if o, _ := s.MonitorOutages(ctx, "service:vault:web", time.Time{}); len(o) != 1 {
+		t.Errorf("outages %+v", o)
 	}
 }
 

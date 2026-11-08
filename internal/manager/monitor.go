@@ -24,7 +24,8 @@ const CaddyLocal = "127.0.0.1:443"
 // MonitorChecks are the checks Roostack makes by itself (SPEC.md §6.15):
 // each route of each service, through this server's Caddy, and each other
 // server's lab API. A service that's stopped, starting, being set up,
-// updated or restored, or whose server isn't answering, is paused.
+// updated or restored, or whose server isn't answering, is paused; one
+// someone has turned off has no checks (generate.Off).
 func (m *Manager) MonitorChecks(ctx context.Context) []monitor.Check {
 	var out []monitor.Check
 	servers, _ := m.Servers()
@@ -53,7 +54,7 @@ func (m *Manager) MonitorChecks(ctx context.Context) []monitor.Check {
 	lab := m.labNow()
 	for _, s := range services {
 		name := s.Name()
-		gen, err := generate.Service(lab, s.Package, s.Instance)
+		gen, err := state.Output(lab, s)
 		if err != nil {
 			continue
 		}
