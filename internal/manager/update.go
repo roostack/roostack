@@ -100,6 +100,8 @@ type Update struct {
 	// NewRisks are what the Owner's newer package asks for that the
 	// installed one didn't: only the Owner can accept them.
 	NewRisks []string
+	// Host is the ID of the server the service runs on.
+	Host string
 }
 
 // FromApp and ToApp are the app's own versions, with the package's
@@ -194,6 +196,8 @@ type updates struct {
 	// keep are the previous package versions of services updating, kept
 	// from PrunePackages until the update is done (for going back).
 	keep map[string]string
+	// tonight guards the updates chosen for tonight (tonightKey).
+	tonight sync.Mutex
 }
 
 // AvailableUpdates lists the installed services with a newer version in
@@ -215,7 +219,7 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 		}
 		u := &Update{Service: s.Name(), Title: s.Title(), Package: in.Package, From: in.Version, To: p.Version,
 			Kind: pkgspec.UpdateKind(in.Version, p.Version), Notes: p.NotesSince(in.Version), Policy: in.Updates,
-			Local: in.Local}
+			Local: in.Local, Host: in.HostOr(m.Lab.NodeID)}
 		if u.Kind != pkgspec.UpdateRevision {
 			u.WhatsNew = p.About.ReleasesURL(pkgspec.Upstream(p.Version))
 		}
@@ -239,7 +243,7 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 		if rec := m.LastUpdate(ctx, s.Name()); rec != nil && rec.To == p.Version && rec.Result != UpdateDone {
 			u.FailedBefore = true
 		}
-		u.NoBackups = !m.backupsOn(ctx, in.HostOr(m.Lab.NodeID))
+		u.NoBackups = !m.backupsOn(ctx, u.Host)
 		u.Auto = in.AllowsUpdate(u.Kind) && len(u.Notes) == 0 && len(u.NewRisks) == 0 && !u.FailedBefore && !u.NoBackups &&
 			u.Blocked == ""
 		out[s.Name()] = u
@@ -468,43 +472,71 @@ func (m *Manager) UpdateService(ctx context.Context, name, to, by string, accept
 		m.Log.Warn("updating to a package of your own with new risks, as the Owner confirmed",
 			"service", name, "version", to, "risks", u.NewRisks)
 	}
-	return m.startUpdate(u, "Update now, by "+by, false, by, true)
+	return m.startUpdate(u, updateRun{why: "Update now, by " + by, by: by, backup: true})
 }
 
-// startUpdate queues an update, unless the service already has one. why
-// goes in its log; by is who asked (empty for an automatic one).
-func (m *Manager) startUpdate(u *Update, why string, automatic bool, by string, backup bool) error {
+// updateRun is how an update runs: why goes in its log; by is who asked
+// (empty for an automatic one); backup: its server backs up first, unless
+// backups aren't set up; noBackup, when it doesn't, says why for the log.
+type updateRun struct {
+	why       string
+	automatic bool
+	by        string
+	backup    bool
+	noBackup  string
+}
+
+// startUpdate queues an update, unless the service already has one.
+func (m *Manager) startUpdate(u *Update, r updateRun) error {
 	m.upd.mu.Lock()
-	if m.upd.active == nil {
-		m.upd.active, m.upd.keep = map[string]*ServiceUpdate{}, map[string]string{}
-	}
+	m.initUpdatesLocked()
 	if m.upd.active[u.Service] != nil {
 		m.upd.mu.Unlock()
 		return usererr.New("%s is already updating.", u.Title)
 	}
-	backup = backup && !u.NoBackups
+	r.backup = r.backup && !u.NoBackups
+	m.upd.active[u.Service] = queuedUpdate(u, r.backup, "Waiting for another update to finish")
+	m.upd.mu.Unlock()
+	go func() {
+		m.upd.run.Lock()
+		defer m.upd.run.Unlock()
+		m.runQueued(u, r)
+	}()
+	return nil
+}
+
+// initUpdatesLocked makes the maps of updates in progress. Callers hold
+// upd.mu.
+func (m *Manager) initUpdatesLocked() {
+	if m.upd.active == nil {
+		m.upd.active, m.upd.keep = map[string]*ServiceUpdate{}, map[string]string{}
+	}
+}
+
+// queuedUpdate is an update's progress before it starts: its steps, and
+// what it's waiting for.
+func queuedUpdate(u *Update, backup bool, waiting string) *ServiceUpdate {
 	steps := []node.InstallStep{{Key: "download", Title: "Downloading the new version"}}
 	if backup {
 		steps = append(steps, node.InstallStep{Key: "backup", Title: "Backing up " + u.Title})
 	}
 	steps = append(steps, node.InstallStep{Key: "switch", Title: "Switching to " + u.ToApp()},
 		node.InstallStep{Key: "check", Title: "Checking it works"})
-	su := &ServiceUpdate{From: u.From, To: u.To, Progress: &node.InstallProgress{Steps: steps, Log: activity.ServiceUpdate},
-		Waiting: "Waiting for another update to finish"}
-	m.upd.active[u.Service] = su
+	return &ServiceUpdate{From: u.From, To: u.To, Progress: &node.InstallProgress{Steps: steps, Log: activity.ServiceUpdate},
+		Waiting: waiting}
+}
+
+// runQueued runs a queued update, records it, and takes it off the
+// queue. Callers hold upd.run.
+func (m *Manager) runQueued(u *Update, r updateRun) UpdateRecord {
+	m.progress(u.Service, func(su *ServiceUpdate) { su.Waiting = "" })
+	rec := m.runUpdate(u, r)
+	m.saveUpdate(context.Background(), u.Service, rec)
+	m.upd.mu.Lock()
+	delete(m.upd.active, u.Service)
+	delete(m.upd.keep, u.Service)
 	m.upd.mu.Unlock()
-	go func() {
-		m.upd.run.Lock()
-		defer m.upd.run.Unlock()
-		m.progress(u.Service, func(su *ServiceUpdate) { su.Waiting = "" })
-		rec := m.runUpdate(u, why, automatic, by, backup)
-		m.saveUpdate(context.Background(), u.Service, rec)
-		m.upd.mu.Lock()
-		delete(m.upd.active, u.Service)
-		delete(m.upd.keep, u.Service)
-		m.upd.mu.Unlock()
-	}()
-	return nil
+	return rec
 }
 
 // progress changes an update's progress.
@@ -539,9 +571,10 @@ func (m *Manager) step(name, key string) {
 }
 
 // runUpdate does one update, logging it, and returns its record.
-func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, backup bool) (rec UpdateRecord) {
+func (m *Manager) runUpdate(u *Update, r updateRun) (rec UpdateRecord) {
 	ctx := context.Background()
-	rec = UpdateRecord{From: u.From, To: u.To, Started: time.Now(), Automatic: automatic, By: by}
+	backup := r.backup
+	rec = UpdateRecord{From: u.From, To: u.To, Started: time.Now(), Automatic: r.automatic, By: r.by}
 	act := m.Activity.Start(activity.ServiceUpdate, fmt.Sprintf("Updating %s to %s", u.Title, u.ToApp()))
 	var err error
 	defer func() {
@@ -561,7 +594,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 			act.Finish(err)
 		}
 	}()
-	act.Printf("Why: %s.", why)
+	act.Printf("Why: %s.", r.why)
 	act.Printf("From %s to %s.", u.From, u.To)
 
 	// The service as it is, and as it will be.
@@ -627,7 +660,7 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 	if backup && !st.Backup.IsZero() {
 		act.Printf("Backed up at %s.", st.Backup.Format(time.Kitchen))
 	} else if !backup {
-		act.Printf("No backup first: %s.", map[bool]string{true: "automatic updates run straight after the nightly backup", false: "backups aren't set up"}[automatic])
+		act.Printf("No backup first: %s.", cmp.Or(r.noBackup, map[bool]string{true: "automatic updates run straight after the nightly backup", false: "backups aren't set up"}[r.automatic]))
 	}
 	// Keep the hold while switching and checking.
 	stop := make(chan struct{})
@@ -846,12 +879,16 @@ var nightlyWait = 12 * time.Hour
 // AutoUpdate runs the night's automatic updates (SPEC.md §3.2: backup,
 // then automatic service updates): for each server, once its nightly
 // backup, started after since, has finished well, each service whose
-// policy takes its update. A server whose backup failed updates nothing.
+// policy takes its update, and each someone chose for tonight on the
+// Updates page. A server whose backup failed updates nothing, and those
+// chosen for tonight wait for the next night.
 func (m *Manager) AutoUpdate(ctx context.Context, since time.Time) {
 	byHost := map[string][]*Update{}
 	services, _ := state.LoadServices(m.Lab)
+	tonight := m.UpdatesTonight(ctx)
 	for name, u := range m.AvailableUpdates(ctx) {
-		if !u.Auto {
+		chosen := tonight[name].To == u.To && u.Blocked == "" && len(u.NewRisks) == 0 && !u.NoBackups
+		if !u.Auto && !chosen {
 			continue
 		}
 		i := slices.IndexFunc(services, func(s state.Service) bool { return s.Name() == name })
@@ -876,8 +913,13 @@ func (m *Manager) AutoUpdate(ctx context.Context, since time.Time) {
 			}
 			slices.SortFunc(us, func(a, b *Update) int { return strings.Compare(a.Service, b.Service) })
 			for _, u := range us {
-				why := fmt.Sprintf("its update policy (%s) takes this %s update after the nightly backup", u.Policy, u.Kind)
-				if err := m.startUpdate(u, why, true, "", false); err != nil {
+				r := updateRun{why: fmt.Sprintf("its update policy (%s) takes this %s update after the nightly backup", u.Policy, u.Kind), automatic: true}
+				if t, ok := tonight[u.Service]; ok && t.To == u.To {
+					r = updateRun{why: t.By + " chose it on the Updates page to update tonight, after the nightly backup", by: t.By,
+						noBackup: "it runs straight after the nightly backup"}
+					m.takeTonight(ctx, u.Service, u.To)
+				}
+				if err := m.startUpdate(u, r); err != nil {
 					m.Log.Info("automatic update not started", "service", u.Service, "err", err)
 				}
 			}
@@ -899,7 +941,7 @@ func (m *Manager) UpdateStopped(ctx context.Context) {
 		}
 		why := fmt.Sprintf("Roostack stopped it because the service registry says %s is dangerous, and its update policy (%s) takes this %s update",
 			u.FromApp(), u.Policy, u.Kind)
-		if err := m.startUpdate(u, why, true, "", true); err != nil {
+		if err := m.startUpdate(u, updateRun{why: why, automatic: true, backup: true}); err != nil {
 			m.Log.Info("update of a stopped service not started", "service", name, "err", err)
 		}
 	}

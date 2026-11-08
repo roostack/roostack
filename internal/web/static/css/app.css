@@ -463,8 +463,10 @@ p.error[role="alert"] { background: var(--bad-bg); color: var(--bad); padding: v
   font-size: var(--text-xs); font-weight: var(--weight-bold); line-height: 1.6; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
 .status::before, .pill::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 /* A service's status with what's beside it in a list (public access
-   paused, an update): one row, centred, and the badge the pills' size. */
-.status-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+   paused, an update): one row, centred, and the badge the pills' size.
+   The row doesn't wrap: the address beside it gives way instead, and on
+   a phone the table scrolls. */
+.status-line { display: flex; align-items: center; gap: var(--space-1); }
 .status-line .badge { font-size: var(--text-xs); font-weight: var(--weight-bold); line-height: 1.6; }
 .status-running, .pill-ok { background: var(--ok-bg); color: var(--ok); }
 .status-starting, .status-waiting, .pill-warn { background: var(--warn-bg); color: var(--warn); }
@@ -823,6 +825,22 @@ li.card.offer { display: flex; align-items: center; gap: var(--space-3); }
   .offer-later { max-width: none; flex: 1; text-align: left; }
 }
 form.port { border-top: 1px solid var(--border); padding-top: var(--space-4); margin-bottom: var(--space-4); }
+/* The Updates page (SPEC.md §7.1): a tick box per update, the last
+   column a sentence rather than an action, and the chosen count with the
+   buttons under the table. On a phone it keeps every column and scrolls
+   sideways (.table-wrap), the maintainer's choice (2026-11-08). */
+table.updates td { vertical-align: top; }
+table.updates :is(th, td).pick { width: 2.5rem; padding-right: 0; }
+table.updates td.pick input[type="checkbox"] { margin-top: 3px; }
+table.updates :is(th, td):last-child { text-align: left; }
+table.updates td .badge { margin-top: var(--space-1); font-size: var(--text-xs); }
+table.updates tr.unchoosable td:nth-child(-n+3) { opacity: 0.6; }
+@media (max-width: 720px) { table.updates { min-width: 46rem; } }
+.update-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3);
+  margin-top: var(--space-4); }
+.update-bar p { margin: 0; }
+.update-bar .actions-row { margin-top: 0; }
+.update-bar + p { margin-top: var(--space-4); }
 
 /* ---------- Misc page parts ---------- */
 

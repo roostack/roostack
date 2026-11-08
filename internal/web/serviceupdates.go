@@ -27,6 +27,14 @@ type ServiceUpdates interface {
 	// UpdatePolicy is how a service updates (instance.Updates*).
 	UpdatePolicy(name string) string
 	SetUpdatePolicy(ctx context.Context, name, policy string) error
+	// UpdateServices starts updates chosen together on the Updates page,
+	// one at a time; UpdateTonight leaves them for after tonight's backup,
+	// UpdatesTonight lists those, by service, and CancelTonight takes one
+	// off.
+	UpdateServices(ctx context.Context, choices []manager.UpdateChoice, by string) error
+	UpdateTonight(ctx context.Context, choices []manager.UpdateChoice, by string) error
+	UpdatesTonight(ctx context.Context) map[string]manager.TonightUpdate
+	CancelTonight(ctx context.Context, name string) error
 }
 
 // updatePolicyText says how a service updates (its update policy), as
@@ -74,6 +82,9 @@ func (s *Server) addUpdateData(r *http.Request, data map[string]any, name string
 	u := s.Manager.AvailableUpdates(r.Context())[name]
 	if u != nil {
 		data["Update"] = u
+		if t, ok := s.Manager.UpdatesTonight(r.Context())[name]; ok {
+			data["Tonight"] = t
+		}
 	}
 	if rec := s.Manager.LastUpdate(r.Context(), name); rec != nil && rec.Shown(u) {
 		data["LastUpdate"] = rec

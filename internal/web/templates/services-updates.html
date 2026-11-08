@@ -1,0 +1,115 @@
+{{define "title"}}Updates{{end}}
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Updates</h1>
+    <p class="lede">New versions of your services, and what each one changes. Choose the ones you want, then update them now or tonight.</p>
+  </div>
+</div>
+{{with .Error}}{{notice "error" .}}{{end}}
+{{template "updates-running" .}}
+{{with .TonightTitles}}
+<div class="notice notice-ok" role="status">
+  <p><strong>Roostack will update {{joinAnd .}} tonight</strong> after the nightly backup. If a server's backup doesn't finish,
+    Roostack will try them again the next night.</p>
+</div>
+{{end}}
+{{if .Rows}}
+<section class="card section">
+  <form method="post" action="/updates" class="update-choice" id="update-choice">
+  <div class="table-wrap"><table class="list updates">
+    <thead><tr><th class="pick"><span class="sr-only">Choose</span></th><th>Service</th><th>Update</th><th>Before you update</th>
+      <th>{{if or .Running .TonightTitles}}When{{else}}Would it update by itself?{{end}}</th></tr></thead>
+    <tbody>
+    {{range .Rows}}{{$r := .}}
+      <tr id="{{.Service.Name}}"{{if not .Choosable}} class="unchoosable"{{end}}>
+        <td class="pick"><input type="checkbox" name="update" value="{{.Service.Name}}" aria-label="Update {{.Title}}"
+          data-title="{{.Title}}" data-version="{{.ToApp}}" data-server="{{.Server}}" data-kind="{{.Kind}}"
+          {{- if .NoBackups}} data-no-backups{{end}}{{if .Notes}} data-notes="notes-{{.Service.Name}}"{{end}}
+          {{- if not .Choosable}} disabled{{else if .Ticked}} checked{{end}}>
+          <input type="hidden" name="to.{{.Service.Name}}" value="{{.To}}">
+          {{if .Notes}}<input type="hidden" name="read.{{.Service.Name}}" value="" data-read="{{.Service.Name}}">{{end}}</td>
+        <td><div class="list-name">{{logo .Service.IconURL .Service.DrawnIcon}}<div><a href="/services/{{.Service.Name}}#update">{{.Title}}</a>
+          {{- with .Server}}<small>on {{.}}</small>{{end}}</div></div></td>
+        <td><span class="num">{{.FromApp}}</span> → <span class="num">{{.ToApp}}</span><br>
+          <span class="badge{{if or (eq .Kind "major") (eq .Kind "other")}} badge-warn{{end}}">{{.KindLabel}}</span></td>
+        <td class="wrap">
+          {{- if .Why}}<span class="hint">{{.Why}}</span>
+          {{- else if .OwnerOnly}}<span class="hint">It asks for more than the version it runs, so only the Owner can update it,
+            from <a href="/services/{{.Service.Name}}#update">its page</a>.</span>
+          {{- else}}
+            {{- if .Notes}}<strong>Notes to read</strong>{{end}}
+            {{- if .NoBackups}}{{if .Notes}} · {{end}}<span class="hint">Its server isn't backed up</span>{{end}}
+            {{- with .WhatsNew}}{{if or $r.Notes $r.NoBackups}} · {{end}}<a href="{{.}}" target="_blank" rel="noopener">What's new in {{$r.ToApp}}{{template "new-window"}}</a>
+            {{- else}}{{if eq $r.Kind "revision"}}{{if or $r.Notes $r.NoBackups}} · {{end}}<span class="hint">The app will stay the same</span>{{end}}{{end}}
+          {{- end}}</td>
+        <td>
+          {{- with .Updating}}{{if .Waiting}}<span class="status status-starting">{{.Waiting}}</span>{{else}}<span class="status status-updating">Updating</span>{{end}}
+          {{- else}}{{with .Tonight}}Tonight
+            <button type="submit" class="quiet" form="cancel-{{$r.Service.Name}}">Cancel<span class="sr-only"> {{$r.Title}}'s update</span></button>
+          {{- else}}{{$r.ByItself}}{{end}}{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table></div>
+  <div class="update-bar">
+    <p><strong data-chosen-count>Choose the updates you want</strong>
+      <span class="hint choose-shortcuts" hidden>· Choose: <button type="button" class="quiet" data-choose="fix">fix releases</button> ·
+        <button type="button" class="quiet" data-choose="all">all</button> · <button type="button" class="quiet" data-choose="none">none</button></span></p>
+    <div class="actions-row">
+      <button type="submit" name="when" value="now" data-confirm-updates="updates-confirm">Update now</button>
+      <button type="submit" name="when" value="tonight" class="secondary">Update tonight</button>
+    </div>
+  </div>
+  <p class="hint">Roostack will back up each server once, then update its services one at a time and check that each one works.
+    If one doesn't start, Roostack will put its previous version back and carry on with the others.
+    <strong>Update tonight</strong> will run them after the nightly backup, as automatic updates do.</p>
+  </form>
+  {{range .Rows}}{{if .Tonight}}<form method="post" action="/updates/cancel" id="cancel-{{.Service.Name}}" hidden><input type="hidden" name="service" value="{{.Service.Name}}"></form>{{end}}{{end}}
+</section>
+
+{{/* Ticking an update with notes opens them first (app.js); without
+     scripts, the server asks for them to be read. */}}
+{{range .Rows}}{{if and .Notes .Choosable}}{{$r := .}}
+<dialog class="dialog form-dialog update-notes" id="notes-{{.Service.Name}}" aria-labelledby="notes-{{.Service.Name}}-title">
+  <div class="dialog-head"><h2 id="notes-{{.Service.Name}}-title">Before updating {{.Title}} to {{.ToApp}}</h2></div>
+  <ul>{{range .Notes}}<li><strong>{{appVersion .Version}}:</strong> {{.Note}}</li>{{end}}</ul>
+  {{if .NoBackups}}<p>{{.Title}}'s server has no backups set up, so if the update changes its data, there's no copy to go back to.</p>
+  {{else}}<p>Once {{.Title}} has changed its data for {{.ToApp}}, only the backup Roostack takes first can take you back.</p>{{end}}
+  <label class="check"><input type="checkbox" data-read-ok><span>I've read these notes</span></label>
+  <div class="dialog-actions"><button type="button" data-pick="{{.Service.Name}}" disabled>Choose {{.Title}}</button>
+    <button type="button" class="secondary" data-close>Not now</button></div>
+</dialog>
+{{end}}{{end}}
+
+{{/* Update now asks first, listing what will update on each server
+     (app.js fills it in from the ticked rows). */}}
+<dialog class="dialog form-dialog" id="updates-confirm" aria-labelledby="updates-confirm-title">
+  <div class="dialog-head"><h2 id="updates-confirm-title" data-confirm-title>Update these services now?</h2></div>
+  <ul data-confirm-list></ul>
+  <p data-confirm-plan>Roostack will back up each server first, then update them one at a time. Each one will be unavailable for a minute or two while it switches over.</p>
+  <p data-confirm-no-backups hidden></p>
+  <div class="dialog-actions"><button type="submit" name="when" value="now" form="update-choice">Update now</button>
+    <button type="button" class="secondary" data-close>Not now</button></div>
+</dialog>
+{{else}}
+<section class="card section">
+  <p>All your services are up to date. Roostack checks the service registry for new versions every few hours, and the services list
+    will say when there's one.</p>
+</section>
+{{end}}
+{{end}}
+
+{{/* updates-running: updates queued or in progress, polled while they
+     run (/updates/live); the page reloads when one has finished. */}}
+{{define "updates-running"}}
+{{with .Running}}
+<div class="notice" role="status" hx-get="/updates/live?updating={{$.RunningNames}}" hx-trigger="every 3s" hx-swap="outerHTML">
+  <p><strong>Updating {{len .}} {{if eq (len .) 1}}service{{else}}services{{end}}.</strong> You can leave this page: each service's page shows how its update is going.</p>
+  <ul>{{range .}}<li><strong>{{.Title}}</strong> {{.FromApp}} → {{.ToApp}}:
+    {{if .Updating.Waiting}}{{lowerFirst .Updating.Waiting}}{{else}}{{with .Step}}{{lowerFirst .}}{{else}}starting{{end}}{{end}}</li>{{end}}</ul>
+</div>
+{{end}}
+{{end}}
+
+{{define "page-help"}}{{help "services/settings#several-at-once" "Updating several services"}}{{end}}

@@ -89,7 +89,7 @@
           {{- else if eq .Status "waiting"}}Its server, {{or .WasOn "a server that's gone"}}, is gone
           {{- else if and .Package (ne .Package .Name)}}{{.Package}}{{end}}</small>
         {{- if not $.CanManage}}{{with $.Migratable}}{{if index . $svc.Name}}<small><a href="/immich-photos/{{$svc.Name}}">Migrate your photos into it</a></small>{{end}}{{end}}{{end}}</div></div></td>
-      <td><div class="status-line">{{status .Status}}{{with $.Paused}}{{if index . $svc.Name}} <span class="pill pill-warn">Public access paused</span>{{end}}{{end}}{{if and .Update $.CanManage (ne .Status "updating")}} <a href="/services/{{.Name}}#update">{{badge "Update" "highlight"}}</a>{{end}}</div></td>
+      <td><div class="status-line">{{status .Status}}{{with $.Paused}}{{if index . $svc.Name}} <span class="pill pill-warn">Public access paused</span>{{end}}{{end}}{{if and .Update $.CanManage (ne .Status "updating")}} <a href="/updates#{{.Name}}">{{badge "Update" "highlight"}}</a>{{end}}</div></td>
       <td class="hide-phone wrap">{{if .Install}}{{range .URLs}}<span class="address-pending">{{trimScheme .}}</span>{{end}}
         {{- else if .NoAddress}}{{template "address-waiting" $}}
         {{- else}}{{range $i, $u := .URLs}}{{if $i}}<br>{{end}}<a href="{{$u}}" target="_blank" rel="noopener">{{trimScheme $u}}{{template "new-window"}}</a>{{end}}{{end}}</td>

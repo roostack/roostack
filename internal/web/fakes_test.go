@@ -1082,6 +1082,7 @@ type fakeServiceUpdates struct {
 	lastUpdate map[string]*manager.UpdateRecord
 	policies   map[string]string
 	svcUpdated []string
+	tonight    map[string]manager.TonightUpdate
 }
 
 func (f *fakeServiceUpdates) AvailableUpdates(context.Context) map[string]*manager.Update {
@@ -1100,6 +1101,41 @@ func (f *fakeServiceUpdates) UpdateService(_ context.Context, name, to, by strin
 		return &usererr.Error{Msg: "Tick the box."}
 	}
 	f.svcUpdated = append(f.svcUpdated, name+" "+to+" by "+by)
+	return nil
+}
+
+func (f *fakeServiceUpdates) UpdateServices(_ context.Context, choices []manager.UpdateChoice, by string) error {
+	for _, c := range choices {
+		u := f.svcUpdates[c.Service]
+		switch {
+		case u == nil || u.To != c.To:
+			return &usererr.Error{Msg: "The update on offer has changed."}
+		case len(u.Notes) > 0 && !c.ReadNotes:
+			return &usererr.Error{Msg: "Read the notes for " + u.Title + " first."}
+		}
+	}
+	for _, c := range choices {
+		f.svcUpdated = append(f.svcUpdated, c.Service+" "+c.To+" by "+by)
+	}
+	return nil
+}
+
+func (f *fakeServiceUpdates) UpdateTonight(_ context.Context, choices []manager.UpdateChoice, by string) error {
+	if f.tonight == nil {
+		f.tonight = map[string]manager.TonightUpdate{}
+	}
+	for _, c := range choices {
+		f.tonight[c.Service] = manager.TonightUpdate{To: c.To, By: by}
+	}
+	return nil
+}
+
+func (f *fakeServiceUpdates) UpdatesTonight(context.Context) map[string]manager.TonightUpdate {
+	return f.tonight
+}
+
+func (f *fakeServiceUpdates) CancelTonight(_ context.Context, name string) error {
+	delete(f.tonight, name)
 	return nil
 }
 

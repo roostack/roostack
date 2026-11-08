@@ -371,7 +371,7 @@ func (m *Manager) UpdateAdvised(ctx context.Context) {
 		}
 		why := fmt.Sprintf("Roostack paused its public access for a security problem (%s) that %s fixes, and its update policy (%s) takes this %s update",
 			paused.ID, u.ToApp(), u.Policy, u.Kind)
-		if err := m.startUpdate(u, why, true, "", true); err != nil {
+		if err := m.startUpdate(u, updateRun{why: why, automatic: true, backup: true}); err != nil {
 			m.Log.Info("update of a service paused for an advisory not started", "service", name, "err", err)
 		}
 	}

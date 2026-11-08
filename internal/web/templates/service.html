@@ -535,7 +535,9 @@
     {{$u.ToApp}}, only that backup can take you back.{{end}}</p>{{end}}
   {{with .UpdateError}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{template "update-form" .}}
-  <p><small class="hint">{{if $u.Auto}}Roostack will update it by itself tonight after the nightly backup.
+  <p><small class="hint">{{if $.Tonight}}Roostack will update it tonight after the nightly backup, as {{$.Tonight.By}} chose on the
+    <a href="/updates#{{$.Service.Name}}">Updates page</a>.
+    {{else if $u.Auto}}Roostack will update it by itself tonight after the nightly backup.
     {{else if eq $u.Policy "notify"}}You chose to be told about updates and apply them yourself.
     {{else if $u.FailedBefore}}It didn't work last time, so Roostack is waiting for you.
     {{else if $u.Notes}}It has notes to read, so Roostack is waiting for you.
