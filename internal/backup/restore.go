@@ -24,6 +24,24 @@ type Units interface {
 	Start(ctx context.Context, units ...string) error
 }
 
+// unitResetter clears units systemd has given up on (internal/systemd);
+// Units that can't, such as tests' fakes, start them as they are.
+type unitResetter interface {
+	ResetFailed(ctx context.Context, units ...string) error
+}
+
+// start starts units, first clearing any that systemd has given up on: a
+// service that crash-looped before its restore is often why it's being
+// restored, and systemd refuses to start it again until it's reset.
+func (r *Restorer) start(ctx context.Context, units ...string) error {
+	if rf, ok := r.Units.(unitResetter); ok {
+		// A unit that isn't failed is left as it is; an error here shows
+		// again, clearer, when starting it.
+		rf.ResetFailed(ctx, units...)
+	}
+	return r.Units.Start(ctx, units...)
+}
+
 // Restorer puts one service's data back from a snapshot (SPEC.md §6.9).
 type Restorer struct {
 	Repo  *Repo
@@ -123,7 +141,7 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 		return res, &DumpsError{Err: err}
 	}
 	r.Log.Step("Starting %s", svc.Service)
-	if err := r.Units.Start(ctx, svc.Units...); err != nil {
+	if err := r.start(ctx, svc.Units...); err != nil {
 		return res, fmt.Errorf("starting %s: %w", svc.Service, err)
 	}
 	return res, nil
@@ -163,7 +181,7 @@ func (r *Restorer) undo(ctx context.Context, svc *generate.Output, res *RestoreR
 	}
 	r.Log.Step("Starting %s again", svc.Service)
 	// Started even if the restore was cancelled: its data is back.
-	if err := r.Units.Start(context.WithoutCancel(ctx), svc.Units...); err != nil {
+	if err := r.start(context.WithoutCancel(ctx), svc.Units...); err != nil {
 		return fmt.Errorf("%w; your data was put back unchanged, but starting %s again failed: %w", cause, svc.Service, err)
 	}
 	return fmt.Errorf("%w; your data was put back unchanged", cause)
@@ -204,7 +222,7 @@ func (r *Restorer) LoadDumps(ctx context.Context, svc *generate.Output) error {
 				return err
 			}
 		case pkgspec.DBPostgres:
-			if err := r.Units.Start(ctx, step.Container+".service"); err != nil {
+			if err := r.start(ctx, step.Container+".service"); err != nil {
 				return err
 			}
 			dump, err := os.Open(step.Target)
@@ -219,7 +237,7 @@ func (r *Restorer) LoadDumps(ctx context.Context, svc *generate.Output) error {
 				return err
 			}
 		case pkgspec.DBMySQL, pkgspec.DBMariaDB:
-			if err := r.Units.Start(ctx, step.Container+".service"); err != nil {
+			if err := r.start(ctx, step.Container+".service"); err != nil {
 				return err
 			}
 			// The app's user may drop and recreate its own database and
@@ -307,7 +325,7 @@ func (r *Restorer) PutBack(ctx context.Context, svc *generate.Output, path strin
 		return err
 	}
 	r.Log.Step("Starting %s", svc.Service)
-	return r.Units.Start(ctx, svc.Units...)
+	return r.start(ctx, svc.Units...)
 }
 
 // keptInside is the kept folder at path, if it's one of a service's
