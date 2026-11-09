@@ -754,6 +754,12 @@
     (r.public.login_paths || []).forEach((lp, i) => {
       if (!validPath(lp)) add(`${at}.public.login_paths[${i}]: ${goQuote(lp)} must start with / and have only letters, digits, and - _ . : / (no * or trailing /)`);
     });
+    const seenUpload = new Set();
+    (r.upload_paths || []).forEach((up, i) => {
+      if (!re.uploadPath.test(up)) add(`${at}.upload_paths[${i}]: ${goQuote(up)} must start with / and have only letters, digits, and - _ . : /, where * may stand for a whole part but not the last (no trailing /)`);
+      if (seenUpload.has(up)) add(`${at}.upload_paths[${i}]: ${goQuote(up)} is listed twice`);
+      seenUpload.add(up);
+    });
   }
 
   const validClientIPHeader = (h) => re.clientIPHeader.test(h) && !h.toLowerCase().startsWith("x-forwarded-");

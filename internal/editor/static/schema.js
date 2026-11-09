@@ -382,6 +382,13 @@
        "type": "string"
       },
       {
+       "name": "upload_paths",
+       "type": "list",
+       "item": {
+        "type": "string"
+       }
+      },
+      {
        "name": "monitor",
        "type": "object",
        "ptr": true,
@@ -804,6 +811,7 @@
   "ssoRedirectPath": "^(/([A-Za-z0-9._:~-]|%[0-9A-F]{2})*)+$",
   "ssoStartQuery": "^([A-Za-z0-9._:~/=\u0026+?-]|%[0-9A-F]{2})*$",
   "subdomain": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+  "uploadPath": "^(/([A-Za-z0-9._:-]+|\\*))*/[A-Za-z0-9._:-]+$",
   "version": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
  },
  "lists": {
@@ -1887,6 +1895,12 @@
    "help": "The default name before your lab's domain, such as notes for notes.smith.family. People can change it.",
    "example": "notes",
    "link": "packages/write#its-web-address"
+  },
+  "routes.*.upload_paths": {
+   "label": "Where uploaded files are",
+   "help": "The addresses where the app serves files people uploaded, each with everything under it; a * may stand for one part of an address. Roostack will show only plain images, audio, video, and text from there, and anything else, such as HTML, SVG, or a PDF, will come as a download.",
+   "example": "/file/attachments",
+   "link": "reference/packages#the-parts"
   },
   "schema": {
    "label": "Schema",

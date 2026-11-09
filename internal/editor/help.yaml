@@ -353,6 +353,11 @@ routes.*.client_ip_header:
   help: For an app that reads the visitor's address from a header other than X-Forwarded-For, such as X-Real-IP. Roostack will set it, replacing any the visitor sent.
   example: X-Real-IP
   link: reference/packages#the-parts
+routes.*.upload_paths:
+  label: Where uploaded files are
+  help: The addresses where the app serves files people uploaded, each with everything under it; a * may stand for one part of an address. Roostack will show only plain images, audio, video, and text from there, and anything else, such as HTML, SVG, or a PDF, will come as a download.
+  example: /file/attachments
+  link: reference/packages#the-parts
 routes.*.monitor:
   label: Monitoring
   help: How monitoring will check the address, for an app whose usual answer doesn't say it works. Most packages leave it out.

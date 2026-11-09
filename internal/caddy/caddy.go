@@ -103,6 +103,11 @@ type Route struct {
 	// under them) stay home-only, and LoginPaths get a strict rate limit.
 	PrivatePaths []string
 	LoginPaths   []string
+	// UploadPaths (and everything under them) are where the service
+	// serves uploaded files: anything there but InlineTypes becomes a
+	// download (SPEC.md §8.1, "Uploaded files as downloads"). A "*" in
+	// one stands for one part of the path.
+	UploadPaths []string
 	// CheckUpstream is the Roostack UI, which answers the outside check
 	// link on a public route (internal/public). Empty leaves it out.
 	CheckUpstream string
@@ -197,6 +202,16 @@ const BlockedVar = "roostack_blocked"
 // OffVar is set on a turned-off service's request (Route.Off): the error
 // pages' 503.html shows the "turned off" page by it.
 const OffVar = "roostack_off"
+
+// InlineTypes matches the Content-Type of the only responses a route's
+// UploadPaths may show as they are (SPEC.md §8.1, "Uploaded files as
+// downloads"): plain images, audio and video, and plain text, in any
+// letter case and with any parameters. Anything else (HTML, SVG, XML,
+// PDF, an unknown type, none, or two Content-Type headers, which reach
+// Caddy joined by a comma) becomes a download, so a type nobody thought
+// of is safe. No "+": a type ending in "+xml" is an XML document to a
+// browser, whatever comes before it.
+const InlineTypes = `(?i)^[ \t]*(image/(png|jpeg|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon)|(audio|video)/[a-z0-9.-]+|text/plain)[ \t]*(;[^,]*)?$`
 
 // AppSecMaxBody is how much of a request's body the bouncer sends to
 // AppSec (SPEC.md §6.10 item 4). The bouncer otherwise reads the whole
@@ -360,10 +375,54 @@ func (r Route) wall(indent string) string {
 	return b.String()
 }
 
-// reverseProxy is the directive passing a request to the service, at
-// indent: with the visitor's address in the service's own header, if it
-// names one.
+// reverseProxy passes a request to the service, at indent: with the
+// visitor's address in the service's own header, if it names one. With
+// UploadPaths, it's a route block of two: the first for requests to
+// them, whose answers become downloads unless they're InlineTypes, and
+// the second for the rest. Inside a route block, which runs in the order
+// written, the first answers its requests, so the second never sees
+// them.
 func (r Route) reverseProxy(indent string) string {
+	if len(r.UploadPaths) == 0 {
+		return r.proxyTo(indent, "", "")
+	}
+	in := indent + "\t"
+	var b strings.Builder
+	fmt.Fprintf(&b, "%sroute {\n", indent)
+	fmt.Fprintf(&b, "%s@%s-uploads path %s\n", in, r.ID, pathPatterns(r.UploadPaths))
+	b.WriteString(r.proxyTo(in, "@"+r.ID+"-uploads ", downloads(in+"\t", r.ID)))
+	b.WriteString(r.proxyTo(in, "", ""))
+	fmt.Fprintf(&b, "%s}\n", indent)
+	return b.String()
+}
+
+// downloads is the handle_response block, at indent inside a
+// reverse_proxy, that makes an answer a download unless it's one of
+// InlineTypes: Content-Disposition's type becomes "attachment", keeping
+// the service's filename, or is set to it when there's none. Each answer
+// gets nosniff, so a browser shows what's shown only as its type says.
+// The headers are set as the answer is written (">" and "?" defer them),
+// once copy_response has copied the service's. The matcher reads the
+// service's Content-Type from the proxy's placeholder: Caddy's response
+// matchers compare headers case-sensitively, so "Image/SVG+XML" would
+// pass them. Checked with Caddy 2.11.4, docs/ASSUMPTIONS.md D4.
+func downloads(indent, id string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%shandle_response {\n", indent)
+	in := indent + "\t"
+	fmt.Fprintf(&b, "%s@%s-download not vars_regexp {http.reverse_proxy.header.Content-Type} `%s`\n", in, id, InlineTypes)
+	fmt.Fprintf(&b, "%sheader @%s-download >Content-Disposition \"^[^;]*\" \"attachment\"\n", in, id)
+	fmt.Fprintf(&b, "%sheader @%s-download ?Content-Disposition \"attachment\"\n", in, id)
+	fmt.Fprintf(&b, "%sheader >X-Content-Type-Options \"nosniff\"\n", in)
+	fmt.Fprintf(&b, "%scopy_response\n", in)
+	fmt.Fprintf(&b, "%s}\n", indent)
+	return b.String()
+}
+
+// proxyTo is a reverse_proxy directive to the service, at indent, for
+// requests matching matcher ("" for all, or "@name "), with extra lines
+// (already indented) in its block.
+func (r Route) proxyTo(indent, matcher, extra string) string {
 	var ups []string
 	if r.ClientIPHeader != "" {
 		ups = append(ups, fmt.Sprintf("header_up %s {remote_host}", r.ClientIPHeader))
@@ -373,14 +432,15 @@ func (r Route) reverseProxy(indent string) string {
 		// and Roostack: the service never sees it (SPEC.md §5.2).
 		ups = append(ups, fmt.Sprintf(`header_up Cookie "%s=[^;]*;?[ ]*" ""`, WallCookie))
 	}
-	if len(ups) == 0 {
-		return fmt.Sprintf("%sreverse_proxy %s\n", indent, r.Upstream)
+	if len(ups) == 0 && extra == "" {
+		return fmt.Sprintf("%sreverse_proxy %s%s\n", indent, matcher, r.Upstream)
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%sreverse_proxy %s {\n", indent, r.Upstream)
+	fmt.Fprintf(&b, "%sreverse_proxy %s%s {\n", indent, matcher, r.Upstream)
 	for _, u := range ups {
 		fmt.Fprintf(&b, "%s\t%s\n", indent, u)
 	}
+	b.WriteString(extra)
 	fmt.Fprintf(&b, "%s}\n", indent)
 	return b.String()
 }
@@ -434,6 +494,12 @@ func (r Route) validate() error {
 	for _, p := range append(slices.Clone(r.PrivatePaths), r.LoginPaths...) {
 		if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t\n{}\"#*") {
 			return fmt.Errorf("caddy route %s: invalid path %q", r.ID, p)
+		}
+	}
+	for _, p := range r.UploadPaths {
+		// A "*" stands for one part of the path (pkgspec.ValidUploadPath).
+		if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t\n{}\"#`") {
+			return fmt.Errorf("caddy route %s: invalid upload path %q", r.ID, p)
 		}
 	}
 	if r.ID == "" || r.Host == "" || r.Upstream == "" {

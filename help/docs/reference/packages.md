@@ -244,6 +244,16 @@ routes:
     whose usual answer doesn't say it works: a `path` to ask instead, and
     the `statuses` that count as up, e.g.
     `monitor: { path: /api/health, statuses: [200] }`.
+    `upload_paths` lists where the app serves files people uploaded, each
+    with everything under it, e.g. `upload_paths: [/file/attachments]`.
+    There, a `*` may stand for one whole part of a path, but not the last:
+    `/api/shares/*/files`. Roostack's proxy will show a file from those
+    paths only if it's a plain image (PNG, JPEG, GIF, WebP, AVIF, BMP, or
+    ICO), audio, video, or plain text; anything else, such as HTML, SVG,
+    or a PDF, will come as a download, so nobody can upload a page that
+    then opens on the app's address. The app's own pages still show
+    pictures and videos from those paths. The service registry asks for
+    them in a package whose app would otherwise show uploaded HTML or SVG.
 
 `ports`
 :   [Extra connections](../services/settings.md#extra-connections) that

@@ -81,6 +81,7 @@ func Describe() Description {
 			"subdomain":      subdomainRe.String(),
 			"version":        versionRe.String(),
 			"path":           pathRe.String(),
+			"uploadPath":     uploadPathRe.String(),
 			"clientIPHeader": clientIPHeaderRe.String(),
 			"pinned":         pinnedRe.String(),
 			"spdxID":         spdxIDRe.String(),

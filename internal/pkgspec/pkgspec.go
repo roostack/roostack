@@ -403,6 +403,13 @@ type Route struct {
 	// X-Real-IP): Roostack's proxy sets it to the visitor's address,
 	// replacing any the visitor sent (SPEC.md §8.1).
 	ClientIPHeader string `yaml:"client_ip_header"`
+	// UploadPaths are where the app serves files people uploaded (e.g.
+	// Memos' /file/attachments), each with everything under it; "*"
+	// stands for one part of a path. Roostack's proxy will make anything
+	// there that a browser could show as a page (HTML, SVG, PDF, ...) a
+	// download: only plain images, audio, video, and plain text are shown
+	// (SPEC.md §8.1, "Uploaded files as downloads").
+	UploadPaths []string `yaml:"upload_paths"`
 	// Monitor changes how Roostack's monitoring checks the route, for an
 	// app whose usual answer doesn't say it works (SPEC.md §6.15); most
 	// packages leave it out.
