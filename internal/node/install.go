@@ -166,9 +166,10 @@ func (n *Local) planInstalls(services []state.Service, desired reconcile.Desired
 			}
 			p.Steps = append(p.Steps, InstallStep{Key: reconcile.StageProxy, Title: title})
 		}
-		if hooks := s.Package.HooksOn(pkgspec.HookInstall); len(hooks) > 0 && setUp[o.Service] {
+		if s.Package.NeedsSetUp() && setUp[o.Service] {
 			title := "Finishing setup"
-			if t := hooks[0].Title; t != "" {
+			if hooks := s.Package.HooksOn(pkgspec.HookInstall); len(hooks) > 0 && hooks[0].Title != "" {
+				t := hooks[0].Title
 				title += " (" + lowerFirst(t) + ")"
 			}
 			p.Steps = append(p.Steps, InstallStep{Key: stageSetup, Title: title})

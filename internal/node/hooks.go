@@ -285,6 +285,14 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 		return err
 	}
 	hooks := s.Package.HooksOn(pkgspec.HookInstall)
+	if len(hooks) == 0 {
+		// Nothing to run (a package with install-only secrets): setup has
+		// finished once the service has started, when the app has read
+		// what only its first start needed (SPEC.md §8.1).
+		if err := n.waitStarted(ctx, act, s, retry); err != nil {
+			return fmt.Errorf("%s didn't finish setting up: %w", s.Title(), err)
+		}
+	}
 	for i, h := range hooks {
 		if h.Title != "" {
 			act.Step("Setup step %d of %d: %s", i+1, len(hooks), lowerFirst(h.Title))
@@ -306,6 +314,33 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 		act.Printf("Roostack will make %s public now that setup has finished.", words.And(opens))
 	}
 	return nil
+}
+
+// waitStarted waits until a service's units are running and its health
+// checks pass, or ctx ends, saying in act what it's waiting for.
+func (n *Local) waitStarted(ctx context.Context, act *activity.Log, s state.Service, retry time.Duration) error {
+	act.Step("Waiting for %s to start", s.Title())
+	last := ""
+	for {
+		h, err := n.CheckHealth(ctx, s.Name())
+		switch {
+		case err != nil:
+			h.Problem = err.Error()
+		case h.Healthy:
+			// A step of its own: the setup's summary is its last step.
+			act.Step("%s has started", s.Title())
+			return nil
+		}
+		if h.Problem != last {
+			act.Printf("Not started yet (%s), so Roostack will check again every %s.", h.Problem, retry)
+			last = h.Problem
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("it didn't start: %s", last)
+		case <-time.After(retry):
+		}
+	}
 }
 
 // publicAfterSetup lists the addresses of a service waiting for its setup

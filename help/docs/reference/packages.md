@@ -163,7 +163,9 @@ routes:
 `settings`
 :   What people choose, at install and later. `type` is `bool`, `string`,
     `int`, or `secret`. A secret can be `generate`d by Roostack, `reveal`ed
-    to Admins, or `install_only` (deleted once setup has run). Secrets are
+    to Admins, or `install_only` (deleted once setup has finished: after
+    the install hooks have succeeded or, in a package without any, once
+    the service has started and answers its health checks). Secrets are
     Podman secrets, never in files. A setting that isn't a secret can have
     an `install_value`, used until the install hooks succeed (or while
     they've failed and are waiting for Try again); the package needs an

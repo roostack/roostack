@@ -138,6 +138,22 @@ func (p *Package) Scheduled(name string) *Hook {
 }
 
 // HooksOn returns the package's hooks for an event, in order.
+// NeedsSetUp reports whether a new service of the package has a setup to
+// finish once it has started (SPEC.md §8.1): install hooks to run, or
+// install-only secrets to forget. Without install hooks, setup has
+// finished once the service has started.
+func (p *Package) NeedsSetUp() bool {
+	if p.hasInstallHook() {
+		return true
+	}
+	for _, s := range p.Settings {
+		if s.Type == SettingSecret && s.InstallOnly {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *Package) HooksOn(event string) []*Hook {
 	var hooks []*Hook
 	for _, h := range p.Hooks {
