@@ -95,10 +95,10 @@ var schema = []string{
 	//     while without activity (SPEC.md §5).
 	//   - origin is where it was signed in: '' for Roostack's pages,
 	//     OriginSetup for the setup pages on the home network (SPEC.md §6.3.2),
-	//     OriginSignIn for login.<domain>. Each works only where it was made.
+	//     OriginSignIn for my.<domain>. Each works only where it was made.
 	//   - signed_in_at is when someone last typed their password for it (OIDC's
 	//     auth_time, SPEC.md §5.2): apps can ask for a recent sign-in.
-	//   - sign_in is the sign-in at login.<domain> a session of Roostack's own
+	//   - sign_in is the sign-in at my.<domain> a session of Roostack's own
 	//     pages came from (SPEC.md §5.2): it ends with it.
 	`CREATE TABLE sessions (
 		token_hash   TEXT PRIMARY KEY,

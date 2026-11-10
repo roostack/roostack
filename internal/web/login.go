@@ -34,7 +34,7 @@ type pendingLogin struct {
 	userID   int64
 	remember bool   // "keep me signed in" was ticked
 	next     string // the page to go to afterwards (localNext)
-	// pagesOnly: a sign-in at login.<domain> that the sign-in page itself
+	// pagesOnly: a sign-in at my.<domain> that the sign-in page itself
 	// turns away (a temporary password, two-factor to turn on), going on to
 	// Roostack's pages for that step alone (pagessignin.go).
 	pagesOnly bool
@@ -179,7 +179,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 // endSession logs this browser out, and out of the sign-in at
-// login.<domain> its session came from, if any (one sign-in, one
+// my.<domain> its session came from, if any (one sign-in, one
 // sign-out: SPEC.md §5.2). It reports whether there was one.
 func (s *Server) endSession(w http.ResponseWriter, r *http.Request) bool {
 	signedIn := false

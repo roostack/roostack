@@ -157,7 +157,7 @@ type Server struct {
 
 	// What the pages keep in memory, each with its own lock. pending holds
 	// logins that passed the password check and are waiting for a 2FA
-	// code, keyed by token hash; handoffs are sign-ins at login.<domain>
+	// code, keyed by token hash; handoffs are sign-ins at my.<domain>
 	// on their way to Roostack's own pages, keyed by the one-time code's
 	// hash (pagessignin.go).
 	pending  expiring[string, *pendingLogin]

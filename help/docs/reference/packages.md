@@ -543,7 +543,7 @@ Values in `env`, `when`, hooks, and config files are Go templates:
 | `.Lab.Domain`, `.Service.Name` | The lab's domain, and the service's name |
 | `.Lab.TimeZone` | The server's time zone, e.g. `Europe/Berlin` (`UTC` if it isn't known). Containers already run in it; this is for apps with their own time-zone setting |
 | `.SSO.Enabled` | Whether single sign-on is on for the service |
-| `.SSO.Issuer` / `.DiscoveryURL` | `https://login.smith.family` / its `/.well-known/openid-configuration` |
+| `.SSO.Issuer` / `.DiscoveryURL` | `https://my.smith.family` / its `/.well-known/openid-configuration` |
 | `.SSO.AuthorizeURL` / `.TokenURL` / `.UserinfoURL` | The sign-in page's endpoints, for apps that don't read the configuration |
 | `.SSO.ClientID` | The app's ID at the sign-in page: the service's name |
 | `.SSO.ProviderName` / `.ButtonText` | The lab's name / `Sign in with` and the lab's name |

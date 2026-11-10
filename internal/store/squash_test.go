@@ -581,7 +581,7 @@ var oldMigrations = []string{
 	// auth_time, SPEC.md §5.2): apps can ask for a recent sign-in.
 	`ALTER TABLE sessions ADD COLUMN signed_in_at INTEGER NOT NULL DEFAULT 0;`,
 	// The sign-in a session of Roostack's own pages came from, when
-	// someone signed in at login.<domain> (SPEC.md §5.2): it ends with it.
+	// someone signed in at my.<domain> (SPEC.md §5.2): it ends with it.
 	`ALTER TABLE sessions ADD COLUMN sign_in TEXT REFERENCES sessions(token_hash) ON DELETE CASCADE;
 	CREATE INDEX sessions_sign_in ON sessions (sign_in);`,
 	// A media library kept for migrating photos into one Immich (SPEC.md

@@ -28,7 +28,7 @@ import (
 	"roostack.cloud/roostack/internal/store"
 )
 
-const signInHost = "login.lab.example.com"
+const signInHost = "my.lab.example.com"
 
 // ssoPackages adds the fixtures with single sign-on to the fake manager.
 type ssoPackages struct{ *fakeManager }
@@ -508,7 +508,7 @@ func TestServiceSSOProgress(t *testing.T) {
 		{"restarting", "starting", manager.SSOHookStatus{Applied: time.Now().Add(-10 * time.Second), Restarts: 1},
 			[]string{"Mealie is restarting with its settings for the sign-in page…"}, true},
 		{"stuck", "starting", manager.SSOHookStatus{Applied: time.Now().Add(-time.Minute), Restarts: 5},
-			[]string{"Mealie keeps stopping as it starts", "it has restarted 5 times", "can't reach the sign-in page at login.lab.example.com",
+			[]string{"Mealie keeps stopping as it starts", "it has restarted 5 times", "can't reach the sign-in page at my.lab.example.com",
 				"journalctl --user -u 'roostack-mealie-*'"}, true},
 		{"done", "running", manager.SSOHookStatus{Applied: time.Now().Add(-time.Minute)},
 			[]string{"Single sign-on is on.", "Mealie restarted with it"}, false},
@@ -691,7 +691,7 @@ func TestPeopleSSO(t *testing.T) {
 	}
 	// The sign-in page's two choices, on Single sign-on.
 	_, body = h.get("/settings/sign-in")
-	for _, want := range []string{"<h1>Single sign-on</h1>", "Ask everyone for two-factor", "login.lab.example.com", `href="/settings/look"`} {
+	for _, want := range []string{"<h1>Single sign-on</h1>", "Ask everyone for two-factor", "my.lab.example.com", `href="/settings/look"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Single sign-on missing %q", want)
 		}
@@ -825,7 +825,7 @@ func TestSignInSettingsPage(t *testing.T) {
 	_, body := h.get("/settings/sign-in")
 	for _, want := range []string{"1 <small>of 2 with single sign-on", "Vaultwarden has its own accounts", "1 has no email address",
 		`<a href="/services/mealie">Recipes</a><small>Mealie</small>`, `<span class="pill pill-ok">On</span>`, "Everyone in the lab",
-		`href="/services/stirling-pdf#sso">Turn on…`, "login.lab.example.com"} {
+		`href="/services/stirling-pdf#sso">Turn on…`, "my.lab.example.com"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Single sign-on lacks %q", want)
 		}

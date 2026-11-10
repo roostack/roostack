@@ -20,7 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/store"
 )
 
-// The sign-in page for services, login.<domain> (single sign-on, SPEC.md
+// The sign-in page for services, my.<domain> (single sign-on, SPEC.md
 // §5.2): its own listener (SignInHandler), which serves nothing of
 // Roostack's own pages. People sign in with their Roostack account; apps
 // are told who they are through OIDC, and walled services through forward

@@ -27,7 +27,7 @@ func (m *Manager) SSOAvailable(name string) (bool, string) {
 	case p.SSO == nil:
 		return false, ""
 	case !m.Lab.HasAddress():
-		return false, "Single sign-on needs your lab's address first: the sign-in page is at login.<your address>."
+		return false, "Single sign-on needs your lab's address first: the sign-in page is at my.<your address>."
 	case in.HostOr(m.Lab.NodeID) != m.Lab.NodeID:
 		return false, "Single sign-on works for services on this server (the lab's main one) for now. Move " + p.Title + " here to use it."
 	}

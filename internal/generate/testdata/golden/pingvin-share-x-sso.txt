@@ -21,7 +21,7 @@ Network=roostack-pingvin-share-x.network
 PublishPort=127.0.0.1:20010:3000
 Environment=CONFIG_FILE=/opt/app/config/config.yaml
 Environment=TRUST_PROXY=true
-AddHost=login.lab.example.com:host-gateway
+AddHost=my.lab.example.com:host-gateway
 Volume=/srv/roostack/services/pingvin-share-x/data:/opt/app/backend/data
 Volume=/srv/roostack/services/pingvin-share-x/config:/opt/app/config:ro
 Label=io.roostack.service=pingvin-share-x
@@ -76,7 +76,7 @@ share:
 oauth:
   allowRegistration: "true"
   oidc-enabled: "true"
-  oidc-discoveryUri: "https://login.lab.example.com/.well-known/openid-configuration"
+  oidc-discoveryUri: "https://my.lab.example.com/.well-known/openid-configuration"
   oidc-clientId: "pingvin-share-x"
   oidc-clientSecret: ‹secret: Single sign-on's client secret›
   oidc-rolePath: groups

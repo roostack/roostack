@@ -24,7 +24,7 @@ import (
 type SSOContext struct {
 	// Enabled: single sign-on is on for the service.
 	Enabled bool
-	// Issuer is the sign-in host's address, https://login.<domain>;
+	// Issuer is the sign-in host's address, https://my.<domain>;
 	// DiscoveryURL its OIDC configuration, and the rest its endpoints, for
 	// apps that don't read the configuration (HedgeDoc).
 	Issuer, DiscoveryURL, AuthorizeURL, TokenURL, UserinfoURL string

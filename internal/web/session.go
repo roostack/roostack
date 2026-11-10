@@ -89,7 +89,7 @@ func (s *Server) checkSession(r *http.Request, hash string, u *store.User, lastS
 }
 
 // linkedNotMember reports whether a session kept from the idle limit
-// came from a sign-in at login.<domain> for someone who's no longer a
+// came from a sign-in at my.<domain> for someone who's no longer a
 // Member: Owners and Admins keep the idle limit there (pagessignin.go).
 func (s *Server) linkedNotMember(ctx context.Context, hash string, u *store.User) bool {
 	if u.Role == auth.RoleMember {

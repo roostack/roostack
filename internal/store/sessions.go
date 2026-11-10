@@ -12,7 +12,7 @@ import (
 const OriginSetup = "setup"
 
 // OriginSignIn marks sessions signed in on the sign-in page for services,
-// login.<domain> (single sign-on, SPEC.md §5.2). Roostack's own idle limit
+// my.<domain> (single sign-on, SPEC.md §5.2). Roostack's own idle limit
 // doesn't apply to them: they last until they expire.
 const OriginSignIn = "sign-in"
 
@@ -33,7 +33,7 @@ func (s *Store) CreateSessionAt(ctx context.Context, origin, tokenHash string, u
 }
 
 // CreateLinkedSession stores a session of Roostack's own pages made from
-// a sign-in at login.<domain> (signIn, its hash): it lasts no longer, and
+// a sign-in at my.<domain> (signIn, its hash): it lasts no longer, and
 // ends when the sign-in does (SPEC.md §5.2).
 func (s *Store) CreateLinkedSession(ctx context.Context, tokenHash string, userID int64, signIn string, expires time.Time, remember bool) error {
 	now := time.Now().Unix()

@@ -19,7 +19,7 @@ import (
 
 // startSignIn serves the sign-in page for services (single sign-on,
 // SPEC.md §5.2) on its own listener, config.SignInPort on the UI's
-// address: Caddy sends login.<domain> there, and asks it about requests
+// address: Caddy sends my.<domain> there, and asks it about requests
 // to walled services. Its signing key is made the first time.
 func startSignIn(ctx context.Context, lab config.Lab, st *store.Store, srv *web.Server, mgr *manager.Manager, local *node.Local, log *slog.Logger) error {
 	key, err := sso.LoadKey(lab.Paths.SigningKeyFile())

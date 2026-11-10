@@ -24,7 +24,7 @@ Environment=BASE_URL=https://recipes.lab.example.com
 Environment=OIDC_ADMIN_GROUP=admins
 Environment=OIDC_AUTH_ENABLED=true
 Environment=OIDC_CLIENT_ID=mealie
-Environment=OIDC_CONFIGURATION_URL=https://login.lab.example.com/.well-known/openid-configuration
+Environment=OIDC_CONFIGURATION_URL=https://my.lab.example.com/.well-known/openid-configuration
 Environment=OIDC_PROVIDER_NAME=lab.example.com
 Environment=OIDC_REMEMBER_ME=true
 Environment=OIDC_SIGNUP_ENABLED=true
@@ -33,7 +33,7 @@ Environment=PGID=1000
 Environment=PUID=1000
 Environment=TZ=UTC
 Secret=roostack-mealie-sso-client-secret,type=env,target=OIDC_CLIENT_SECRET
-AddHost=login.lab.example.com:host-gateway
+AddHost=my.lab.example.com:host-gateway
 Volume=/srv/roostack/services/mealie/data:/app/data:U
 Label=io.roostack.service=mealie
 Label=io.roostack.component=app

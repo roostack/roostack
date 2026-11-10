@@ -49,7 +49,7 @@ const (
 	AdminGroup = "admins"
 )
 
-// Paths on the sign-in host, login.<domain>.
+// Paths on the sign-in host, my.<domain>.
 const (
 	PathDiscovery = "/.well-known/openid-configuration"
 	PathAuthorize = "/authorize"
@@ -113,7 +113,7 @@ type Provider struct {
 	Store *store.Store
 	Key   *Key
 	Log   *slog.Logger
-	// Issuer is the sign-in host's address, https://login.<domain>.
+	// Issuer is the sign-in host's address, https://my.<domain>.
 	Issuer func() string
 	// Clients are the services with single sign-on on.
 	Clients func() []Client

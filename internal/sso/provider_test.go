@@ -33,7 +33,7 @@ type fixture struct {
 }
 
 const (
-	issuer   = "https://login.smiths.example"
+	issuer   = "https://my.smiths.example"
 	callback = "https://recipes.smiths.example/login"
 	secret   = "s3cret-from-podman"
 )
@@ -526,7 +526,7 @@ func TestForwardAuth(t *testing.T) {
 	if w := check("", "pdf.smiths.example", "POST"); w.Code != 401 {
 		t.Errorf("no cookie, a POST: %d", w.Code)
 	}
-	if w := check("", "login.smiths.example", "GET"); w.Code != 403 {
+	if w := check("", "my.smiths.example", "GET"); w.Code != 403 {
 		t.Errorf("asked about another address: %d", w.Code)
 	}
 

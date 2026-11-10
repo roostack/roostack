@@ -126,7 +126,7 @@ func (s *Server) signInSettingsSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 // signInAddress is the sign-in page's address, or "" while the lab has
-// none (SignInHost is then "login." alone).
+// none (SignInHost is then "my." alone).
 func (s *Server) signInAddress() string {
 	if s.Domain == "" {
 		return ""

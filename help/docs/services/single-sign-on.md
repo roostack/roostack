@@ -7,7 +7,7 @@ service, and the sign-in page wears your lab's name, logo, and colours.
 
 It's for services whose package says how to take it (the service's page
 says so). Your lab needs its address first: the sign-in page is at
-`login.` and your lab's address.
+`my.` and your lab's address.
 
 ## Turning it on
 
@@ -193,7 +193,7 @@ The sign-in page has the lab's name, logo, and colours, chosen on
       Config OP plans).
     - An app's client ID is the service's name; its secret is the Podman
       secret `roostack-<service>-sso-client-secret`, deleted once single
-      sign-on is off. Its container finds `login.` your address through an
+      sign-on is off. Its container finds `my.` your address through an
       `AddHost` line pointing at the server's Caddy.
     - An app set by its single sign-on step (an `on: sso` hook) gets
       `ROOSTACK_SSO=on` or `off`; Roostack keeps a fingerprint of what it
@@ -215,7 +215,7 @@ The sign-in page has the lab's name, logo, and colours, chosen on
     - Groups, who can use each service, and sign-ins are in Roostack's
       database, backed up with the server.
     - Roostack's own pages sign in through `/login/sign-in`, which sets a
-      short-lived cookie and goes to `login.…/roostack`; the sign-in page
+      short-lived cookie and goes to `my.…/roostack`; the sign-in page
       sends the browser back to `/login/sign-in/callback` with a code that
       works once, within a minute, and only in the browser holding that
       cookie. The session it makes there is linked to the sign-in in the

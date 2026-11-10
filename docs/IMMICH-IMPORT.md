@@ -385,7 +385,7 @@ places they may read from chosen by the Owner when opening it.
 What's there today: Roostack's people all have Roostack accounts, with a
 role (SPEC §5). **Members** only see the dashboard: the services they can
 use and their status. With single sign-on, the same people sign in to
-apps at `login.<domain>`, which serves only the sign-in pages; Roostack's
+apps at `my.<domain>`, which serves only the sign-in pages; Roostack's
 own pages are at `roost.<domain>`, usually on the home network only.
 **Someone signed in on the sign-in page isn't signed in to Roostack's
 pages:** the account and password are the same, but they sign in again.
@@ -446,7 +446,7 @@ to ask, as single sign-on's "no access" page does. One import runs per
 server at a time; a second is refused with whose is running and about how
 long it has left (a queue later, if wanted).
 
-*Considered:* the page on the sign-in site (`login.<domain>/…`, signed in
+*Considered:* the page on the sign-in site (`my.<domain>/…`, signed in
 by single sign-on): apart from the control panel, but nothing for a lab
 without single sign-on, and it puts a page that starts work on the
 server's drives on a site that may face the internet; the same pages could

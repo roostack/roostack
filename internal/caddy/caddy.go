@@ -157,9 +157,9 @@ const (
 	WallCookie       = "roostack_sso"
 )
 
-// SignInSubdomain is the sign-in page for services, login.<domain>
+// SignInSubdomain is the sign-in page for services, my.<domain>
 // (single sign-on, SPEC.md §5.2). No service may use it.
-const SignInSubdomain = "login"
+const SignInSubdomain = "my"
 
 // SignInLoginPaths get the strict rate limit when the sign-in page is
 // public: the password, then the code.
@@ -500,7 +500,7 @@ type MainConfig struct {
 	SignIn *SignInSite
 }
 
-// SignInSite is the sign-in page for services at Host (login.<domain>),
+// SignInSite is the sign-in page for services at Host (my.<domain>),
 // answered by the sign-in listener at Upstream. Public once a service
 // with single sign-on is: people outside couldn't sign in to it otherwise.
 type SignInSite struct {

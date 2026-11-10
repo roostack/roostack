@@ -286,7 +286,7 @@ func TestCaddyServesSignIn(t *testing.T) {
 	h := newHarness(t, "")
 	withSignIn(t, h, &fakeSSO{on: map[string]bool{"mealie": true}})
 	ctx := context.Background()
-	caddy := httptest.NewTLSServer(h.server.SignInHandler()) // as Caddy forwards login.<domain>
+	caddy := httptest.NewTLSServer(h.server.SignInHandler()) // as Caddy forwards my.<domain>
 	t.Cleanup(caddy.Close)
 	if !h.server.CaddyServesSignIn(caddy.Listener.Addr().String())(ctx) {
 		t.Error("Caddy serving the sign-in page: no")

@@ -20,7 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/store"
 )
 
-// Signing in to Roostack's own pages at login.<domain> (SPEC.md §5.2,
+// Signing in to Roostack's own pages at my.<domain> (SPEC.md §5.2,
 // "Signing in to Roostack's own pages"): one sign-in for the apps and for
 // Roostack. Someone without a session at roost.<domain> is sent to the
 // sign-in page, which sends them back with a one-time code; Roostack swaps
@@ -55,7 +55,7 @@ const (
 type SingleSignOn struct {
 	// SignIn is the identity provider (internal/sso), served on its own
 	// listener (SignInHandler); nil: none. SSO turns single sign-on on and
-	// off for services. SignInHost is login.<domain>, and SSODir holds the
+	// off for services. SignInHost is my.<domain>, and SSODir holds the
 	// sign-in page's logo.
 	SignIn     *sso.Provider
 	SSO        SSOServices
@@ -112,7 +112,7 @@ type servedCheck struct {
 
 // signInServed says whether Caddy serves the sign-in page: a service has
 // single sign-on on as soon as it's turned on, but Caddy serves
-// login.<domain> only once the apply reloads it, after downloading the
+// my.<domain> only once the apply reloads it, after downloading the
 // service's image (minutes), or never if the apply fails (SPEC.md §5.2).
 // Until then Roostack's own pages keep their own login. The answer is kept
 // a minute once yes, 5 seconds while no, so someone waiting gets in soon

@@ -633,9 +633,9 @@ func (l Lab) UIHost() string {
 	return "roost." + l.Domain
 }
 
-// SignInHost is the sign-in page for services, login.<domain> (single
+// SignInHost is the sign-in page for services, my.<domain> (single
 // sign-on, SPEC.md §5.2).
-func (l Lab) SignInHost() string { return "login." + l.Domain }
+func (l Lab) SignInHost() string { return "my." + l.Domain }
 
 // HasAddress reports whether the lab has an address (a roost.ac name or
 // its own domain): until then its services have no web addresses and

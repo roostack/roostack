@@ -186,7 +186,7 @@ down.
     to lift the block.
   - An advisory about Roostack itself or Caddy is the "closed" level
     (§2.2, later), which asks first. *Question 5.*
-- **Single sign-on's sign-in page** (`login.<domain>`, §5.2):
+- **Single sign-on's sign-in page** (`my.<domain>`, §5.2):
   - Roostack's own code, so an advisory about an app doesn't affect it.
   - It stays public while any public service that uses it is unblocked.
     When every one of them is blocked, it's blocked too, since it has

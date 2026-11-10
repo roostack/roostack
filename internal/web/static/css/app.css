@@ -1181,7 +1181,7 @@ td.removed-actions .table-action + .table-action { margin-left: var(--space-3); 
 .add-check > summary::-webkit-details-marker { display: none; }
 .add-check form { margin-top: var(--space-4); max-width: 34rem; }
 
-/* The sign-in page for services, login.<domain> (SPEC.md §5.2; mock-ups
+/* The sign-in page for services, my.<domain> (SPEC.md §5.2; mock-ups
    in docs/mockups/sso): the bare layout, one narrow card, in the lab's
    look. */
 .signin-page { display: grid; gap: var(--space-3); justify-items: center; padding-block: var(--space-6, 32px); }

@@ -43,7 +43,7 @@
   <div class="card-head"><h2>The sign-in page</h2>{{if $v.Served}}<a class="more" href="https://{{$v.Host}}" target="_blank" rel="noopener">Open it{{template "new-window"}}</a>{{end}}</div>
   <div class="look-thumb" data-palette="{{.Look.Palette}}" aria-hidden="true"><div class="look-thumb-card">{{template "look-brand" .}}<strong>Sign in</strong><span></span><span></span><i></i></div></div>
   {{with $v.Host}}<p>At <code>{{.}}</code>. It's public while any service using it is, or Roostack's own pages are.</p>
-  {{else}}<p>It will be at <code>login.</code> and your lab's address, once it has one: <a href="/setup/domain">give your lab an address</a>.</p>{{end}}
+  {{else}}<p>It will be at <code>my.</code> and your lab's address, once it has one: <a href="/setup/domain">give your lab an address</a>.</p>{{end}}
   <p class="hint">Its name, logo, and colours are the lab's: change them on <a href="/settings/look">Name and look</a>.</p>
 </section>
 <section class="card span-12" id="signing-in">

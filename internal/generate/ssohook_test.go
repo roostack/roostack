@@ -79,7 +79,7 @@ func TestSSOHook(t *testing.T) {
 		t.Fatal(err)
 	}
 	if on.Env["ROOSTACK_SSO"] != "on" || on.Secrets["CLIENT_SECRET"] != SSOSecretName("forgejo") ||
-		on.Env["DISCOVERY_URL"] != "https://login.lab.example.com/.well-known/openid-configuration" {
+		on.Env["DISCOVERY_URL"] != "https://my.lab.example.com/.well-known/openid-configuration" {
 		t.Errorf("on: env %v, secrets %v", on.Env, on.Secrets)
 	}
 	in.SSO = false
@@ -156,7 +156,7 @@ func TestSSOSecretEnv(t *testing.T) {
 	if made == nil || made.Template == nil || made.Template.From != SSOSecretName("docs") || !made.Derived() {
 		t.Fatalf("secrets %+v", out.Secrets)
 	}
-	if got := made.Template.Value("s3cr3t-Value_x"); got != `{"name": "The \"Smith\" family", "client_id": "docs", "secret": "s3cr3t-Value_x", "server_url": "https://login.lab.example.com/.well-known/openid-configuration"}` {
+	if got := made.Template.Value("s3cr3t-Value_x"); got != `{"name": "The \"Smith\" family", "client_id": "docs", "secret": "s3cr3t-Value_x", "server_url": "https://my.lab.example.com/.well-known/openid-configuration"}` {
 		t.Errorf("value %s", got)
 	}
 	for _, f := range out.Quadlets {
@@ -200,7 +200,7 @@ func TestSSOReachesWhileOff(t *testing.T) {
 		}
 		hosts := false
 		for _, f := range out.Quadlets {
-			hosts = hosts || strings.Contains(f.Content, "AddHost=login.lab.example.com:host-gateway")
+			hosts = hosts || strings.Contains(f.Content, "AddHost=my.lab.example.com:host-gateway")
 			if strings.Contains(f.Content, "oauth2_client") || strings.Contains(f.Content, "OIDC_") {
 				t.Errorf("%s: single sign-on's settings while it's off:\n%s", tc.pkg, f.Content)
 			}

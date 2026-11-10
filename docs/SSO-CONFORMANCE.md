@@ -66,7 +66,7 @@ services:
     command: TCP-LISTEN:443,fork,reuseaddr TCP:host.docker.internal:48443
     networks:
       default:
-        aliases: [login.smiths.127-0-0-1.nip.io]
+        aliases: [my.smiths.127-0-0-1.nip.io]
 ```
 
 ```sh
@@ -79,9 +79,9 @@ The suite trusts any certificate, so Caddy's own CA is fine. Its results pages a
 
 A JSON file (keep it out of the repository: it holds the client secrets and mum's password):
 
-- `alias`: `roostack`; `server.discoveryUrl`: `https://login.smiths.127-0-0-1.nip.io/.well-known/openid-configuration`;
+- `alias`: `roostack`; `server.discoveryUrl`: `https://my.smiths.127-0-0-1.nip.io/.well-known/openid-configuration`;
 - `client` and `client2`: `client_id` and `client_secret` for `mealie` and `mealie-two`;
-- `browser`: for `https://login.smiths.127-0-0-1.nip.io/authorize*`, an optional task on `…/sign-in*` that types mum's username and password and clicks `button[type=submit]`, then a task on `*/test/*/callback*` that waits for `submission_complete`;
+- `browser`: for `https://my.smiths.127-0-0-1.nip.io/authorize*`, an optional task on `…/sign-in*` that types mum's username and password and clicks `button[type=submit]`, then a task on `*/test/*/callback*` that waits for `submission_complete`;
 - `override`: for `oidcc-prompt-login` and `oidcc-max-age-1`, the same browser with `["wait", "xpath", "//*", 10, "Sign in", "update-image-placeholder-optional"]` before signing in; for `oidcc-ensure-registered-redirect-uri` and `oidcc-ensure-request-object-with-redirect-uri`, one task on `…/authorize*` waiting for the text `an address Roostack doesn` with `update-image-placeholder`.
 
 The suite's own example of this shape is `.gitlab-ci/local-provider-oidcc-conformance-config.json`.
