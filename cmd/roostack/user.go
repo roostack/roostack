@@ -34,6 +34,11 @@ func user(args []string) error {
 	role := fs.String("role", auth.RoleMember, "role for a new user")
 	sub, name := args[0], args[1]
 	fs.Parse(args[2:])
+	if fs.NArg() > 0 {
+		// "user add sam admin" would otherwise make a Member quietly.
+		fmt.Print(userUsage)
+		return fmt.Errorf("user: %q isn't understood; a role goes after -role", fs.Arg(0))
+	}
 
 	lab, err := config.Load(*labPath)
 	if err != nil {
