@@ -81,7 +81,9 @@
   <div class="card-head"><h2>The VPN</h2><span class="pill pill-ok">On</span></div>
   <form>
     <label class="check"><input type="checkbox" class="switch" role="switch" checked>
-      <span>Let people add devices<small>Everyone in the lab will be able to add up to 5 phones or laptops, on Your account → Devices.</small></span></label>
+      <span>Let people add devices<small>Everyone in the lab will be able to add phones and laptops, on Your account → VPN devices.</small></span></label>
+    <label>Devices each person can add <input type="number" min="1" value="5" style="max-width: 8em">
+      <small>Leave it empty for no limit. A limit means a lost or forgotten device is noticed when someone wants another.</small></label>
     <fieldset>
       <legend>Devices connect to</legend>
       <label class="check"><input type="radio" name="hub" checked><span>linode-syd, in the cloud (recommended)<small>At 172.105.1.20, which the internet can reach already.</small></span></label>
@@ -98,8 +100,8 @@
 <div class="span-4 grid-column">
   <section class="card mock-new">
     <div class="card-head"><h2>Devices</h2></div>
-    <p class="figure-value">5 <small>of 25</small></p>
-    <p class="hint">Each person can add up to 5. You'll get an email when someone adds one.</p>
+    <p class="figure-value">5 <small>for 4 people</small></p>
+    <p class="hint">You'll get an email when someone adds one.</p>
   </section>
 </div>
 <section class="card span-12 mock-new">

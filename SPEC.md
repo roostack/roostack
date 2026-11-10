@@ -834,7 +834,7 @@ New revisions are on the same registry branch, checked end to end on VM2 (docs/A
 | **Account** | `/account` | Name and email address, which the person changes themselves; username, role, and groups, which only the Owner changes (People); light or dark, one choice for these pages and Roostack's. |
 | **Security** | `/account/security` | Password, two-factor, and **where you're signed in**: each sign-in's browser and device, when it started, and when it was last used, with Sign out for each and **Sign out everywhere else**. |
 | **Notifications** | `/account/notifications` | Which emails the person gets (§6.13), listing only the groups that apply to their role. |
-| **Devices** | `/account/devices` | Their devices on the lab's VPN (§10.11). The tab appears once the Owner turns the VPN on. |
+| **VPN devices** | `/account/devices` | Their devices on the lab's VPN (§10.11). The tab appears once the Owner turns the VPN on. |
 
 - **Roostack's pages at `roost.<domain>` are the Owner's and Admins' alone.** A Member who goes there will be sent to Your account, so Members lose Roostack's Home and Services, which showed little beyond the Services tab; the photo migration keeps its page of its own there (§8.5). The sidebar's name and avatar open Your account, and Roostack's own account pages go, apart from **Appearance** (each Owner's and Admin's colours for Roostack's pages, which stays with them; Your account takes the lab's look).
 - **Owners and Admins manage their own account there too:** one place for everyone.
@@ -2110,14 +2110,14 @@ Until now each server's backups could only be restored onto that server, and a f
 
 ### 10.11 The lab's VPN: people's devices from anywhere — Locked (2026-11-10), the maintainer's decisions; not built
 
-**What the maintainer asked (2026-11-10):** WireGuard access for the lab's people, built into Roostack rather than a package such as wg-easy, through the existing user list. A phone or laptop joins the lab's network from anywhere and reaches the lab's services as it would at home. wg-easy was ruled out because it would be a second WireGuard beside Roostack's own (§10.2) and needs `NET_ADMIN`, which the package policy refuses. Mock-ups to follow.
+**What the maintainer asked (2026-11-10):** WireGuard access for the lab's people, built into Roostack rather than a package such as wg-easy, through the existing user list. A phone or laptop joins the lab's network from anywhere and reaches the lab's services as it would at home. wg-easy was ruled out because it would be a second WireGuard beside Roostack's own (§10.2) and needs `NET_ADMIN`, which the package policy refuses. Mock-ups: [docs/mockups/your-account](docs/mockups/your-account/README.md), "The lab's VPN".
 
-- **Its name, proposed:** **the lab's VPN**, the words the sign-in page already uses ("Roostack's pages work only at home or on the lab's VPN"). The Owner's page is **Settings → VPN**, and each person's devices are on Your account's **Devices** tab (§5.3). "Remote access" already means SSH (Settings → Remote access, §6.10), so it isn't used for this.
+- **Its name — decided (2026-11-11), the maintainer:** **the lab's VPN**, the words the sign-in page already uses ("Roostack's pages work only at home or on the lab's VPN"). The Owner's page is **Settings → VPN**, and each person's devices are on Your account's **VPN devices** tab (§5.3). "Remote access" already means SSH (Settings → Remote access, §6.10), so it isn't used for this.
 - **The Owner turns it on** (off by default), on Settings → VPN, and chooses which server devices connect to:
   - **by default, a server in the lab that the internet can reach** (a cloud server, §6.12), at its own address;
   - **otherwise the controller at home,** with UDP 51822 forwarded to it on the router, at `link.<domain>`, the name Roostack already points at the home's public address for servers and labs connecting over WireGuard (§10.2). Roostack can't check a UDP forward from inside the home, so the page will say how to check: connect a phone on mobile data, and its **Last connected** will show it worked;
   - **through Roostack Cloud's relay** for a linked lab: a question for Cloud's design, not settled here.
-- **Every person can add their own devices** (any role), on Your account → Devices, up to 5 each. Adding one asks for their two-factor code again where they have one, since the page can be public. The Owner sees every device on Settings → VPN and can remove any, and removing a person removes their devices.
+- **Every person can add their own devices** (any role), on Your account → VPN devices, as many as the Owner allows: **5 each by default, and the Owner can change it or set no limit** on Settings → VPN (the maintainer, 2026-11-11: some people need more, and a fixed cap would be artificial). Adding one asks for their two-factor code again where they have one, since the page can be public. The Owner sees every device on Settings → VPN and can remove any, and removing a person removes their devices.
 
 **How a device is added.**
 
@@ -2134,6 +2134,7 @@ Until now each server's backups could only be restored onto that server, and a f
   1. **The lab only** (the default): the lab's services and nothing else.
   2. **The lab and the home network:** also the home's other devices (a NAS, a printer). Only if the Owner allows it for the lab.
   3. **Everything:** all its internet traffic goes through the lab and leaves from the server devices connect to, so it uses that connection and appears to come from its address. Only if the Owner allows it for the lab, off by default.
+- **Changing a device — decided (2026-11-11), the maintainer:** Roostack's pages and SSH change at once, since only the firewall enforces them. Changing where its traffic goes changes its settings, and Roostack doesn't keep its private key, so the device gets new settings with a new key, as when it was added.
 - **The server enforces all of it.** The choice also shapes the device's settings (WireGuard's `AllowedIPs`), but a device can edit those, so the firewall drops whatever its device may not reach.
 - **Names work as they do at home.** The lab's names point at the controller's home address (§6.5.1), so the lab-only settings send just that address (a `/32`) through the tunnel, which doesn't clash with a café network using the same range as home. When Pi-hole is installed, it's the devices' DNS.
 
