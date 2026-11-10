@@ -20,6 +20,7 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 - [5. Users & Access](#5-users--access--locked)
   - [5.1 Roostack Data Storage](#51-roostack-data-storage--locked)
   - [5.2 Single sign-on for services](#52-single-sign-on-for-services--locked-2026-10-20-first-version-as-built-2026-10-20)
+  - [5.3 Your account: a section for everyone](#53-your-account-a-section-for-everyone--locked-2026-11-10-the-maintainers-decisions-not-built)
 - [6. Container Runtime](#6-container-runtime--locked-principle)
   - [6.1 Roostack Process Architecture](#61-roostack-process-architecture--locked)
   - [6.2 Language: Go](#62-language-go--locked)
@@ -176,7 +177,7 @@ A single coordinator in `roostack` sequences every disruptive operation (backups
 |---|---|
 | **Owner** | Everything: host settings, OS updates, backups and restore, recovery key, user management. At least one Owner must exist. |
 | **Admin** | Install, configure, update, and remove services; run backups; view logs. No host-level settings, no user management. |
-| **Member** | View the dashboard (service links, status) only. |
+| **Member** | View the dashboard (service links, status) only. *Changed (2026-11-10, §5.3):* Members use Your account at `my.<domain>`, not Roostack's pages. |
 
   - Rationale: the person who sets up the lab (Owner) keeps control of risky host settings, while the day-to-day user (Admin) can still manage services freely.
 - **Authentication:** local accounts, passwords hashed with argon2id. **TOTP 2FA** in v1, required for Owners and for any public admin UI. Passkeys later.
@@ -264,7 +265,7 @@ One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-2
 
 #### Signing in
 
-- **Where:** `login.<domain>` (a reserved subdomain, like `roost`). It serves only the sign-in pages and the OIDC endpoints; Roostack's own pages stay at `roost.<domain>`, private as before.
+- **Where:** `login.<domain>` (a reserved subdomain, like `roost`). *Changed (2026-11-10, §5.3): `my.<domain>`, with Your account; not built yet, so `login.` throughout this section is today's code.* It serves only the sign-in pages and the OIDC endpoints; Roostack's own pages stay at `roost.<domain>`, private as before.
 - **How:** the same sign-in as Roostack's (username or email, password, then the second factor where it applies), and passkeys there when Roostack has them (§5, "Passkeys later"; a new module, `go-webauthn`, to agree then).
 - **Two-factor:** as for Roostack (Owners always; Admins while anything signs in from outside), and the Owner can require it of everyone.
 - **Decided (2026-10-20):**
@@ -280,7 +281,7 @@ One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-2
 
 **Decided (2026-10-21), the Owner:** one sign-in, as proposed below; Roostack's pages stay open as long as the sign-in for Members, while Owners and Admins keep Roostack's idle limit and then confirm with their two-factor code only; one sign-out.
 
-**One sign-in, at `login.<domain>`.**
+**One sign-in, at `login.<domain>`** (`my.<domain>` from §5.3).
 
 - **Going to `roost.<domain>` without a session** sends the browser to the lab's sign-in page (with the lab's look), and back. Someone already signed in there comes straight back, signed in to Roostack's pages too, with no page in between. They return to the page they asked for (an address on `roost.<domain>` only).
 - **How the sign-in carries over: a one-time code**, as the walls do (`internal/sso/forward.go`). The sign-in page sends the browser back to `roost.<domain>/login/sign-in` with a code that lasts a minute and works once; Roostack swaps it for its own session cookie, on `roost.<domain>` only. To stop someone else's code signing a browser in as them (login CSRF), the trip starts on `roost.<domain>`, which sets a short-lived cookie the code is tied to.
@@ -296,7 +297,7 @@ One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-2
   - **Owners and Admins:** Roostack's idle limit, as on its own login. After it, the next page of Roostack's sends them to the sign-in page, which asks them to confirm it's them with their **two-factor code only** (the sign-in already had their password), then returns them to that page. An Admin without two-factor types their password instead. Their apps and their sign-in carry on meanwhile: an Owner's open settings on a forgotten laptop can restore backups or remove services, an app's page can't.
   - Considered: everyone as long as the sign-in (simplest, but an Owner's settings would stay open for 30 days on that device, "Keep me signed in" being ticked by default); everyone keeping the idle limit, Members too; asking Owners and Admins for their password and code again (as Roostack's own login does; the Owner chose the code alone, quicker, still needing their phone).
 - **Roostack's own login page stays** for the ways in that aren't `roost.<domain>`: the SSH tunnel, a local address, a lab without an address, and as the way in if the sign-in page can't be reached. A sign-in there is Roostack's only, as today.
-- **The sign-in page's home** lists Roostack's pages with the services (mock-up to follow).
+- **The sign-in page's home** lists Roostack's pages with the services (mock-up to follow). *Replaced (2026-11-10) by Your account's Services tab, §5.3.*
 - **The audit log:** "login" with "through the sign-in page" (the sign-in itself is already recorded as "signed in"); a code refused ("failed login", from where); signing out of both; and, for Owners and Admins, confirming with a code after the idle limit (and a code that didn't work).
 
 **As built (2026-10-21):** `internal/web/pagessignin.go`.
@@ -819,6 +820,41 @@ New revisions are on the same registry branch, checked end to end on VM2 (docs/A
   - **Later:** Lychee (it knows only a few named providers, none at our addresses) and Ghost (it would need a custom adapter).
   - **Not sensible:** Jellyfin, Plex, ntfy, and Radicale. Their own apps sign in themselves, and Radicale's header login would leave its CalDAV paths open.
 
+### 5.3 Your account: a section for everyone — Locked (2026-11-10), the maintainer's decisions; not built
+
+**What the maintainer asked (2026-11-10):** a part of Roostack that isn't for running the lab, where each person's own settings live, so that a Member never needs Roostack's pages; its first new use will be each person's WireGuard devices (remote access for people, §10.2, to be designed next). Mock-ups and the reasoning: [docs/mockups/your-account](docs/mockups/your-account/README.md).
+
+- **One address for everything a person sees: `my.<domain>`.** Your account, the sign-in pages, and single sign-on's issuer (the OIDC endpoints, §5.2) move there from `login.<domain>`, which stops being reserved, so a service can use it. Nothing redirects from `login.`, and nothing is migrated: only experimental labs exist, which can be installed again (the maintainer, 2026-11-10). *Considered:* keeping `login.` as the issuer with Your account beside it (two reserved names and two addresses to explain), and `account.` or `me.` (the first undersells the services list, the second is unusual for a household's front door).
+- **In the lab's look,** as the sign-in page is: a header with the lab's name and logo, who's signed in, and Sign out; then tabs:
+
+| Tab | Path | What's on it |
+|---|---|---|
+| **Services** | `/` | The services the person can use, as tiles (what the sign-in page's home lists today). For Owners and Admins, **Run the lab**, opening Roostack's pages. The photo migration when it applies (§8.5). |
+| **Account** | `/account` | Name and email address, which the person changes themselves; username, role, and groups, which only the Owner changes (People); light or dark, one choice for these pages and Roostack's. |
+| **Security** | `/account/security` | Password, two-factor, and **where you're signed in**: each sign-in's browser and device, when it started, and when it was last used, with Sign out for each and **Sign out everywhere else**. |
+| **Notifications** | `/account/notifications` | Which emails the person gets (§6.13), listing only the groups that apply to their role. |
+| **Devices** | `/account/devices` | Their WireGuard devices. The tab appears once the Owner turns remote access for people on (to be designed). |
+
+- **Roostack's pages at `roost.<domain>` are the Owner's and Admins' alone.** A Member who goes there will be sent to Your account, so Members lose Roostack's Home and Services, which showed little beyond the Services tab; the photo migration keeps its page of its own there (§8.5). The sidebar's name and avatar open Your account, and Roostack's own account pages go, apart from **Appearance** (each Owner's and Admin's colours for Roostack's pages, which stays with them; Your account takes the lab's look).
+- **Owners and Admins manage their own account there too:** one place for everyone.
+- **A lab without an address** has no `my.<domain>`, so Roostack will serve the same section at its own address (`/account` and the rest), beside its own login, with the same header and tabs.
+- **Where you're signed in:** Roostack keeps each sign-in's browser (from its user agent, shortened to "Firefox on Linux") and when it was last used, beside the sign-ins it already keeps (§5.2). Signing one out ends it and the Roostack session linked to it, as signing out does now. Apps that keep their own sign-in stay signed in, and the page says so.
+- **Safety:** the section is public whenever the sign-in page is (any public service using single sign-on, or a lab on the internet). Changing the password or two-factor asks for the current password, as now; adding a WireGuard device will ask for the two-factor code again.
+
+**The domain itself — Locked (2026-11-10), the maintainer's decisions; not built.** What someone gets at the bare domain (`smith.family`, or a roost.ac name) is the Owner's choice, made by Owners and Admins on **Your lab's address**:
+
+| Choice | What it does | Default for |
+|---|---|---|
+| **Leave it alone** | Roostack sets no record for it, so the Owner's own website or anything else there keeps working. | an own domain |
+| **Your account** | A redirect to `my.<domain>`. | a roost.ac name |
+| **A service** | A redirect to one of the lab's services, such as a Ghost blog. | |
+| **Another address** | A redirect to any web address. | |
+| **A simple page** | A static page Roostack writes in the lab's look: its name and logo, a heading, a few lines of text, and links to services the Owner picks. Caddy serves it as a plain file, as it does the status page (§6.15), so nothing runs code per visit. | |
+
+- **A roost.ac name's own pages move:** Roostack's pages leave the bare name for `roost.<name>`, as with an own domain (§6.3.2, §6.6), so every lab has the same names: `roost.`, `my.`, and a bare domain the Owner chooses. The wildcard certificate already covers `roost.<name>`.
+- **The bare domain's record:** any choice but "Leave it alone" points it at the lab, and an existing record is taken over with the confirmation Roostack already asks for (§6.5.1, "Taking over a record"). A redirect or a simple page is public or home-only like any route: public if the Owner chooses it to be, so a website's visitors reach it. Through a relay, a public bare domain needs an address record, since DNS allows no CNAME at a domain's top; a provider's CNAME flattening (Cloudflare's, for one) works around it.
+- *Considered:* an HTML page of the Owner's own. It would be simple to serve, but any scripts in it would run on the lab's own domain, beside its services, so it's left for later, with a content security policy that stops scripts if it comes.
+
 ## 6. Container Runtime — Locked (principle)
 
 - Podman, **rootless where possible**; rootful only where a service genuinely requires it (e.g. low ports, host networking, device access), and this is visible to the user.
@@ -910,7 +946,7 @@ Part of "encryption anyone can check" (TASKS): what a lab runs should be checkab
 
 ### 6.3.2 Reaching the UI — Locked (2026-09-30), first run from the home network (2026-10-18)
 
-- **The UI listens on `127.0.0.1:8480` only** (apart from the setup pages during first-run setup, below). With a roost.ac name, it is served at the name itself (`https://smiths.roost.ac`, §6.6); with an own domain, at `https://roost.<domain>` (named `roostack.<domain>` until 2026-10-01; shortened by the maintainer) through Caddy, to the home network only (private). Without one, it's reached over an SSH tunnel (`ssh -L 8480:127.0.0.1:8480 …`), which works the same on Windows 10/11 (PowerShell), macOS, and Linux, but is a hard first step for people who don't use a terminal, hence the setup pages on the home network below. The installer shows the command with the server's address filled in; on a server joining an existing lab, it points to `sudo roostack node join <code>` first, which needs no setup page.
+- **The UI listens on `127.0.0.1:8480` only** (apart from the setup pages during first-run setup, below). With a roost.ac name, it is served at the name itself (`https://smiths.roost.ac`, §6.6; *changed 2026-11-10, §5.3: at `roost.<name>`, not built yet*); with an own domain, at `https://roost.<domain>` (named `roostack.<domain>` until 2026-10-01; shortened by the maintainer) through Caddy, to the home network only (private). Without one, it's reached over an SSH tunnel (`ssh -L 8480:127.0.0.1:8480 …`), which works the same on Windows 10/11 (PowerShell), macOS, and Linux, but is a hard first step for people who don't use a terminal, hence the setup pages on the home network below. The installer shows the command with the server's address filled in; on a server joining an existing lab, it points to `sudo roostack node join <code>` first, which needs no setup page.
 - **First-run setup from the home network — Decided (2026-10-18), as built:** until setup is finished, Roostack also serves its setup pages, and only those, over **HTTPS on port 8443 to the home network**, with a **self-signed certificate** made at its first start (`/var/lib/roostack/setup-tls.crt` and `setup-tls.key`, 0600). The installer's message and the log (`journalctl -u roostack`) show the address by IP (`https://192.168.1.20:8443`), the certificate's **SHA-256 fingerprint** to compare with the browser's warning, and the setup code. The SSH tunnel still works, and the installer shows it as the other way. **Why:** the tunnel needs a terminal, which the people Roostack is for often don't use; a phone or laptop on the same network is what they have. **Rejected:** plain HTTP (considered 2026-09-30): the setup code and the Owner's password would cross the network readable by anyone on it; listening publicly; a real certificate (no name exists yet; Let's Encrypt's IP certificates need the server reachable from the internet).
   - **How long — decided (2026-10-18) in the security review of this work, confirmed by the maintainer the same day:** until the wizard is finished (its last step, or setup finished over a tunnel, checked every 30 s), not only until the Owner exists, so the Owner isn't left mid-wizard needing the tunnel after all; and **never more than 24 hours after the Owner was made**, finished or not. The 24 hours count from the account's `created_at` in the database, so a restart doesn't start them again. Considered: stopping at the Owner (the rest of the wizard over the tunnel). The wizard's last step shows **Setup is finished** on the listener with where Roostack is from now on (the lab's address, or the tunnel); past the 24 hours, a page asked before the listener notices (within half a minute) shows **This setup page has closed** with the tunnel command (setup carries on there where it was left); after that the port is simply closed, and the help says why. Then the listener stops, the port closes, the certificate is deleted, and everything signed in on it is signed out; from then on it's `127.0.0.1:8480` and Caddy as before. A server joining a lab, or a restored lab, never opens it again (its certificate and sessions are deleted at the next start).
   - **What it serves, and to whom** (`internal/web/firstrun.go`): only the first-run routes, even to the Owner: the first-run pages and wizard (two-factor set-up is its first step, `/setup/two-factor`; the account's `/account/2fa` isn't served here), logging in, what the wizard's pages load or post to (its address step's Cloud link and network choice, the backup step's live log, a backup destination's location), and the help and static files; everything else is 404. Before the Owner exists, the setup code guards them. **Once the Owner exists, every route needs the Owner signed in on the listener**, and only the wizard's two-factor step and the help until it's on (the help is public on Roostack's own pages, and the step links to it: since 2026-10-18); anyone else gets the login page (and its static files), and the setup code no longer works there.
@@ -1059,7 +1095,7 @@ Roostack manages the DNS records its services need, through the same DNS provide
   - **Not yet:** the recovery key's proof for account recovery (Cloud's design: its cryptography first).
 - **A roost.ac name as the lab's address — Locked (2026-10-07), as built:** a linked lab claims its name from Cloud (with its certificate) and gets back the full name and **an acme-dns account** that can only write that name's records. Roostack treats Cloud as one more DNS provider (`roostack-cloud`, never offered in the list): the account's fields are its Podman secrets like any provider's, so the rest is unchanged.
   - **Certificates:** Caddy's `caddy-dns/acmedns` module (added to Roostack's Caddy build, chosen 2026-10-07) writes the challenge record through Cloud's acme-dns API, for one wildcard certificate covering the name too. The module reads placeholders only in its password, so the account's other fields (none secret) are kept in `lab.yaml` (`dns.values`) and written into Caddy's config as they are; only the password is a Podman secret (ASSUMPTIONS C13). **Tried for real (2026-10-07):** VM3, linked to a development Cloud publishing to roost.ac's real DNS, got Let's Encrypt certificates for `smiths.test.roost.ac` and its wildcard, both served over HTTPS and verified. Considered: our own Caddy module using the lab's certificate (no extra credential, but our code inside Caddy, and Caddy would need the lab's key). The account can already get certificates for the name, so letting it also set the name's A records (Cloud's records API, same account) adds no power.
-  - **Records:** as for an own domain, Roostack manages them: `*.name` and the name itself to the server's home-network address (Roostack's pages are at the name), public services' own records to the home's public address. Cloud allows nothing outside the lab's name, and no public wildcard.
+  - **Records:** as for an own domain, Roostack manages them: `*.name` and the name itself to the server's home-network address (Roostack's pages are at the name; *changed 2026-11-10, §5.3: at `roost.<name>`, the name itself the Owner's choice*), public services' own records to the home's public address. Cloud allows nothing outside the lab's name, and no public wildcard.
   - **Getting it:** in the address step, **Continue to Roostack Cloud** links the lab (same tab, back again afterwards) and then claims the name by itself; once linked, **Use this address** claims it at once. The lab then restarts with it, the address step done. A previous address keeps working for 30 days, as when switching domains.
   - **A held name** (kept for the account that had it, after its lab was unlinked) isn't refused before linking: until then Cloud can't know whose account is asking, so it says the name is held, Roostack says "if that's yours, you'll get it back once the lab is linked to it", and the claim, once linked, decides (found by trying it, 2026-10-07: unlinking and linking again lost the lab its own name).
   - **Losing it:** unlinking, or Cloud no longer knowing the lab, takes the address away: the lab goes back to "no address yet" (the name stays held for the account for a year, Cloud's side); its records go at Cloud, and the lab lets go of its own note of them ("Records of addresses the lab no longer has", above, 2026-10-19).
