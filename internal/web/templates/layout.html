@@ -60,10 +60,11 @@
       <div class="sidebar-foot">
         <div class="sidebar-tools">
           <a href="/help/" target="_blank" rel="noopener">{{icon "help"}}Help{{template "new-window"}}</a>
+          <a href="/appearance"{{if eq .Active "account"}} aria-current="page"{{end}}>{{icon "spark"}}Appearance</a>
           {{template "theme-toggle" .}}
         </div>
         <div class="who">
-          <a href="/account" class="who-link"{{if eq .Active "account"}} aria-current="page"{{end}}><span class="avatar" aria-hidden="true">{{initial .Username}}</span>
+          <a href="/account" class="who-link" title="Your account"><span class="avatar" aria-hidden="true">{{initial .Username}}</span>
             <span class="who-name"><strong title="{{.Username}}">{{.Username}}</strong><span>{{roleName .Role}}</span></span></a>
           <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out">{{icon "log-out"}}<span class="sr-only">Log out</span></button></form>
         </div>

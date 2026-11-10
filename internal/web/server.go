@@ -510,7 +510,7 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "local-editor", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
-		"home", "services", "services-updates", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
+		"home", "services", "services-updates", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account-appearance", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-look", "settings-sign-in", "settings-cleanup",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
@@ -523,6 +523,9 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 		s.pages[page] = t
 	}
 	if s.signInPages, err = parseSignInPages(); err != nil {
+		return nil, err
+	}
+	if s.acctPages, err = parseAcctPages(); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -561,8 +564,6 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.HandleFunc("GET "+pathPagesStart, s.pagesStart)
 	mux.HandleFunc("GET "+pathPagesCallback, s.pagesCallback)
 
-	mux.Handle("GET /account/2fa", s.requireLogin(s.twoFactorPage))
-	mux.Handle("POST /account/2fa", s.requireLogin(s.twoFactorSubmit))
 	mux.Handle("GET "+wizardTwoFactor, s.requireLogin(s.twoFactorPage))
 	mux.Handle("POST "+wizardTwoFactor, s.requireLogin(s.twoFactorSubmit))
 
@@ -629,9 +630,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /settings/email", s.requireOwner(s.emailPage))
 	mux.Handle("POST /settings/email", s.requireOwner(s.emailSubmit))
 	mux.Handle("POST /settings/email/test", s.requireOwner(s.emailTestSubmit))
-	mux.Handle("GET /account/notifications", s.requireLogin(s.notificationsPage))
-	mux.Handle("POST /account/notifications", s.requireLogin(s.notificationsSubmit))
-	mux.Handle("GET /account/appearance", s.requireLogin(s.appearancePage))
+	mux.Handle("GET /appearance", s.require(auth.ManageServices, s.appearancePage))
 	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
 	mux.Handle("GET /monitoring", s.require(auth.ManageServices, s.monitoringPage))
 	mux.Handle("GET /monitoring/check/{key}", s.require(auth.ManageServices, s.monitorCheckPage))
@@ -684,12 +683,11 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /settings/servers/join", s.requireOwner(s.joinCodeSubmit))
 	mux.Handle("GET /settings/updates", s.requireOwner(s.updatesPage))
 	mux.Handle("GET /settings/time-zone", s.requireWizard(s.timezonePage))
-	mux.Handle("GET /account", s.requireLogin(s.accountPage))
+	s.acctPagesRoutes(mux)
 	mux.Handle("GET /design", s.requireLogin(s.galleryPage))
 	mux.Handle("GET /about", s.requireLogin(s.aboutPage))
 	mux.Handle("POST /account/theme", s.requireLogin(s.themeSubmit))
-	mux.Handle("POST /account/appearance", s.requireLogin(s.appearanceSubmit))
-	mux.Handle("POST /account/password", s.requireLogin(s.passwordSubmit))
+	mux.Handle("POST /appearance", s.require(auth.ManageServices, s.appearanceSubmit))
 
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.Handle("POST /dns/manage", s.requireOwner(s.dnsManage))

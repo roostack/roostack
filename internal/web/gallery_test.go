@@ -48,7 +48,7 @@ func TestGalleryFile(t *testing.T) {
 }
 
 func TestGalleryPage(t *testing.T) {
-	h, _ := loggedIn(t, auth.RoleMember)
+	h, _ := loggedIn(t, auth.RoleAdmin)
 	code, body := h.get("/design")
 	if code != 200 {
 		t.Fatalf("GET /design: %d", code)

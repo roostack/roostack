@@ -81,7 +81,7 @@ After it checks in each day, your lab tells Roostack Cloud its name (as it
 is now, in Settings → Name and look) and three more things, and nothing else:
 
 - **The email addresses of the people here who get the lab's problems**
-  (each person's address on their account page, if they get **Problems**:
+  (each person's address in Your account, if they get **Problems**:
   see [Email](email.md)). Roostack Cloud's emails about your lab then go to
   them too, not only to the account's Owner: a name approved or refused, a
   suspension, the lab not heard from for days, or its recovery key used.

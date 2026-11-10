@@ -104,6 +104,33 @@ func (h *harness) post(path string, form url.Values, origin string) (int, string
 	return resp.StatusCode, string(body)
 }
 
+// sent is where a request is sent on to without following it: its status
+// and Location (form only for a POST, from the harness's own address).
+func (h *harness) sent(method, path string, form url.Values) (int, string) {
+	h.t.Helper()
+	req, _ := http.NewRequest(method, h.srv.URL+path, strings.NewReader(form.Encode()))
+	if method == http.MethodPost {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Origin", h.srv.URL)
+	}
+	c := &http.Client{Jar: h.client.Jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := c.Do(req)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode, resp.Header.Get("Location")
+}
+
+// toAccount fails the test unless a Member's request is sent to Your
+// account rather than answered (SPEC.md §5.3).
+func (h *harness) toAccount(method, path string) {
+	h.t.Helper()
+	if code, to := h.sent(method, path, url.Values{}); code != http.StatusSeeOther || to != acctPagesServices {
+		h.t.Errorf("a Member's %s %s: %d to %q, want Your account", method, path, code, to)
+	}
+}
+
 var nowFunc = time.Now
 
 // wrongCode is a two-factor code that isn't valid for secret now, nor in
@@ -139,10 +166,10 @@ func (h *harness) enrollTOTP(page string) (string, time.Time) {
 	if err != nil {
 		h.t.Fatal(err)
 	}
-	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {wrongCode(secret)}}, h.srv.URL); status != http.StatusBadRequest {
+	if status, _ := h.post("/account/two-factor", url.Values{"secret": {secret}, "code": {wrongCode(secret)}}, h.srv.URL); status != http.StatusBadRequest {
 		h.t.Errorf("a wrong enrollment code: status %d, want 400", status)
 	}
-	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {code}}, h.srv.URL); status != http.StatusOK {
+	if status, _ := h.post("/account/two-factor", url.Values{"secret": {secret}, "code": {code}}, h.srv.URL); status != http.StatusOK {
 		h.t.Fatalf("enrollment failed: %d", status)
 	}
 	return secret, now

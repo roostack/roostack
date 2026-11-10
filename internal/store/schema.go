@@ -402,6 +402,10 @@ var migrations = []string{
 		removed_by TEXT NOT NULL,
 		PRIMARY KEY (server, name)
 	)`,
+	// 39 (2026-11-11): each session's browser and system, shortened
+	// ("Firefox on Linux"), for Your account's "Where you're signed in"
+	// (SPEC.md §5.3). Sessions from before it show no device.
+	`ALTER TABLE sessions ADD COLUMN device TEXT NOT NULL DEFAULT ''`,
 }
 
 // Open opens (creating if needed) and migrates the database.

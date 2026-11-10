@@ -1,7 +1,6 @@
 package web
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"html/template"
@@ -84,6 +83,7 @@ func (s *Server) SignInHandler() http.Handler {
 	mux.HandleFunc("POST "+signInConfirmPath, s.signInConfirm)
 	mux.HandleFunc("GET "+signInServedPath, s.signInServedAnswer)
 	mux.HandleFunc("GET /{$}", s.signInHome)
+	s.acctRoutes(mux, s.signInAcct)
 	mux.HandleFunc("GET /sign-in", s.signInPage)
 	mux.HandleFunc("POST /sign-in", s.signInSubmit)
 	mux.HandleFunc("POST /sign-in/code", s.signInCode)
@@ -142,17 +142,24 @@ func (s *Server) signInSession(r *http.Request) (sso.Session, bool) {
 	if err != nil {
 		return sso.Session{}, false
 	}
+	s.SignIn.Seen(r.Context(), hash)
 	return sso.Session{User: si.User, Hash: hash, Expires: si.Expires, Remember: si.Remember, AuthTime: si.At}, true
 }
 
 // safeNext keeps where to go after signing in to the sign-in page's own
 // authorisation and hand-off pages (to walled services and to Roostack's
-// pages), or its home.
+// pages), or Your account's, or its home.
 func safeNext(next string) string {
+	if strings.ContainsAny(next, "\r\n\\") {
+		return "/"
+	}
 	for _, p := range []string{sso.PathAuthorize + "?", sso.PathStart + "?", signInPagesPath + "?"} {
-		if strings.HasPrefix(next, p) && !strings.ContainsAny(next, "\r\n\\") {
+		if strings.HasPrefix(next, p) {
 			return next
 		}
+	}
+	if u, err := url.Parse(next); err == nil && u.Scheme == "" && u.Host == "" && (u.Path == "/account" || strings.HasPrefix(u.Path, "/account/")) {
+		return next
 	}
 	return "/"
 }
@@ -171,10 +178,6 @@ type signInView struct {
 	Remember     bool
 	// User is who's signed in, on the pages for someone signed in.
 	User *store.User
-	// Apps are the services they can use (home).
-	Apps []signInApp
-	// Until is when their sign-in ends (home).
-	Until time.Time
 	// Owner names who to ask for access or a password.
 	Owner string
 	// RoostackURL is Roostack's own pages, for things done there.
@@ -184,15 +187,17 @@ type signInView struct {
 	// the password), and Away that their session there just ended.
 	Trip       string
 	Code, Away bool
-	// PagesHost is Roostack's pages' address (home), if they sign in here.
-	PagesHost string
-	// Photos: the person may migrate photos into Immich (SPEC.md §8.5),
-	// on Roostack's own pages.
-	Photos bool
 }
 
+// signInApp is a service someone can use, on Your account's Services tab.
 type signInApp struct {
-	Title, URL, Logo, Host string
+	Title, URL, Host string
+	// Logo is its package's logo, for a service with single sign-on;
+	// DrawnIcon the icon shown without one.
+	Logo, DrawnIcon string
+	// OwnSignIn: it keeps its own sign-in rather than the lab's; Off: it's
+	// turned off for now.
+	OwnSignIn, Off bool
 }
 
 func (s *Server) renderSignIn(w http.ResponseWriter, r *http.Request, status int, v signInView) {
@@ -345,38 +350,15 @@ func (s *Server) signInStart(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, to, http.StatusFound)
 }
 
-// signInHome is the sign-in page itself: the services someone can use,
-// once signed in.
+// signInHome is the sign-in page itself: once signed in, Your account's
+// Services tab (youraccount.go).
 func (s *Server) signInHome(w http.ResponseWriter, r *http.Request) {
 	sess, ok := s.signInSession(r)
 	if !ok {
 		s.signInPage(w, r)
 		return
 	}
-	v := signInView{State: "home", User: sess.User, Until: sess.Expires}
-	if s.SSO != nil && len(s.SSO.SSOClients()) > 0 {
-		v.PagesHost = s.UIHost
-	}
-	for _, c := range s.SignIn.Clients() {
-		if ok, err := s.Store.CanUse(r.Context(), c.ID, sess.User.ID); err != nil || !ok {
-			continue
-		}
-		host := c.Host
-		if host == "" && len(c.RedirectURIs) > 0 {
-			if u, err := url.Parse(c.RedirectURIs[0]); err == nil {
-				host = u.Host
-			}
-		}
-		if host != "" {
-			// Where the app starts signing in through the lab, so a
-			// click signs them in rather than showing the app's own
-			// sign-in page.
-			to := cmp.Or(c.StartURL, "https://"+host+"/")
-			v.Apps = append(v.Apps, signInApp{Title: c.Title, URL: to, Logo: "/look/app/" + c.ID, Host: host})
-		}
-	}
-	v.Photos = len(s.migratable(r.Context(), sess.User)) > 0
-	s.renderSignIn(w, r, http.StatusOK, v)
+	s.acctServices(w, r, &acct{User: sess.User, Hash: sess.Hash, SignIn: true, Remember: sess.Remember, Expires: sess.Expires})
 }
 
 func (s *Server) signInPage(w http.ResponseWriter, r *http.Request) {
@@ -535,24 +517,10 @@ func (s *Server) startSignIn(w http.ResponseWriter, r *http.Request, u *store.Us
 			return
 		}
 	}
-	token, err := authkit.NewToken()
-	if err != nil {
+	if err := s.issueSignIn(w, r, u, remember); err != nil {
 		s.serverError(w, err)
 		return
 	}
-	length := signInLength
-	if remember {
-		length = signInRemember
-	}
-	if err := s.Store.CreateSessionAt(r.Context(), store.OriginSignIn, authkit.HashToken(token), u.ID, time.Now().Add(length), remember); err != nil {
-		s.serverError(w, err)
-		return
-	}
-	ck := &http.Cookie{Name: signInCookie, Value: token, Path: "/", HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode}
-	if remember {
-		ck.MaxAge = int(length.Seconds())
-	}
-	http.SetCookie(w, ck)
 	s.Store.Audit(r.Context(), u, "signed in", strings.TrimSpace("on the sign-in page for services "+how))
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
@@ -583,4 +551,27 @@ func (s *Server) signOut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.renderSignIn(w, r, http.StatusOK, signInView{State: "out"})
+}
+
+// issueSignIn signs u in on the sign-in page: a new session, and its
+// cookie.
+func (s *Server) issueSignIn(w http.ResponseWriter, r *http.Request, u *store.User, remember bool) error {
+	token, err := authkit.NewToken()
+	if err != nil {
+		return err
+	}
+	length := signInLength
+	if remember {
+		length = signInRemember
+	}
+	if err := s.Store.CreateSessionAt(r.Context(), store.OriginSignIn, authkit.HashToken(token), u.ID, time.Now().Add(length), remember); err != nil {
+		return err
+	}
+	s.noteSessionDevice(r, authkit.HashToken(token))
+	ck := &http.Cookie{Name: signInCookie, Value: token, Path: "/", HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode}
+	if remember {
+		ck.MaxAge = int(length.Seconds())
+	}
+	http.SetCookie(w, ck)
+	return nil
 }

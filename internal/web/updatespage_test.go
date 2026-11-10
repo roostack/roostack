@@ -109,7 +109,5 @@ func TestUpdatesPage(t *testing.T) {
 	// Members can't see it.
 	hm, fmm := loggedIn(t, auth.RoleMember)
 	fmm.svcUpdates = fm.svcUpdates
-	if code, _ := hm.get("/updates"); code != http.StatusForbidden {
-		t.Errorf("member: %d", code)
-	}
+	hm.toAccount(http.MethodGet, "/updates")
 }

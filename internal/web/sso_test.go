@@ -473,8 +473,8 @@ func TestServiceOpenStartsSignIn(t *testing.T) {
 	m, _ := loggedIn(t, "member")
 	withSignIn(t, m, fs)
 	m.server.Services = h.server.Services
-	if _, body := m.get("/"); !strings.Contains(body, `href="https://recipes.lab.example.com/login?direct=1" target="_blank" rel="noopener">Open`) {
-		t.Error("dashboard: Open doesn't start signing in")
+	if _, body := m.get(acctPagesServices); !strings.Contains(body, `href="https://recipes.lab.example.com/login?direct=1"`) {
+		t.Error("Your account: Open doesn't start signing in")
 	}
 	fs.on["mealie"] = false
 	if _, body := h.get("/services/mealie"); !strings.Contains(body, `href="https://recipes.lab.example.com" target="_blank" rel="noopener">Open Mealie`) {

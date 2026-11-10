@@ -27,8 +27,8 @@ checked.
 After three failed checks in a row (so one slow answer doesn't count), the
 service will show as **Down**, under "needs attention" on Home, and on
 Monitoring with what went wrong. If it lasts a few minutes, Owners and
-Admins will be emailed, as for other problems (your account's
-**Notifications** say which emails you get). When it answers again, the
+Admins will be emailed, as for other problems (the
+**Notifications** tab of Your account says which emails you get). When it answers again, the
 email will say so.
 
 Roostack also warns when a service's certificate is close to expiring:

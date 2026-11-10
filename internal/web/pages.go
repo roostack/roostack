@@ -11,13 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/store"
-	"roostack.cloud/roostack/internal/words"
 )
 
 // nav is the sidebar (docs/DESIGN.md "Layout"), shown to logged-in users.
@@ -67,7 +65,7 @@ func navFor(u *store.User, page string) nav {
 	if next == "" {
 		u.Theme, next = "auto", "light"
 	}
-	landing := slices.Contains([]string{"home", "services", "backups", "settings", "settings-servers", "account", "monitoring"}, page)
+	landing := slices.Contains([]string{"home", "services", "backups", "settings", "settings-servers", "account-appearance", "monitoring"}, page)
 	adding := page == "catalog" || page == "install" || page == "local-add" || page == "local-editor"
 	return nav{Active: active, Landing: landing, Adding: adding, Username: u.Username, Role: u.Role, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
@@ -99,7 +97,7 @@ func (n nav) Section() *crumb {
 	case "settings":
 		return &crumb{"/settings", "Settings"}
 	case "account":
-		return &crumb{"/account", "Your account"}
+		return &crumb{"/appearance", "Appearance"}
 	}
 	return nil
 }
@@ -112,7 +110,7 @@ func navTab(page string) string {
 		"home": "home", "pause": "home", "pause-close": "home", "catalog": "services", "local-add": "services", "local-editor": "services", "install": "services", "remove": "services", "move": "services", "visitors": "services",
 		"import": "services", "import-folders": "services",
 		"restore": "backups", "recovery-key": "settings", "users": "settings", "dns-takeover": "settings",
-		"account": "account", "twofactor": "account", "account-appearance": "account", "account-notifications": "account",
+		"twofactor": "settings", "account-appearance": "account",
 		"cloud-open": "settings", "cloud-linked": "settings",
 		// Servers is a main area (docs/DESIGN.md "Layout"), though its pages
 		// are still under /settings.
@@ -815,10 +813,6 @@ func (s *Server) dnsView(r *http.Request) any {
 	return &st
 }
 
-func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
-	s.renderAccount(w, "account", "account", map[string]any{"User": currentUser(r), "Action": withQuery("/account/password", nextQuery(r))})
-}
-
 // appearanceSubmit saves the user's colour theme and light/dark mode.
 func (s *Server) appearanceSubmit(w http.ResponseWriter, r *http.Request) {
 	palette, mode := r.FormValue("palette"), r.FormValue("mode")
@@ -849,11 +843,11 @@ func (s *Server) appearanceSubmit(w http.ResponseWriter, r *http.Request) {
 		// Saved in the background; the page already shows it. Send back the
 		// top bar's toggle so it matches.
 		u.Theme, u.Palette = mode, palette
-		n := navFor(u, "account")
-		s.renderPart(w, "account", "theme-toggle", map[string]any{"OOB": true, "NextTheme": n.NextTheme, "Theme": n.Theme})
+		n := navFor(u, "account-appearance")
+		s.renderPart(w, "account-appearance", "theme-toggle", map[string]any{"OOB": true, "NextTheme": n.NextTheme, "Theme": n.Theme})
 		return
 	}
-	http.Redirect(w, r, "/account/appearance", http.StatusSeeOther)
+	http.Redirect(w, r, "/appearance", http.StatusSeeOther)
 }
 
 // themeSubmit saves the user's theme and returns to the page they were
@@ -873,50 +867,6 @@ func (s *Server) themeSubmit(w http.ResponseWriter, r *http.Request) {
 		back = ref.Path
 	}
 	http.Redirect(w, r, back, http.StatusSeeOther)
-}
-
-// passwordSubmit changes the user's own password. All their sessions are
-// ended (other devices must log in again); this one gets a new session.
-func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
-	u := currentUser(r)
-	fail := func(msg string) {
-		w.WriteHeader(http.StatusBadRequest)
-		s.renderAccount(w, "account", "account", map[string]any{"User": u, "Error": msg, "Action": withQuery("/account/password", nextQuery(r))})
-	}
-	ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("current"))
-	if err != nil || !ok {
-		fail("Your current password is wrong.")
-		return
-	}
-	pw := r.FormValue("password")
-	if pw != r.FormValue("confirm") {
-		fail("The new passwords don't match.")
-		return
-	}
-	if err := authkit.CheckPasswordPolicy(pw); err != nil {
-		fail(words.Capitalise(err.Error()) + ".")
-		return
-	}
-	hash, err := authkit.HashPassword(pw)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	if err := s.Store.SetPassword(r.Context(), u.Username, hash, false); err != nil {
-		s.serverError(w, err)
-		return
-	}
-	if err := s.startSession(w, r, u, sessionOf(r).Remember); err != nil {
-		s.serverError(w, err)
-		return
-	}
-	s.Store.Audit(r.Context(), u, "password changed", "")
-	if u.MustChangePassword { // done with the temporary password: carry on
-		redirect(w, r, nextOf(r))
-		return
-	}
-	s.renderAccount(w, "account", "account", map[string]any{"User": u, "Action": "/account/password",
-		"Done": "Password changed. Other devices you were logged in on will need to log in again."})
 }
 
 func (s *Server) applyStatus() *manager.ApplyStatus {

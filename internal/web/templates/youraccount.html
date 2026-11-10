@@ -1,0 +1,212 @@
+<!doctype html>
+{{- /* Your account (SPEC.md §5.3), at my.<domain> and at /account on
+     Roostack's own address: the lab's look, a header with who's signed
+     in, and tabs. No scripts: every form posts. Mock-ups:
+     docs/mockups/your-account. */ -}}
+<html lang="en" data-palette="{{.Look.Palette}}"{{with .Look.Accent}} data-accent="{{.}}"{{end}}{{if eq .Look.Logo "wide"}} data-logo="wide"{{end}}{{if and .Mode (ne .Mode "auto")}} data-mode="{{.Mode}}"{{end}}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · {{.LabName}}</title>
+  <link rel="icon" href="{{.Favicon}}?v={{.Look.Version}}">
+  <link rel="preload" href="/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/themes/{{.Look.Palette}}.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="bare">
+    <header class="acct-header">
+      <a class="acct-brand" href="{{(index .Tabs 0).Href}}">
+        {{if eq .Look.Logo "wide"}}<span class="signin-wide{{if not (.Look.Has "dark")}} on-light{{end}}"><img src="{{.LookBase}}/wide?v={{.Look.Version}}" alt="{{.LabName}}"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}></span>
+        {{else}}{{if eq .Look.Logo "mark"}}<img class="signin-mark" src="{{.LookBase}}/mark?v={{.Look.Version}}" alt="" width="36" height="36">{{else}}{{brandMark}}{{end}}<strong>{{.LabName}}</strong>{{end}}
+      </a>
+      <div class="acct-who">
+        <span class="avatar" aria-hidden="true">{{initial .User.Username}}</span>
+        <span class="who-name"><strong>{{.User.Username}}</strong><span>{{roleName .User.Role}}</span></span>
+        <form method="post" action="{{.SignOut}}"><button type="submit" class="icon-button" title="Sign out">{{icon "log-out"}}<span class="sr-only">Sign out</span></button></form>
+      </div>
+    </header>
+    <main class="page acct-page">
+      <div class="page-head"><div><h1>{{.Title}}</h1></div></div>
+      <nav class="settings-nav area-tabs acct-tabs" aria-label="Your account">
+        {{- range .Tabs}}<a href="{{.Href}}"{{if eq .ID $.Tab}} class="active" aria-current="page"{{end}}>{{.Title}}</a>{{end -}}
+      </nav>
+      {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+      {{with .Done}}{{notice "ok" .}}{{end}}
+
+      {{if .TwoFactor}}{{template "acct-two-factor" .}}
+      {{else if eq .Tab "services"}}{{template "acct-services" .}}
+      {{else if eq .Tab "account"}}{{template "acct-account" .}}
+      {{else if eq .Tab "security"}}{{template "acct-security" .}}
+      {{else if eq .Tab "notifications"}}{{template "acct-notifications" .}}{{end}}
+    </main>
+    <footer class="site acct-foot">
+      <details class="hint">
+        <summary>{{.LabName}} runs on Roostack · What is this page?</summary>
+        <p>Your own account on {{.LabName}}: the services you can use with one sign-in, and your password, two-factor, and emails.
+          Your password is never given to the services.</p>
+      </details>
+    </footer>
+  </div>
+</body>
+</html>
+
+{{define "acct-services"}}
+{{if .Apps}}
+<p class="lede">Hello, {{or .User.Name .User.Username}}. These are the services you can use.</p>
+<ul class="acct-apps">
+  {{range .Apps}}<li>{{if .Off}}<span class="acct-app">{{else}}<a class="acct-app" href="{{.URL}}">{{end}}
+    <span class="logo-tile">{{with .Logo}}<img src="{{.}}" alt="" width="40" height="40">{{else}}{{icon .DrawnIcon}}{{end}}</span>
+    <span><strong>{{.Title}}</strong><small>{{.Host}}</small></span>
+    {{if .Off}}<span class="pill">Turned off for now</span>{{else if .OwnSignIn}}<span class="pill">Its own sign-in</span>{{end}}
+    {{if .Off}}</span>{{else}}</a>{{end}}</li>{{end}}
+</ul>
+{{else}}
+<p class="lede">Hello, {{or .User.Name .User.Username}}. There's no service you can use yet: {{.Owner}} chooses who can use each one.</p>
+{{end}}
+{{with .RunLab}}<section class="card acct-run">
+  <div class="acct-run-row">
+    <span class="logo-tile">{{brandMark}}</span>
+    <div><h2>Run the lab</h2>
+      <p class="hint">Roostack's own pages, where you add services, look after backups and servers, and choose who can use what.
+        Only the Owner and Admins see this.</p></div>
+    <a class="button secondary" href="{{.}}">Open Roostack's pages</a>
+  </div>
+</section>{{end}}
+{{with .Photos}}<div class="signin-extra">
+  <a href="{{.}}">{{icon "import"}}<span><strong>Migrate your photos into Immich</strong>
+    <small>From Google Photos or a folder.</small></span></a>
+</div>{{end}}
+<p class="hint">{{if not .Until.IsZero}}Signed in on this device until {{date .Until}}. {{end}}<a href="{{.SignedInHref}}">Where you're signed in</a></p>
+{{end}}
+
+{{define "acct-account"}}
+<section class="card">
+  <div class="card-head"><h2>Your details</h2></div>
+  {{if .NeedEmail}}{{notice "warn" "As the Owner, you need an email address so that Roostack can tell you when the lab needs you. Add yours below to continue."}}{{end}}
+  <form method="post" action="{{.Action}}">
+    <label>Your name <input name="name" value="{{.Name}}" autocomplete="name" maxlength="100">
+      <small>How services will greet you, and how the lab's other people will see you.</small></label>
+    <label>Email address <input name="email" type="email" value="{{.Email}}" placeholder="you@example.com" autocomplete="email"{{if eq .User.Role "owner"}} required{{end}}>
+      <small>Where Roostack will email you, and how you can sign in instead of your username.
+        {{if eq .User.Role "owner"}}As the Owner, you need one.{{else}}Leave it empty for no email.{{end}}</small></label>
+    <button type="submit">Save</button>
+  </form>
+  <dl class="facts">
+    <dt>Username</dt><dd>{{.User.Username}}</dd>
+    <dt>Role</dt><dd>{{roleName .User.Role}} <span class="hint">· the Owner chooses each person's role</span></dd>
+    <dt>Groups</dt><dd>{{with .Groups}}{{joinAnd .}}{{else}}None{{end}}</dd>
+  </dl>
+</section>
+<section class="card" id="appearance">
+  <div class="card-head"><h2>Appearance</h2></div>
+  <p>Light or dark, for these pages and Roostack's.</p>
+  <form method="post" action="/account/mode">
+    <fieldset class="acct-modes">
+      <legend class="sr-only">Light or dark</legend>
+      {{range $m := list "auto" "light" "dark"}}
+      <label class="check"><input type="radio" name="mode" value="{{$m}}"{{if eq $m (or $.Mode "auto")}} checked{{end}}>
+        <span>{{if eq $m "auto"}}Like this device{{else if eq $m "light"}}Light{{else}}Dark{{end}}</span></label>
+      {{end}}
+    </fieldset>
+    <button type="submit" class="secondary">Save</button>
+  </form>
+  <p class="hint">These pages use the lab's colours.{{if ne .User.Role "member"}} Colours for Roostack's pages are a choice of your own,
+    on Roostack's Appearance page.{{end}}</p>
+</section>
+{{end}}
+
+{{define "acct-security"}}
+<section class="card" id="password">
+  <div class="card-head"><h2>Password</h2></div>
+  {{if .Temporary}}{{notice "warn" "You're using a temporary password. Choose your own below to continue."}}{{end}}
+  <details class="acct-change"{{if or .Temporary .Error}} open{{end}}><summary class="button secondary">Change your password…</summary>
+  <form method="post" action="{{.Action}}">
+    <label>Current password <input name="current" type="password" autocomplete="current-password" required></label>
+    <label>New password <input name="password" type="password" autocomplete="new-password" required minlength="12">
+      <small>At least 12 characters. A few random words works well.</small></label>
+    <label>Confirm new password <input name="confirm" type="password" autocomplete="new-password" required></label>
+    <button type="submit">Change password</button>
+  </form></details>
+</section>
+<section class="card" id="two-factor">
+  <div class="card-head"><h2>Two-factor</h2>{{if .User.TOTPSecret}}<span class="pill pill-ok">On</span>{{else}}<span class="pill">Off</span>{{end}}</div>
+  {{if .User.TOTPSecret}}
+  <p>Signing in asks for a code from your authenticator app as well as your password.{{if eq .User.Role "owner"}} As the Owner, you need it.{{end}}</p>
+  <p><a class="button secondary" href="/account/two-factor">Use a new authenticator app…</a></p>
+  {{else}}
+  <p>With two-factor, signing in will ask for a code from an app on your phone as well as your password, which protects your account if
+    your password is ever stolen.{{if .TwoFactorRequired}} Roostack's pages can be reached from the internet, so as an Admin you need it.{{end}}</p>
+  <p><a class="button{{if not .TwoFactorRequired}} secondary{{end}}" href="/account/two-factor">Turn on two-factor…</a></p>
+  {{end}}
+</section>
+<section class="card" id="signed-in">
+  <div class="card-head"><h2>Where you're signed in</h2></div>
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Device</th><th class="hide-phone">Signed in</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {{range .Sessions}}<tr>
+        <td>{{capitalise (or .Device "an unknown browser")}}{{if .This}}<small class="hint"> · this device</small>{{else if .PagesOnly}}<small class="hint"> · Roostack's pages</small>{{end}}</td>
+        <td class="hide-phone">{{date .SignedIn}}</td>
+        <td>{{if .This}}Now{{else}}{{when .LastUsed}}{{end}}</td>
+        <td>{{if not .This}}<form method="post" action="/account/sign-out"><input type="hidden" name="session" value="{{.Hash}}">
+          <button type="submit" class="table-action quiet">Sign out</button></form>{{end}}</td>
+      </tr>{{end}}
+    </tbody>
+  </table></div>
+  {{if gt (len .Sessions) 1}}<form method="post" action="/account/sign-out-others"><button type="submit" class="secondary">Sign out everywhere else</button></form>{{end}}
+  <p class="hint">Signing out here will end your access to the services that use the sign-in page straight away. Apps that keep their own
+    sign-in, such as Immich, will stay signed in until you sign out there too.</p>
+</section>
+{{end}}
+
+{{define "acct-two-factor"}}
+<section class="card">
+  {{with .TwoFactor}}
+  {{if .Change}}<p>Roostack will ask for codes from the new app once you've added it, and the old one will stop working.</p>
+  {{else if $.TwoFactorRequired}}<p>{{if eq $.User.Role "owner"}}As the Owner, you{{else}}Roostack's pages can be reached from the internet, so as an Admin you{{end}} need to turn on two-factor authentication before continuing.
+    It protects the lab if your password is ever stolen.</p>{{end}}
+  <ol class="steps">
+    <li>Install an authenticator app on your phone, such as Aegis, 2FAS, Google Authenticator, or your password manager.</li>
+    <li>In the app, add an account and scan this code:
+      {{with .QR}}<div class="qr-box">{{.}}</div>{{end}}
+      <small>Can't scan it? Enter this key instead: <code class="secret">{{.SecretFmt}}</code>
+        On a device with an authenticator app, you can also <a href="{{.URL}}">open this link</a>.</small>
+    </li>
+    <li>Enter the 6-digit code the app shows.</li>
+  </ol>
+  <form method="post" action="{{$.Action}}">
+    <input type="hidden" name="secret" value="{{.Secret}}">
+    {{if .Change}}<label>Your password <input name="current" type="password" autocomplete="current-password" required></label>{{end}}
+    <label>Code
+      <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required{{if not .Change}} autofocus{{end}}>
+    </label>
+    <button type="submit">{{if .Change}}Use this app{{else}}Turn on{{end}}</button>
+    <a class="button secondary" href="/account/security">Cancel</a>
+  </form>
+  {{end}}
+</section>
+{{end}}
+
+{{define "acct-notifications"}}
+<section class="card">
+  <div class="card-head"><h2>Email and notifications</h2></div>
+  {{if not .MailReady}}{{notice "info" (printf "Roostack can't send email yet: %s" (or (and .CanSetMail "set up the mail server in Settings → Email.") "ask your lab's Owner to set it up."))}}{{end}}
+  {{with .Email}}<p>Roostack will email you at <strong>{{.}}</strong> (<a href="/account">change it</a>).</p>
+  {{else}}<p>You haven't given an email address, so Roostack won't email you. <a href="/account">Add one</a> to choose what you get.</p>{{end}}
+  {{with .NotifyGroups}}<form method="post" action="/account/notifications">
+    <fieldset>
+      <legend>Email me about</legend>
+      {{range .}}
+      <label class="check"><input type="checkbox" name="notify" value="{{.ID}}"{{if index $.Chosen .ID}} checked{{end}}>
+        <span>{{.Title}}<small>{{.Hint}}</small></span></label>
+      {{end}}
+    </fieldset>
+    <button type="submit">Save</button>
+  </form>{{end}}
+  <p class="hint">Security emails about your own account always come: a password or two-factor change, a reset, a sign-in from a
+    new browser, or codes locked after wrong tries.</p>
+</section>
+{{end}}

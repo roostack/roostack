@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"roostack.cloud/roostack/internal/auth"
 	"testing/fstest"
 )
 
@@ -96,7 +98,7 @@ func TestHelpServed(t *testing.T) {
 // Every logged-in page links to the help, and the login page to getting
 // back in.
 func TestHelpLinks(t *testing.T) {
-	h, _ := loggedIn(t, "member")
+	h, _ := loggedIn(t, auth.RoleAdmin)
 	if _, body := h.get("/"); !strings.Contains(body, `href="/help/"`) {
 		t.Error("no Help link in the navigation")
 	}

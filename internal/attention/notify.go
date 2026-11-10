@@ -84,10 +84,13 @@ func GroupsFor(role string) []NotifyGroup {
 
 // Audit actions that are security events (beside the existing ones).
 const (
-	AuditLocked       = "2fa locked"
-	AuditNewDevice    = "new device"
-	AuditServerJoined = "server joined"
-	AuditGuestJoined  = "storage guest joined"
+	AuditLocked    = "2fa locked"
+	AuditNewDevice = "new device"
+	// AuditTwoFactorChanged: someone moved their two-factor to a new
+	// authenticator app (Your account, SPEC.md §5.3).
+	AuditTwoFactorChanged = "2fa changed"
+	AuditServerJoined     = "server joined"
+	AuditGuestJoined      = "storage guest joined"
 	// Pausing public access and opening it again (SPEC.md §6.16), with
 	// what in the detail ("everything", "services built with php",
 	// "Lychee"): every Owner hears at once, so a pause nobody expected is
@@ -300,6 +303,8 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 		return "Your password was changed (" + when + ").", "", e.Username
 	case "2fa enabled":
 		return "Two-factor authentication was turned on for your account (" + when + ").", "", e.Username
+	case AuditTwoFactorChanged:
+		return "Two-factor authentication for your account was moved to a new authenticator app (" + when + "). If it wasn't you, tell your lab's Owner.", "", e.Username
 	case AuditNewDevice:
 		return "Someone logged in to your account from a new browser or device (" + when + ", " + e.Detail + "). If it wasn't you, change your password.", "", e.Username
 	case AuditLocked:

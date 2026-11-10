@@ -215,6 +215,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.U
 	if err := s.Store.CreateSessionAt(r.Context(), sessionOrigin(r), authkit.HashToken(token), u.ID, expires, remember); err != nil {
 		return err
 	}
+	s.noteSessionDevice(r, authkit.HashToken(token))
 	c := &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r)}
 	if remember {
 		c.Expires = expires
@@ -272,7 +273,12 @@ func deviceDescription(r *http.Request) string {
 			ip = strings.TrimSpace(fwd[len(fwd)-1])
 		}
 	}
-	ua := r.UserAgent()
+	return "from " + ip + ", " + deviceName(r.UserAgent())
+}
+
+// deviceName is the browser and system as a browser names them, shortened:
+// "Firefox on Linux", or "an unknown browser".
+func deviceName(ua string) string {
 	browser := "an unknown browser"
 	for _, b := range []string{"Firefox", "Edg", "Chrome", "Safari"} {
 		if strings.Contains(ua, b+"/") {
@@ -293,5 +299,13 @@ func deviceDescription(r *http.Request) string {
 			break
 		}
 	}
-	return "from " + ip + ", " + browser + system
+	return browser + system
+}
+
+// noteSessionDevice records the browser a session was just signed in from,
+// for Your account (SPEC.md §5.3).
+func (s *Server) noteSessionDevice(r *http.Request, hash string) {
+	if err := s.Store.SetSessionDevice(r.Context(), hash, deviceName(r.UserAgent())); err != nil {
+		s.Log.Error("recording a session's device", "err", err)
+	}
 }

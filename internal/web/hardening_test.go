@@ -60,7 +60,7 @@ func TestRestorePageReflection(t *testing.T) {
 // The page with a two-factor key being set up isn't cached.
 func TestTwoFactorPageNotCached(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
-	resp, err := h.client.Get(h.srv.URL + "/account/2fa")
+	resp, err := h.client.Get(h.srv.URL + "/account/two-factor")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,8 +87,8 @@ func TestMoreAudited(t *testing.T) {
 	}
 
 	h, _ = loggedIn(t, auth.RoleMember)
-	h.post("/account/notifications", url.Values{"email": {"sam@example.com"}}, h.srv.URL)
-	h.post("/account/notifications", url.Values{"email": {"sam@example.com"}}, h.srv.URL)
+	h.post("/account", url.Values{"email": {"sam@example.com"}}, h.srv.URL)
+	h.post("/account", url.Values{"email": {"sam@example.com"}}, h.srv.URL)
 	logs, _ = h.store.RecentAudit(ctx, 5)
 	n := 0
 	for _, e := range logs {

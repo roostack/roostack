@@ -572,9 +572,14 @@ Network=roostack-immich.network</code></pre>
   <label class="theme-swatch" data-palette="nord"><input type="radio" name="g-palette" value="nord"><span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>Nord</span></label>
   <label class="theme-swatch" data-palette="gruvbox"><input type="radio" name="g-palette" value="gruvbox"><span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>Gruvbox</span></label>
 </div>`},
-			{"Services someone can use", "ul.signin-apps: each a link with its logo tile, title and address, on the sign-in page.", `
+			{"A list of choices with logos", "ul.signin-apps: each a link with its logo tile, title and address, one under another (the photo migration's choices).", `
 <ul class="signin-apps">
   <li><a href="#"><span class="logo-tile">{{icon "services"}}</span><span><strong>Mealie</strong><small>recipes.smith.family</small></span></a></li>
+</ul>`},
+			{"Services someone can use", "ul.acct-apps: Your account's services as tiles, two across on a wide screen.", `
+<ul class="acct-apps">
+  <li><a href="#"><span class="logo-tile">{{icon "services"}}</span><span><strong>Mealie</strong><small>recipes.smith.family</small></span></a></li>
+  <li><a href="#"><span class="logo-tile">{{icon "services"}}</span><span><strong>Forgejo</strong><small>git.smith.family</small></span></a></li>
 </ul>`},
 			{"A group", "ul.group-list of details: the group's name and what it can use, then its form under Change….", `
 <ul class="group-list"><li><details><summary><span class="group-name"><strong>Family</strong><small class="hint">5 people · Mealie</small></span><span class="more">Change…</span></summary><p class="hint">The group's form.</p></details></li></ul>`},
@@ -689,9 +694,10 @@ func gallerySamples() map[string]any {
 		"UptimeDays": galleryUptime(),
 		"Chart": barChart{Title: "Visitors each day", Bars: bars([]int64{40, 55, 48, 70, 95, 62, 35},
 			[]string{"Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Today"}, []string{"40 visitors", "55 visitors", "48 visitors", "70 visitors", "95 visitors", "62 visitors", "35 visitors"})},
-		"Ranks":            topCountries(map[string]int64{"AU": 1130, "NZ": 96, "GB": 41}, 1284, 4),
-		"InstallService":   ServiceView{ServiceDetail: node.ServiceDetail{Install: install}},
-		"Account":          areaNav{Label: "Your account", Groups: []settingsGroup{{Areas: accountAreas}}, Active: "appearance", Tabs: true},
+		"Ranks":          topCountries(map[string]int64{"AU": 1130, "NZ": 96, "GB": 41}, 1284, 4),
+		"InstallService": ServiceView{ServiceDetail: node.ServiceDetail{Install: install}},
+		"Account": areaNav{Label: "Your account", Groups: []settingsGroup{{Areas: []settingsArea{
+			{"account", "", "Account", "#"}, {"security", "", "Security", "#"}, {"notifications", "", "Notifications", "#"}}}}, Active: "security", Tabs: true},
 		"UpdatesActivity":  view("Installing updates", "", false, "==> Installing updates", "Unpacking curl (8.14.1-2+deb13u5) ..."),
 		"FinishedActivity": view("Installed 3 updates: curl, libcurl4t64, tzdata.", "", true, "==> Installing updates", "==> Done"),
 		"FailedActivity":   view("Installing updates", "exit status 100", true, "E: Could not get lock /var/lib/dpkg/lock-frontend", "==> Failed: exit status 100"),

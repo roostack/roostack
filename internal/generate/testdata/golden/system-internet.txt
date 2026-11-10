@@ -119,7 +119,7 @@ WantedBy=default.target
 			rate_limit {
 				zone roostack-admin-login {
 					match {
-						path /login /login/* /backups/recovery-key /backups/recovery-key/*
+						path /login /login/* /backups/recovery-key /backups/recovery-key/* /account/password /account/password/* /account/two-factor /account/two-factor/*
 					}
 					key {remote_host}
 					events 10

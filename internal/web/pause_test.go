@@ -105,11 +105,9 @@ func TestPauseRoles(t *testing.T) {
 		t.Errorf("an Admin lifting: %d", code)
 	}
 	h, fm = loggedIn(t, auth.RoleMember)
-	if code, _ := h.get("/pause"); code != http.StatusForbidden {
-		t.Errorf("a Member's pause page: %d", code)
-	}
-	if code, _ := h.post("/pause", url.Values{"scope": {"all"}}, h.srv.URL); code != http.StatusForbidden || fm.all != nil {
-		t.Errorf("a Member pausing: %d", code)
+	h.toAccount(http.MethodGet, "/pause")
+	if h.toAccount(http.MethodPost, "/pause"); fm.all != nil {
+		t.Error("a Member paused public access")
 	}
 }
 

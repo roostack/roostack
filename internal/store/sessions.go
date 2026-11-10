@@ -115,3 +115,54 @@ func (s *Store) DeleteExpiredSessions(ctx context.Context, idle time.Duration) e
 	_, err = s.db.ExecContext(ctx, `DELETE FROM sso_tokens WHERE expires_at <= ?`, now.Unix())
 	return err
 }
+
+// SetSessionDevice records the browser and system a session was signed in
+// from ("Firefox on Linux"), for Your account (SPEC.md §5.3).
+func (s *Store) SetSessionDevice(ctx context.Context, tokenHash, device string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE sessions SET device = ? WHERE token_hash = ?`, device, tokenHash)
+	return err
+}
+
+// Session is one of someone's sessions, for Your account's "Where you're
+// signed in" (SPEC.md §5.3).
+type Session struct {
+	Hash string
+	// Origin is "" for Roostack's own pages, OriginSignIn for the sign-in
+	// page; SignIn is the sign-in a session of Roostack's own pages came
+	// from, if any.
+	Origin, SignIn string
+	Device         string
+	SignedInAt     time.Time
+	LastSeen       time.Time
+	Expires        time.Time
+}
+
+// UserSessions lists someone's sessions that haven't expired, newest
+// first, but not the setup pages', which end when those close.
+func (s *Store) UserSessions(ctx context.Context, userID int64) ([]Session, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT token_hash, origin, COALESCE(sign_in, ''), device, signed_in_at, last_seen, expires_at
+		FROM sessions WHERE user_id = ? AND origin != ? AND expires_at > ? ORDER BY signed_in_at DESC, token_hash`,
+		userID, OriginSetup, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []Session
+	for rows.Next() {
+		var x Session
+		var at, seen, exp int64
+		if err := rows.Scan(&x.Hash, &x.Origin, &x.SignIn, &x.Device, &at, &seen, &exp); err != nil {
+			return nil, err
+		}
+		x.SignedInAt, x.LastSeen, x.Expires = time.Unix(at, 0), time.Unix(seen, 0), time.Unix(exp, 0)
+		list = append(list, x)
+	}
+	return list, rows.Err()
+}
+
+// DeleteUserSession signs out one of someone's sessions, and the sessions
+// of Roostack's own pages made from it; another person's isn't touched.
+func (s *Store) DeleteUserSession(ctx context.Context, userID int64, tokenHash string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash = ? AND user_id = ?`, tokenHash, userID)
+	return err
+}

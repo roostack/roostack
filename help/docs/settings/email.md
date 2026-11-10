@@ -41,8 +41,8 @@ before anything else.
 
 ## Notifications
 
-On your account's **Email and notifications** page, choose what Roostack
-emails you about:
+On the **Notifications** tab of [Your account](people.md#your-account),
+choose what Roostack emails you about:
 
 Problems
 :   Backups failing, a disk running low, a service or server that stopped

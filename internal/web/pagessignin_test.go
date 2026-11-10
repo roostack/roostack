@@ -80,8 +80,9 @@ func TestPagesSignIn(t *testing.T) {
 	if session == nil || session.Expires.Before(time.Now().Add(29*24*time.Hour)) {
 		t.Fatalf("session cookie %+v: should last as long as the sign-in", session)
 	}
-	if resp, _ := call(t, h.srv, c, "GET", pagesHost, "/", nil); resp.StatusCode != 200 {
-		t.Fatalf("signed in to Roostack's pages: %d", resp.StatusCode)
+	// A Member, sent on to Your account at the sign-in page's address.
+	if resp, _ := call(t, h.srv, c, "GET", pagesHost, "/", nil); resp.Header.Get("Location") != "https://"+signInHost+"/" {
+		t.Fatalf("signed in to Roostack's pages: %d %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 	// A code works once.
 	c.Jar.(*plainJar).cookies[pagesStateCookie] = &http.Cookie{Name: pagesStateCookie, Value: "x"}
@@ -93,12 +94,13 @@ func TestPagesSignIn(t *testing.T) {
 
 	// Not signed out for inactivity: a Member's lasts as long as the sign-in.
 	h.store.TouchSession(ctx, authkit.HashToken(session.Value), time.Now().Add(-5*time.Hour))
-	if resp, _ := call(t, h.srv, c, "GET", pagesHost, "/", nil); resp.StatusCode != 200 {
-		t.Errorf("a Member's session after 5 hours: %d", resp.StatusCode)
+	if resp, _ := call(t, h.srv, c, "GET", pagesHost, "/", nil); resp.Header.Get("Location") != "https://"+signInHost+"/" {
+		t.Errorf("a Member's session after 5 hours: %d %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
-	// The sign-in page lists Roostack's pages.
-	if _, body := call(t, srv, c, "GET", signInHost, "/", nil); !strings.Contains(body, "https://"+pagesHost+"/") {
-		t.Error("the sign-in page's home doesn't list Roostack's pages")
+	// The sign-in page's home is Your account, without Roostack's pages
+	// for a Member.
+	if _, body := call(t, srv, c, "GET", signInHost, "/", nil); !strings.Contains(body, "<title>Your services") || strings.Contains(body, "https://"+pagesHost+"/") {
+		t.Error("the sign-in page's home isn't a Member's Your account")
 	}
 
 	// Signing out of the sign-in page ends both.
@@ -225,7 +227,7 @@ func TestPagesSignInEdges(t *testing.T) {
 	if _, ok := c.Jar.(*plainJar).cookies[signInCookie]; ok {
 		t.Error("signed in to the sign-in page with a temporary password")
 	}
-	if resp, _ := call(t, h.srv, c, "GET", pagesHost, "/", nil); resp.Header.Get("Location") != "/account" {
+	if resp, _ := call(t, h.srv, c, "GET", pagesHost, "/", nil); resp.Header.Get("Location") != "/account/security" {
 		t.Errorf("Roostack's pages with a temporary password: %d %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 
@@ -268,8 +270,10 @@ func TestPagesSignInEdges(t *testing.T) {
 	if resp, _ := call(t, h.srv, victim, "GET", pagesHost, "/", nil); !strings.HasPrefix(resp.Header.Get("Location"), pathPagesStart) {
 		t.Errorf("once Caddy serves the sign-in page: %q", resp.Header.Get("Location"))
 	}
+	// With no service using single sign-on too: the sign-in page is also
+	// Your account (SPEC.md §5.3).
 	fs.on["mealie"] = false
-	if resp, _ := call(t, h.srv, victim, "GET", pagesHost, "/", nil); resp.Header.Get("Location") != "/login" {
+	if resp, _ := call(t, h.srv, victim, "GET", pagesHost, "/", nil); !strings.HasPrefix(resp.Header.Get("Location"), pathPagesStart) {
 		t.Errorf("without single sign-on: %q", resp.Header.Get("Location"))
 	}
 

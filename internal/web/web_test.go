@@ -362,7 +362,7 @@ func TestCrashBecomesErrorPage(t *testing.T) {
 	h := newHarness(t, "")
 	h.server.Services = func(context.Context) ([]ServiceView, error) { panic("boom") }
 	hash, _ := authkit.HashPassword("a long password")
-	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleMember})
+	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleAdmin})
 	h.post("/login", url.Values{"username": {"mum"}, "password": {"a long password"}}, h.srv.URL)
 	code, body := h.get("/")
 	if code != http.StatusInternalServerError || !strings.Contains(body, "Something went wrong") {

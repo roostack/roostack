@@ -116,19 +116,15 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, "/")
 }
 
-// twoFactorPage turns on two-factor: a page of the account, or for the
-// Owner while the setup wizard lasts its first step (twoFactorInWizard),
-// shown like its other steps.
+// twoFactorPage is the setup wizard's first step for the Owner, turning
+// on two-factor (twoFactorInWizard); otherwise it's turned on in Your
+// account (youraccount.go).
 func (s *Server) twoFactorPage(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if s.twoFactorElsewhere(w, r, u) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store") // the key being set up
-	if u.TOTPSecret != "" {
-		s.renderAccount(w, "twofactor", "2fa", map[string]any{"User": u, "Enabled": true})
-		return
-	}
 	secret, err := authkit.NewTOTPSecret()
 	if err != nil {
 		s.serverError(w, err)
@@ -152,23 +148,15 @@ func (s *Server) twoFactorElsewhere(w http.ResponseWriter, r *http.Request, u *s
 	return true
 }
 
-// renderTwoFactor shows the two-factor page where r asked for it.
+// renderTwoFactor shows the wizard's two-factor step.
 func (s *Server) renderTwoFactor(w http.ResponseWriter, r *http.Request, data map[string]any) {
-	if r.URL.Path == wizardTwoFactor {
-		data["Wizard"] = true
-		s.render(w, "twofactor", data)
-		return
-	}
-	s.renderAccount(w, "twofactor", "2fa", data)
+	data["Wizard"] = true
+	s.render(w, "twofactor", data)
 }
 
 func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if s.twoFactorElsewhere(w, r, u) {
-		return
-	}
-	if u.TOTPSecret != "" {
-		redirect(w, r, "/account/2fa")
 		return
 	}
 	// The new secret round-trips through the form. Tampering with it only
@@ -187,11 +175,7 @@ func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "2fa enabled", "")
-	if r.URL.Path == wizardTwoFactor {
-		redirect(w, r, s.wizardNext(r))
-		return
-	}
-	redirect(w, r, nextOf(r))
+	redirect(w, r, s.wizardNext(r))
 }
 
 func (s *Server) twoFactorData(r *http.Request, u *store.User, secret, errMsg string) map[string]any {

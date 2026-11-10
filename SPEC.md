@@ -266,7 +266,7 @@ One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-2
 
 #### Signing in
 
-- **Where:** `my.<domain>` (a reserved subdomain, like `roost`), with Your account (§5.3); it was `login.<domain>` until 2026-11-11. It serves only the sign-in pages and the OIDC endpoints; Roostack's own pages stay at `roost.<domain>`, private as before.
+- **Where:** `my.<domain>` (a reserved subdomain, like `roost`), with Your account (§5.3); it was `login.<domain>` until 2026-11-11. It serves the sign-in pages, the OIDC endpoints, and Your account; Roostack's own pages stay at `roost.<domain>`, private as before.
 - **How:** the same sign-in as Roostack's (username or email, password, then the second factor where it applies), and passkeys there when Roostack has them (§5, "Passkeys later"; a new module, `go-webauthn`, to agree then).
 - **Two-factor:** as for Roostack (Owners always; Admins while anything signs in from outside), and the Owner can require it of everyone.
 - **Decided (2026-10-20):**
@@ -821,7 +821,7 @@ New revisions are on the same registry branch, checked end to end on VM2 (docs/A
   - **Later:** Lychee (it knows only a few named providers, none at our addresses) and Ghost (it would need a custom adapter).
   - **Not sensible:** Jellyfin, Plex, ntfy, and Radicale. Their own apps sign in themselves, and Radicale's header login would leave its CalDAV paths open.
 
-### 5.3 Your account: a section for everyone — Locked (2026-11-10), the maintainer's decisions; not built
+### 5.3 Your account: a section for everyone — Locked (2026-11-10), the maintainer's decisions; built (2026-11-11) apart from the domain itself and VPN devices
 
 **What the maintainer asked (2026-11-10):** a part of Roostack that isn't for running the lab, where each person's own settings live, so that a Member never needs Roostack's pages; its first new use will be each person's WireGuard devices (remote access for people, §10.2, to be designed next). Mock-ups and the reasoning: [docs/mockups/your-account](docs/mockups/your-account/README.md).
 
@@ -841,6 +841,16 @@ New revisions are on the same registry branch, checked end to end on VM2 (docs/A
 - **A lab without an address** has no `my.<domain>`, so Roostack will serve the same section at its own address (`/account` and the rest), beside its own login, with the same header and tabs.
 - **Where you're signed in:** Roostack keeps each sign-in's browser (from its user agent, shortened to "Firefox on Linux") and when it was last used, beside the sign-ins it already keeps (§5.2). Signing one out ends it and the Roostack session linked to it, as signing out does now. Apps that keep their own sign-in stay signed in, and the page says so.
 - **Safety:** the section is public whenever the sign-in page is (any public service using single sign-on, or a lab on the internet). Changing the password or two-factor asks for the current password, as now; adding a WireGuard device will ask for the two-factor code again.
+
+**As built (2026-11-11):** `internal/web/youraccount.go` and `templates/youraccount.html`; store step 39 adds each session's `device`.
+
+- **`my.<domain>` is always served once the lab has an address,** not only while a service uses single sign-on, since it's everyone's front door now; it's public under the same rules as before (§5.2). So Roostack's pages sign in there whenever Caddy serves it, with or without single sign-on, and there's one sign-in for everything.
+- **The same handlers serve Your account at `roost.<domain>/account`** with Roostack's own session (the Services tab at `/account/services`): for a lab without an address, and for the steps Roostack asks for before anything else (a temporary password on Security, two-factor, the Owner's email address on Account), which can come before there's a sign-in page and before someone has a sign-in there. Otherwise a page opened there goes to the same page at `my.`.
+- **Services lists every service someone can open,** not only those with single sign-on: those they may use with single sign-on, those that keep their own sign-in (marked so, as the mock-up's Vaultwarden is), and those turned off for now (marked, without a link), since Members lose Roostack's Home, which listed them all.
+- **Members are sent to Your account from every page of Roostack's,** the Owner's pages included, apart from the photo migration's own (§8.5); Owners and Admins open **Appearance** at `/appearance`, linked at the bottom of the sidebar beside Help, and their name there opens Your account.
+- **Last used** is when the sign-in was last used: a page at `my.`, signing in to an app, an app refreshing its tokens, a visit to a walled service, or Roostack's pages from it, saved at most every 30 seconds.
+- **Moving two-factor to a new authenticator app** asks for the password as well as a code from the new app, so that a browser left signed in can't take two-factor over; it's audited and emailed like turning it on. Changing the password and moving two-factor get the strict rate limit of login pages.
+- **Notifications:** Members have no groups to choose today (each needs a permission they don't have), so their tab shows only that their own security emails always come.
 
 **The domain itself — Locked (2026-11-10), the maintainer's decisions; not built.** What someone gets at the bare domain (`smith.family`, or a roost.ac name) is the Owner's choice, made by Owners and Admins on **Your lab's address**:
 

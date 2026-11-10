@@ -136,17 +136,10 @@ func TestSecretFieldsAreNotEchoed(t *testing.T) {
 
 func TestMembersCannotManage(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
-	if _, body := h.get("/services"); strings.Contains(body, `href="/catalog"`) || strings.Contains(body, `href="/services/vaultwarden"`) {
-		t.Error("members must not see management controls")
+	for _, path := range []string{"/", "/services", "/catalog", "/install/immich", "/services/vaultwarden", "/services/vaultwarden/remove", "/settings"} {
+		h.toAccount(http.MethodGet, path)
 	}
-	for _, path := range []string{"/catalog", "/install/immich", "/services/vaultwarden", "/services/vaultwarden/remove", "/settings"} {
-		if code, _ := h.get(path); code != http.StatusForbidden {
-			t.Errorf("GET %s: %d, want 403", path, code)
-		}
-	}
-	if code, _ := h.post("/services/vaultwarden/remove", nil, h.srv.URL); code != http.StatusForbidden {
-		t.Errorf("POST remove: %d, want 403", code)
-	}
+	h.toAccount(http.MethodPost, "/services/vaultwarden/remove")
 }
 
 func TestApplyBanner(t *testing.T) {
@@ -165,12 +158,11 @@ func TestApplyBanner(t *testing.T) {
 
 func TestNavigationByRole(t *testing.T) {
 	for role, want := range map[string][]string{
-		auth.RoleOwner:  {`href="/services"`, `href="/backups"`, `href="/settings"`, `href="/account"`},
-		auth.RoleAdmin:  {`href="/services"`, `href="/backups"`, `href="/account"`},
-		auth.RoleMember: {`href="/services"`, `href="/account"`},
+		auth.RoleOwner: {`href="/services"`, `href="/backups"`, `href="/settings"`, `href="/account"`},
+		auth.RoleAdmin: {`href="/services"`, `href="/backups"`, `href="/account"`},
 	} {
 		h, _ := loggedIn(t, role)
-		_, body := h.get("/account")
+		_, body := h.get("/appearance")
 		for _, w := range want {
 			if !strings.Contains(body, w) {
 				t.Errorf("%s: nav missing %s", role, w)
@@ -366,8 +358,8 @@ func TestTemporaryPasswordMustBeChanged(t *testing.T) {
 	}
 	_, body := h.post("/account/password", url.Values{"current": {"temporary password"},
 		"password": {"my own long password"}, "confirm": {"my own long password"}}, h.srv.URL)
-	if !strings.Contains(body, "<title>Home · Roostack</title>") {
-		t.Error("after choosing a password, the user should carry on to the dashboard")
+	if !strings.Contains(body, "<title>Your services · ") {
+		t.Error("after choosing a password, a Member should carry on to Your account")
 	}
 	if u, _ := h.store.UserByUsername(context.Background(), "dad"); u.MustChangePassword {
 		t.Error("flag not cleared")
@@ -508,18 +500,18 @@ func TestServiceSettings(t *testing.T) {
 }
 
 func TestAppearance(t *testing.T) {
-	h, _ := loggedIn(t, auth.RoleMember)
-	_, body := h.get("/account/appearance")
+	h, _ := loggedIn(t, auth.RoleAdmin)
+	_, body := h.get("/appearance")
 	if !strings.Contains(body, `name="palette" value="teal" checked`) || !strings.Contains(body, `data-palette="catppuccin" data-mode="dark"`) {
 		t.Fatal("account page should offer every theme, with the default chosen")
 	}
-	h.post("/account/appearance", url.Values{"palette": {"catppuccin"}, "mode": {"dark"}}, h.srv.URL)
+	h.post("/appearance", url.Values{"palette": {"catppuccin"}, "mode": {"dark"}}, h.srv.URL)
 	_, body = h.get("/services")
 	if !strings.Contains(body, `<html lang="en" data-palette="catppuccin" data-mode="dark">`) {
 		t.Error("pages should use the chosen theme and mode")
 	}
 	// Saved in the background (htmx): no redirect, nothing to swap.
-	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/account/appearance", strings.NewReader("palette=nord&mode=auto"))
+	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/appearance", strings.NewReader("palette=nord&mode=auto"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Origin", h.srv.URL)
 	req.Header.Set("HX-Request", "true")
@@ -533,25 +525,25 @@ func TestAppearance(t *testing.T) {
 	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-palette="nord">`) {
 		t.Error("background save not applied")
 	}
-	if code, _ := h.post("/account/appearance", url.Values{"palette": {"../../evil"}, "mode": {"dark"}}, h.srv.URL); code != http.StatusBadRequest {
+	if code, _ := h.post("/appearance", url.Values{"palette": {"../../evil"}, "mode": {"dark"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("unknown theme accepted: %d", code)
 	}
 }
 
 func TestAccent(t *testing.T) {
-	h, _ := loggedIn(t, auth.RoleMember)
-	h.post("/account/appearance", url.Values{"palette": {"catppuccin"}, "accent-catppuccin": {"peach"}, "mode": {"auto"}}, h.srv.URL)
-	_, body := h.get("/account/appearance")
+	h, _ := loggedIn(t, auth.RoleAdmin)
+	h.post("/appearance", url.Values{"palette": {"catppuccin"}, "accent-catppuccin": {"peach"}, "mode": {"auto"}}, h.srv.URL)
+	_, body := h.get("/appearance")
 	if !strings.Contains(body, `<html lang="en" data-palette="catppuccin" data-accent="peach">`) ||
 		!strings.Contains(body, `name="accent-catppuccin" value="peach"
           checked`) {
 		t.Error("the chosen accent should be applied and selected")
 	}
-	if code, _ := h.post("/account/appearance", url.Values{"palette": {"catppuccin"}, "accent-catppuccin": {"red"}, "mode": {"auto"}}, h.srv.URL); code != http.StatusBadRequest {
+	if code, _ := h.post("/appearance", url.Values{"palette": {"catppuccin"}, "accent-catppuccin": {"red"}, "mode": {"auto"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("red isn't offered: %d", code)
 	}
 	// Switching to a theme without accents drops it.
-	h.post("/account/appearance", url.Values{"palette": {"nord"}, "accent-catppuccin": {"peach"}, "mode": {"auto"}}, h.srv.URL)
+	h.post("/appearance", url.Values{"palette": {"nord"}, "accent-catppuccin": {"peach"}, "mode": {"auto"}}, h.srv.URL)
 	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-palette="nord">`) {
 		t.Error("nord has no accents")
 	}
@@ -1586,9 +1578,7 @@ func TestInstallSummary(t *testing.T) {
 
 	// Only people who manage services see any of it.
 	m, _ := loggedIn(t, auth.RoleMember)
-	if code, _ := m.get("/install/immich/package.yaml"); code != http.StatusForbidden && code != http.StatusNotFound {
-		t.Errorf("a member reading a package file: %d", code)
-	}
+	m.toAccount(http.MethodGet, "/install/immich/package.yaml")
 }
 
 func TestListText(t *testing.T) {
@@ -1775,7 +1765,7 @@ func TestTurnServiceOff(t *testing.T) {
 	}
 	member, _ := loggedIn(t, auth.RoleMember)
 	member.server.Services = h.server.Services
-	if _, body := member.get("/"); !strings.Contains(body, "Turned off for now") {
+	if _, body := member.get(acctPagesServices); !strings.Contains(body, "Turned off for now") {
 		t.Error("Members aren't told it's turned off")
 	}
 }

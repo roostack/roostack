@@ -128,6 +128,8 @@ type Provider struct {
 	rotated  map[string]*rotation
 	handoffs map[string]*handoff
 	secrets  map[string]cachedSecret
+	// seen is when each sign-in's use was last saved (Seen).
+	seen map[string]time.Time
 }
 
 // authCode is a code an app swaps for tokens, kept in memory: a restart
@@ -168,6 +170,38 @@ type handoff struct {
 type cachedSecret struct {
 	value []byte
 	until time.Time
+}
+
+// seenEvery limits how often a sign-in's last use is saved.
+const seenEvery = 30 * time.Second
+
+// Seen records that a sign-in (its session's token hash) was just used, at
+// most every seenEvery, for Your account's "Where you're signed in"
+// (SPEC.md §5.3): signing in to an app, an app refreshing its tokens, or
+// a visit to a walled service.
+func (p *Provider) Seen(ctx context.Context, session string) {
+	if session == "" {
+		return
+	}
+	now := p.now()
+	p.mu.Lock()
+	if p.seen == nil {
+		p.seen = map[string]time.Time{}
+	}
+	if now.Sub(p.seen[session]) < seenEvery {
+		p.mu.Unlock()
+		return
+	}
+	p.seen[session] = now
+	for k, at := range p.seen {
+		if now.Sub(at) > seenEvery {
+			delete(p.seen, k)
+		}
+	}
+	p.mu.Unlock()
+	if err := p.Store.TouchSession(ctx, session, now); err != nil {
+		p.Log.Error("recording a sign-in's use", "err", err)
+	}
 }
 
 func (p *Provider) now() time.Time {
@@ -476,6 +510,7 @@ func (p *Provider) refreshGrant(w http.ResponseWriter, r *http.Request, c Client
 	var rot *rotation
 	t, _, err := p.Store.LookupSSOToken(ctx, hash, store.TokenRefresh)
 	if err == nil && t.Service == c.ID {
+		p.Seen(ctx, t.Session)
 		if ok, err := p.Store.DeleteSSOToken(ctx, hash); err == nil && ok {
 			rot = p.rotate(hash, *t)
 		}

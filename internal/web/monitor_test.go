@@ -127,9 +127,7 @@ func TestMonitoringOwnChecks(t *testing.T) {
 
 	member, _ := loggedIn(t, auth.RoleMember)
 	withMonitor(member, &up)
-	if code, _ := member.get("/monitoring"); code != http.StatusForbidden && code != http.StatusNotFound {
-		t.Errorf("a Member opened Monitoring: %d", code)
-	}
+	member.toAccount(http.MethodGet, "/monitoring")
 }
 
 // fakeStatusPage is the manager's status page switch.

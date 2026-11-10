@@ -40,13 +40,14 @@ Logo
     take its place.
 
     Roostack's own pages use the dark version when the page is dark, which
-    your account's **Appearance** can choose apart from your device. The
+    each person's **Appearance** page can choose apart from their device. The
     sign-in and status pages follow each visitor's device.
 
 Colours
 :   One of Roostack's themes, for the sign-in and status pages, and for
-    Roostack's pages for anyone who hasn't chosen their own under
-    **Account → Appearance**. Light or dark follows each visitor's device.
+    Roostack's pages for anyone who hasn't chosen their own on their
+    **Appearance** page. It's also the look of Your account. Light or dark
+    follows each visitor's device, or their choice in Your account.
 
 ??? note "For technical users"
 

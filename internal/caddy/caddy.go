@@ -162,8 +162,9 @@ const (
 const SignInSubdomain = "my"
 
 // SignInLoginPaths get the strict rate limit when the sign-in page is
-// public: the password, then the code.
-var SignInLoginPaths = []string{"/sign-in"}
+// public: the password, then the code, and Your account's forms that ask
+// for the password again (SPEC.md §5.3).
+var SignInLoginPaths = []string{"/sign-in", "/account/password", "/account/two-factor"}
 
 // CheckPattern is the only path on a public address that reaches
 // Roostack: a check link with its token, nothing else (internal/public).
@@ -536,10 +537,11 @@ const LinkSubdomain = "link"
 const StatusSubdomain = "status"
 
 // AdminLoginPaths get the strict rate limit when the UI is public: logging
-// in (password, then code) and the recovery key's password-and-code check.
-// Not /setup: the setup code is too long to guess, and the wizard's pages
-// are under it.
-var AdminLoginPaths = []string{"/login", "/backups/recovery-key"}
+// in (password, then code), the recovery key's password-and-code check,
+// and Your account's forms that ask for the password again (SPEC.md
+// §5.3). Not /setup: the setup code is too long to guess, and the
+// wizard's pages are under it.
+var AdminLoginPaths = []string{"/login", "/backups/recovery-key", "/account/password", "/account/two-factor"}
 
 // Main renders the main Caddyfile.
 func Main(c MainConfig) (string, error) {

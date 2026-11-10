@@ -65,7 +65,7 @@ func (s *Server) twoFactorPath(r *http.Request, u *store.User) string {
 	if s.twoFactorInWizard(r, u) {
 		return wizardTwoFactor
 	}
-	return "/account/2fa"
+	return "/account/two-factor"
 }
 
 // wizardTwoFactor is the setup wizard's two-factor step.

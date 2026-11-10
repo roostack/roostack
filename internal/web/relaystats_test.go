@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -96,9 +97,7 @@ func TestRelayStats(t *testing.T) {
 	hm, fmm := loggedIn(t, auth.RoleMember)
 	fmm.relay = true
 	hm.server.Cloud = c
-	if code, _ := hm.get("/partials/relay-stats"); code == 200 {
-		t.Error("a Member sees the visitors")
-	}
+	hm.toAccount(http.MethodGet, "/partials/relay-stats")
 }
 
 // domainCloud is a linked Cloud relaying the lab's own domain, its proof

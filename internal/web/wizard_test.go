@@ -349,7 +349,7 @@ func TestTwoFactorWizardStep(t *testing.T) {
 		return resp.Request.URL.Path, string(body)
 	}
 
-	for _, path := range []string{"/", "/setup/timezone", "/account/2fa", "/settings/people"} {
+	for _, path := range []string{"/", "/setup/timezone", "/account/two-factor", "/settings/people"} {
 		if at, _ := landsOn(path); at != "/setup/two-factor" {
 			t.Errorf("%s without two-factor, in the wizard: ended at %s", path, at)
 		}
@@ -376,17 +376,17 @@ func TestTwoFactorWizardStep(t *testing.T) {
 	}
 
 	// After the wizard, an Owner whose two-factor was reset turns it on
-	// again on the account's page.
+	// again in Your account.
 	fs.p = setup.Progress{TimezoneDone: true, SSHDone: true, DomainLater: true, BackupLater: true}
 	h.store.ResetTOTP(ctx, id)
 	h.post("/logout", nil, h.srv.URL)
 	h.post("/login", url.Values{"username": {"tyris"}, "password": {"a long password"}}, h.srv.URL)
 	for _, path := range []string{"/", "/setup/two-factor"} {
-		if at, _ := landsOn(path); at != "/account/2fa" {
+		if at, _ := landsOn(path); at != "/account/two-factor" {
 			t.Errorf("%s after the wizard: ended at %s, want the account's page", path, at)
 		}
 	}
-	if _, body := landsOn("/account/2fa"); !strings.Contains(body, `action="/account/2fa"`) || !strings.Contains(body, `class="sidebar"`) ||
+	if _, body := landsOn("/account/two-factor"); !strings.Contains(body, `action="/account/two-factor"`) || !strings.Contains(body, `class="settings-nav area-tabs acct-tabs"`) ||
 		strings.Contains(body, "Step 1 of 5") {
 		t.Errorf("two-factor after the wizard isn't the account's page:\n%.4000s", body)
 	}

@@ -2974,7 +2974,7 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
 <nav class="settings-nav area-tabs" aria-label="Your account">
   
   
-  <a href="/account">Your account</a><a href="/account/2fa">Two-factor</a><a href="/account/notifications">Email and notifications</a><a href="/account/appearance" class="active" aria-current="page">Appearance</a>
+  <a href="#">Account</a><a href="#" class="active" aria-current="page">Security</a><a href="#">Notifications</a>
   
 </nav>
 </div>
@@ -2982,7 +2982,7 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
 <nav class="settings-nav area-tabs" aria-label="Your account">
   
   
-  <a href="/account">Your account</a><a href="/account/2fa">Two-factor</a><a href="/account/notifications">Email and notifications</a><a href="/account/appearance" class="active" aria-current="page">Appearance</a>
+  <a href="#">Account</a><a href="#" class="active" aria-current="page">Security</a><a href="#">Notifications</a>
   
 </nav>
 </div>
@@ -2993,7 +2993,7 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
             <p class="markup-label">In a template</p>
             <pre class="output">{{template &#34;area-nav&#34; .Account}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;nav class=&#34;settings-nav area-tabs&#34; aria-label=&#34;Your account&#34;&gt;&lt;a href=&#34;/account&#34;&gt;Your account&lt;/a&gt;&lt;a href=&#34;/account/2fa&#34;&gt;Two-factor&lt;/a&gt;&lt;a href=&#34;/account/notifications&#34;&gt;Email and notifications&lt;/a&gt;&lt;a href=&#34;/account/appearance&#34; class=&#34;active&#34; aria-current=&#34;page&#34;&gt;Appearance&lt;/a&gt;&lt;/nav&gt;</pre>
+            <pre class="output">&lt;nav class=&#34;settings-nav area-tabs&#34; aria-label=&#34;Your account&#34;&gt;&lt;a href=&#34;#&#34;&gt;Account&lt;/a&gt;&lt;a href=&#34;#&#34; class=&#34;active&#34; aria-current=&#34;page&#34;&gt;Security&lt;/a&gt;&lt;a href=&#34;#&#34;&gt;Notifications&lt;/a&gt;&lt;/nav&gt;</pre>
             
           </details>
         </div>
@@ -3465,8 +3465,8 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
         </div>
         
         <div class="example">
-          <h3>Services someone can use <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">ul.signin-apps: each a link with its logo tile, title and address, on the sign-in page.</p>
+          <h3>A list of choices with logos <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">ul.signin-apps: each a link with its logo tile, title and address, one under another (the photo migration&#39;s choices).</p>
           <div class="panels">
             <div class="panel" data-mode="light"><ul class="signin-apps">
   <li><a href="#"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span><strong>Mealie</strong><small>recipes.smith.family</small></span></a></li>
@@ -3485,6 +3485,36 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;ul class=&#34;signin-apps&#34;&gt;
   &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;3&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;14&#34; y=&#34;3&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;3&#34; y=&#34;14&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;14&#34; y=&#34;14&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span&gt;&lt;strong&gt;Mealie&lt;/strong&gt;&lt;small&gt;recipes.smith.family&lt;/small&gt;&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Services someone can use <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">ul.acct-apps: Your account&#39;s services as tiles, two across on a wide screen.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><ul class="acct-apps">
+  <li><a href="#"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span><strong>Mealie</strong><small>recipes.smith.family</small></span></a></li>
+  <li><a href="#"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span><strong>Forgejo</strong><small>git.smith.family</small></span></a></li>
+</ul></div>
+            <div class="panel" data-mode="dark"><ul class="acct-apps">
+  <li><a href="#"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span><strong>Mealie</strong><small>recipes.smith.family</small></span></a></li>
+  <li><a href="#"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span><strong>Forgejo</strong><small>git.smith.family</small></span></a></li>
+</ul></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;ul class=&#34;acct-apps&#34;&gt;
+  &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;{{icon &#34;services&#34;}}&lt;/span&gt;&lt;span&gt;&lt;strong&gt;Mealie&lt;/strong&gt;&lt;small&gt;recipes.smith.family&lt;/small&gt;&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;{{icon &#34;services&#34;}}&lt;/span&gt;&lt;span&gt;&lt;strong&gt;Forgejo&lt;/strong&gt;&lt;small&gt;git.smith.family&lt;/small&gt;&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;ul class=&#34;acct-apps&#34;&gt;
+  &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;3&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;14&#34; y=&#34;3&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;3&#34; y=&#34;14&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;14&#34; y=&#34;14&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span&gt;&lt;strong&gt;Mealie&lt;/strong&gt;&lt;small&gt;recipes.smith.family&lt;/small&gt;&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;3&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;14&#34; y=&#34;3&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;3&#34; y=&#34;14&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;14&#34; y=&#34;14&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span&gt;&lt;strong&gt;Forgejo&lt;/strong&gt;&lt;small&gt;git.smith.family&lt;/small&gt;&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;</pre>
             
           </details>

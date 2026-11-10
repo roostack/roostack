@@ -74,9 +74,7 @@ func TestServiceUpdateOffered(t *testing.T) {
 	// Members can't update.
 	hm, fmm := loggedIn(t, auth.RoleMember)
 	hm.server.Services, fmm.svcUpdates = updateServices, fm.svcUpdates
-	if code, _ := hm.post("/services/vaultwarden/update", url.Values{"to": {"1.36.1-roostack.1"}}, hm.srv.URL); code != http.StatusForbidden {
-		t.Errorf("member update: %d", code)
-	}
+	hm.toAccount(http.MethodPost, "/services/vaultwarden/update")
 }
 
 // Updating shows its steps; a failed update says Roostack went back,

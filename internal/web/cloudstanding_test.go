@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -102,8 +103,8 @@ func TestCloudStanding(t *testing.T) {
 	// Turning it on is the Owner's.
 	m, _ := loggedIn(t, auth.RoleMember)
 	m.server.Cloud = link
-	if code, _ := m.post("/settings/public/relay-on", nil, m.srv.URL); code == 200 || f.RelayOff.IsZero() {
-		t.Errorf("a Member turning the relay on: %d", code)
+	if m.toAccount(http.MethodPost, "/settings/public/relay-on"); f.RelayOff.IsZero() {
+		t.Error("a Member turned the relay on")
 	}
 	if _, body := h.post("/settings/public/relay-on", nil, h.srv.URL); !strings.Contains(body, "The relay is on again") ||
 		strings.Contains(body, "The relay was turned off") || !f.RelayOff.IsZero() {
@@ -126,8 +127,8 @@ func TestCloudStanding(t *testing.T) {
 	if _, home := h.get("/"); !strings.Contains(home, "Public access is paused at Roostack Cloud&#39;s relay, since today") {
 		t.Error("Home doesn't say the relay is paused")
 	}
-	if code, _ := m.post("/settings/public/relay-resume", nil, m.srv.URL); code == 200 || f.RelayPaused.IsZero() {
-		t.Errorf("a Member opening it again: %d", code)
+	if m.toAccount(http.MethodPost, "/settings/public/relay-resume"); f.RelayPaused.IsZero() {
+		t.Error("a Member opened it again")
 	}
 	if _, body := h.post("/settings/public/relay-resume", nil, h.srv.URL); !strings.Contains(body, "Public access through the relay is open again") ||
 		strings.Contains(body, "Public access was paused at") || !f.RelayPaused.IsZero() {

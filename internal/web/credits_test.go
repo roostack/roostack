@@ -55,7 +55,7 @@ func TestEveryModuleCredited(t *testing.T) {
 }
 
 func TestAboutPage(t *testing.T) {
-	h, _ := loggedIn(t, auth.RoleMember)
+	h, _ := loggedIn(t, auth.RoleAdmin)
 	h.server.Version = "1.2.3"
 	_, body := h.get("/about")
 	for _, want := range []string{"1.2.3", "htmx", "0BSD", "https://catppuccin.com", "Programs Roostack uses", "Apache 2.0"} {
@@ -63,7 +63,7 @@ func TestAboutPage(t *testing.T) {
 			t.Errorf("about page missing %q", want)
 		}
 	}
-	if _, acct := h.get("/account/appearance"); !strings.Contains(acct, `from <a href="https://github.com/morhetz/gruvbox"`) {
+	if _, acct := h.get("/appearance"); !strings.Contains(acct, `from <a href="https://github.com/morhetz/gruvbox"`) {
 		t.Error("each open-source theme should link to its source")
 	}
 	if _, home := h.get("/"); !strings.Contains(home, `href="/about"`) {

@@ -18,7 +18,7 @@ func TestErrorPages(t *testing.T) {
 		!strings.Contains(body, `href="/"`) || strings.Contains(body, "404 page not found") {
 		t.Errorf("404: %d\n%s", code, body)
 	}
-	m, _ := loggedIn(t, auth.RoleMember)
+	m, _ := loggedIn(t, auth.RoleAdmin)
 	if code, body := m.get("/settings/updates"); code != http.StatusForbidden || !strings.Contains(body, "above your pecking order.") {
 		t.Errorf("403: %d\n%s", code, body)
 	}

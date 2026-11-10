@@ -66,6 +66,8 @@ type SingleSignOn struct {
 	SignInServed func(context.Context) bool
 	SSODir       string
 	signInPages  *template.Template
+	// acctPages are Your account's (youraccount.go).
+	acctPages *template.Template
 
 	// served is the last answer to whether Caddy serves the sign-in page
 	// (signInServed), under servedMu, and servedToken what the sign-in
@@ -92,7 +94,8 @@ type pagesHandoff struct {
 
 // pagesSignIn reports whether Roostack's own pages, as r reached them,
 // sign in through the sign-in page: at their own address, over HTTPS,
-// while the sign-in page is served (a service has single sign-on on).
+// once Caddy serves the sign-in page (always, once the lab has an
+// address: SPEC.md §5.3).
 // Through the SSH tunnel, a local address or the setup pages, Roostack's
 // own login page is the way in.
 func (s *Server) pagesSignIn(r *http.Request) bool {
@@ -100,7 +103,7 @@ func (s *Server) pagesSignIn(r *http.Request) bool {
 		!isHTTPS(r) || !strings.EqualFold(public.HostOnly(r.Host), s.UIHost) {
 		return false
 	}
-	return len(s.SSO.SSOClients()) > 0 && s.signInServed(r.Context())
+	return s.signInServed(r.Context())
 }
 
 // servedCheck is an answer to whether Caddy serves the sign-in page, and
@@ -279,6 +282,7 @@ func (s *Server) startLinkedSession(ctx context.Context, w http.ResponseWriter, 
 	if err := s.Store.CreateLinkedSession(ctx, authkit.HashToken(token), u.ID, h.signIn, h.ends, u.Role == auth.RoleMember); err != nil {
 		return err
 	}
+	s.noteSessionDevice(r, authkit.HashToken(token))
 	c := &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r)}
 	if h.remember {
 		c.Expires = h.ends

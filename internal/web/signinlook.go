@@ -318,6 +318,10 @@ func (s *Server) lookFavicon(w http.ResponseWriter, r *http.Request) {
 // to" and the list of services.
 func (s *Server) lookApp(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
+	if s.SignIn == nil {
+		http.NotFound(w, r)
+		return
+	}
 	if _, ok := s.SignIn.Client(name); !ok {
 		http.NotFound(w, r)
 		return

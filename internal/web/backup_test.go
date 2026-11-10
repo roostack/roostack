@@ -81,14 +81,9 @@ func TestMembersCannotStartBackups(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
 	fb := &fakeBackups{status: backup.Status{Configured: true, Progress: -1}}
 	h.node().backups = fb
-	if _, body := h.get("/"); strings.Contains(body, "Back up now") || strings.Contains(body, `href="/backups"`) {
-		t.Error("members must not see backups")
-	}
-	if code, _ := h.get("/backups"); code != http.StatusForbidden {
-		t.Errorf("members can't open the backups page: %d", code)
-	}
-	if code, _ := h.post("/backup/run", nil, h.srv.URL); code != http.StatusForbidden || fb.runs != 0 {
-		t.Errorf("member backup: %d", code)
+	h.toAccount(http.MethodGet, "/backups")
+	if h.toAccount(http.MethodPost, "/backup/run"); fb.runs != 0 {
+		t.Error("a Member started a backup")
 	}
 }
 

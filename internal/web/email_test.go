@@ -41,7 +41,7 @@ func TestEmailSettings(t *testing.T) {
 		t.Errorf("a bad setting: %d", code)
 	}
 
-	h.post("/account/notifications", url.Values{"email": {"sam@example.com"}, "notify": {"problems", "security"}}, h.srv.URL)
+	h.post("/account", url.Values{"email": {"sam@example.com"}}, h.srv.URL)
 	if _, body = h.get("/settings/email"); !strings.Contains(body, `name="to" type="email" value="sam@example.com"`) {
 		t.Error("the test goes to your own address by default")
 	}
@@ -58,7 +58,7 @@ func TestEmailSettings(t *testing.T) {
 		t.Error("the overview says where email comes from")
 	}
 
-	if code, _ := h.post("/account/notifications", url.Values{"email": {"not an address"}}, h.srv.URL); code != http.StatusBadRequest {
+	if code, _ := h.post("/account", url.Values{"email": {"not an address"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("a bad address: %d", code)
 	}
 	ha, _ := loggedIn(t, auth.RoleAdmin)
@@ -88,19 +88,19 @@ func TestOwnerNeedsEmail(t *testing.T) {
 		return resp.Request.URL.Path, string(body)
 	}
 	for _, path := range []string{"/", "/services", "/settings/people"} {
-		if at, body := landsOn(h, path); at != "/account/notifications" || !strings.Contains(body, "Add yours below to continue") {
+		if at, body := landsOn(h, path); at != "/account" || !strings.Contains(body, "Add yours below to continue") {
 			t.Errorf("%s for an Owner without an address: ended at %s", path, at)
 		}
 	}
-	if code, body := h.post("/account/notifications", url.Values{"email": {""}}, h.srv.URL); code != http.StatusBadRequest ||
+	if code, body := h.post("/account", url.Values{"email": {""}}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "As the Owner, you need an email address") {
 		t.Errorf("an Owner giving none: %d", code)
 	}
-	if _, body := h.post("/account/notifications", url.Values{"email": {"u@example.com"}, "notify": {"problems"}}, h.srv.URL); !strings.Contains(body, "<title>Home · Roostack</title>") {
+	if _, body := h.post("/account?next=%2F", url.Values{"email": {"u@example.com"}}, h.srv.URL); !strings.Contains(body, "<title>Home · Roostack</title>") {
 		t.Error("with an address, the Owner carries on to Home")
 	}
 	// Clearing it later is refused too.
-	if code, _ := h.post("/account/notifications", url.Values{"email": {""}}, h.srv.URL); code != http.StatusBadRequest {
+	if code, _ := h.post("/account", url.Values{"email": {""}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("an Owner clearing their address: %d, want 400", code)
 	}
 	if u, _ := h.store.UserByUsername(ctx, "u"); u.Email != "u@example.com" {
@@ -112,7 +112,7 @@ func TestOwnerNeedsEmail(t *testing.T) {
 	if at, _ := landsOn(ha, "/"); at != "/" {
 		t.Errorf("an Admin without an address: ended at %s", at)
 	}
-	if code, _ := ha.post("/account/notifications", url.Values{"email": {""}}, ha.srv.URL); code != http.StatusOK {
+	if code, _ := ha.post("/account", url.Values{"email": {""}}, ha.srv.URL); code != http.StatusOK {
 		t.Errorf("an Admin with no address: %d", code)
 	}
 }

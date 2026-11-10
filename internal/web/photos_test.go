@@ -333,11 +333,11 @@ func TestPhotosForMembers(t *testing.T) {
 	h.server.Photos, h.server.Services = f, immichServices
 	h.server.Libraries = newFakeLibraries()
 
-	// Their dashboard links to it, and /immich-photos goes to the one
+	// Your account links to it, and /immich-photos goes to the one
 	// Immich.
-	_, body := h.get("/")
-	if !strings.Contains(body, `href="/immich-photos/immich">Migrate your photos into it`) {
-		t.Error("the dashboard doesn't link members to migrating their photos")
+	_, body := h.get(acctPagesServices)
+	if !strings.Contains(body, `href="/immich-photos"`) || !strings.Contains(body, "Migrate your photos into Immich") {
+		t.Error("Your account doesn't link members to migrating their photos")
 	}
 	resp := h.poll("/immich-photos")
 	if resp.Request.URL.Path != "/immich-photos/immich" {

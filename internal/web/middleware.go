@@ -81,11 +81,17 @@ func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
 			return
 		}
 		if u.MustChangePassword {
-			redirect(w, r, firstThen("/account", r))
+			redirect(w, r, firstThen("/account/security", r))
 			return
 		}
 		if ownerNeedsEmail(u) {
-			redirect(w, r, firstThen("/account/notifications", r))
+			redirect(w, r, firstThen("/account", r))
+			return
+		}
+		// Members use Your account rather than Roostack's pages (SPEC.md
+		// §5.3), apart from migrating their photos (§8.5).
+		if u.Role == auth.RoleMember && !strings.HasPrefix(r.URL.Path, "/immich-photos") {
+			redirect(w, r, s.acctHome(r))
 			return
 		}
 		// Owners finish the setup wizard next.
@@ -228,6 +234,10 @@ func (s *Server) requireWizard(h http.HandlerFunc) http.Handler {
 func (s *Server) requireOwner(h http.HandlerFunc) http.Handler {
 	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
 		u := currentUser(r)
+		if u.Role == auth.RoleMember {
+			redirect(w, r, s.acctHome(r))
+			return
+		}
 		if !auth.Can(u.Role, auth.ManageHost) {
 			http.Error(w, "Only the Owner can change these settings.", http.StatusForbidden)
 			return
@@ -237,11 +247,11 @@ func (s *Server) requireOwner(h http.HandlerFunc) http.Handler {
 			return
 		}
 		if u.MustChangePassword {
-			redirect(w, r, firstThen("/account", r))
+			redirect(w, r, firstThen("/account/security", r))
 			return
 		}
 		if ownerNeedsEmail(u) {
-			redirect(w, r, firstThen("/account/notifications", r))
+			redirect(w, r, firstThen("/account", r))
 			return
 		}
 		h(w, r)
