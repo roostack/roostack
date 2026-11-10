@@ -44,12 +44,26 @@ then <http://127.0.0.1:8791/docs/mockups/your-account/index.html>. The tabs swit
 3. **Where you're signed in** is new: Roostack would keep each sign-in's browser and when it was last used. Build it with the section, or later? *Recommendation:* with the section, since the sessions are already kept and it's what someone wants after losing a phone.
 4. **The tabs' names:** Services, Account, Security, Notifications, and Devices. Any you'd rather call something else?
 
-## Its address (open, 2026-11-10)
+## Its address
 
-The maintainer asked whether it should be `login.<domain>`, `account.`, `me.`, the domain itself, or something else.
+The maintainer asked whether it should be `login.<domain>`, `account.`, `me.`, the domain itself, or something else. I suggested keeping `login.`, because apps' single sign-on is set up with it; the maintainer pointed out that only one lab exists, so if it's to change, now is the time.
 
-- **`login.<domain>` (today's):** where people already go to sign in, and the issuer every app's single sign-on is set up with. Moving the issuer later would mean reconfiguring every app, and some apps link accounts to it. It's one name to explain, and a word a family member knows.
-- **A friendlier name (`my.`, `account.`, `me.`) beside `login.`:** reads better for a page of services and settings, but `login.` would stay as the issuer, so it's two reserved names (a service couldn't use either) and two addresses to explain. `account.` undersells the services list, and `me.` is unusual for a household's front door; `my.` reads best of the three.
-- **The domain itself:** possible (Caddy already serves it when it's Roostack's pages' address), and it's what a roost.ac name does today: Roostack's pages are at `smiths.roost.ac`. For an own domain, the bare name is often the person's own website, so Roostack would have to take its record over, and a relay can't point it elsewhere with a CNAME (DNS doesn't allow one at a domain's top). Not as the default.
+**Decided (2026-11-10), the maintainer:**
 
-*Recommendation:* keep `login.<domain>`. With decision 2, a roost.ac lab's bare name already sends Members to Your account, so the friendliest address is covered there.
+- **Your account, the sign-in pages, and single sign-on's issuer move to `my.<domain>`:** one name for everything a person sees. `login.` stops being reserved, so a service can use it.
+- **The domain itself is the Owner's choice** (Owners and Admins, on Your lab's address): what someone gets at `smith.family` with nothing in front.
+
+**Proposed for the bare domain:**
+
+| Choice | What it does | Default for |
+|---|---|---|
+| **Leave it alone** | Roostack sets no record for it, so the Owner's own website or anything else there keeps working | an own domain |
+| **Your account** | a redirect to `my.<domain>` | a roost.ac name |
+| **A service** | a redirect to one of the lab's services (a Ghost blog, say) | |
+| **Another address** | a redirect to any web address | |
+| **A simple page** | a static page Roostack writes in the lab's look (its name and logo, a heading, a few lines, and links to chosen services), served by Caddy as a plain file, as the status page is | |
+
+- **A roost.ac name changes too:** Roostack's pages move from the bare name to `roost.<name>`, as for an own domain, so every lab has the same three names (`roost.`, `my.`, and the bare domain the Owner chooses). The wildcard certificate already covers `roost.<name>`.
+- **The bare domain's record:** choosing anything but "Leave it alone" points it at the lab, taking over an existing record with the confirmation Roostack already asks for (SPEC §6.5.1, "Taking over a record"). A public bare domain through a relay needs an address record rather than a CNAME, which DNS doesn't allow at a domain's top; the provider's CNAME flattening (Cloudflare's, for one) works around it.
+- **Considered:** an HTML page of the Owner's own. It's simple to serve, but it would run whatever scripts it holds on the lab's own domain, beside its services, so it's left for later, with a policy that stops scripts if it comes.
+- **The maintainer's lab:** its apps' single sign-on will be set up again for the new issuer when the lab updates. Some apps tie accounts to the issuer, so each app is checked on a dev VM first. A redirect from `login.` keeps family members' bookmarks working for 30 days, as an old address does when a lab changes domain.
