@@ -34,11 +34,10 @@ Environment=PUID=1000
 Environment=TZ=UTC
 Secret=roostack-mealie-sso-client-secret,type=env,target=OIDC_CLIENT_SECRET
 AddHost=login.lab.example.com:host-gateway
-Volume=/srv/roostack/services/mealie/data:/app/data
+Volume=/srv/roostack/services/mealie/data:/app/data:U
 Label=io.roostack.service=mealie
 Label=io.roostack.component=app
 User=1000:1000
-UserNS=keep-id:uid=1000,gid=1000
 
 [Service]
 Restart=always
@@ -93,4 +92,4 @@ roostack-mealie-sso-client-secret generate=true setting=""
 /srv/roostack/services/mealie/data/mealie.db-wal
 
 ==> backup prepare
-{Type:sqlite Container: User: Database: Source:/srv/roostack/services/mealie/data/mealie.db Target:/srv/roostack/services/mealie/db-dump/main.sqlite3}
+{Type:sqlite Container: User: Database: Source:/srv/roostack/services/mealie/data/mealie.db DataDir: Target:/srv/roostack/services/mealie/db-dump/main.sqlite3}

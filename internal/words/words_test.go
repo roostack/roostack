@@ -25,7 +25,7 @@ func TestLists(t *testing.T) {
 		{[]string{}, "", ""},
 		{[]string{"Films"}, "Films", "Films"},
 		{[]string{"Films", "TV"}, "Films and TV", "Films or TV"},
-		{[]string{"Films", "TV", "Music"}, "Films, TV and Music", "Films, TV or Music"},
+		{[]string{"Films", "TV", "Music"}, "Films, TV, and Music", "Films, TV, or Music"},
 		{[]string{"", "b"}, " and b", " or b"},
 	} {
 		if got := And(c.in); got != c.and {

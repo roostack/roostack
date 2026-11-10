@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -204,6 +205,19 @@ type BackupPlan struct {
 	Prepare []PrepareStep
 }
 
+// KeptDirs are the folders a restore sets aside and can put back: what's
+// backed up, and the live folders of the databases whose dumps are, which
+// a backup doesn't hold (SPEC.md §6.9, "What a restore keeps").
+func (b BackupPlan) KeptDirs() []string {
+	dirs := slices.Clone(b.Include)
+	for _, s := range b.Prepare {
+		if s.DataDir != "" {
+			dirs = append(dirs, s.DataDir)
+		}
+	}
+	return dirs
+}
+
 // PrepareStep is one backup prepare action.
 type PrepareStep struct {
 	Type string // pkgspec.DBSQLite, DBPostgres, DBMySQL or DBMariaDB
@@ -216,6 +230,8 @@ type PrepareStep struct {
 	Schemas []string
 	// Source is the host path of the live file (sqlite).
 	Source string
+	// DataDir is the host path of the live database's folder (a server's).
+	DataDir string
 	// Target is the host path the consistent copy is written to.
 	Target string
 }
@@ -452,6 +468,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	g.ssoContainer(name, func(k, v string) { cs.Add(k, v) })
 
 	mounts := slices.Clone(c.Mounts)
+	ownUser := keepIDUser(g.pkg, c)
 	// Parent directories must be mounted before nested ones (ASSUMPTIONS B4).
 	slices.SortStableFunc(mounts, func(a, b pkgspec.Mount) int { return strings.Compare(a.Path, b.Path) })
 	for _, m := range mounts {
@@ -481,9 +498,16 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 			}
 			continue
 		}
-		vol := g.storagePath(m.Storage) + ":" + m.Path
+		var opts []string
 		if m.ReadOnly {
-			vol += ":ro"
+			opts = append(opts, "ro")
+		}
+		if ownUser != "" {
+			opts = append(opts, "U")
+		}
+		vol := g.storagePath(m.Storage) + ":" + m.Path
+		if len(opts) > 0 {
+			vol += ":" + strings.Join(opts, ",")
 		}
 		cs.Add("Volume", vol)
 	}
@@ -521,7 +545,11 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	}
 	cs.Add("Label", "io.roostack.service="+svc)
 	cs.Add("Label", "io.roostack.component="+name)
-	addPassthrough(&u, c.Quadlet)
+	if ownUser != "" {
+		addPassthrough(&u, runAsUser(c.Quadlet, ownUser))
+	} else {
+		addPassthrough(&u, c.Quadlet)
+	}
 	addServiceSections(&u)
 
 	if err := g.addQuadlet(unit+".container", &u); err != nil {
@@ -591,7 +619,7 @@ func (g *gen) postgres(name string, d *pkgspec.Database) error {
 	if d.BackedUp() {
 		g.out.Backup.Prepare = append(g.out.Backup.Prepare, PrepareStep{
 			Type: pkgspec.DBPostgres, Container: unit, User: db.User, Database: db.Name,
-			Target: filepath.Join(g.dumpDir(), name+".sql"),
+			DataDir: dataDir, Target: filepath.Join(g.dumpDir(), name+".sql"),
 		})
 	}
 	return nil
@@ -672,7 +700,7 @@ func (g *gen) mysql(name string, d *pkgspec.Database) error {
 	if d.BackedUp() {
 		g.out.Backup.Prepare = append(g.out.Backup.Prepare, PrepareStep{
 			Type: d.Type, Container: unit, User: db.User, Database: db.Name, Schemas: schemas,
-			Target: filepath.Join(g.dumpDir(), name+".sql"),
+			DataDir: dataDir, Target: filepath.Join(g.dumpDir(), name+".sql"),
 		})
 	}
 	return nil
@@ -956,6 +984,69 @@ func addPassthrough(u *quadlet.Unit, q pkgspec.Quadlet) {
 			}
 		}
 	}
+}
+
+// keepIDRe is a UserNS= line that names both a container's user and group.
+var keepIDRe = regexp.MustCompile(`^keep-id:uid=([1-9][0-9]*),gid=([1-9][0-9]*)$`)
+
+// keepIDUser is the user ("1000:1000") a container with UserNS=keep-id will
+// run as in Podman's default mapping, or "" if it must stay on keep-id.
+// keep-id makes Podman give every file in the image a new owner on its first
+// start, which took 12 minutes for one big image, so Roostack runs such a
+// container as that user and gives it its storage with :U instead
+// (ASSUMPTIONS B3b, B3c, SPEC.md §6.7).
+//
+// :U changes who owns a folder, so a package stays on keep-id if that would
+// lock something out: Roostack reading a config file, or another container
+// sharing the folder as a different user.
+func keepIDUser(p *pkgspec.Package, c *pkgspec.Container) string {
+	user := keepIDCandidate(c)
+	if user == "" || len(p.ConfigFiles) > 0 {
+		return ""
+	}
+	if !hasStorage(c) {
+		return user
+	}
+	for _, other := range p.Containers {
+		if hasStorage(other) && keepIDCandidate(other) != user {
+			return ""
+		}
+	}
+	return user
+}
+
+// keepIDCandidate is the user a container could run as in place of keep-id,
+// or "". What it needs from the server's user stays on keep-id: a library's
+// files and a device are that user's, not the default mapping's.
+func keepIDCandidate(c *pkgspec.Container) string {
+	sec := c.Quadlet["Container"]
+	ns, _ := sec["UserNS"].(string)
+	m := keepIDRe.FindStringSubmatch(ns)
+	if m == nil || sec["Group"] != nil || len(c.Devices) > 0 {
+		return ""
+	}
+	if slices.ContainsFunc(c.Mounts, func(m pkgspec.Mount) bool { return m.Libraries }) {
+		return ""
+	}
+	user := m[1] + ":" + m[2]
+	if have, set := sec["User"]; set && have != user && (m[1] != m[2] || have != m[1]) {
+		return ""
+	}
+	return user
+}
+
+func hasStorage(c *pkgspec.Container) bool {
+	return slices.ContainsFunc(c.Mounts, func(m pkgspec.Mount) bool { return !m.Libraries })
+}
+
+// runAsUser is a container's Quadlet lines with keep-id replaced by user.
+func runAsUser(q pkgspec.Quadlet, user string) pkgspec.Quadlet {
+	out := maps.Clone(q)
+	sec := maps.Clone(q["Container"])
+	delete(sec, "UserNS")
+	sec["User"] = user
+	out["Container"] = sec
+	return out
 }
 
 // OldHost is host's name at the lab's previous address while that still

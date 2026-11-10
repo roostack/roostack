@@ -535,7 +535,9 @@
     {{$u.ToApp}}, only that backup can take you back.{{end}}</p>{{end}}
   {{with .UpdateError}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{template "update-form" .}}
-  <p><small class="hint">{{if $u.Auto}}Roostack will update it by itself tonight after the nightly backup.
+  <p><small class="hint">{{if $.Tonight}}Roostack will update it tonight after the nightly backup, as {{$.Tonight.By}} chose on the
+    <a href="/updates#{{$.Service.Name}}">Updates page</a>.
+    {{else if $u.Auto}}Roostack will update it by itself tonight after the nightly backup.
     {{else if eq $u.Policy "notify"}}You chose to be told about updates and apply them yourself.
     {{else if $u.FailedBefore}}It didn't work last time, so Roostack is waiting for you.
     {{else if $u.Notes}}It has notes to read, so Roostack is waiting for you.
@@ -606,10 +608,11 @@ Image: {{.Image}}</code></pre>
      docs/mockups/sso): the switch, who can sign in, and the details. */}}
 {{define "sso-card"}}
 <section class="card" id="sso">
-  <div class="card-head"><h2>Single sign-on</h2>{{if .On}}<span class="status status-running">On</span>{{else}}<span class="status status-off">Off</span>{{end}}</div>
+  <div class="card-head"><h2>{{if .OwnSignIn}}Lab sign-in page{{else}}Single sign-on{{end}}</h2>{{if .On}}<span class="status status-running">On</span>{{else}}<span class="status status-off">Off</span>{{end}}</div>
   {{if not .Open}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{if .On}}
-  {{if .Wall}}<p>Everyone who opens {{.Title}} signs in on the lab's sign-in page first, so only the people you choose reach it.</p>
+  {{if .Wall}}<p>Everyone who opens {{.Title}} signs in on the lab's sign-in page first, so only the people you choose reach it.
+    {{if .OwnSignIn}}This protects the way in but doesn't sign them in to {{.Title}}, so they'll still use its own account after that.{{end}}</p>
   {{else}}<p>People sign in to {{.Title}} with their account here, on the lab's sign-in page.
     {{if eq .Existing "separate"}}{{.Title}} will make each person a new account the first time they sign in, and accounts already in {{.Title}} will stay separate.
     {{else}}{{.Title}} will make each person an account the first time they sign in{{with .Existing}}, or use the one already in {{$.Title}} with their
@@ -626,7 +629,7 @@ Image: {{.Image}}</code></pre>
   {{if .CanChoose}}
   <p><a class="button secondary" href="/services/{{.Name}}?sso=who#sso" data-dialog="sso-who-dialog">Change who can sign in…</a></p>
   <dialog class="dialog form-dialog" id="sso-who-dialog" aria-labelledby="sso-who-title"{{if .Open}} open{{end}}>
-    <div class="dialog-head"><h2 id="sso-who-title">Single sign-on for {{.Title}}</h2>
+    <div class="dialog-head"><h2 id="sso-who-title">{{if .OwnSignIn}}The lab's sign-in page{{else}}Single sign-on{{end}} for {{.Title}}</h2>
       <a class="icon-button" href="/services/{{.Name}}#sso" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
     <form method="post" action="/services/{{.Name}}/sso/access" class="sso-who">
       {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -655,7 +658,8 @@ Image: {{.Image}}</code></pre>
   </details>
   {{if .Required}}<p class="hint">{{.Title}} has no sign-in of its own, so single sign-on stays on.</p>
   {{else}}<div class="sso-off">
-    {{confirm (printf "/services/%s/sso" .Name) (printf "Turn off single sign-on for %s? %s" .Title (offText .)) "Turn off single sign-on…" "quiet danger" "sso=off"}}
+    {{if .OwnSignIn}}{{confirm (printf "/services/%s/sso" .Name) (printf "Take %s out from behind the lab's sign-in page? %s" .Title (offText .)) "Stop using the lab's sign-in page…" "quiet danger" "sso=off"}}
+    {{else}}{{confirm (printf "/services/%s/sso" .Name) (printf "Turn off single sign-on for %s? %s" .Title (offText .)) "Turn off single sign-on…" "quiet danger" "sso=off"}}{{end}}
   </div>{{end}}
   {{else}}
   {{template "sso-hook" .}}
@@ -663,7 +667,8 @@ Image: {{.Image}}</code></pre>
   {{/* A failed run above already offers Connect. */}}
   {{if not .Hook.Failed}}{{notice "warn" (printf "First connect Roostack to %s: Roostack needs a key to %s's settings to set up single sign-on, and making one needs %s's administrator password once." .Title .Title .Title) (printf "link=/services/%s?action=%s#action-%s" .Name .Connect .Connect) (printf "linkText=%s…" .ConnectTitle)}}{{end}}
   {{else if .Available}}
-  <p>Let people sign in to {{.Title}} with their account here{{if .Wall}}, on the lab's sign-in page, before they reach it{{else}}, instead of a password of {{.Title}}'s own{{end}}.</p>
+  {{if .OwnSignIn}}<p>Make people sign in on the lab's sign-in page before they can open {{.Title}}. This will protect the way in but won't sign them in to {{.Title}}, so they'll still use its own account after that.</p>
+  {{else}}<p>Let people sign in to {{.Title}} with their account here{{if .Wall}}, on the lab's sign-in page, before they reach it{{else}}, instead of a password of {{.Title}}'s own{{end}}.</p>{{end}}
   <ul class="plain sso-steps">
     <li>{{icon "sign-in"}}<span>Roostack will {{if .Wall}}put {{.Title}} behind the lab's sign-in page{{else}}register {{.Title}} with the lab's sign-in page and give {{.Title}} its settings and a secret{{end}}.</span></li>
     {{if not .Wall}}<li>{{icon "changes"}}<span>{{.Title}} will restart, which will take a few seconds.</span></li>
@@ -676,7 +681,7 @@ Image: {{.Image}}</code></pre>
   <form method="post" action="/services/{{.Name}}/sso" class="sso-who">
     <input type="hidden" name="sso" value="on">
     {{if .CanChoose}}{{template "sso-who" .}}{{end}}
-    <button type="submit">Turn on single sign-on</button>
+    <button type="submit">{{if .OwnSignIn}}Use the lab's sign-in page{{else}}Turn on single sign-on{{end}}</button>
   </form>
   {{else}}<p class="hint">{{.Why}}</p>{{end}}
   {{end}}
@@ -690,13 +695,13 @@ Image: {{.Image}}</code></pre>
 {{$p := .Progress}}
 {{if eq $p "applying"}}
 <p id="sso-hook" class="notice" role="status" hx-get="/services/{{.Name}}" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-select="#sso-hook" hx-swap="outerHTML">
-  {{if .On}}<strong>Turning on single sign-on…</strong>
+  {{if .On}}<strong>{{if .OwnSignIn}}Protecting {{.Title}}…{{else}}Turning on single sign-on…{{end}}</strong>
     {{if .Wall}}Roostack is putting {{.Title}} behind the lab's sign-in page.{{else}}Roostack is giving {{.Title}} its settings for the lab's sign-in page, then {{.Title}} will restart.{{end}}
-  {{else}}<strong>Turning off single sign-on…</strong>
+  {{else}}<strong>{{if .OwnSignIn}}Removing the protection…{{else}}Turning off single sign-on…{{end}}</strong>
     {{if .Wall}}Roostack is taking {{.Title}} out from behind the lab's sign-in page.{{else}}Roostack is taking {{.Title}}'s settings for the lab's sign-in page away, then {{.Title}} will restart.{{end}}{{end}}</p>
 {{else if eq $p "failed"}}
 <div id="sso-hook" class="notice notice-error" role="alert" hx-get="/services/{{.Name}}" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-select="#sso-hook" hx-swap="outerHTML">
-  <p><strong>Single sign-on isn't {{if .On}}on{{else}}off{{end}} for {{.Title}} yet:</strong> Roostack couldn't apply the change, and will try again with the next one.</p>
+  <p><strong>{{if .OwnSignIn}}The lab's sign-in page isn't {{else}}Single sign-on isn't {{end}}{{if .On}}on{{else}}off{{end}} for {{.Title}} yet:</strong> Roostack couldn't apply the change, and will try again with the next one.</p>
   <pre class="output">{{.Hook.ApplyFailed}}</pre>
 </div>
 {{else if eq $p "connecting"}}

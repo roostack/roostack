@@ -22,7 +22,7 @@ func (u unitsIn) Status(_ context.Context, units ...string) ([]systemd.UnitStatu
 
 // Each route of each service is checked at its address through this
 // server's Caddy, at the package's health path; a stopped service is
-// paused (SPEC.md §6.15).
+// paused (SPEC.md §6.15), and one turned off isn't checked.
 func TestMonitorChecks(t *testing.T) {
 	m, _ := newManager(t)
 	ctx := context.Background()
@@ -43,6 +43,13 @@ func TestMonitorChecks(t *testing.T) {
 	local(m).Units = unitsIn("inactive")
 	if c := m.MonitorChecks(ctx)[0]; c.Paused != "it's stopped" {
 		t.Errorf("stopped: %q", c.Paused)
+	}
+	if err := m.SetOff(ctx, "vaultwarden", true, "sam"); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if checks := m.MonitorChecks(ctx); len(checks) != 0 {
+		t.Errorf("turned off: %+v", checks)
 	}
 	m.Lab.Domain = ""
 	if checks := m.MonitorChecks(ctx); len(checks) != 0 {

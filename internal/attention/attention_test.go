@@ -295,7 +295,7 @@ func TestServiceItems(t *testing.T) {
 		t.Errorf("a failed update: %+v", it)
 	}
 	if it := find(items, "updates-available"); it == nil || it.Text != "Updates are available for Immich (2.1.0) and Jellyfin (10.11.0)." ||
-		it.Link != "/services" {
+		it.Link != "/updates" {
 		t.Errorf("updates waiting: %+v", it)
 	}
 	// A withdrawal says it already, with the update.

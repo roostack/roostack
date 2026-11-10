@@ -657,7 +657,7 @@
     ql("User", u);
     const [uid, gid] = u.split(":");
     if (/^\d+$/.test(uid)) ql("UserNS", `keep-id:uid=${uid},gid=${/^\d+$/.test(gid || "") ? gid : uid}`);
-    im.say("converted", `\`user: ${u}\`, as the Quadlet lines \`User\` and \`UserNS=keep-id\` so that the app's files belong to Roostack's user on the server.`);
+    im.say("converted", `\`user: ${u}\`, as the Quadlet lines \`User\` and \`UserNS=keep-id\` so that Roostack will run the app as that user and give it its storage folders.`);
   }
 
   // containerMemory: a limit or reservation is the best guess there is.

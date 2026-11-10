@@ -1,5 +1,5 @@
 // Package words writes the small pieces of sentences people read, one way
-// everywhere in Roostack: a capital at the start, lists ("a, b and c"),
+// everywhere in Roostack: a capital at the start, lists ("a, b, and c"),
 // counts ("1 photo", "1,284 photos"), an error's first line, lengths of
 // time and when something happens. Sizes and plain numbers are units'.
 package words
@@ -24,12 +24,12 @@ func Capitalise(s string) string {
 	return string(unicode.ToUpper(r)) + s[n:]
 }
 
-// And lists items for a sentence: "a", "a and b", "a, b and c" ("" if
-// there are none).
+// And lists items for a sentence: "a", "a and b", "a, b, and c" (the
+// Oxford comma; "" if there are none).
 func And(items []string) string { return list(items, "and") }
 
-// Or lists items as choices: "a", "a or b", "a, b or c" ("" if there are
-// none).
+// Or lists items as choices: "a", "a or b", "a, b, or c" ("" if there
+// are none).
 func Or(items []string) string { return list(items, "or") }
 
 func list(items []string, word string) string {
@@ -38,8 +38,10 @@ func list(items []string, word string) string {
 		return ""
 	case 1:
 		return items[0]
+	case 2:
+		return items[0] + " " + word + " " + items[1]
 	}
-	return strings.Join(items[:len(items)-1], ", ") + " " + word + " " + items[len(items)-1]
+	return strings.Join(items[:len(items)-1], ", ") + ", " + word + " " + items[len(items)-1]
 }
 
 // Count is a count with its noun, the number with thousands separators:

@@ -3,7 +3,7 @@
 How the service registry finds new versions of its apps and proposes them
 (SPEC.md §8.3.8, "An update bot in the registry"). Built in two parts:
 finding and proposing (as built, 2026-10-28), then testing each update on
-a real lab and merging the safe ones by themselves (planned, below).
+a real lab and merging the safe ones by themselves (as built, 2026-11-07).
 
 ## Who does what — Locked (2026-10-28), the Owner
 
@@ -98,11 +98,16 @@ pull request for each update from its own branch,
 `update/<package>/<version>`, holding only its new file. The pull request
 says what changed (each image, its old and new digest, whether it was
 rebuilt), links the project's notes for the version when the package names
-them, and is labelled `update` and `update:<kind>`. An update whose branch has had
-a pull request is left alone (proposed, or closed by someone, so a
-rejected update isn't opened again); a branch a run pushed before failing,
-without its pull request, gets one (the Watch workflow does the same, after
-its first runs wedged on one, 2026-10-29). When a newer update of a
+them, and is labelled `update` and `update:<kind>`. An update whose pull
+request someone closed is left alone, so a rejected update isn't opened
+again. An open one is left alone too, unless main has moved on and would now
+propose a different file (a hand-made revision the update would otherwise
+undo; the date in the digests comment doesn't count): the bot then writes the
+branch again from main and updates the pull request, which starts its checks
+again, unless a person made the branch's last commit (2026-11-07). A branch a
+run pushed before failing, without its pull request, gets one (the Watch
+workflow does the same, after its first runs wedged on one, 2026-10-29). When
+a newer update of a
 package comes, the older one's pull request is closed and its branch
 deleted. Packages it couldn't decide about go into the run's summary.
 
@@ -110,49 +115,54 @@ Set up: the binary variables naming Roostack 0.1.1 or newer, and the
 secret `WATCH_TOKEN` (the Watch workflow's), since pull requests opened
 with the workflow's own token don't start Publish's checks.
 
-## Next: testing each update on a lab, and merging the safe ones — Locked (2026-10-28), the Owner; not built
+## Testing each update on a lab, and merging the safe ones — Locked (2026-10-28), the Owner; as built (2026-11-07), in roostack/services
 
 **The update test runs in a Debian 13 VM on GitHub's runner** (the
-Owner's choice; GitHub's Linux runners offer KVM): it boots Debian's cloud
-image under QEMU, installs the released Roostack from
-`apt.roostack.cloud`, and drives it from the command line, as a lab would
-run the package:
+Owner's choice; GitHub's Linux runners offer KVM). `.github/update-test/run.sh`
+boots Debian's cloud image under QEMU and installs the released Roostack from
+`apt.roostack.cloud`. `drive.py` then goes through Roostack's own pages and
+commands, as a person would:
 
-1. Write a lab (`lab.yaml`, with a test domain and a backup repository in a
-   folder) and install the package's **previous** version: its instance
-   file and package copy, then `roostack apply`, and wait until every
-   container is healthy.
-2. For a package with data: `roostack backup init` and `backup run`.
-3. **Update it** to the pull request's version as labs do (the instance's
-   version and package copy, then `roostack apply`), and wait until it's
-   healthy: this is the path every lab will take, migrations included.
-4. For a package with data: `roostack backup restore <service>` from the
+1. Make an Owner with `roostack user add`, sign in, set up two-factor, and
+   finish the wizard, leaving the domain and backups for later. A lab with no
+   domain can install services, so there are no certificates or DNS to fake.
+2. Install the version labs can install now (`from.sh`: the newest in the
+   published index that isn't withdrawn or `image_gone`), as one of the
+   Owner's own packages, with made-up settings, and wait until it's healthy.
+3. For a package with data: `roostack backup init` and `backup run`.
+4. Update it to the pull request's version through the service's page, the
+   path every lab will take, migrations included, wait for the update's job
+   to finish (a failed job fails the test), and wait until it's healthy. The
+   version in the instance file changes well before the job ends, so it isn't
+   enough on its own.
+5. For a package with data: `roostack backup restore <service>` from the
    backup taken before the update, and wait until it's healthy again.
-5. Report each step in the pull request's checks ("Update test").
+6. Report each step and its time in the run's summary.
+
+**Healthy** means the service has finished setting up, every container is up
+and passing its health check, each of its ports answers with something other
+than a server error, and all of that lasts 30 seconds. The test has no real
+address, so it doesn't check certificates, and it doesn't check that the app's
+data came through the update or the restore.
+
+**When labs can't install any version** (HedgeDoc's image gone, and its only
+version with it), it installs the update itself and skips step 4, so that
+a rebuild can still fix a package whose image has gone.
 
 **What merges by itself** (the Owner's choice): an update labelled
 `update:patch` or `update:revision` (a rebuild of the same version), of an
-**official** package, once Publish's checks and the update test pass. The
-workflow turns on GitHub's auto-merge for it (`gh pr merge --auto`), so it
-merges only when every required check is green. Minor, major and `other`
-updates, and community packages, wait for a person.
+**official** package, once the update test and Publish's check have passed.
+`.github/update-merge.sh` waits for Publish's check and merges, so GitHub's
+auto-merge and a protected `main` aren't needed for this (a change from the
+first plan). It also regenerates the update from `main` and leaves it for a
+person if the file differs, since an update written before a hand-made revision
+would otherwise undo that revision for labs. Minor, major and `other` updates,
+and community packages, wait for a person. **The repository variable
+`UPDATES_AUTO_MERGE` must be `true`**; without it, the test still runs and
+nothing merges.
 
-**To settle when building it:**
-
-- Whether `roostack apply` alone sets up everything a fresh install needs
-  from the command line (generated secrets, database passwords, setup
-  hooks), or the test needs a small `roostack install`-like command; to
-  try on a dev VM first.
-- Health without a real domain: containers' own health checks are enough
-  for "it starts"; Caddy's certificates need a domain, so the test may use
-  Caddy's internal CA, as the dev VMs did.
-- Big images on the runner's disk (Immich's machine learning image is
-  about 2 GB of a runner's 14 GB free); time (likely 10–15 minutes each).
-- ARM: SPEC §8.3.8 leaves whether the test also covers ARM for later.
-
-**The Owner's steps then:** in roostack/services, allow auto-merge, and
-protect `main` with Publish's check and the update test required (TASKS:
-"Registry settings").
+**Left for later:** ARM (SPEC §8.3.8 leaves this open), and checking that an
+app's own data survives the update, rather than only that the app is healthy.
 
 ## Not yet
 

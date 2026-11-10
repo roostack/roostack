@@ -42,6 +42,9 @@ type ssoCard struct {
 	On        bool
 	// Wall: behind forward auth; otherwise an OIDC app.
 	Wall bool
+	// OwnSignIn: a wall in front of an app that keeps its own sign-in, so
+	// it isn't single sign-on and isn't called that.
+	OwnSignIn bool
 	// Required: the app has no sign-in of its own, so it can't be turned off.
 	Required bool
 	Note     string
@@ -162,7 +165,7 @@ func (s *Server) ssoCardFor(r *http.Request, name string, p *pkgspec.Package) *s
 	}
 	ctx := r.Context()
 	u := currentUser(r)
-	c := &ssoCard{Name: name, Title: p.Title, Note: p.SSO.Note, Wall: p.SSO.ForwardAuth != nil, Required: p.RequiresSSO(), SignInHost: s.SignInHost,
+	c := &ssoCard{Name: name, Title: p.Title, Note: p.SSO.Note, Wall: p.SSO.ForwardAuth != nil, OwnSignIn: p.KeepsOwnSignIn(), Required: p.RequiresSSO(), SignInHost: s.SignInHost,
 		CanChoose: u != nil && u.Role == auth.RoleOwner, ClientID: name}
 	if o := p.SSO.OIDC; o != nil {
 		c.AppAdmins, c.Existing = o.Admins, o.ExistingAccounts

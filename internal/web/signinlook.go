@@ -83,6 +83,16 @@ type signInLook struct {
 	widths map[string]int
 }
 
+// wideLogo is what the "wide-logo" template shows: the look's wide logo
+// and the text for its img.
+type wideLogo struct {
+	Look signInLook
+	Alt  string
+}
+
+// WideLogo is the look's wide logo for the "wide-logo" template.
+func (l signInLook) WideLogo(alt string) wideLogo { return wideLogo{l, alt} }
+
 // Has reports whether a logo file is there.
 func (l signInLook) Has(part string) bool { return l.Files[part] != "" }
 
@@ -250,7 +260,10 @@ func (s *Server) lookPath(part, kind string) string {
 // lookFile serves one of the logo's files. An SVG is served sandboxed, so
 // even opened on its own it can't run anything on the sign-in host.
 func (s *Server) lookFile(w http.ResponseWriter, r *http.Request) {
-	part := r.PathValue("part")
+	s.lookPart(w, r, r.PathValue("part"))
+}
+
+func (s *Server) lookPart(w http.ResponseWriter, r *http.Request, part string) {
 	kind := s.signInLook(r.Context()).Files[part]
 	if kind == "" {
 		http.NotFound(w, r)
@@ -382,8 +395,9 @@ func onAttr(text string) bool {
 	}
 }
 
-// saveLook saves the sign-in page's look from Settings → People: the
-// theme, the logo's kind, and any files uploaded.
+// saveLook saves the lab's look from Settings → Name and look: the theme,
+// the logo's kind, any files uploaded, and any files to delete. A file
+// uploaded and ticked for deleting is kept: replacing it is what happened.
 func (s *Server) saveLook(r *http.Request) error {
 	ctx := r.Context()
 	palette, accent := r.FormValue("palette"), r.FormValue("accent")
@@ -400,6 +414,7 @@ func (s *Server) saveLook(r *http.Request) error {
 	l := s.signInLook(ctx)
 	files := l.Files
 	changed := false
+	uploaded := map[string]bool{}
 	for _, part := range logoParts {
 		f, _, err := r.FormFile("logo_" + part)
 		if errors.Is(err, http.ErrMissingFile) {
@@ -430,12 +445,18 @@ func (s *Server) saveLook(r *http.Request) error {
 			return err
 		}
 		files[part], changed = ext, true
+		uploaded[part] = true
 	}
-	for _, part := range []string{"dark", "icon"} {
-		if r.FormValue("remove_"+part) == "on" && files[part] != "" {
-			os.Remove(s.lookPath(part, files[part]))
-			delete(files, part)
-			changed = true
+	for _, part := range logoParts {
+		if r.FormValue("remove_"+part) != "on" || files[part] == "" || uploaded[part] {
+			continue
+		}
+		os.Remove(s.lookPath(part, files[part]))
+		delete(files, part)
+		changed = true
+		// Deleting the logo in use is choosing none, not forgetting a file.
+		if kind == part {
+			kind = ""
 		}
 	}
 	if kind == logoMark && files["mark"] == "" {

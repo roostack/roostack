@@ -173,9 +173,8 @@ type Version struct {
 	// for; empty when it didn't check.
 	Architectures []string    `json:"architectures,omitempty"`
 	Withdrawn     *Withdrawal `json:"withdrawn,omitempty"`
-	// ImageGone: an image this version pins is gone from its registry
-	// (an older version's: the newest's fails the build). Labs running it
-	// keep their copy, but it's never offered to install.
+	// ImageGone: an image this version pins is gone from its registry.
+	// Labs running it keep their copy, but it's never offered to install.
 	ImageGone bool `json:"image_gone,omitempty"`
 }
 

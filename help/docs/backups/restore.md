@@ -63,11 +63,13 @@ take a single file out of a backup by hand (see below).
     Back onto the server it runs on, from that server's main backup, the
     restore is a maintenance job there: it waits for any backup or update
     running, and nothing interrupts it. It stops the service's units, moves
-    each data folder to `<folder>.before-restore-<time>`, restores each
-    folder from the snapshot with restic, loads database dumps back (the
-    SQLite copy, `pg_restore` for Postgres, or the dump into a recreated
-    database and schemas for MySQL and MariaDB), and starts the units
-    again.
+    each data folder and each live database folder (`db/<name>`) to
+    `<folder>.before-restore-<time>`, restores each data folder from the
+    snapshot with restic, starts each database empty, loads database dumps
+    back (the SQLite copy, `pg_restore` for Postgres, or the dump into a
+    recreated database and schemas for MySQL and MariaDB), and starts the
+    units again. Putting a kept copy back returns its database folder as it
+    was, without loading a dump.
     A partial restore that was rolled back is kept as
     `<folder>.failed-restore-<time>`.
 

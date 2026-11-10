@@ -69,10 +69,10 @@ Environment=FORGEJO__service__DISABLE_REGISTRATION=false
 Environment=GITEA_APP_INI=/var/lib/gitea/custom/conf/app.ini
 Secret=roostack-forgejo-db-main-password,type=env,target=FORGEJO__database__PASSWD
 AddHost=login.lab.example.com:host-gateway
-Volume=/srv/roostack/services/forgejo/data:/var/lib/gitea
+Volume=/srv/roostack/services/forgejo/data:/var/lib/gitea:U
 Label=io.roostack.service=forgejo
 Label=io.roostack.component=app
-UserNS=keep-id:uid=1000,gid=1000
+User=1000:1000
 
 [Service]
 Restart=always
@@ -127,4 +127,4 @@ roostack-forgejo-sso-client-secret generate=true setting=""
 ==> backup exclude
 
 ==> backup prepare
-{Type:postgres Container:roostack-forgejo-db-main User:forgejo Database:forgejo Source: Target:/srv/roostack/services/forgejo/db-dump/main.sql}
+{Type:postgres Container:roostack-forgejo-db-main User:forgejo Database:forgejo Source: DataDir:/srv/roostack/services/forgejo/db/main Target:/srv/roostack/services/forgejo/db-dump/main.sql}

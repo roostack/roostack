@@ -180,3 +180,43 @@ func (s *Service) restartNow() RestartStatus {
 	rs, _ := s.RestartStatus(context.Background())
 	return rs
 }
+
+// stillRunningAgent is an agent restarted by upgrading Roostack: it stops
+// sending the run's output, and the run is still going.
+type stillRunningAgent struct{ fakeAgent }
+
+func (stillRunningAgent) RunUpdates(context.Context, string, io.Writer) error {
+	return agent.ErrUpdatesCut
+}
+func (stillRunningAgent) UpdatesStatus(context.Context) (agent.UpdatesRun, error) {
+	return agent.UpdatesRun{Running: true}, nil
+}
+
+// Roostack stopping while it follows a run isn't the run failing: the log
+// must not say so, and the next start must still know about the run.
+func TestJobHandsOverWhenRoostackStops(t *testing.T) {
+	s, coord := newService(t, stillRunningAgent{})
+	s.Activity = activity.New()
+	s.PollEvery = time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	s.Submit(ctx)
+	go func() {
+		for {
+			if act, ok := s.Activity.Latest(activity.OSUpdates); ok && slices.ContainsFunc(act.Lines, func(l string) bool { return strings.Contains(l, "following it") }) {
+				cancel()
+				return
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+	if err := coord.jobs[0].Run(ctx, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run = %v, want it to say Roostack is stopping", err)
+	}
+	act, _ := s.Activity.Latest(activity.OSUpdates)
+	if act.Running() || act.Err != "" || !strings.Contains(act.Status, "when it starts again") || slices.ContainsFunc(act.Lines, func(l string) bool { return strings.Contains(l, "Failed") }) {
+		t.Errorf("activity = %+v", act)
+	}
+	if v, _ := s.Store.Setting(context.Background(), runningKey); v == "" {
+		t.Error("the run's mark is gone, so the next start can't record how it ended")
+	}
+}

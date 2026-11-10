@@ -128,14 +128,21 @@
 {{template "content" .}}
 {{end}}
 
+{{/* The wide logo at the sidebar's size, and its dark version when there
+     is one: CSS shows the one for the page's light or dark, since someone
+     can choose that apart from their device's. Without a dark version, it
+     sits on a light panel in dark mode. Takes signInLook.WideLogo. */}}
+{{define "wide-logo"}}{{$l := .Look}}{{$alt := .Alt}}
+{{- if $l.Has "dark"}}<span class="sidebar-logo logo-pair"><img class="for-light" src="/brand/wide?v={{$l.Version}}" alt="{{$alt}}"{{with $l.SidebarWidth "wide"}} width="{{.}}" height="{{$l.SidebarHeight}}"{{end}}><img class="for-dark" src="/brand/dark?v={{$l.Version}}" alt="{{$alt}}"{{with $l.SidebarWidth "dark"}} width="{{.}}" height="{{$l.SidebarHeight}}"{{end}}></span>
+{{- else}}<span class="sidebar-logo on-light"><img src="/brand/wide?v={{$l.Version}}" alt="{{$alt}}"{{with $l.SidebarWidth "wide"}} width="{{.}}" height="{{$l.SidebarHeight}}"{{end}}></span>{{end}}
+{{- end}}
+
 {{/* The lab at the top of the sidebar: its wide logo, with "Roostack"
      small under it, or its mark or Roostack's hen beside its name (Name
      and look). A wide logo without a dark version sits on a light panel
      in dark mode, as on the sign-in page. */}}
 {{define "sidebar-lab"}}{{$l := .Look}}
-{{- if eq $l.Logo "wide"}}<a class="sidebar-lab sidebar-lab-wide" href="/"><span class="sidebar-logo{{if not ($l.Has "dark")}} on-light{{end}}"><picture>
-          {{- if $l.Has "dark"}}<source srcset="/brand/dark?v={{$l.Version}}" media="(prefers-color-scheme: dark)"{{with $l.SidebarWidth "dark"}} width="{{.}}" height="{{$l.SidebarHeight}}"{{end}}>{{end -}}
-          <img src="/brand/wide?v={{$l.Version}}" alt="{{or .LabName "Your lab"}}"{{with $l.SidebarWidth "wide"}} width="{{.}}" height="{{$l.SidebarHeight}}"{{end}}></picture></span>
+{{- if eq $l.Logo "wide"}}<a class="sidebar-lab sidebar-lab-wide" href="/">{{template "wide-logo" ($l.WideLogo (or .LabName "Your lab"))}}
         <span class="sidebar-lab-name"><span>Roostack</span></span></a>
 {{- else}}<a class="sidebar-lab" href="/">{{if eq $l.Logo "mark"}}<img class="brand-mark" src="/brand/mark?v={{$l.Version}}" alt="" width="32" height="32">{{else}}{{brandMark}}{{end}}<span class="sidebar-lab-name"><span>Roostack</span>
         {{- with .LabName}}<strong title="{{.}}">{{.}}</strong>{{else}}<strong>Your lab</strong>{{end}}</span></a>{{end}}

@@ -43,6 +43,11 @@ type RegistryWithdraw struct {
 	Link    string `yaml:"link"`
 }
 
+// NewestGone starts the part of a warning that says labs have lost the
+// version they'd have been offered, which someone should look at; Publish
+// looks for it. An older version's image going needs nothing done.
+const NewestGone = "Needs a new revision or a withdrawal"
+
 // BuildOptions says what to build the index from and how to sign it.
 type BuildOptions struct {
 	// Repo is a checkout of the registry repository: packages/ and keys/.
@@ -61,9 +66,13 @@ type BuildOptions struct {
 	// Platforms returns an image's os/architecture pairs
 	// (imagecheck.Platforms); nil leaves the architectures out.
 	Platforms func(image string) ([]string, error)
-	// Warn is told what's wrong but doesn't fail the build: an older
-	// version's image gone from its registry (nil: nothing is said).
+	// Warn is told what's wrong but doesn't fail the build: a version's
+	// image gone from its registry (nil: nothing is said).
 	Warn func(string)
+	// New are the versions a pull request adds, as package@version: an
+	// image of one of these gone from its registry fails the build, since
+	// it's a mistake in the pull request rather than a project's doing.
+	New []string
 	// Now is when it's signed: the index's date and serial.
 	Now time.Time
 }
@@ -116,7 +125,7 @@ func Build(opts BuildOptions) (*Index, error) {
 		if !d.IsDir() {
 			continue
 		}
-		p, pkgFiles, err := buildPackage(filepath.Join(opts.Repo, "packages"), d.Name(), opts.Platforms, platforms, known, opts.Warn)
+		p, pkgFiles, err := buildPackage(filepath.Join(opts.Repo, "packages"), d.Name(), opts.Platforms, platforms, known, opts.New, opts.Warn)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -165,8 +174,9 @@ func Build(opts BuildOptions) (*Index, error) {
 
 // buildPackage reads one package folder: its registry.yaml, each
 // <version>.yaml and its icon. It returns the index's entry and the files
-// to publish. known are the names built_with: may use (nil: any).
-func buildPackage(root, name string, lookup func(string) ([]string, error), seen map[string][]string, known map[string]bool, warn func(string)) (*Package, map[string][]byte, error) {
+// to publish. known are the names built_with: may use (nil: any), and
+// added are the versions whose images must be there (BuildOptions.New).
+func buildPackage(root, name string, lookup func(string) ([]string, error), seen map[string][]string, known map[string]bool, added []string, warn func(string)) (*Package, map[string][]byte, error) {
 	dir := filepath.Join(root, name)
 	fail := func(format string, args ...any) (*Package, map[string][]byte, error) {
 		return nil, nil, fmt.Errorf("packages/%s: %s", name, fmt.Sprintf(format, args...))
@@ -238,7 +248,7 @@ func buildPackage(root, name string, lookup func(string) ([]string, error), seen
 			arch, err := architectures(pkg, lookup, seen)
 			switch {
 			case errors.Is(err, imagecheck.ErrGone):
-				gone[version] = err // a warning unless it's the newest (below)
+				gone[version] = err // a warning unless it's new (below)
 			case err != nil:
 				errs = append(errs, fmt.Sprintf("%s: %v", e.Name(), err))
 			}
@@ -250,19 +260,43 @@ func buildPackage(root, name string, lookup func(string) ([]string, error), seen
 			newest = pkg
 		}
 	}
-	// An image gone from its registry: the newest version must be fixed
-	// (it's what labs install), but an older one is only said, so one
-	// project rebuilding a tag can't stop the whole registry publishing.
-	// Labs running it keep their copy; it's never offered (ImageGone).
+	// An image gone from its registry is said but doesn't fail the build,
+	// so one project rebuilding a tag or taking a release back (HedgeDoc's
+	// 1.12.1, 2026-11-06) can't stop the whole registry publishing. Labs
+	// running that version keep their copy, but it's never offered
+	// (ImageGone): they'll be offered the version before, or nothing. A
+	// version a pull request adds must have its images, though.
+	offered := func() string {
+		best := ""
+		for version, v := range p.Versions {
+			blocked := slices.ContainsFunc(facts.Withdrawals, func(w RegistryWithdraw) bool {
+				return w.Version == version && (&Withdrawal{Level: w.Level}).Blocks()
+			})
+			if !blocked && !v.ImageGone && (best == "" || pkgspec.CompareVersions(version, best) > 0) {
+				best = version
+			}
+		}
+		return best
+	}
 	for _, version := range slices.Sorted(maps.Keys(gone)) {
-		if newest != nil && version == newest.Version {
+		if slices.Contains(added, name+"@"+version) {
 			errs = append(errs, fmt.Sprintf("%s.yaml: %v", version, gone[version]))
+		}
+	}
+	before := offered()
+	for version := range gone {
+		p.Versions[version].ImageGone = true
+	}
+	after := offered()
+	for _, version := range slices.Sorted(maps.Keys(gone)) {
+		if warn == nil || slices.Contains(added, name+"@"+version) {
 			continue
 		}
-		p.Versions[version].ImageGone = true
-		if warn != nil {
-			warn(fmt.Sprintf("packages/%s/%s.yaml: %v; labs will keep running it, but won't be offered it", name, version, gone[version]))
+		msg := fmt.Sprintf("packages/%s/%s.yaml: %v; labs will keep running it, but won't be offered it", name, version, gone[version])
+		if version == before {
+			msg += fmt.Sprintf(". %s: %s", NewestGone, map[bool]string{true: "labs can't install this package until it has a version with its images", false: "labs will be offered " + after + " instead"}[after == ""])
 		}
+		warn(msg)
 	}
 	if len(errs) > 0 {
 		return fail("%s", strings.Join(errs, "\n  "))

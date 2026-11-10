@@ -112,8 +112,8 @@ say so, with what kind of update it is (a fix release, a feature release, a
 new major version, or an improved Roostack package for the same version).
 Some updates come with **notes**: things to know before updating, such as a
 step the app takes afterwards. Read them first. Services with an update are
-also listed under **Needs attention** and marked **Update available** on
-**Services**.
+also listed under **Needs attention** and marked **Update** on **Services**,
+which will link to the **Updates** page while there are any.
 
 Choose **Update now** to update it. Roostack will:
 
@@ -145,6 +145,37 @@ never takes a version from the service registry. If the newer version asks
 for things the one it runs didn't (such as an image that isn't pinned), the
 page will list them, and only the Owner can update it, after ticking that
 they've read them. Such an update never happens by itself.
+
+### Several at once
+
+**Services → Updates** lists every service with an update: the version it
+runs and the new one, what kind of update it is, what to read first, and
+whether Roostack would apply it tonight anyway. Fix releases and improved
+packages are ticked when the page opens; tick or untick the others, or use
+**Choose: fix releases · all · none**. On a phone, the table scrolls
+sideways.
+
+- An update with **notes** will open them when you tick it, and it's
+  chosen once you've said you've read them.
+- An update that can't be chosen says why in the same row: the service is
+  turned off, the new version needs something Roostack can't ask for yet,
+  or it asks for more than the version it runs, so only the Owner can
+  update it, from its own page.
+
+**Update now** will ask first, listing what will update on each server.
+Roostack will back up each server once, then update its services one at a
+time and check each one, as above. If one doesn't start, Roostack will put
+its previous version back and carry on with the others. The page will show
+how they're going, and you can leave it meanwhile.
+
+**Update tonight** will leave them for the night: after each server's
+nightly backup, Roostack will update them as it does automatic updates,
+whatever each service's own choice below says. Until then, the page and
+each service's page will say so, with **Cancel**. If a server's nightly
+backup doesn't finish, Roostack will try its updates again the next night,
+and if a newer version comes meanwhile, the choice will go: have a look at
+the new one first. A server without backups set up has no nightly backup to
+wait for, so its services can only update now.
 
 ### Updating by itself
 

@@ -27,24 +27,48 @@
       <legend>Logo</legend>
       <label class="check"><input type="radio" name="logo" value="mark"{{if eq .Look.Logo "mark"}} checked{{end}}>
         <span>A mark, with the name beside it<small>Square, like an app icon. It will also be the icon in the browser tab.</small></span></label>
-      <div class="logo-sub logo-for-mark">
-        {{if .Look.Has "mark"}}<img class="logo-now" src="/brand/mark?v={{.Look.Version}}" alt="The mark now" width="56" height="56">{{end}}
-        <label>{{if .Look.Has "mark"}}Replace it{{else}}The mark{{end}} <input type="file" name="logo_mark" accept="image/png,image/svg+xml"><small>PNG or SVG, square, up to 200 KB.</small></label>
-      </div>
       <label class="check"><input type="radio" name="logo" value="wide"{{if eq .Look.Logo "wide"}} checked{{end}}>
-        <span>A wide logo, with the name in it<small>It will be shown on its own in place of the name, at most {{.Look.Height}} pixels high on the sign-in page and {{.Look.SidebarHeight}} in Roostack's sidebar. Up to six times as wide as it is tall.</small></span></label>
-      <div class="logo-sub logo-for-wide">
-        {{if .Look.Has "wide"}}<img class="logo-now wide" src="/brand/wide?v={{.Look.Version}}" alt="The wide logo now"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}>{{end}}
-        <label>The logo <input type="file" name="logo_wide" accept="image/png,image/svg+xml"><small>PNG or SVG, up to 200 KB.</small></label>
-        <label>For dark mode <span class="hint">(optional)</span> <input type="file" name="logo_dark" accept="image/png,image/svg+xml">
-          <small>A version with light lettering. Without one, the logo will sit on a light panel when the device is in dark mode so dark lettering stays readable.</small></label>
-        {{if .Look.Has "dark"}}<label class="check"><input type="checkbox" name="remove_dark"><span>Remove the dark mode version</span></label>{{end}}
-        <label>Browser tab icon <span class="hint">(optional)</span> <input type="file" name="logo_icon" accept="image/png,image/svg+xml">
-          <small>Square. Without one, the tab will show Roostack's hen.</small></label>
-        {{if .Look.Has "icon"}}<label class="check"><input type="checkbox" name="remove_icon"><span>Remove the browser tab icon</span></label>{{end}}
-      </div>
+        <span>A wide logo, with the name in it<small>It will be shown on its own in place of the name, at most {{.Look.Height}} pixels high on the sign-in page and {{.Look.SidebarHeight}} in Roostack's sidebar.</small></span></label>
       <label class="check"><input type="radio" name="logo" value=""{{if eq .Look.Logo ""}} checked{{end}}>
         <span>None<small>Roostack's hen, with the name beside it.</small></span></label>
+    </fieldset>
+    <fieldset>
+      <legend>Your images</legend>
+      <p class="hint">PNG or SVG, up to 200 KB each. If you delete the logo in use, Roostack's hen will take its place.</p>
+      <div class="logo-files">
+        <div class="logo-file">
+          <div class="logo-file-now" data-mode="light">{{if .Look.Has "mark"}}<img class="logo-now" src="/brand/mark?v={{.Look.Version}}" alt="The mark now" width="56" height="56">{{else}}<span class="hint">No image</span>{{end}}</div>
+          <div class="logo-file-do">
+            <strong>The mark</strong><small>Square.</small>
+            <label>{{if .Look.Has "mark"}}Replace it{{else}}Add it{{end}} <input type="file" name="logo_mark" accept="image/png,image/svg+xml"></label>
+            {{if .Look.Has "mark"}}<label class="check"><input type="checkbox" name="remove_mark"><span>Delete it</span></label>{{end}}
+          </div>
+        </div>
+        <div class="logo-file">
+          <div class="logo-file-now" data-mode="light">{{if .Look.Has "wide"}}<img class="logo-now wide" src="/brand/wide?v={{.Look.Version}}" alt="The wide logo now"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}>{{else}}<span class="hint">No image</span>{{end}}</div>
+          <div class="logo-file-do">
+            <strong>The wide logo</strong><small>Up to six times as wide as it is tall.</small>
+            <label>{{if .Look.Has "wide"}}Replace it{{else}}Add it{{end}} <input type="file" name="logo_wide" accept="image/png,image/svg+xml"></label>
+            {{if .Look.Has "wide"}}<label class="check"><input type="checkbox" name="remove_wide"><span>Delete it</span></label>{{end}}
+          </div>
+        </div>
+        <div class="logo-file">
+          <div class="logo-file-now" data-mode="dark">{{if .Look.Has "dark"}}<img class="logo-now wide" src="/brand/dark?v={{.Look.Version}}" alt="The wide logo's dark mode version now"{{with .Look.Width "dark"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}>{{else}}<span class="hint">No image</span>{{end}}</div>
+          <div class="logo-file-do">
+            <strong>The wide logo for dark mode</strong><small>Optional: a version with light lettering. Without one, the logo will sit on a light panel in dark mode so that dark lettering stays readable.</small>
+            <label>{{if .Look.Has "dark"}}Replace it{{else}}Add it{{end}} <input type="file" name="logo_dark" accept="image/png,image/svg+xml"></label>
+            {{if .Look.Has "dark"}}<label class="check"><input type="checkbox" name="remove_dark"><span>Delete it</span></label>{{end}}
+          </div>
+        </div>
+        <div class="logo-file">
+          <div class="logo-file-now" data-mode="light">{{if .Look.Has "icon"}}<img class="logo-now" src="/brand/icon-file?v={{.Look.Version}}" alt="The browser tab icon now" width="56" height="56">{{else}}<span class="hint">No image</span>{{end}}</div>
+          <div class="logo-file-do">
+            <strong>The browser tab icon for the wide logo</strong><small>Optional and square. Without one, the tab will show Roostack's hen.</small>
+            <label>{{if .Look.Has "icon"}}Replace it{{else}}Add it{{end}} <input type="file" name="logo_icon" accept="image/png,image/svg+xml"></label>
+            {{if .Look.Has "icon"}}<label class="check"><input type="checkbox" name="remove_icon"><span>Delete it</span></label>{{end}}
+          </div>
+        </div>
+      </div>
     </fieldset>
     <fieldset>
       <legend>Colours</legend>
