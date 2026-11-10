@@ -1,0 +1,39 @@
+/* Your account mock-ups (2026-11-10): only what the real stylesheet lacks. */
+.mock-new { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 6px; }
+/* The section's own header: the lab's name and look, and who's signed in. */
+.acct-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-5); }
+.acct-brand { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--fg); text-decoration: none;
+  font-family: var(--font-display); font-size: var(--text-lg, 1.15rem); }
+.acct-brand .brand-mark, .acct-run .brand-mark { width: 36px; height: 36px; }
+.acct-who { display: flex; align-items: center; gap: var(--space-2); }
+.acct-who .who-name { display: grid; line-height: 1.2; }
+.acct-who .who-name span { color: var(--muted); font-size: var(--text-xs); }
+.acct-who form { margin: 0; }
+.acct-page { width: 100%; max-width: 760px; padding-inline: var(--space-4); }
+.acct-tabs { margin: var(--space-3) 0 var(--space-4); }
+.acct-page > .card, .acct-page > section { margin-bottom: var(--space-4); }
+.acct-page form label:not(.check) { display: block; margin-bottom: var(--space-4); }
+.acct-page form label:not(.check) input { display: block; width: 100%; max-width: 420px; margin-top: var(--space-1); }
+/* Services as tiles, two across on a wide screen. */
+.acct-apps { list-style: none; padding: 0; margin: var(--space-3) 0 var(--space-4); display: grid; gap: var(--space-2);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
+.acct-apps a { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--fg); text-decoration: none; }
+.acct-apps a:hover { border-color: var(--edge-strong, var(--border)); }
+.acct-apps .logo-tile { width: 44px; height: 44px; padding: 4px; flex: none; }
+.acct-apps small { display: block; color: var(--muted); }
+.acct-apps .pill { margin-left: auto; }
+.acct-run-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.acct-run-row > div { flex: 1 1 260px; }
+.acct-run-row h2 { margin: 0 0 var(--space-1); }
+.acct-run .logo-tile { width: 44px; height: 44px; padding: 3px; }
+.acct-change > summary { list-style: none; display: inline-block; }
+.acct-change > summary::-webkit-details-marker { display: none; }
+.acct-change[open] > summary { margin-bottom: var(--space-3); }
+.acct-foot { text-align: center; }
+/* The mock-ups' own switch, bottom right. */
+.mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100vw - 24px); padding: 6px;
+  border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 13px; }
+.mock-bar a, .mock-bar button { color: inherit; background: none; border: 0; padding: 2px 6px; font: inherit; cursor: pointer; text-decoration: none; }
+.mock-bar [aria-current] { text-decoration: underline; }
