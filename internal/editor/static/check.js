@@ -915,6 +915,10 @@
   function validateAbout(p, add) {
     const a = p.about;
     if (bytes(a.maker) > S.limits.maxMakerBytes) add("about.maker: at most 100 characters; say who makes it in a few words");
+    const n = a.notice || "";
+    if (n !== "" && goTrim(n) === "") add("about.notice: say what someone should know before installing, or leave it out");
+    else if (/[\n\r]/.test(n)) add("about.notice: one paragraph, without line breaks (in YAML, >- folds lines into one)");
+    else if (bytes(n) > S.limits.maxNoticeBytes) add("about.notice: at most 400 characters; say what someone should know before installing in a sentence or two");
     for (const [at, v] of [["about.website", a.website], ["about.source", a.source], ["about.support", a.support]]) {
       if (v !== "" && !validHTTPS(v)) add(`${at}: ${goQuote(v)} must be an https:// address`);
     }

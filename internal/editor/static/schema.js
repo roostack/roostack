@@ -70,6 +70,10 @@
       "item": {
        "type": "string"
       }
+     },
+     {
+      "name": "notice",
+      "type": "string"
      }
     ]
    },
@@ -940,6 +944,7 @@
   "maxKeywords": 10,
   "maxMakerBytes": 100,
   "maxMemory": 1000000000000,
+  "maxNoticeBytes": 400,
   "maxStorageTitle": 60,
   "minHostPort": 1024,
   "minMemory": 1000000
@@ -1346,6 +1351,12 @@
    "label": "Who makes it",
    "help": "Who makes the app, in a few words, so that the catalog credits them.",
    "example": "a volunteer community",
+   "link": "reference/packages#the-parts"
+  },
+  "about.notice": {
+   "label": "What to know before installing",
+   "help": "Something the app does that someone should know before installing it and that the package can't change, in a sentence or two. Roostack will show it as a warning on the install page and on the service's page.",
+   "example": "The app will send usage data to its makers from each person's browser, and only each person can turn it off.",
    "link": "reference/packages#the-parts"
   },
   "about.releases": {

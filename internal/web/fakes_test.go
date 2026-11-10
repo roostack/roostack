@@ -126,6 +126,8 @@ type fakeCatalog struct {
 	offs []string
 	// requiresSSO: packages have no sign-in of their own (sso.required).
 	requiresSSO bool
+	// notices are packages' about.notice, by name.
+	notices map[string]string
 	// summaries are the install summaries asked for.
 	summaries []manager.InstallRequest
 	// serverMemory is the install summary's server (nuc, 3.6 GB free of 8
@@ -198,6 +200,11 @@ func (f *fakeCatalog) Package(name string) (*pkgspec.Package, error) {
 	p, err := pkgspec.Load(pkgtest.File(name))
 	if err == nil && f.requiresSSO && p.SSO != nil {
 		p.SSO.Required = true
+	}
+	if err == nil {
+		if n, ok := f.notices[name]; ok {
+			p.About.Notice = n
+		}
 	}
 	return p, err
 }

@@ -43,6 +43,12 @@ type About struct {
 	// filters; Keywords are anything else people might search for.
 	Categories []string `yaml:"categories"`
 	Keywords   []string `yaml:"keywords"`
+	// Notice is what someone should know before installing the app, in a
+	// sentence or two of plain text, such as AFFiNE's web app sending
+	// usage data from each person's browser: shown as a warning on the
+	// install page and on the service's page (SPEC.md §8.3.6, "What to
+	// know before installing").
+	Notice string `yaml:"notice"`
 }
 
 // ReleasesPlaceholder is where the app's version goes in About.Releases.
@@ -93,7 +99,7 @@ func CategoryTitle(key string) string {
 }
 
 // MaxCategories and MaxKeywords keep a package's filters and search terms
-// to the point; maxMaker and maxKeyword are in bytes.
+// to the point; maxMaker, maxKeyword and maxNotice are in bytes.
 const (
 	MaxCategories = 3
 	MaxKeywords   = 10
@@ -101,6 +107,7 @@ const (
 	MaxBuiltWith = 20
 	maxMaker     = 100
 	maxKeyword   = 40
+	maxNotice    = 400
 )
 
 // Requires says what a package needs to run (SPEC.md §8.3.5).
@@ -308,6 +315,14 @@ func (p *Package) validateAbout(v *validator) {
 	a := p.About
 	if len(a.Maker) > maxMaker {
 		v.addf("about.maker: at most 100 characters; say who makes it in a few words")
+	}
+	switch n := a.Notice; {
+	case n != "" && strings.TrimSpace(n) == "":
+		v.addf("about.notice: say what someone should know before installing, or leave it out")
+	case strings.ContainsAny(n, "\n\r"):
+		v.addf("about.notice: one paragraph, without line breaks (in YAML, >- folds lines into one)")
+	case len(n) > maxNotice:
+		v.addf("about.notice: at most 400 characters; say what someone should know before installing in a sentence or two")
 	}
 	for _, f := range []struct{ at, val string }{
 		{"about.website", a.Website}, {"about.source", a.Source}, {"about.support", a.Support},

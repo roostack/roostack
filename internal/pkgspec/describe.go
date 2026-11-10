@@ -120,6 +120,7 @@ func Describe() Description {
 			"maxKeywords":     MaxKeywords,
 			"maxBuiltWith":    MaxBuiltWith,
 			"maxMakerBytes":   maxMaker,
+			"maxNoticeBytes":  maxNotice,
 			"maxKeywordBytes": maxKeyword,
 			"maxStorageTitle": maxStorageTitle,
 			"maxConfigTitle":  maxConfigTitle,

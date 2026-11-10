@@ -126,6 +126,12 @@ routes:
       (Network).
     - `keywords`: up to ten words or short phrases people might search
       for.
+    - `notice`: what someone should know before installing the app, in a
+      sentence or two of plain text, such as an app that sends usage data
+      from each person's browser that the package can't turn off. It's
+      one paragraph of at most 400 characters (in YAML, `>-` folds lines
+      into one). Roostack will show it as a warning on the install page
+      and on the service's page, and the registry's page shows it too.
 
 `built_with`
 :   What the app is built on, as short names: its language (`php`,
