@@ -26,19 +26,22 @@
       <div class="page-head"><div><h1>Your devices</h1></div></div>
       <nav class="settings-nav area-tabs acct-tabs" aria-label="Your account"><a href="index.html">Services</a><a href="account.html">Account</a><a href="security.html">Security</a><a href="notifications.html">Notifications</a><a href="devices.html" class="active" aria-current="page">Devices</a></nav>
 
-<div class="notice notice-info mock-new"><p><strong>Comes later, with WireGuard access.</strong> This page shows where devices will go, so the section's shape includes them from the start.</p></div>
 <section class="card mock-new">
-  <div class="card-head"><h2>Your devices</h2><a class="button" href="#">Add a device…</a></div>
-  <p>A device you add here can reach the lab's services from anywhere, as if it were at home.</p>
+  <div class="card-head"><h2>Your devices</h2><a class="button" href="devices-add.html">Add a device…</a></div>
+  <p>A phone or laptop you add here can reach the lab's services from anywhere, through the lab's VPN.</p>
   <div class="table-wrap"><table class="list">
-    <thead><tr><th>Device</th><th class="hide-phone">Address</th><th>Last connected</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <thead><tr><th>Device</th><th class="hide-phone">Reaches</th><th>Last connected</th><th><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>
-      <tr><td>Sam's phone<small class="hint"> · everything through home</small></td><td class="hide-phone"><code>100.96.128.4</code></td><td>2 minutes ago</td><td><a class="table-action" href="#">Change</a></td></tr>
-      <tr><td>Work laptop<small class="hint"> · the lab only</small></td><td class="hide-phone"><code>100.96.128.9</code></td><td>Yesterday</td><td><a class="table-action" href="#">Change</a></td></tr>
+      <tr><td>Sam's phone<small class="hint show-phone"> · everything</small></td><td class="hide-phone">Everything, with SSH</td><td>2 minutes ago</td><td><a class="table-action" href="#">Change</a></td></tr>
+      <tr><td>Work laptop<small class="hint show-phone"> · the lab only</small></td><td class="hide-phone">The lab only, with Roostack's pages</td><td>Yesterday</td><td><a class="table-action" href="#">Change</a></td></tr>
     </tbody>
   </table></div>
-  <p class="hint">You can add up to 5. A device can reach the services you can use, and as the Owner, SSH and Roostack's pages if you tick them for it.</p>
+  <p class="hint">You can add 3 more. Each device can reach the services you can use; Roostack's pages and SSH only if you tick them for it.</p>
 </section>
+<details class="card mock-tech">
+  <summary>How it works</summary>
+  <p>Each device has its own WireGuard key and address. It connects to linode-syd, the lab's server in the cloud, on UDP port 51822, and Roostack's firewall lets it reach only what it's allowed to. Roostack never sees a device's private key: your browser makes it, and it's only in the settings you add to the device.</p>
+</details>
 
     </main>
     <footer class="site acct-foot">Smiths' lab runs on Roostack · <a href="#">What is this page?</a></footer>

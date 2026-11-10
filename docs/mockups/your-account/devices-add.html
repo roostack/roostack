@@ -1,0 +1,57 @@
+<!doctype html><html lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add a device · Smiths' lab (mock-up)</title>
+  <link rel="icon" href="/internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/internal/web/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="/internal/web/static/css/app.css">
+  <script src="/internal/web/static/alpine-3.17.4.min.js" defer></script>
+  <link rel="stylesheet" href="mock.css">
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="bare">
+    <header class="acct-header mock-new">
+      <a class="acct-brand" href="index.html"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><strong>Smiths' lab</strong></a>
+      <div class="acct-who">
+        <span class="avatar" aria-hidden="true">S</span>
+        <span class="who-name"><strong>sam</strong><span>Owner</span></span>
+        <form method="post" action="#"><button type="button" class="icon-button" title="Sign out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Sign out</span></button></form>
+      </div>
+    </header>
+    <main class="page acct-page">
+      <div class="page-head"><div><h1>Add a device</h1></div></div>
+      <nav class="settings-nav area-tabs acct-tabs" aria-label="Your account"><a href="index.html">Services</a><a href="account.html">Account</a><a href="security.html">Security</a><a href="notifications.html">Notifications</a><a href="devices.html" class="active" aria-current="page">Devices</a></nav>
+
+<section class="card mock-new">
+  <div class="card-head"><h2>Add a device</h2></div>
+  <form>
+    <label>Name <input value="Sam's tablet" required><small>So you'll know it in the list, such as "Alex's phone".</small></label>
+    <fieldset>
+      <legend>What should it reach?</legend>
+      <label class="check"><input type="radio" name="reach" checked><span>The lab only<small>The lab's services. Its other internet traffic will go the usual way.</small></span></label>
+      <label class="check"><input type="radio" name="reach"><span>The lab and the home network<small>Also the home's other devices, such as a NAS or a printer.</small></span></label>
+      <label class="check"><input type="radio" name="reach"><span>Everything<small>All its internet traffic will go through the lab, which is safer on public Wi-Fi. It will use the lab's internet connection.</small></span></label>
+    </fieldset>
+    <fieldset>
+      <legend>Also</legend>
+      <label class="check"><input type="checkbox"><span>Roostack's pages<small>Running the lab from this device, as the Owner.</small></span></label>
+      <label class="check"><input type="checkbox"><span>SSH to the lab's servers<small>Only the Owner can tick this. Who can log in to each server is still up to Remote access.</small></span></label>
+    </fieldset>
+    <label>Your two-factor code <input inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="max-width: 10em">
+      <small>To check it's you, since this page can be reached from anywhere.</small></label>
+    <a class="button" href="devices-added.html">Add the device</a>
+    <a class="button secondary" href="devices.html">Cancel</a>
+  </form>
+  <p class="hint mock-note-inline">Mock-up: a Member sees only the three choices; "The lab and the home network" and "Everything" appear only if the Owner allows them.</p>
+</section>
+
+    </main>
+    <footer class="site acct-foot">Smiths' lab runs on Roostack · <a href="#">What is this page?</a></footer>
+  </div>
+  <script src="mock.js"></script>
+</body>
+</html>

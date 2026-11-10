@@ -32,6 +32,13 @@
 .acct-change > summary::-webkit-details-marker { display: none; }
 .acct-change[open] > summary { margin-bottom: var(--space-3); }
 .acct-foot { text-align: center; }
+.acct-qr { width: 200px; height: 200px; flex: none; border-radius: 8px; }
+.acct-qr-row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; margin-bottom: var(--space-3); }
+.acct-steps { flex: 1 1 260px; margin: 0; padding-left: 1.2em; }
+.acct-steps li + li { margin-top: var(--space-2); }
+.mock-tech { font-size: var(--text-sm); }
+.mock-tech > summary { color: var(--muted); cursor: pointer; }
+.mock-note-inline { border-top: 1px dashed var(--border); padding-top: var(--space-2); margin-top: var(--space-4); }
 /* The mock-ups' own switch, bottom right. */
 .mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100vw - 24px); padding: 6px;
   border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 13px; }

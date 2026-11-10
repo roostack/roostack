@@ -68,3 +68,18 @@ The maintainer asked whether it should be `login.<domain>`, `account.`, `me.`, t
 - **Considered:** an HTML page of the Owner's own. It's simple to serve, but it would run whatever scripts it holds on the lab's own domain, beside its services, so it's left for later, with a policy that stops scripts if it comes.
 - **No migration (the maintainer, 2026-11-10):** nothing redirects from `login.`, and the maintainer's lab can be installed again if its apps' single sign-on doesn't follow the new issuer; it's experimental.
 - **Decided (2026-11-10), the maintainer:** the proposal above, the roost.ac change included, and the simple page in the first version.
+
+## The lab's VPN (2026-11-10)
+
+SPEC §10.11 has the design, from the maintainer's decisions. These pages show it:
+
+- **Devices** (`devices.html`): each person's devices, what each reaches, and when it last connected, with **How it works** for the technical detail.
+- **Add a device** (`devices-add.html`): a name, what it should reach, Roostack's pages and SSH for those who may tick them, and the two-factor code. A Member sees only the choices the Owner allows.
+- **The device's settings** (`devices-added.html`): a QR code and a file, shown once, with generic steps for any WireGuard app.
+- **Settings → VPN** (`settings-vpn.html`, in Roostack's pages): on or off, the server devices connect to (the cloud server recommended, or the home server with a port forward and how to check it), whether devices may reach the home network or send everything through the lab, and everyone's devices with Remove.
+
+**Questions for the maintainer:**
+
+1. **The name:** "the lab's VPN", with Settings → VPN and Your account → Devices? "Remote access" already means SSH.
+2. **A device's choices after it's added:** changing what it reaches changes its settings (WireGuard's `AllowedIPs`), so the device would need its settings again, and Roostack doesn't keep the private key. *Proposal:* **Change** lets the Owner's ticks (Roostack's pages, SSH) change at once, since only the firewall enforces those, and changing where its traffic goes shows new settings with a new key, like adding it again.
+3. **The limit of 5 devices each:** the Owner's to change on Settings → VPN, or fixed?
