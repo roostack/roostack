@@ -36,7 +36,20 @@ then <http://127.0.0.1:8791/docs/mockups/your-account/index.html>. The tabs swit
 
 ## Questions for the maintainer
 
+**Decided (2026-11-10), the maintainer:** all four as recommended: the header and tabs, Members always sent to Your account, where you're signed in built with the section, and the tabs' names as they are. Still open: the section's address (below).
+
+
 1. **Layout:** a header with tabs, as mocked, or the single narrow card the sign-in page's home has today, with links to each page? *Recommendation:* the header and tabs, which give room for the tables (devices, where you're signed in) and match Your account's tabs today.
 2. **Members and `roost.<domain>`:** always sent to Your account, as proposed? Then Members lose Roostack's Home and Services pages, which show little beyond what Your account's Services tab will. *Recommendation:* yes. The photo migration keeps its page of its own at `roost.<domain>`, as now (SPEC §8.5).
 3. **Where you're signed in** is new: Roostack would keep each sign-in's browser and when it was last used. Build it with the section, or later? *Recommendation:* with the section, since the sessions are already kept and it's what someone wants after losing a phone.
 4. **The tabs' names:** Services, Account, Security, Notifications, and Devices. Any you'd rather call something else?
+
+## Its address (open, 2026-11-10)
+
+The maintainer asked whether it should be `login.<domain>`, `account.`, `me.`, the domain itself, or something else.
+
+- **`login.<domain>` (today's):** where people already go to sign in, and the issuer every app's single sign-on is set up with. Moving the issuer later would mean reconfiguring every app, and some apps link accounts to it. It's one name to explain, and a word a family member knows.
+- **A friendlier name (`my.`, `account.`, `me.`) beside `login.`:** reads better for a page of services and settings, but `login.` would stay as the issuer, so it's two reserved names (a service couldn't use either) and two addresses to explain. `account.` undersells the services list, and `me.` is unusual for a household's front door; `my.` reads best of the three.
+- **The domain itself:** possible (Caddy already serves it when it's Roostack's pages' address), and it's what a roost.ac name does today: Roostack's pages are at `smiths.roost.ac`. For an own domain, the bare name is often the person's own website, so Roostack would have to take its record over, and a relay can't point it elsewhere with a CNAME (DNS doesn't allow one at a domain's top). Not as the default.
+
+*Recommendation:* keep `login.<domain>`. With decision 2, a roost.ac lab's bare name already sends Members to Your account, so the friendliest address is covered there.
