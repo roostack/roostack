@@ -90,6 +90,12 @@ const (
 	// authenticator app (Your account, SPEC.md §5.3).
 	AuditTwoFactorChanged = "2fa changed"
 	AuditServerJoined     = "server joined"
+	// AuditVPNDeviceAdded: someone added a device to the lab's VPN (SPEC.md
+	// §10.11), with its name and what it reaches in the detail; changed
+	// and removed devices are only logged.
+	AuditVPNDeviceAdded   = "vpn device added"
+	AuditVPNDeviceChanged = "vpn device changed"
+	AuditVPNDeviceRemoved = "vpn device removed"
 	AuditGuestJoined      = "storage guest joined"
 	// Pausing public access and opening it again (SPEC.md §6.16), with
 	// what in the detail ("everything", "services built with php",
@@ -328,6 +334,10 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 		}
 	case AuditServerJoined:
 		return "", "A server joined the lab: " + e.Detail + " (" + when + ").", ""
+	case AuditVPNDeviceAdded:
+		return "A device was added to your account on the lab's VPN: " + e.Detail + " (" + when + "). If it wasn't you, remove it on " +
+				"Your account and change your password.",
+			e.Username + " added a device to the lab's VPN: " + e.Detail + " (" + when + ").", e.Username
 	case AuditGuestJoined:
 		return "", "Another lab started storing its backups here: " + e.Detail + " (" + when + ").", ""
 	case AuditPublicPaused:

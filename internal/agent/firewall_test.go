@@ -277,3 +277,48 @@ func TestClosedFirewall(t *testing.T) {
 		t.Errorf("refusing while open:\n%s", rs)
 	}
 }
+
+// The lab's VPN on the server devices connect to (SPEC.md §10.11): its
+// port, with the handshake limit; devices whose traffic goes on reach the
+// home network or anywhere, given this server's address; nothing else
+// passes to or from their interface; only device addresses are accepted.
+func TestRulesetPeople(t *testing.T) {
+	fw := DefaultFirewall()
+	got := fw.Ruleset()
+	if !strings.Contains(got, `iifname "roostack-people" drop`) || strings.Contains(got, "masquerade") || strings.Contains(got, "51822") {
+		t.Errorf("without the VPN:\n%s", got)
+	}
+	fw.People = &People{Port: PeoplePort, Home: []string{"100.96.128.5"}, Everything: []string{"100.96.128.6"}}
+	if err := fw.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	got = fw.Ruleset()
+	for _, want := range []string{
+		"udp dport 51822 @th,64,8 1 add @wg_handshakes4",
+		`iifname "roostack-people" ip saddr != 100.96.128.0/17 drop`,
+		`iifname "roostack-people" oifname != { "roostack-people", "roostack" } ip saddr { 100.96.128.6 } accept`,
+		`iifname "roostack-people" oifname != { "roostack-people", "roostack" } ip saddr { 100.96.128.5 } ip daddr @lan4 accept`,
+		`oifname "roostack-people" ct state established,related accept`,
+		"type nat hook postrouting priority srcnat",
+		`iifname "roostack-people" oifname != { "roostack-people", "roostack" } ip saddr 100.96.128.0/17 masquerade`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Index(got, "ip saddr { 100.96.128.6 } accept") > strings.Index(got, `iifname "roostack-people" drop`) {
+		t.Error("the devices' forwarding comes after the drop")
+	}
+	for _, bad := range []People{
+		{Port: PeoplePort, Home: []string{"192.168.1.5"}},
+		{Home: []string{"100.96.128.5"}},
+		{Rules: []DeviceRule{{Port: 22, Proto: "tcp", Devices: []string{"100.96.0.2"}}}},
+		{Rules: []DeviceRule{{Port: 22, Proto: "tcp"}}},
+		{Rules: []DeviceRule{{Port: 22, Proto: "tcp", Devices: []string{"100.96.128.5"}, Reason: "x\"}"}}},
+	} {
+		fw.People = &bad
+		if fw.Validate() == nil {
+			t.Errorf("%+v was accepted", bad)
+		}
+	}
+}

@@ -2,6 +2,8 @@ package labnet
 
 import (
 	"net"
+	"net/netip"
+	"slices"
 	"strings"
 )
 
@@ -38,4 +40,28 @@ func virtualIface(name string) bool {
 		}
 	}
 	return false
+}
+
+// HomeNetworks are the networks this server's home addresses are on
+// (HomeAddresses), such as 192.168.1.0/24: what a device on the lab's VPN
+// reaches when it's allowed the home network (SPEC.md §10.11).
+func HomeNetworks() []netip.Prefix {
+	ifaces, _ := net.Interfaces()
+	var out []netip.Prefix
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 || virtualIface(ifc.Name) {
+			continue
+		}
+		addrs, _ := ifc.Addrs()
+		for _, a := range addrs {
+			ipn, ok := a.(*net.IPNet)
+			if !ok || ipn.IP.To4() == nil || !ipn.IP.IsPrivate() {
+				continue
+			}
+			if p, err := netip.ParsePrefix(ipn.String()); err == nil && !slices.Contains(out, p.Masked()) {
+				out = append(out, p.Masked())
+			}
+		}
+	}
+	return out
 }

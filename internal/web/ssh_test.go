@@ -146,7 +146,7 @@ func TestSSHClientWhere(t *testing.T) {
 	}{
 		{"100.96.0.1", false, "the server that runs this lab, over Roostack's network"},
 		{"100.96.0.7", false, "another server in this lab, over Roostack's network"},
-		{"100.96.128.7", false, "your home network"},
+		{"100.96.128.7", false, "a device on the lab's VPN"},
 		{"192.168.1.5", false, "your home network"},
 		{"203.0.113.9", false, "outside your home network"},
 		{"10.0.0.5", true, "a private network"},

@@ -252,6 +252,7 @@ func (c *controller) wireManager() {
 		UpdateLab: func(change func(*config.Lab)) error { return config.Update(labPath, change) },
 		Submit:    func(j maintenance.Job) { c.coord.Submit(j) },
 		Settings:  c.st,
+		People:    c.st,
 		Audit:     func(ctx context.Context, action, detail string) { c.st.Audit(ctx, nil, action, detail) }}
 	// Its own services' addresses waiting for setup open as soon as
 	// their install hooks succeed (SPEC.md §8.1).
@@ -325,6 +326,7 @@ func (c *controller) wireWeb() error {
 	// chosen or the lab's look changes, and at each apply (the first one
 	// at start), which is how services' addresses change.
 	srv.DomainItself, srv.DomainPageDir = c.mgr, lab.Paths.DomainPageDir()
+	srv.VPN = c.mgr
 	c.mgr.Applying = func() { srv.WriteDomainPage(c.ctx) }
 	srv.SetupTokenFile = lab.Paths.SetupTokenFile()
 	srv.OnSetupComplete = func() {
@@ -796,7 +798,11 @@ func (c *controller) wireDNS() {
 				return public.Edge{Name: cmp.Or(e.Name, e.ID), Addr: e.Address}, ok
 			}},
 			// link.<domain>, once chosen for joining or storage for others.
-			LinkWanted: func() bool { v, _ := c.st.Setting(context.Background(), web.LinkWantedKey); return v == "on" },
+			// It's also where devices on the lab's VPN connect (SPEC.md §10.11).
+			LinkWanted: func() bool {
+				v, _ := c.st.Setting(context.Background(), web.LinkWantedKey)
+				return v == "on" || mgr.VPN().On
+			},
 			// Another copy of this lab runs it now: leave its records alone.
 			Paused: func() bool { v, _ := c.st.Setting(context.Background(), backup.FenceKey); return v != "" },
 			// The lab's own domain relayed through Roostack Cloud: public

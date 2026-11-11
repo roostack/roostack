@@ -147,6 +147,10 @@ type Assignment struct {
 	// Libraries are this server's media libraries (SPEC.md §8.1, "Media
 	// libraries"): mounted, and the rest unmounted, by its agent.
 	Libraries []agent.Library
+	// People, on the server the lab's VPN's devices connect to, is its
+	// interface (agent.PeopleInterface) with every device as a peer
+	// (SPEC.md §10.11); nil elsewhere, where it's removed if it was here.
+	People *agent.WireGuard
 	// Reason says why it was sent, for the apply's log.
 	Reason string
 	// CaddyFirst: the change is to web addresses and mustn't wait behind
@@ -390,7 +394,7 @@ func (n *Local) Apply(a Assignment) {
 	}
 	old := n.assignment.Services
 	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage, Links: a.Links,
-		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge, Libraries: a.Libraries}
+		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge, Libraries: a.Libraries, People: a.People}
 	if n.State != nil {
 		// A service taken off this server forgets its setup progress, and
 		// stops any setup still running: its hooks would keep retrying
@@ -696,7 +700,10 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 
 	// The firewall follows the services, e.g. a package port just turned on.
 	roles := firewall.Roles{Store: a.Storage != nil, ProxyPorts: a.ProxyPorts, GuestAddr: a.GuestAddr, Guests: a.Guests,
-		LinksListen: a.Links != nil && a.Links.Listen}
+		LinksListen: a.Links != nil && a.Links.Listen, VPN: a.People != nil}
+	if err := n.applyPeople(ctx, act, a.People); err != nil {
+		return fmt.Errorf("setting up the lab's VPN: %w", err)
+	}
 	n.mu.Lock()
 	servers := n.labServers
 	roles.SetupPort = n.setupPort
@@ -791,6 +798,7 @@ func (n *Local) lab(a Assignment) config.Lab {
 	lab.Public.Pause = a.Lab.Pause
 	lab.Public.Refused = a.Lab.Refused
 	lab.DomainItself = a.Lab.DomainItself
+	lab.Devices = a.Lab.Devices
 	return lab
 }
 

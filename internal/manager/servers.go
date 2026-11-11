@@ -294,6 +294,9 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	m.sendCloudPublic()
 	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked,
 		StatusPage: m.StatusPageOn(), Pause: pause, Refused: refused, DomainItself: m.labNow().DomainItself}
+	devices, people := m.vpnDevices(context.Background(), services)
+	lab.Devices = devices
+	vpnServer := m.VPNServer()
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
 		nodes = append(nodes, r)
@@ -336,6 +339,9 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		a.Links = m.linksFor(context.Background(), infos, id)
 		if id == edge {
 			a.Edge = edgeConfig(m.withStatusPage(), services)
+		}
+		if id == vpnServer {
+			a.People = people
 		}
 		n.Apply(a)
 	}

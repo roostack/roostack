@@ -211,6 +211,7 @@ func (s *Server) groupSaveSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.Store.Audit(ctx, currentUser(r), "group change", name)
+	s.vpnChanged("A group changed, which changes what its people's devices on the lab's VPN reach")
 	redirect(w, r, "/settings/people#groups")
 }
 
@@ -224,6 +225,7 @@ func (s *Server) groupRemoveSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "group remove", g.Name)
+	s.vpnChanged("A group was deleted, which changes what its people's devices on the lab's VPN reach")
 	s.renderUsers(w, r, http.StatusOK, map[string]any{"Done": "The group " + g.Name + " has been deleted."})
 }
 
@@ -272,6 +274,7 @@ func (s *Server) userDetailsSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.Store.Audit(ctx, currentUser(r), "user details", u.Username)
+	s.vpnChanged("Someone's groups changed, which changes what their devices on the lab's VPN reach")
 	s.renderUsers(w, r, http.StatusOK, map[string]any{"Done": "Saved " + u.Username + "'s details."})
 }
 

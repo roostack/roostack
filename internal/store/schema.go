@@ -406,6 +406,20 @@ var migrations = []string{
 	// ("Firefox on Linux"), for Your account's "Where you're signed in"
 	// (SPEC.md §5.3). Sessions from before it show no device.
 	`ALTER TABLE sessions ADD COLUMN device TEXT NOT NULL DEFAULT ''`,
+	// 40 (2026-11-11): people's devices on the lab's VPN (SPEC.md §10.11),
+	// each with its own address and only its public key; they go with
+	// their person.
+	`CREATE TABLE vpn_devices (
+		id INTEGER PRIMARY KEY,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		public_key TEXT NOT NULL UNIQUE,
+		address TEXT NOT NULL UNIQUE,
+		reach TEXT NOT NULL DEFAULT 'lab',
+		pages INTEGER NOT NULL DEFAULT 0,
+		ssh INTEGER NOT NULL DEFAULT 0,
+		created_at INTEGER NOT NULL
+	)`,
 }
 
 // Open opens (creating if needed) and migrates the database.

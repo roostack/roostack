@@ -45,6 +45,7 @@ var settingsAreas = []settingsArea{
 	{"domain", "Network", "Your lab's address", "/settings/domain"},
 	{"home-network", "Network", "Where it is and DNS", "/settings/home-network"},
 	{"public", "Network", "Public access", "/settings/public"},
+	{"vpn", "Network", "VPN", "/settings/vpn"},
 	{"cloud", "Network", "Roostack Cloud", "/settings/cloud"},
 	{"servers", "Servers", "Servers", "/servers"},
 	{"media", "Servers", "Media libraries", "/settings/media"},
@@ -75,6 +76,8 @@ func (a settingsArea) Icon() string {
 		return "location"
 	case "public":
 		return "globe"
+	case "vpn":
+		return "network"
 	case "cloud":
 		return "cloud"
 	case "storage":
@@ -286,6 +289,9 @@ func (s *Server) settingsGroups() []settingsGroup {
 	// controller, which always does in a running Roostack).
 	if s.SignIn == nil || s.SSO == nil {
 		hide = append(hide, "sign-in")
+	}
+	if s.VPN == nil {
+		hide = append(hide, "vpn")
 	}
 	return settingsGroups(hide...)
 }

@@ -780,7 +780,7 @@ func (g *gen) caddySite() error {
 			OldHost:        OldHost(g.lab, rc.Host),
 			Upstream:       fmt.Sprintf("%s:%d", g.upstream, rc.Port),
 			Private:        !public,
-			PrivateFrom:    PrivateFrom(g.lab),
+			PrivateFrom:    caddy.WithDevices(PrivateFrom(g.lab), g.lab.Devices.Services[g.name]),
 			PrivateExcept:  g.lab.EdgeAddrs,
 			MaxBodySize:    r.MaxBodySize,
 			ClientIPHeader: r.ClientIPHeader,

@@ -498,6 +498,10 @@ type MainConfig struct {
 	// DomainItself is what the bare domain shows (SPEC.md §5.3); nil:
 	// Caddy doesn't serve it.
 	DomainItself *DomainSite
+	// PagesDevices are the lab's VPN devices that reach Roostack's pages,
+	// and AllDevices every device, which reaches the sign-in page and the
+	// domain itself (SPEC.md §10.11). They're never home.
+	PagesDevices, AllDevices []string
 }
 
 // DomainSite is the bare domain: a redirect to Redirect, or the simple
@@ -597,6 +601,9 @@ func Main(c MainConfig) (string, error) {
 		b.WriteString("\t}\n")
 	}
 	b.WriteString("}\n")
+	if err := checkPrefixes(append(slices.Clone(c.PagesDevices), c.AllDevices...)); err != nil {
+		return "", fmt.Errorf("caddy: the VPN's devices: %w", err)
+	}
 	if d := c.DomainItself; d != nil && strings.ContainsAny(d.Redirect, " \t\n{}\"#") {
 		return "", fmt.Errorf("caddy: invalid address for the domain itself %q", d.Redirect)
 	}
@@ -669,7 +676,8 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge 
 	}
 	if c.AdminUpstream != "" && !edge {
 		route := Route{ID: "roostack-admin", Title: "Roostack", Host: adminHost,
-			Upstream: c.AdminUpstream, Private: !c.AdminPublic, PrivateFrom: c.PrivateFrom, PrivateExcept: c.EdgeFrom}
+			Upstream: c.AdminUpstream, Private: !c.AdminPublic, PrivateFrom: WithDevices(c.PrivateFrom, c.PagesDevices),
+			PrivateExcept: c.EdgeFrom}
 		if c.AdminPublic {
 			route.LoginPaths = AdminLoginPaths
 			route.WAF = c.AppSecURL != ""
@@ -687,7 +695,7 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge 
 	if s := c.SignIn; s != nil && now == "" && (!edge || s.Public) {
 		// The sign-in page for services (SPEC.md §5.2): reached through
 		// an edge only when it's public, like a service.
-		from := cmp.Or(c.PrivateFrom, PrivateRanges)
+		from := WithDevices(cmp.Or(c.PrivateFrom, PrivateRanges), c.AllDevices)
 		if s.Containers != "" {
 			if err := checkPrefixes([]string{s.Containers}); err != nil {
 				return fmt.Errorf("caddy: sign-in page: %w", err)
@@ -737,7 +745,7 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge 
 func domainSite(b *strings.Builder, c MainConfig, d *DomainSite, domain string) {
 	fmt.Fprintf(b, "\n\t@domain-itself host %s\n\thandle @domain-itself {\n", domain)
 	if !d.Public {
-		r := Route{PrivateFrom: c.PrivateFrom, PrivateExcept: c.EdgeFrom}
+		r := Route{PrivateFrom: WithDevices(cmp.Or(c.PrivateFrom, PrivateRanges), c.AllDevices), PrivateExcept: c.EdgeFrom}
 		fmt.Fprintf(b, "\t\t@domain-itself-external %s\n\t\tabort @domain-itself-external\n", r.notPrivate("\t\t"))
 	}
 	// In a route block, which runs in the order written, so the bans come
@@ -756,6 +764,14 @@ func domainSite(b *strings.Builder, c MainConfig, d *DomainSite, domain string) 
 		b.WriteString("\t\t\terror 404\n")
 	}
 	b.WriteString("\t\t}\n\t}\n")
+}
+
+// withDevices adds VPN devices to who reaches a private address.
+func WithDevices(from string, devices []string) string {
+	if len(devices) == 0 {
+		return from
+	}
+	return cmp.Or(from, PrivateRanges) + " " + strings.Join(devices, " ")
 }
 
 // checkPrefixes checks addresses or ranges (100.96.0.2/32) for Caddy.

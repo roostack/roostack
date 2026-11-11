@@ -148,6 +148,7 @@ func (s *Server) userRoleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "user role", fmt.Sprintf("%s: %s → %s", u.Username, u.Role, role))
+	s.vpnChanged(u.Username + "'s role changed, which changes what their devices on the lab's VPN reach")
 	redirect(w, r, "/settings/people")
 }
 
@@ -196,6 +197,7 @@ func (s *Server) userRemoveSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "user remove", u.Username)
+	s.vpnChanged(u.Username + " was removed, and their devices on the lab's VPN with them")
 	s.renderUsers(w, r, http.StatusOK, map[string]any{"Done": u.Username + " has been removed."})
 }
 

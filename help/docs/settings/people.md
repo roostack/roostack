@@ -89,6 +89,11 @@ Notifications
 :   Which emails Roostack sends you (see
     [Notifications](email.md#notifications)).
 
+VPN devices
+:   Your phones and laptops on [the lab's VPN](vpn.md), which reach the
+    lab's services from anywhere. The tab appears once the Owner turns the
+    VPN on.
+
 Owners and Admins choose the colours of Roostack's pages for themselves on
 Roostack's **Appearance** page, at the bottom of the sidebar. Their name
 there opens Your account.

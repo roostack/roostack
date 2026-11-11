@@ -43,6 +43,9 @@ type Roles struct {
 	// SetupPort is the first-run setup pages' port while setup lasts, for
 	// the home network only (SPEC.md §6.3.2); 0 otherwise.
 	SetupPort int
+	// VPN: the lab's VPN's devices connect to this server (SPEC.md
+	// §10.11), and their traffic may go on from here.
+	VPN bool
 }
 
 // Desired returns the firewall for the lab: web traffic (Caddy decides
@@ -66,6 +69,7 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	defer func() { fw = WithClosed(fw, lab.Public.Pause.Closed != nil) }()
 	fw.SSHFrom = map[string]string{config.SSHFromLAN: agent.FromLAN, config.SSHFromAny: agent.FromAny,
 		config.SSHOff: agent.FromOff}[lab.Firewall.SSH]
+	people := &agent.People{}
 	for _, s := range services {
 		for _, hp := range s.HostPorts {
 			to := trust.Home
@@ -74,7 +78,22 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 			}
 			fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, For: to,
 				Reason: s.Service + " " + hp.Name})
+			// A home-only port is for the VPN's devices whose person may
+			// use the service (SPEC.md §10.11).
+			if devices := lab.Devices.Services[s.Service]; to == trust.Home && len(devices) > 0 {
+				people.Rules = append(people.Rules, agent.DeviceRule{Port: hp.Port, Proto: hp.Protocol, Devices: devices,
+					Reason: s.Service + " " + hp.Name})
+			}
 		}
+	}
+	if len(lab.Devices.SSH) > 0 && fw.SSHFrom != agent.FromOff {
+		people.Rules = append(people.Rules, agent.DeviceRule{Port: 22, Proto: "tcp", Devices: lab.Devices.SSH, Reason: "ssh"})
+	}
+	if roles.VPN {
+		people.Port, people.Home, people.Everything = agent.PeoplePort, lab.Devices.Home, lab.Devices.Everything
+	}
+	if people.Port != 0 || len(people.Rules) > 0 {
+		fw.People = people
 	}
 	// Roostack's network between servers (SPEC.md §10.2).
 	if lab.OverlayAddr != "" {
@@ -265,7 +284,7 @@ func CutsOff(choice string, clients []netip.Addr, controller netip.Addr) []netip
 		switch {
 		case choice == config.SSHOff,
 			trust.ServersRange.Contains(c) && c != controller,
-			choice == config.SSHFromLAN && !trust.IsHome(c) && !trust.ServersRange.Contains(c):
+			choice == config.SSHFromLAN && !trust.IsHome(c) && !trust.ServersRange.Contains(c) && !trust.DevicesRange.Contains(c):
 			cut = append(cut, c)
 		}
 	}

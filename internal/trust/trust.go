@@ -34,6 +34,9 @@ const (
 	// StoreLinks are this lab's links to other labs' storage,
 	// roostack-st1…9; nftables matches the name's prefix with "*".
 	StoreLinks = "roostack-st*"
+	// PeopleInterface carries the lab's VPN: people's own devices, on the
+	// server they connect to (SPEC.md §10.11).
+	PeopleInterface = "roostack-people"
 )
 
 // Address ranges.
@@ -47,10 +50,11 @@ var (
 	// ServersRange holds the lab's servers' addresses (the hub gives them
 	// out from 100.96.0.0/24). Never home.
 	ServersRange = netip.MustParsePrefix("100.96.0.0/17")
-	// DevicesRange is kept for people's own devices (a laptop or phone)
-	// joining Roostack's network, a later feature (SPEC.md §10.2): home,
-	// so they'll reach what a device at home does. Nothing has an address
-	// in it yet.
+	// DevicesRange holds people's own devices on the lab's VPN (SPEC.md
+	// §10.11), on PeopleInterface, or on LabInterface when the server they
+	// connect to passes them on. Never home: a device reaches what's open
+	// to anyone, and what's opened for its own address (its person's
+	// services, SSH), nothing more.
 	DevicesRange = netip.MustParsePrefix("100.96.128.0/17")
 	// GuestRange holds the addresses of links between labs (storage for
 	// others). Each storing lab picks its own /24 in it at random.
@@ -61,15 +65,15 @@ var (
 )
 
 // HomeRanges are the "home network" (and VPN) sources: the private ranges,
-// and the CGNAT range (Tailscale, people's devices on Roostack's network)
-// except other labs (GuestRange), Roostack Cloud's relay (RelayRange) and
-// the lab's servers (ServersRange), which are never home (SPEC.md §6.10).
+// and the CGNAT range (Tailscale) except other labs (GuestRange), Roostack
+// Cloud's relay (RelayRange), the lab's servers (ServersRange) and the
+// lab's VPN (DevicesRange), which are never home (SPEC.md §6.10, §10.11).
 // The firewall's set and Caddy's private list are both made from it
 // (docs/ASSUMPTIONS.md C5).
 var HomeRanges = slices.Concat(
 	[]netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("172.16.0.0/12"),
 		netip.MustParsePrefix("192.168.0.0/16")},
-	Without(CGNATRange, GuestRange, RelayRange, ServersRange),
+	Without(CGNATRange, GuestRange, RelayRange, ServersRange, DevicesRange),
 	[]netip.Prefix{netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10")},
 )
 
@@ -89,9 +93,12 @@ type Class string
 const (
 	// Anyone is anywhere, the internet included.
 	Anyone Class = "any"
-	// Home is the home network or a VPN (HomeRanges), and people's devices
-	// on Roostack's network (DevicesRange).
+	// Home is the home network or a VPN (HomeRanges).
 	Home Class = "lan"
+	// People are people's devices on the lab's VPN (DevicesRange): they
+	// reach what's open to anyone, and the rules for their own addresses
+	// (agent.People).
+	People Class = "people"
 	// Servers are the lab's servers, on LabInterface (ServersRange).
 	Servers Class = "servers"
 	// Controller is the server that runs the lab, on LabInterface: a
@@ -141,10 +148,15 @@ func Classify(iface string, addr netip.Addr, lab Lab) Class {
 		return Guests
 	case strings.HasPrefix(iface, strings.TrimSuffix(StoreLinks, "*")):
 		return StoreLink
+	case iface == PeopleInterface:
+		if DevicesRange.Contains(addr) {
+			return People
+		}
+		return Nobody
 	case iface == LabInterface:
 		switch {
 		case DevicesRange.Contains(addr):
-			return Home
+			return People
 		case !ServersRange.Contains(addr):
 			return Nobody
 		case slices.Contains(lab.Edges, addr):
@@ -162,8 +174,8 @@ func Classify(iface string, addr netip.Addr, lab Lab) Class {
 }
 
 // May reports whether a connection from class c gets through a firewall
-// rule for class rule: its own class, and the home network everything
-// open to anyone. An edge and the controller are servers too. Servers
+// rule for class rule: its own class, and the home network and people's
+// devices everything open to anyone. An edge and the controller are servers too. Servers
 // reach only what's opened for servers, not even what's open to anyone:
 // over Roostack's network nothing else is theirs (SSH from the controller
 // is a rule of its own).
@@ -171,7 +183,7 @@ func May(c, rule Class) bool {
 	switch {
 	case c == rule:
 		return true
-	case c == Home && rule == Anyone:
+	case (c == Home || c == People) && rule == Anyone:
 		return true
 	case (c == Edge || c == Controller) && rule == Servers:
 		return true

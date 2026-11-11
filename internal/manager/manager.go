@@ -95,6 +95,9 @@ type Manager struct {
 	// Media libraries: the servers' libraries (store.Store; SPEC.md §8.1,
 	// "Media libraries"). Nil: none.
 	Libraries LibraryStore
+	// People is the lab's VPN devices, and who may use each service
+	// (store.Store; vpn.go). Nil: no VPN.
+	People PeopleStore
 
 	// Backups (backups.go; optional). BackupStore records backup
 	// providers and targets, and OpenRepo opens a repository with the

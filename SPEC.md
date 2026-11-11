@@ -2119,7 +2119,7 @@ Until now each server's backups could only be restored onto that server, and a f
    - **UDP and port forwarding:** a guest must be able to reach the host's port from the internet. Roostack opens the UDP port in its own firewall, then **explains port forwarding** on the storage page: which port (UDP, not TCP), to which server (its home-network address), a short how-to with common router names, and a **reachability check** (the guest's first connection, or a check from Roostack Cloud later) so the Owner knows it worked. As built (2026-10-03): the guest gives up after 20 seconds without a WireGuard handshake (the port can't be reached; waiting longer doesn't help) and says so, naming the provider's firewall and the router; a link that's up but unanswered is reported separately. The button shows "Connecting…" meanwhile. The same applies to the servers port (51820) when a server outside the home joins; the join page gets the same explanation. A Roostack Cloud relay can later remove the need for port forwarding (§10.5).
 
 
-### 10.11 The lab's VPN: people's devices from anywhere — Locked (2026-11-10), the maintainer's decisions; not built
+### 10.11 The lab's VPN: people's devices from anywhere — Locked (2026-11-10), the maintainer's decisions; built (2026-11-11) with the controller as the server devices connect to
 
 **What the maintainer asked (2026-11-10):** WireGuard access for the lab's people, built into Roostack rather than a package such as wg-easy, through the existing user list. A phone or laptop joins the lab's network from anywhere and reaches the lab's services as it would at home. wg-easy was ruled out because it would be a second WireGuard beside Roostack's own (§10.2) and needs `NET_ADMIN`, which the package policy refuses. Mock-ups: [docs/mockups/your-account](docs/mockups/your-account/README.md), "The lab's VPN".
 
@@ -2157,6 +2157,20 @@ Until now each server's backups could only be restored onto that server, and a f
 - **The devices are kept in the controller's database** (in its backups) and sent to that server with its assignment (§10.3); its key is saved with the other WireGuard keys for backups, so devices keep working after a restore.
 - **Last connected** comes from WireGuard's latest handshake, read on that server. A device unused for 90 days is flagged on Settings → VPN.
 - **Considered:** wg-easy (above); Headscale with the Tailscale apps (connects without a port forward, but it's another control server, and people would install an app that isn't WireGuard's own).
+
+**Changed (2026-11-11), the maintainer:**
+
+- **Roostack makes each device's key pair,** not the browser: Your account at `my.<domain>` allows no scripts, and drawing the QR code in the browser would need a JavaScript library. Roostack makes the key while answering, shows the settings once (the QR code drawn as two-factor's is, and the file as a download), and keeps only the public key. The private key is briefly in Roostack's memory, which matters little, since the server devices connect to can see their traffic anyway.
+- **Who may use a service is chosen only with single sign-on,** as before: a service without it (BentoPDF, Pi-hole) is every device's, as it's everyone's at home.
+
+**As built (2026-11-11):** `internal/manager/vpn.go`, `internal/web/vpn.go`, `templates/settings-vpn.html` and Your account's `acct-devices`; store step 40 (`vpn_devices`).
+
+- **Not yet built:** devices connecting to a server other than the controller (a cloud server in the lab, the Locked default), so devices always connect to the controller at `link.<domain>`, and SSH reaches only the controller; and the relay. Settings → VPN says where devices connect, without a choice.
+- **Devices are their own trust class** (`trust.People`), never home: `trust.HomeRanges` and Caddy's private list leave out `100.96.128.0/17`. A device reaches what's open to anyone, so Caddy (whose private routes list each device allowed: its person's services, Roostack's pages when ticked, the sign-in page and the domain itself for all), even while public access is closed; and its own firewall rules (`agent.People`): SSH for an Owner's device that has it ticked unless SSH is Nobody, a service's home-only ports for the devices whose person may use it. On the server devices connect to, the firewall forwards only the traffic of devices allowed the home network (to the home's ranges) or everything, masqueraded; nothing else passes to or from `roostack-people`. A device's address arriving on any other interface isn't a device (`trust.Classify`).
+- **Each apply works out what each device reaches** (`config.Devices`, sent with the lab context): Roostack's pages only for an Owner's or Admin's device and SSH only for an Owner's, whatever is ticked, so a role changing takes them away; the home network and everything only while the Owner allows them. Adding, changing, or removing a device, and changes to roles, groups, people, or who may use a service, apply again.
+- **A device's settings:** `Address` its own `/32`, `Endpoint` `link.<domain>:51822` (the record is kept while the VPN is on), `AllowedIPs` the address the lab's names point at (the records manager's), plus the home's ranges (the controller's private networks) or `0.0.0.0/0`, and a keepalive of 25 seconds. The file is named from the device (at most 15 characters, as WireGuard on Linux names the interface after it).
+- **Adding or changing a device asks for the person's two-factor code** when they have two-factor; wrong codes count against their account as at login. Changing what a device reaches waits for the VPN to be ready, as adding does.
+- **Audited:** `vpn device added` (emailed to the person and the Owners, Security group), `vpn device changed`, `vpn device removed`.
 
 ## Deferred Decisions (post-MVP)
 

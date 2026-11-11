@@ -40,7 +40,8 @@
       {{else if eq .Tab "services"}}{{template "acct-services" .}}
       {{else if eq .Tab "account"}}{{template "acct-account" .}}
       {{else if eq .Tab "security"}}{{template "acct-security" .}}
-      {{else if eq .Tab "notifications"}}{{template "acct-notifications" .}}{{end}}
+      {{else if eq .Tab "notifications"}}{{template "acct-notifications" .}}
+      {{else if eq .Tab "devices"}}{{template "acct-devices" .}}{{end}}
     </main>
     <footer class="site acct-foot">
       <details class="hint">
@@ -209,4 +210,78 @@
   <p class="hint">Security emails about your own account always come: a password or two-factor change, a reset, a sign-in from a
     new browser, or codes locked after wrong tries.</p>
 </section>
+{{end}}
+
+{{define "acct-devices"}}
+{{with .Devices}}
+{{if .Added}}{{with .Added}}
+<section class="card">
+  <div class="acct-qr-row">
+    <div class="qr-box">{{.QR}}</div>
+    <ol class="acct-steps">
+      <li>Install a WireGuard app on the device. WireGuard's own is free for iPhone and iPad, Android, Windows, macOS, and Linux.</li>
+      <li>In the app, add a tunnel from a QR code and scan this one. On a laptop, add it from a file instead:
+        <a href="{{.Download}}" download="{{.FileName}}">download {{.FileName}}</a>.</li>
+      <li>Turn the tunnel on. The list of devices will show when it last connected.</li>
+    </ol>
+  </div>
+  {{notice "warn" "You'll only see this once. The settings hold the device's private key, which Roostack doesn't keep, so if you lose them, add the device again."}}
+  <details class="technical"><summary>The settings as text</summary><pre class="output">{{.File}}</pre></details>
+  <a class="button" href="/account/devices">Done</a>
+</section>
+{{end}}
+{{else if .Form}}{{with .Form}}
+<section class="card">
+  <form method="post" action="{{if .ID}}/account/devices/{{.ID}}{{else}}/account/devices{{end}}">
+    <label>Name <input name="name" value="{{.Name}}" maxlength="60" required{{if not .ID}} autofocus{{end}}>
+      <small>So you'll know it in the list, such as "Alex's phone".</small></label>
+    <fieldset>
+      <legend>What should it reach?</legend>
+      <label class="check"><input type="radio" name="reach" value="lab"{{if eq .Reach "lab"}} checked{{end}}>
+        <span>The lab only<small>The lab's services. Its other internet traffic will go the usual way.</small></span></label>
+      {{if .Home}}<label class="check"><input type="radio" name="reach" value="home"{{if eq .Reach "home"}} checked{{end}}>
+        <span>The lab and the home network<small>Also the home's other devices, such as a NAS or a printer.</small></span></label>{{end}}
+      {{if .Everything}}<label class="check"><input type="radio" name="reach" value="everything"{{if eq .Reach "everything"}} checked{{end}}>
+        <span>Everything<small>All its internet traffic will go through the lab, which is safer on public Wi-Fi. It will use the lab's internet connection.</small></span></label>{{end}}
+      {{if .ID}}<p class="hint">Changing this will give the device new settings to add again, since Roostack doesn't keep its private key.</p>{{end}}
+    </fieldset>
+    {{if or .CanPages .CanSSH}}<fieldset>
+      <legend>Also</legend>
+      {{if .CanPages}}<label class="check"><input type="checkbox" name="pages" value="yes"{{if .Pages}} checked{{end}}>
+        <span>Roostack's pages<small>Running the lab from this device.</small></span></label>{{end}}
+      {{if .CanSSH}}<label class="check"><input type="checkbox" name="ssh" value="yes"{{if .SSH}} checked{{end}}>
+        <span>SSH to the lab's servers<small>Only the Owner can tick this. Who can log in to each server is still up to Remote access.</small></span></label>{{end}}
+    </fieldset>{{end}}
+    {{if .NeedCode}}<label>Your two-factor code <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" class="acct-code" required>
+      <small>To check it's you, since this page can be reached from anywhere.</small></label>{{end}}
+    <button type="submit">{{if .ID}}Save{{else}}Add the device{{end}}</button>
+    <a class="button secondary" href="/account/devices">Cancel</a>
+  </form>
+  {{if .ID}}<form method="post" action="/account/devices/{{.ID}}/remove" class="acct-remove">
+    <button type="submit" class="outline-danger">Remove this device</button></form>{{end}}
+</section>
+{{end}}
+{{else}}
+<section class="card">
+  <div class="card-head"><h2>Your devices on the lab's VPN</h2>{{if or (eq .Limit 0) (gt .Left 0)}}<a class="button" href="/account/devices/add">Add a device…</a>{{end}}</div>
+  <p>A phone or laptop you add here can reach the lab's services from anywhere, through the lab's VPN.</p>
+  {{if .List}}<div class="table-wrap"><table class="list">
+    <thead><tr><th>Device</th><th class="hide-phone">Reaches</th><th>Last connected</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>{{range .List}}<tr>
+      <td>{{.Name}}<small class="hint show-phone"> · {{lowerFirst .Reaches}}</small></td>
+      <td class="hide-phone">{{.Reaches}}</td>
+      <td>{{if .Never}}<span class="hint">Never</span>{{else}}{{.LastConnected}}{{end}}</td>
+      <td><a class="table-action" href="/account/devices/{{.ID}}">Change</a></td>
+    </tr>{{end}}</tbody>
+  </table></div>{{else}}<p class="hint">You haven't added any yet.</p>{{end}}
+  <p class="hint">{{if .Limit}}{{if .Left}}You can add {{.Left}} more, as the lab allows {{.Limit}} each.{{else}}That's as many as the lab allows each person ({{.Limit}}): remove one to add another.{{end}} {{end}}Each device can reach the services you can use, and Roostack's pages and SSH only if you tick them for it.</p>
+</section>
+<details class="card technical">
+  <summary>How it works</summary>
+  <p>Each device has its own WireGuard key and address. It connects to {{.Server}} at <code>{{.Endpoint}}</code> (UDP), and Roostack's
+    firewall and web proxy let it reach only what it's allowed to. Roostack makes each device's key when you add it, shows it to you once,
+    and keeps only the public half.</p>
+</details>
+{{end}}
+{{end}}
 {{end}}

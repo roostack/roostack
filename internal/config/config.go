@@ -514,6 +514,8 @@ type Lab struct {
 	Registry Registry `yaml:"registry,omitempty"`
 	// Monitoring is how the lab's monitoring is shown (SPEC.md §6.15).
 	Monitoring Monitoring `yaml:"monitoring,omitempty"`
+	// VPN is the lab's VPN for people's own devices (SPEC.md §10.11).
+	VPN VPN `yaml:"vpn,omitempty"`
 	// DomainItself is what the bare domain shows (SPEC.md §5.3).
 	DomainItself DomainItself `yaml:"domain_itself,omitempty"`
 	// OldAddress is the lab's previous address, still served for a while
@@ -548,6 +550,9 @@ type Lab struct {
 	// say who a visitor is (a PROXY header), and they count as outside.
 	// Set at run time from the lab's servers.
 	EdgeAddrs []string `yaml:"-"`
+	// Devices are the lab's VPN devices as the controller works them out
+	// for each apply (SPEC.md §10.11): never in lab.yaml.
+	Devices Devices `yaml:"-"`
 }
 
 // Cloud is the lab's use of Roostack Cloud.
@@ -635,6 +640,56 @@ func (l Lab) RoostAc() bool { return l.DNS.Provider == ProviderCloud }
 // UIHost is where Roostack's own pages are: roost.<domain>, for a
 // roost.ac name too since 2026-11-11 (SPEC.md §5.3).
 func (l Lab) UIHost() string { return "roost." + l.Domain }
+
+// DefaultMaxDevices is how many devices each person may add to the lab's
+// VPN unless the Owner chooses otherwise (SPEC.md §10.11).
+const DefaultMaxDevices = 5
+
+// VPN is the lab's VPN: people's own devices joining the lab's network
+// from anywhere, each reaching only what its person may use (SPEC.md
+// §10.11).
+type VPN struct {
+	On bool `yaml:"on,omitempty"`
+	// Server is the server devices connect to (its ID); empty lets
+	// Roostack choose (Lab.VPNServer).
+	Server string `yaml:"server,omitempty"`
+	// MaxDevices is each person's limit (0: DefaultMaxDevices), unless
+	// NoLimit.
+	MaxDevices int  `yaml:"max_devices,omitempty"`
+	NoLimit    bool `yaml:"no_limit,omitempty"`
+	// HomeNetwork lets devices reach the home network's other devices,
+	// and Everything lets them send all their traffic through the lab, if
+	// their person chooses.
+	HomeNetwork bool `yaml:"home_network,omitempty"`
+	Everything  bool `yaml:"everything,omitempty"`
+}
+
+// Limit is how many devices each person may add (0: no limit).
+func (v VPN) Limit() int {
+	switch {
+	case v.NoLimit:
+		return 0
+	case v.MaxDevices > 0:
+		return v.MaxDevices
+	}
+	return DefaultMaxDevices
+}
+
+// Devices are the VPN's devices' addresses for what Caddy and each
+// server's firewall let them reach (SPEC.md §10.11).
+type Devices struct {
+	// Services are, by service name, the devices whose person may use it.
+	Services map[string][]string `json:"services,omitempty"`
+	// Pages reach Roostack's pages, SSH reaches SSH, and All is every
+	// device (Your account, my.<domain>, is open to all).
+	Pages []string `json:"pages,omitempty"`
+	SSH   []string `json:"ssh,omitempty"`
+	All   []string `json:"all,omitempty"`
+	// Home and Everything are devices whose traffic goes on to the home
+	// network, or anywhere, from the server they connect to.
+	Home       []string `json:"home,omitempty"`
+	Everything []string `json:"everything,omitempty"`
+}
 
 // What the bare domain shows (SPEC.md §5.3, DomainItself.Show).
 const (

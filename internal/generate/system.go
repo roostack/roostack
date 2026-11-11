@@ -193,6 +193,10 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 		StatusPage:    lab.Monitoring.StatusPage,
 		PrivateFrom:   PrivateFrom(lab),
 		EdgeFrom:      lab.EdgeAddrs,
+		// The lab's VPN devices: Roostack's pages for those that have them,
+		// Your account and the domain itself for all (SPEC.md §10.11).
+		PagesDevices: lab.Devices.Pages,
+		AllDevices:   lab.Devices.All,
 	}
 	if lab.ServesDomain() {
 		// The domain itself (SPEC.md §5.3).

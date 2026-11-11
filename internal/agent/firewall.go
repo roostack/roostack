@@ -55,6 +55,33 @@ type Firewall struct {
 	// and leaves everything else as if it weren't there; without a
 	// SetupPort there's no table at all. Nothing else may be set.
 	Unchosen bool `json:"unchosen,omitempty"`
+	// People is the lab's VPN on this server (SPEC.md §10.11); nil: none.
+	People *People `json:"people,omitempty"`
+}
+
+// People is what the lab's VPN's devices (trust.DevicesRange) reach on
+// this server, besides what's open to anyone (Caddy, which decides for
+// each device): the rules for their own addresses. They're never home.
+type People struct {
+	// Port is where devices connect (UDP), on the server they connect to;
+	// 0 elsewhere.
+	Port int `json:"port,omitempty"`
+	// Rules are each opened for some devices: SSH, and a service's
+	// home-only port for those whose person may use the service.
+	Rules []DeviceRule `json:"rules,omitempty"`
+	// Home are devices whose traffic may go on to the home network, and
+	// Everything those whose traffic may go anywhere, leaving from this
+	// server's address: only on the server they connect to.
+	Home       []string `json:"home,omitempty"`
+	Everything []string `json:"everything,omitempty"`
+}
+
+// DeviceRule opens one port to some of the VPN's devices.
+type DeviceRule struct {
+	Port    int      `json:"port"`
+	Proto   string   `json:"proto"`
+	Devices []string `json:"devices"`
+	Reason  string   `json:"reason"`
 }
 
 // EdgePort is Caddy's listener for visitors through the lab's edges, whose
@@ -112,7 +139,7 @@ func (f Firewall) Validate() error {
 	}
 	if f.Unchosen {
 		if f.SSHFrom != "" || len(f.Allow) > 0 || len(f.Forward) > 0 || len(f.Edges) > 0 || f.JoinPort != 0 ||
-			len(f.Members) > 0 || f.Controller != "" {
+			len(f.Members) > 0 || f.Controller != "" || f.People != nil {
 			errs = append(errs, errors.New("unchosen: only setup_port may be set"))
 		}
 		return errors.Join(errs...)
@@ -156,6 +183,9 @@ func (f Firewall) Validate() error {
 			errs = append(errs, fmt.Errorf("members[%d]: not a server's address on Roostack's network", i))
 		}
 	}
+	if p := f.People; p != nil {
+		errs = append(errs, p.validate()...)
+	}
 	for i, r := range f.Forward {
 		if r.Port < 1 || r.Port > 65535 || r.Proto != "tcp" || r.For != trust.Servers || r.Source != "" {
 			errs = append(errs, fmt.Errorf("forward[%d]: only a TCP port between Roostack's servers (for %q)", i, trust.Servers))
@@ -165,6 +195,62 @@ func (f Firewall) Validate() error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// validate checks the VPN's rules: every address is a device's.
+func (p People) validate() []error {
+	var errs []error
+	devices := func(what string, list []string) {
+		for _, d := range list {
+			if a, err := netip.ParseAddr(d); err != nil || !trust.DevicesRange.Contains(a) {
+				errs = append(errs, fmt.Errorf("people: %s: %q isn't a device's address", what, d))
+			}
+		}
+	}
+	if p.Port < 0 || p.Port > 65535 {
+		errs = append(errs, fmt.Errorf("people: invalid port %d", p.Port))
+	}
+	for i, r := range p.Rules {
+		if r.Port < 1 || r.Port > 65535 || r.Proto != "tcp" && r.Proto != "udp" || len(r.Devices) == 0 {
+			errs = append(errs, fmt.Errorf("people: rules[%d]: a port, tcp or udp, and devices", i))
+		}
+		if strings.ContainsFunc(r.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
+			errs = append(errs, fmt.Errorf("people: rules[%d]: invalid characters in reason", i))
+		}
+		devices(fmt.Sprintf("rules[%d]", i), r.Devices)
+	}
+	if p.Port == 0 && len(p.Home)+len(p.Everything) > 0 {
+		errs = append(errs, errors.New("people: only the server devices connect to passes their traffic on"))
+	}
+	devices("home", p.Home)
+	devices("everything", p.Everything)
+	return errs
+}
+
+// devicesFrom matches the VPN's devices: on its interface, or passed on
+// over Roostack's network by the server they connect to. A device's
+// address from anywhere else isn't one (trust.Classify).
+var devicesFrom = fmt.Sprintf("iifname { %q, %q } ", PeopleInterface, WireGuardInterface)
+
+// people writes what the VPN's devices reach here (People), before any
+// rule by source: their own rules, then on to what's open to anyone. On
+// their interface, nothing but a device's address gets in.
+func (f Firewall) people(b *strings.Builder) {
+	fmt.Fprintf(b, "\t\tiifname %q ip saddr != %s drop\n", PeopleInterface, trust.DevicesRange)
+	fmt.Fprintf(b, "\t\tiifname %q meta nfproto ipv6 drop\n", PeopleInterface)
+	if f.People == nil {
+		return
+	}
+	// Caddy, which lets each device through to what its person may use,
+	// even while public access is closed (Closed): devices aren't the
+	// public.
+	b.WriteString("\t\t# caddy, for the lab's VPN devices\n")
+	fmt.Fprintf(b, "\t\t%sip saddr %s tcp dport { 80, 443 } accept\n", devicesFrom, trust.DevicesRange)
+	fmt.Fprintf(b, "\t\t%sip saddr %s udp dport 443 accept\n", devicesFrom, trust.DevicesRange)
+	for _, r := range f.People.Rules {
+		fmt.Fprintf(b, "\t\t# %s, for the lab's VPN devices that may\n", r.Reason)
+		fmt.Fprintf(b, "\t\t%sip saddr { %s } %s dport %d accept\n", devicesFrom, strings.Join(r.Devices, ", "), r.Proto, r.Port)
+	}
 }
 
 // wireguardLimit drops a source's new WireGuard handshakes beyond a few a
@@ -245,6 +331,7 @@ func (f Firewall) Ruleset() string {
 		fmt.Fprintf(&b, "\t\tiifname %q drop\n", iface)
 	}
 	f.servers(&b)
+	f.people(&b)
 	b.WriteString("\t\tiif \"lo\" accept\n")
 	b.WriteString("\t\tmeta l4proto { icmp, ipv6-icmp } accept\n")
 	// DHCPv6 replies come from the router's link-local address to a port
@@ -258,6 +345,9 @@ func (f Firewall) Ruleset() string {
 	if f.SetupPort != 0 {
 		rules = append(rules, Rule{Port: f.SetupPort, Proto: "tcp", For: trust.Home, Reason: setupReason})
 	}
+	if p := f.People; p != nil && p.Port != 0 {
+		rules = append(rules, Rule{Port: p.Port, Proto: "udp", For: trust.Anyone, Reason: "the lab's VPN (wireguard)"})
+	}
 	slices.SortStableFunc(rules, func(a, b Rule) int {
 		if a.Port != b.Port {
 			return a.Port - b.Port
@@ -266,7 +356,8 @@ func (f Firewall) Ruleset() string {
 	})
 	for _, r := range rules {
 		fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
-		if r.Proto == "udp" && r.For == trust.Anyone && (r.Port == WireGuardPort || r.Port == GuestsPort) {
+		if r.Proto == "udp" && r.For == trust.Anyone && (r.Port == WireGuardPort || r.Port == GuestsPort ||
+			f.People != nil && r.Port == f.People.Port) {
 			wireguardLimit(&b, r.Port)
 		}
 		switch r.For {
@@ -297,6 +388,7 @@ func (f Firewall) Ruleset() string {
 	if f.JoinPort != 0 {
 		fmt.Fprintf(&b, "\t\t%sdrop\n", f.notMember())
 	}
+	f.peopleForward(&b)
 	fmt.Fprintf(&b, "\t\tiifname %q oifname %q ct state established,related accept\n", WireGuardInterface, WireGuardInterface)
 	for _, r := range f.Forward {
 		fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
@@ -305,8 +397,47 @@ func (f Firewall) Ruleset() string {
 	}
 	fmt.Fprintf(&b, "\t\tiifname %q drop\n", WireGuardInterface)
 	fmt.Fprintf(&b, "\t\toifname %q drop\n", WireGuardInterface)
-	b.WriteString("\t}\n}\n")
+	b.WriteString("\t}\n")
+	f.peopleNAT(&b)
+	b.WriteString("}\n")
 	return b.String()
+}
+
+// peopleForward writes what the VPN's devices may pass through to: the
+// home network for People.Home, anywhere for People.Everything, and the
+// answers; nothing else goes to or from their interface (SPEC.md
+// §10.11).
+func (f Firewall) peopleForward(b *strings.Builder) {
+	if p := f.People; p != nil && p.Port != 0 {
+		if len(p.Everything) > 0 {
+			b.WriteString("\t\t# the lab's VPN devices whose traffic goes anywhere\n")
+			fmt.Fprintf(b, "\t\tiifname %q oifname != { %q, %q } ip saddr { %s } accept\n", PeopleInterface, PeopleInterface,
+				WireGuardInterface, strings.Join(p.Everything, ", "))
+		}
+		if len(p.Home) > 0 {
+			b.WriteString("\t\t# the lab's VPN devices that reach the home network\n")
+			fmt.Fprintf(b, "\t\tiifname %q oifname != { %q, %q } ip saddr { %s } ip daddr @lan4 accept\n", PeopleInterface,
+				PeopleInterface, WireGuardInterface, strings.Join(p.Home, ", "))
+		}
+		fmt.Fprintf(b, "\t\toifname %q ct state established,related accept\n", PeopleInterface)
+	}
+	fmt.Fprintf(b, "\t\tiifname %q drop\n", PeopleInterface)
+	fmt.Fprintf(b, "\t\toifname %q drop\n", PeopleInterface)
+}
+
+// peopleNAT gives the VPN's devices whose traffic goes on this server's
+// address there, so the home network's devices and the internet answer
+// them through it.
+func (f Firewall) peopleNAT(b *strings.Builder) {
+	p := f.People
+	if p == nil || p.Port == 0 || len(p.Home)+len(p.Everything) == 0 {
+		return
+	}
+	b.WriteString("\n\tchain postrouting {\n")
+	b.WriteString("\t\ttype nat hook postrouting priority srcnat; policy accept;\n\n")
+	fmt.Fprintf(b, "\t\tiifname %q oifname != { %q, %q } ip saddr %s masquerade\n", PeopleInterface, PeopleInterface,
+		WireGuardInterface, trust.DevicesRange)
+	b.WriteString("\t}\n")
 }
 
 // setupReason labels the setup pages' rule.
@@ -345,7 +476,7 @@ var otherLabs = []string{GuestsInterface, trust.StoreLinks}
 // rules for them, SSH from the controller and ping, nothing else (SPEC.md
 // §10.2, review M23). Settled here, before any rule by source, like the
 // other labs: the servers' range isn't home anyway. People's devices
-// (trust.DevicesRange) go on to the home network's rules; nothing else on
+// (trust.DevicesRange) go on to their own rules (people); nothing else on
 // that interface gets in.
 func (f Firewall) servers(b *strings.Builder) {
 	from := fmt.Sprintf("iifname %q ip saddr %s ", WireGuardInterface, trust.ServersRange)
@@ -359,7 +490,7 @@ func (f Firewall) servers(b *strings.Builder) {
 		b.WriteString("\t\t# ssh from the controller\n")
 		fmt.Fprintf(b, "\t\tiifname %q ip saddr %s tcp dport 22 accept\n", WireGuardInterface, f.Controller)
 	}
-	b.WriteString("\t\t# nothing else from the lab's servers; people's devices are home\n")
+	b.WriteString("\t\t# nothing else from the lab's servers; people's devices go on to their own rules\n")
 	fmt.Fprintf(b, "\t\t%smeta l4proto icmp accept\n", from)
 	fmt.Fprintf(b, "\t\tiifname %q ip saddr != %s drop\n", WireGuardInterface, trust.DevicesRange)
 	fmt.Fprintf(b, "\t\tiifname %q meta nfproto ipv6 drop\n", WireGuardInterface)

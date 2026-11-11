@@ -123,8 +123,8 @@ func TestSSHClients(t *testing.T) {
 }
 
 // Of the lab's servers, only the controller reaches SSH over Roostack's
-// network, whatever the choice but "Nobody" (SPEC.md §10.2); a person's
-// device there is home.
+// network, whatever the choice but "Nobody" (SPEC.md §10.2); a device on
+// the lab's VPN reaching SSH has its own rule, which only Nobody ends.
 func TestCutsOffServers(t *testing.T) {
 	ctrl, other, device := netip.MustParseAddr("100.96.0.1"), netip.MustParseAddr("100.96.0.4"), netip.MustParseAddr("100.96.128.9")
 	clients := []netip.Addr{ctrl, other, device}
@@ -208,5 +208,35 @@ func TestDesiredClosed(t *testing.T) {
 	}
 	if u := WithClosed(agent.Firewall{Unchosen: true}, true); u.Closed || u.Validate() != nil {
 		t.Error("an unchosen firewall stays as it is")
+	}
+}
+
+// The lab's VPN (SPEC.md §10.11): a home-only port for the devices whose
+// person may use its service, SSH for those ticked unless it's Nobody,
+// and on the server they connect to, its port and where their traffic
+// may go.
+func TestDesiredPeople(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	services := []*generate.Output{{Service: "forgejo", HostPorts: []generate.HostPort{
+		{Name: "ssh", Port: 2222, Protocol: "tcp", Exposure: "private"}, {Name: "git", Port: 9418, Protocol: "tcp", Exposure: "public"}}}}
+	if fw, _ := Desired(lab, services, Roles{}); fw.People != nil {
+		t.Errorf("no devices: %+v", fw.People)
+	}
+	lab.Devices = config.Devices{Services: map[string][]string{"forgejo": {"100.96.128.2"}}, SSH: []string{"100.96.128.3"},
+		Home: []string{"100.96.128.2"}, Everything: []string{"100.96.128.3"}}
+	fw, _ := Desired(lab, services, Roles{})
+	p := fw.People
+	if p == nil || p.Port != 0 || len(p.Home) != 0 || len(p.Rules) != 2 ||
+		!slices.Equal(p.Rules[0].Devices, []string{"100.96.128.2"}) || p.Rules[0].Port != 2222 || p.Rules[1].Port != 22 {
+		t.Fatalf("another server: %+v", p)
+	}
+	fw, _ = Desired(lab, services, Roles{VPN: true})
+	if p := fw.People; p.Port != agent.PeoplePort || !slices.Equal(p.Everything, []string{"100.96.128.3"}) || fw.Validate() != nil {
+		t.Errorf("the VPN's server: %+v", p)
+	}
+	lab.Firewall.SSH = config.SSHOff
+	if fw, _ := Desired(lab, services, Roles{}); len(fw.People.Rules) != 1 {
+		t.Errorf("SSH for nobody: %+v", fw.People.Rules)
 	}
 }

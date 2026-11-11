@@ -315,5 +315,6 @@ func (s *Server) saveAccess(r *http.Request, name string) error {
 		detail = "chose who can sign in to " + name
 	}
 	s.Store.Audit(r.Context(), u, "single sign-on", detail)
+	s.vpnChanged("Who can use " + name + " changed, which changes what devices on the lab's VPN reach")
 	return nil
 }

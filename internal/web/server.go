@@ -186,6 +186,8 @@ type LabSettings struct {
 	Domain string
 	// UIHost is where Roostack's own pages are (config.Lab.UIHost).
 	UIHost string
+	// VPN is the lab's VPN (the manager, SPEC.md §10.11); nil hides it.
+	VPN VPNManager
 	// DomainItself is what the bare domain shows (the manager), and
 	// DomainPageDir where its simple page is written (SPEC.md §5.3).
 	DomainItself  DomainItselfChooser
@@ -515,7 +517,7 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "local-editor", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "services-updates", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account-appearance", "users", "about",
-		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-look", "settings-sign-in", "settings-cleanup",
+		"settings-domain", "settings-vpn", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-look", "settings-sign-in", "settings-cleanup",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
 		"import", "import-folders", "photos", "photos-home", "photos-folders", "pause", "pause-close"} {
@@ -604,6 +606,9 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("POST /settings/domain/itself", s.requireOwner(s.domainItselfSubmit))
+	mux.Handle("GET /settings/vpn", s.requireOwner(s.settingsVPNPage))
+	mux.Handle("POST /settings/vpn", s.requireOwner(s.settingsVPNSubmit))
+	mux.Handle("POST /settings/vpn/devices/{id}/remove", s.requireOwner(s.settingsVPNRemove))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
 	mux.Handle("POST /settings/network", s.requireOwner(s.networkSubmit))
 	// Servers is a main area (docs/DESIGN.md "Layout"); its list was under

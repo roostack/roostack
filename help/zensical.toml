@@ -49,6 +49,7 @@ nav = [
     "settings/index.md",
     "settings/people.md",
     "settings/domain.md",
+    "settings/vpn.md",
     "settings/cloud.md",
     "settings/email.md",
     "settings/history.md",

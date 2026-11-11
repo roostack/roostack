@@ -42,6 +42,9 @@ type WireAssignment struct {
 	Edge *caddy.EdgeConfig `json:"edge,omitempty"`
 	// Libraries are its media libraries (SPEC.md §8.1).
 	Libraries []agent.Library `json:"libraries,omitempty"`
+	// People is the lab's VPN's interface, on the server devices connect
+	// to (SPEC.md §10.11).
+	People *agent.WireGuard `json:"people,omitempty"`
 	// Reason says why it was sent, for the apply's log.
 	Reason string `json:"reason,omitempty"`
 }
@@ -70,6 +73,9 @@ type LabContext struct {
 	// DomainItself is what the bare domain shows (config.Lab, SPEC.md
 	// §5.3), for the server running Caddy.
 	DomainItself config.DomainItself `json:"domain_itself,omitzero"`
+	// Devices are the lab's VPN devices (config.Lab, SPEC.md §10.11), for
+	// Caddy and each server's firewall.
+	Devices config.Devices `json:"devices,omitzero"`
 }
 
 // WireService is a service's instance and package files.
@@ -92,7 +98,7 @@ type WireProxied struct {
 func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error) {
 	w := WireAssignment{Version: version, Lab: a.Lab,
 		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage, Guests: a.Guests, GuestAddr: a.GuestAddr, Links: a.Links, Edge: a.Edge,
-		Libraries: a.Libraries, Reason: a.Reason}
+		Libraries: a.Libraries, People: a.People, Reason: a.Reason}
 	enc := func(s state.Service) (WireService, error) {
 		in, err := s.Instance.Marshal()
 		if err != nil {
@@ -124,7 +130,7 @@ func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error)
 // Decode turns a wire assignment back into one, checking every file.
 func Decode(w WireAssignment) (Assignment, error) {
 	a := Assignment{Lab: w.Lab, Secrets: w.Secrets, SetUp: w.SetUp, Storage: w.Storage, Guests: w.Guests, GuestAddr: w.GuestAddr,
-		Links: w.Links, Edge: w.Edge, Libraries: w.Libraries, Reason: w.Reason}
+		Links: w.Links, Edge: w.Edge, Libraries: w.Libraries, People: w.People, Reason: w.Reason}
 	dec := func(ws WireService) (state.Service, error) {
 		p, err := pkgspec.Parse(ws.Package)
 		if err != nil {

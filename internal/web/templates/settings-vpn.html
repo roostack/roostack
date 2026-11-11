@@ -1,0 +1,71 @@
+{{define "title"}}VPN{{end}}
+{{define "content"}}
+{{/* The lab's VPN (SPEC.md §10.11): the Owner's settings and everyone's
+     devices. Mock-up: docs/mockups/your-account/settings-vpn.html. */}}
+{{with .VPN}}
+<div class="page-head">
+  <div>
+    <h1>VPN</h1>
+    <p class="lede">The lab's VPN lets the lab's people reach its services from anywhere, on phones and laptops they add on Your account.</p>
+  </div>
+</div>
+{{if eq .Saved "settings"}}{{notice "ok" "Saved. Roostack is applying it now, which takes a few seconds."}}{{end}}
+{{if eq .Saved "removed"}}{{notice "ok" "Removed. That device can't connect any more."}}{{end}}
+{{with .Error}}{{notice "error" .}}{{end}}
+<div class="grid section">
+  <section class="card span-8">
+    <div class="card-head"><h2>The VPN</h2>{{if .VPN.On}}<span class="pill pill-ok">On</span>{{else}}<span class="pill">Off</span>{{end}}</div>
+    {{if not .Domain}}{{notice "info" "The lab's VPN needs your lab to have an address first: devices connect to it."}}{{end}}
+    <form method="post" action="/settings/vpn">
+      <label class="check"><input type="checkbox" class="switch" role="switch" name="on" value="yes"{{if .VPN.On}} checked{{end}}{{if not .Domain}} disabled{{end}}>
+        <span>Let people add devices<small>Everyone in the lab will be able to add phones and laptops on Your account → VPN devices.</small></span></label>
+      <label>Devices each person can add <input type="number" name="limit" min="1" max="1000" value="{{.Limit}}" class="vpn-limit">
+        <small>Leave it empty for no limit. A limit means a lost or forgotten device gets noticed when someone wants another.</small></label>
+      <fieldset>
+        <legend>Devices connect to</legend>
+        <p>{{.Way.Server}}, at <code>{{.Way.Endpoint}}</code>.
+          {{if .Way.AtHome}}Forward UDP port 51822 on your router to this server, as Roostack can't do that from inside your home.
+          Roostack can't check the forward either: turn Wi-Fi off on a phone you've added, and its <strong>Last connected</strong> below will
+          change when it reaches the lab.{{else}}The internet can reach it already.{{end}}</p>
+      </fieldset>
+      <fieldset>
+        <legend>What devices may reach</legend>
+        <label class="check"><input type="checkbox" class="switch" role="switch" name="home" value="yes"{{if .VPN.HomeNetwork}} checked{{end}}>
+          <span>The home network<small>A device set to reach it will also reach the home's other devices, such as a NAS or a printer.</small></span></label>
+        <label class="check"><input type="checkbox" class="switch" role="switch" name="everything" value="yes"{{if .VPN.Everything}} checked{{end}}>
+          <span>Everything<small>A device set to send all its traffic through the lab will use this server's internet connection, and what it does online will appear to come from its address.</small></span></label>
+      </fieldset>
+      <button type="submit" class="secondary">Save</button>
+    </form>
+  </section>
+  <div class="span-4 grid-column">
+    <section class="card">
+      <div class="card-head"><h2>Devices</h2></div>
+      <p class="figure-value">{{len .Devices}} {{if .Devices}}<small>for {{.People}} {{if eq .People 1}}person{{else}}people{{end}}</small>{{end}}</p>
+      <p class="hint">You'll get an email when someone adds one, if you get security emails.</p>
+    </section>
+  </div>
+  <section class="card span-12" id="devices">
+    <div class="card-head"><h2>Everyone's devices</h2></div>
+    {{if .Devices}}<div class="table-wrap"><table class="list">
+      <thead><tr><th>Device</th><th class="hide-phone">Person</th><th class="hide-phone">Reaches</th><th>Last connected</th><th><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>{{range .Devices}}<tr>
+        <td>{{.Name}}<small class="hint show-phone"> · {{.Person}}</small></td><td class="hide-phone">{{.Person}}</td><td class="hide-phone">{{.Reaches}}</td>
+        <td>{{if .Stale}}<span class="pill pill-warn">{{if .Never}}Never{{else}}{{.LastConnected}}{{end}}</span>{{else if .Never}}<span class="hint">Never</span>{{else}}{{.LastConnected}}{{end}}</td>
+        <td>{{confirm (printf "/settings/vpn/devices/%d/remove" .ID) (printf "Remove %s, %s's device? It won't be able to connect any more." .Name .Person) "Remove" "quiet danger"}}</td>
+      </tr>{{end}}</tbody>
+    </table></div>
+    <p class="hint">A device that hasn't connected for 90 days is marked: it may be lost or no longer used.</p>
+    {{else}}<p class="hint">Nobody has added a device yet.</p>{{end}}
+    <details class="technical"><summary>Technical details</summary>
+      <p>Interface <code>roostack-people</code> on {{.Way.Server}}, UDP 51822, with addresses in <code>100.96.128.0/17</code>, one for each device.
+        Its settings are in <code>/etc/wireguard/roostack-people.conf</code>, and the firewall's rules for each device are in Roostack's table
+        (<code>nft list table inet roostack</code>). Caddy lets each device through to the services its person may use, and to Roostack's
+        pages only if they're ticked for it. Roostack keeps only each device's public key.</p>
+    </details>
+  </section>
+</div>
+{{end}}
+{{end}}
+
+{{define "page-help"}}{{help "settings/vpn" "The lab's VPN"}}{{end}}

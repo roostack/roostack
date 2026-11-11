@@ -7,16 +7,16 @@ import (
 )
 
 // TestHomeNetwork: other labs (storage for others), Roostack Cloud's
-// relay and the lab's servers are never the home network (review H3,
-// M23); people's devices on Roostack's network are.
+// relay, the lab's servers and the lab's VPN are never the home network
+// (review H3, M23, SPEC.md §10.11).
 func TestHomeNetwork(t *testing.T) {
 	for _, a := range []string{"100.100.0.2", "100.103.255.254", "100.81.0.1", "::ffff:100.100.7.9", "203.0.113.9", "2001:db8::1",
-		"100.96.0.1", "100.96.0.2", "100.96.127.254"} {
+		"100.96.0.1", "100.96.0.2", "100.96.127.254", "100.96.128.1", "100.96.255.254"} {
 		if IsHome(netip.MustParseAddr(a)) {
 			t.Errorf("%s counts as the home network", a)
 		}
 	}
-	for _, a := range []string{"192.168.1.5", "10.0.2.2", "100.96.128.1", "100.96.255.254", "100.97.0.1", "100.64.0.1", "100.127.255.254", "100.80.9.9",
+	for _, a := range []string{"192.168.1.5", "10.0.2.2", "100.97.0.1", "100.64.0.1", "100.127.255.254", "100.80.9.9",
 		"100.99.1.1", "100.104.0.1", "fd00::5", "fe80::1"} {
 		if !IsHome(netip.MustParseAddr(a)) {
 			t.Errorf("%s isn't the home network", a)
@@ -40,7 +40,10 @@ func TestClassify(t *testing.T) {
 		{LabInterface, "100.96.0.3", Edge},
 		{LabInterface, "100.96.0.9", Joining},
 		{LabInterface, "100.96.0.1", Controller},
-		{LabInterface, "100.96.128.5", Home}, // a person's device
+		{LabInterface, "100.96.128.5", People}, // a person's device, passed on by the VPN's server
+		{PeopleInterface, "100.96.128.5", People},
+		{PeopleInterface, "192.168.1.5", Nobody},
+		{"eth0", "100.96.128.5", Anyone}, // a device's address, not on the VPN
 		{LabInterface, "100.97.0.1", Nobody},
 		{LabInterface, "192.168.1.5", Nobody},
 		{"eth0", "100.96.0.2", Anyone}, // a server's address, not on Roostack's network

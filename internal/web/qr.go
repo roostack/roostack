@@ -12,6 +12,11 @@ import (
 // the standard four-module quiet zone, even in dark mode: some scanners
 // can't read light-on-dark codes.
 func qrSVG(text string) (template.HTML, error) {
+	return qrSVGLabel(text, "QR code for your authenticator app")
+}
+
+// qrSVGLabel is qrSVG with what the code holds, for screen readers.
+func qrSVGLabel(text, label string) (template.HTML, error) {
 	code, err := qr.Encode(text, qr.M)
 	if err != nil {
 		return "", err
@@ -28,7 +33,7 @@ func qrSVG(text string) (template.HTML, error) {
 	}
 	// Only numbers and a fixed path alphabet go into the markup.
 	return template.HTML(fmt.Sprintf(`<svg class="qr" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" `+
-		`role="img" aria-label="QR code for your authenticator app" shape-rendering="crispEdges">`+
+		`role="img" aria-label="%s" shape-rendering="crispEdges">`+
 		`<rect width="%d" height="%d" fill="#fff"/><path fill="#000" d="%s"/></svg>`,
-		size, size, size, size, path.String())), nil
+		size, size, template.HTMLEscapeString(label), size, size, path.String())), nil
 }

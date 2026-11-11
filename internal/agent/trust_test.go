@@ -44,6 +44,12 @@ func TestTrustClasses(t *testing.T) {
 		{"guest lab 2", GuestsInterface, a("100.100.5.3")},
 		{"relay edge", RelayInterface, a("100.81.0.1")},
 		{"another lab's storage", "roostack-st1", a("100.100.9.1")},
+		{"VPN device with SSH", PeopleInterface, a("100.96.128.5")},
+		{"VPN device with a service's port", PeopleInterface, a("100.96.128.6")},
+		{"VPN device with nothing of its own", PeopleInterface, a("100.96.128.7")},
+		{"VPN device, passed on", WireGuardInterface, a("100.96.128.6")},
+		{"not a device, on the VPN's interface", PeopleInterface, a("192.168.1.5")},
+		{"a device's address, elsewhere", "eth0", a("100.96.128.5")},
 	}
 	for _, ssh := range []string{FromLAN, FromAny, FromOff} {
 		fw := DefaultFirewall()
@@ -61,6 +67,10 @@ func TestTrustClasses(t *testing.T) {
 		fw.Edges = []string{"100.96.0.3"}
 		fw.JoinPort, fw.Members = 8471, []string{"100.96.0.1", "100.96.0.2", "100.96.0.3"}
 		fw.Controller = "100.96.0.1"
+		fw.People = &People{Port: PeoplePort, Rules: []DeviceRule{
+			{Port: 22, Proto: "tcp", Devices: []string{"100.96.128.5"}, Reason: "ssh"},
+			{Port: 8080, Proto: "tcp", Devices: []string{"100.96.128.6"}, Reason: "a home-only package port"},
+		}}
 		if err := fw.Validate(); err != nil {
 			t.Fatal(err)
 		}
@@ -70,6 +80,7 @@ func TestTrustClasses(t *testing.T) {
 			rules = append(rules, Rule{Port: 22, Proto: "tcp", For: trust.Class(ssh)},
 				Rule{Port: 22, Proto: "tcp", For: trust.Controller})
 		}
+		rules = append(rules, Rule{Port: PeoplePort, Proto: "udp", For: trust.Anyone})
 		probes := []Rule{{Port: 443, Proto: "tcp"}, {Port: EdgePort, Proto: "tcp"}, {Port: 9999, Proto: "tcp"},
 			{Port: 22, Proto: "tcp"}}
 		for _, r := range rules {
@@ -87,6 +98,12 @@ func TestTrustClasses(t *testing.T) {
 				default:
 					for _, r := range rules {
 						if r.Port == p.Port && r.Proto == p.Proto && trust.May(class, r.For) && (r.Source == "" || r.Source == s.addr.String()) {
+							want = true
+						}
+					}
+					// A device's own rules (People).
+					for _, r := range fw.People.Rules {
+						if class == trust.People && r.Port == p.Port && r.Proto == p.Proto && slices.Contains(r.Devices, s.addr.String()) {
 							want = true
 						}
 					}
@@ -190,8 +207,19 @@ func (n nftRules) match(st []string, iface string, src netip.Addr, proto string,
 		case "ct":
 			return "", false // conntrack's state: a new connection is neither established nor invalid
 		case "iifname":
-			name := strings.Trim(arg(), `"`)
-			if pre, ok := strings.CutSuffix(name, "*"); (ok && !strings.HasPrefix(iface, pre)) || (!ok && name != iface) {
+			v := arg()
+			neg := v == "!="
+			if neg {
+				v = arg()
+			}
+			in := false
+			for _, name := range strings.Split(strings.Trim(v, "{} "), ",") {
+				name = strings.Trim(strings.TrimSpace(name), `"`)
+				if pre, ok := strings.CutSuffix(name, "*"); ok && strings.HasPrefix(iface, pre) || !ok && name == iface {
+					in = true
+				}
+			}
+			if in == neg {
 				return "", false
 			}
 		case "iif":

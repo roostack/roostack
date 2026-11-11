@@ -274,6 +274,8 @@ func sshClientWhere(c, controller netip.Addr, internet bool) string {
 		return "the server that runs this lab, over Roostack's network"
 	case trust.ServersRange.Contains(c):
 		return "another server in this lab, over Roostack's network"
+	case trust.DevicesRange.Contains(c):
+		return "a device on the lab's VPN"
 	case internet && trust.IsHome(c):
 		return "a private network"
 	case internet:

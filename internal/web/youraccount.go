@@ -68,6 +68,12 @@ func (s *Server) acctRoutes(mux *http.ServeMux, with func(acctHandler) http.Hand
 	mux.Handle("POST /account/sign-out-others", with(s.acctSignOutOthersSubmit))
 	mux.Handle("GET /account/notifications", with(s.acctNotifications))
 	mux.Handle("POST /account/notifications", with(s.acctNotificationsSubmit))
+	mux.Handle("GET /account/devices", with(s.acctDevicesPage))
+	mux.Handle("GET /account/devices/add", with(s.acctDeviceAdd))
+	mux.Handle("POST /account/devices", with(s.acctDeviceSubmit))
+	mux.Handle("GET /account/devices/{id}", with(s.acctDeviceChange))
+	mux.Handle("POST /account/devices/{id}", with(s.acctDeviceChangeSubmit))
+	mux.Handle("POST /account/devices/{id}/remove", with(s.acctDeviceRemove))
 }
 
 // signInAcct is Your account at my.<domain>: someone not signed in there
@@ -183,6 +189,9 @@ type acctView struct {
 	// Two-factor: a new key being set up; Change: replacing one that's on.
 	TwoFactor *acctTwoFactor
 
+	// VPN devices (vpn.go).
+	Devices *acctDevices
+
 	// Notifications.
 	NotifyGroups []attention.NotifyGroup
 	Chosen       map[string]bool
@@ -221,6 +230,10 @@ func (s *Server) renderAcct(w http.ResponseWriter, r *http.Request, a *acct, sta
 	}
 	v.Tabs = []acctTab{{"services", "Services", a.home()}, {"account", "Account", "/account"},
 		{"security", "Security", "/account/security"}, {"notifications", "Notifications", "/account/notifications"}}
+	if s.vpnOn() {
+		// Once the Owner has turned the lab's VPN on (SPEC.md §10.11).
+		v.Tabs = append(v.Tabs, acctTab{"devices", "VPN devices", "/account/devices"})
+	}
 	var buf strings.Builder
 	if err := s.acctPages.Execute(&buf, v); err != nil {
 		s.Log.Error("render Your account", "err", err)

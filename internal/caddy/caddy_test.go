@@ -341,7 +341,7 @@ func TestEdgeFrom(t *testing.T) {
 // lets in more than the firewall counts as home).
 func TestPrivateRanges(t *testing.T) {
 	want := "private_ranges 100.64.0.0/12 100.80.0.0/16 100.82.0.0/15 100.84.0.0/14 100.88.0.0/13 " +
-		"100.96.128.0/17 100.97.0.0/16 100.98.0.0/15 100.104.0.0/13 100.112.0.0/12"
+		"100.97.0.0/16 100.98.0.0/15 100.104.0.0/13 100.112.0.0/12"
 	if PrivateRanges != want {
 		t.Errorf("PrivateRanges = %q, want %q", PrivateRanges, want)
 	}
