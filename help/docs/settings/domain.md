@@ -87,7 +87,8 @@ first, since whatever uses that record now will stop working there.
     wildcard one. The redirects are temporary (302), so browsers won't
     remember them if you change your mind. The simple page is plain files
     Roostack writes to `/var/lib/roostack/caddy/domain` whenever you save
-    it, the lab's look changes, or the monitoring checks run, served with a
+    it, the lab's look changes, or Roostack applies a change to the lab's
+    services (so that a service's new address reaches it), served with a
     content security policy that allows no scripts. The choice is kept in
     `lab.yaml` under `domain_itself`.
 

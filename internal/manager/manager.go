@@ -77,6 +77,10 @@ type Manager struct {
 	// Audit records what Roostack did by itself in the audit log, such as
 	// a restore that worked ending a hold (hold.go; optional).
 	Audit func(ctx context.Context, action, detail string)
+	// Applying is told each apply has started, with the services saved as
+	// it will apply them (optional): the domain itself's simple page lists
+	// some of their addresses (SPEC.md §5.3).
+	Applying func()
 
 	// Services: the newest index the controller has fetched from the
 	// service registry (registry.Fetcher.Index; nil before the first),

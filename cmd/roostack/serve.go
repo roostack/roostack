@@ -321,6 +321,11 @@ func (c *controller) wireWeb() error {
 		return err
 	}
 	c.srv = srv
+	// The domain itself's simple page (SPEC.md §5.3) is written when it's
+	// chosen or the lab's look changes, and at each apply (the first one
+	// at start), which is how services' addresses change.
+	srv.DomainItself, srv.DomainPageDir = c.mgr, lab.Paths.DomainPageDir()
+	c.mgr.Applying = func() { srv.WriteDomainPage(c.ctx) }
 	srv.SetupTokenFile = lab.Paths.SetupTokenFile()
 	srv.OnSetupComplete = func() {
 		os.Remove(lab.Paths.SetupTokenFile())
@@ -743,16 +748,8 @@ func (c *controller) wireMonitoring() {
 	srv := c.srv
 	srv.AutoChecks = c.mgr.MonitorChecks
 	srv.StatusPage, srv.StatusPageDir = c.mgr, c.lab.Paths.StatusPageDir()
-	// The domain itself's simple page (SPEC.md §5.3) is written now, when
-	// it's chosen or the lab's look changes, and with the status page, so
-	// that services' new addresses reach it.
-	srv.DomainItself, srv.DomainPageDir = c.mgr, c.lab.Paths.DomainPageDir()
 	srv.Monitor = &monitor.Monitor{Checks: srv.MonitorChecks, Store: c.st, Log: c.log,
-		Enabled: srv.MonitorOn, KeepDays: srv.HistoryKeepDays, Changed: func(ctx context.Context) {
-			srv.WriteStatusPage(ctx)
-			srv.WriteDomainPage(ctx)
-		}}
-	go srv.WriteDomainPage(c.ctx)
+		Enabled: srv.MonitorOn, KeepDays: srv.HistoryKeepDays, Changed: srv.WriteStatusPage}
 	go srv.Monitor.Run(c.ctx)
 	go srv.RunHistoryCull(c.ctx)
 }

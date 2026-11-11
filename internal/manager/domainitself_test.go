@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/config"
@@ -16,6 +17,8 @@ import (
 // Roostack's own) only while it's public.
 func TestDomainItself(t *testing.T) {
 	m, _ := newManager(t)
+	applying := make(chan struct{}, 10)
+	m.Applying = func() { applying <- struct{}{} }
 	if err := m.SetDomainItself(config.DomainItself{Show: config.ShowAddress, Address: "ftp://x"}); err == nil {
 		t.Error("an incomplete choice was saved")
 	}
@@ -23,6 +26,11 @@ func TestDomainItself(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
+	select {
+	case <-applying:
+	case <-time.After(5 * time.Second):
+		t.Error("the simple page wasn't told of the apply")
+	}
 	cf, _ := os.ReadFile(filepath.Join(m.Lab.Paths.CaddyDir(), "Caddyfile"))
 	if !strings.Contains(string(cf), "redir https://blog.example/ 302") || slices.Contains(m.PublicHosts(), "lab.example.com") {
 		t.Errorf("home-only: %v\n%s", m.PublicHosts(), cf)

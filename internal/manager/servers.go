@@ -340,6 +340,9 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		n.Apply(a)
 	}
 	m.secrets, m.setUp = nil, nil
+	if m.Applying != nil {
+		go m.Applying()
+	}
 	// Every server has its packages now (Remote.Apply encodes them before
 	// returning), so copies no service uses can go (SPEC.md §8.3.1).
 	// A service updating keeps its previous version until it's done.
