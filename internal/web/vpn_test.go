@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"html"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 
 // fakeVPN is the manager's VPN.
 type fakeVPN struct {
+	servers []manager.EdgeServer
 	v       config.VPN
 	changes []string
 	key     string
@@ -33,7 +35,7 @@ func (f *fakeVPN) SetVPN(v config.VPN) error { f.v = v; return nil }
 func (f *fakeVPN) VPNChanged(reason string)  { f.changes = append(f.changes, reason) }
 func (f *fakeVPN) VPNWay(context.Context) manager.VPNWay {
 	return manager.VPNWay{Server: "nuc", Endpoint: "link.lab.example.com:51822", PublicKey: f.key, AtHome: true,
-		LastConnected: f.seen, HomeNetworks: []string{"192.168.1.0/24"}}
+		LastConnected: f.seen, HomeNetworks: []string{"192.168.1.0/24"}, Servers: f.servers, Chosen: cmp.Or(f.v.Server, "n-1")}
 }
 
 var privateKeyLine = regexp.MustCompile(`PrivateKey = (\S+)`)
@@ -165,7 +167,7 @@ func TestVPNDevicesOwner(t *testing.T) {
 		t.Errorf("a wrong code: %d", code)
 	}
 	u, _ := h.store.UserByUsername(ctx, "u")
-	form.Set("code", codeNow(t, u.TOTPSecret))
+	form.Set("code", codeNow(t, u.TOTPSecret, 1))
 	if code, body := h.post("/account/devices", form, h.srv.URL); code != http.StatusOK {
 		t.Fatalf("with the code: %d\n%s", code, body)
 	}
@@ -185,7 +187,27 @@ func TestVPNDevicesOwner(t *testing.T) {
 	if code, _ := h.post("/settings/vpn", url.Values{"on": {"yes"}, "limit": {"0"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("a limit of 0: %d", code)
 	}
+	// With a cloud server in the lab, the Owner chooses where devices
+	// connect, and an Owner's device with SSH reaches the lab's servers.
+	fv.servers = []manager.EdgeServer{{ID: "n-1", Name: "nuc"}, {ID: "n-2", Name: "linode", Address: "172.105.1.20"}}
+	if _, body := h.get("/settings/vpn"); !strings.Contains(body, `value="n-2"`) || !strings.Contains(body, "At 172.105.1.20") ||
+		!strings.Contains(body, "link.lab.example.com</code>, once you forward") || !strings.Contains(body, "Give it new settings") {
+		t.Errorf("the choice of server:\n%s", body)
+	}
+	h.post("/settings/vpn", url.Values{"on": {"yes"}, "limit": {"5"}, "server": {"n-2"}}, h.srv.URL)
+	if fv.v.Server != "n-2" {
+		t.Errorf("chose %q", fv.v.Server)
+	}
 	list, _ := h.store.VPNDevices(ctx)
+	h.store.SetTOTP(ctx, u.ID, u.TOTPSecret, 0) // so that this step's code is accepted again
+	form = url.Values{"name": {"Laptop"}, "reach": {"lab"}, "ssh": {"yes"}, "new": {"yes"}, "code": {codeNow(t, u.TOTPSecret, 0)}}
+	if _, body := h.post("/account/devices/"+itoa(list[0].ID), form, h.srv.URL); !strings.Contains(body, "new settings") ||
+		!strings.Contains(body, "AllowedIPs = 192.168.1.20/32, 100.96.0.0/17") {
+		t.Errorf("new settings:\n%s", body)
+	}
+	if d, _ := h.store.VPNDevice(ctx, list[0].ID); d.PublicKey == list[0].PublicKey {
+		t.Error("the key wasn't replaced")
+	}
 	h.post("/settings/vpn/devices/"+itoa(list[0].ID)+"/remove", nil, h.srv.URL)
 	if list, _ := h.store.VPNDevices(ctx); len(list) != 0 {
 		t.Errorf("not removed: %+v", list)
@@ -200,10 +222,11 @@ func mustGet(t *testing.T, h *harness, path string) string {
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 
-func codeNow(t *testing.T, secret string) string {
+// codeNow is the code steps time steps ahead: logging in used this one's,
+// and each code is accepted once.
+func codeNow(t *testing.T, secret string, steps int) string {
 	t.Helper()
-	// The next time step's: logging in used this one's.
-	c, err := authkit.TOTPCode(secret, time.Now().Add(30*time.Second))
+	c, err := authkit.TOTPCode(secret, time.Now().Add(time.Duration(steps)*30*time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}

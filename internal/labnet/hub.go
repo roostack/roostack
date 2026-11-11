@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // JoinCodeLifetime is how long a join code works.
@@ -67,6 +68,11 @@ type Hub struct {
 	// SwitchDelay is how long after a join the server's own key replaces
 	// the one-time key (0: 2s).
 	SwitchDelay time.Duration
+	// VPNServer is the server the lab's VPN's devices connect to, when it
+	// isn't the controller ("" otherwise; optional): its peer carries the
+	// devices' range, so their answers go back through it (SPEC.md
+	// §10.11).
+	VPNServer func() string
 
 	mu        sync.Mutex
 	publicKey string
@@ -170,8 +176,16 @@ func (h *Hub) SyncPeers(ctx context.Context) error {
 		}
 		return p
 	}
+	vpn := ""
+	if h.VPNServer != nil {
+		vpn = h.VPNServer()
+	}
 	for _, m := range servers {
-		wg.Peers = append(wg.Peers, peer(m.PublicKey, m.Addr, m.Dial))
+		p := peer(m.PublicKey, m.Addr, m.Dial)
+		if m.ID == vpn {
+			p.AllowedIPs = append(p.AllowedIPs, trust.DevicesRange.String())
+		}
+		wg.Peers = append(wg.Peers, p)
 	}
 	for _, c := range codes {
 		wg.Peers = append(wg.Peers, peer(c.PublicKey, c.Addr, c.Dial))

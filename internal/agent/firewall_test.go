@@ -322,3 +322,57 @@ func TestRulesetPeople(t *testing.T) {
 		}
 	}
 }
+
+// Through another server (SPEC.md §10.11): the server devices connect to
+// passes them on to the controller over Roostack's network, keeping their
+// addresses; the controller lets those allowed the home network on to it,
+// masqueraded, and those allowed SSH on to the other servers' SSH.
+func TestRulesetPeopleElsewhere(t *testing.T) {
+	fw := DefaultFirewall()
+	fw.People = &People{Port: PeoplePort, PassOn: []string{"192.168.1.20/32", "100.96.0.0/24"}, Everything: []string{"100.96.128.6"}}
+	if err := fw.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	got := fw.Ruleset()
+	for _, want := range []string{
+		`iifname "roostack-people" oifname "roostack" ip saddr 100.96.128.0/17 ip daddr { 192.168.1.20/32, 100.96.0.0/24 } accept`,
+		`iifname "roostack" oifname "roostack-people" ip daddr 100.96.128.0/17 ct state established,related accept`,
+		`iifname "roostack-people" oifname != { "roostack-people", "roostack" } ip saddr 100.96.128.0/17 masquerade`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the VPN's server: missing %q:\n%s", want, got)
+		}
+	}
+	fw.People = &People{Forwarded: true, Home: []string{"100.96.128.5"}, Servers: []string{"100.96.128.7"}}
+	if err := fw.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	got = fw.Ruleset()
+	for _, want := range []string{
+		`iifname "roostack" oifname != { "roostack-people", "roostack" } ip saddr { 100.96.128.5 } ip daddr @lan4 accept`,
+		`oifname "roostack" ip daddr 100.96.128.0/17 ct state established,related accept`,
+		`iifname "roostack" oifname "roostack" ip saddr { 100.96.128.7 } ip daddr 100.96.0.0/17 tcp dport 22 accept`,
+		`iifname "roostack" oifname != { "roostack-people", "roostack" } ip saddr 100.96.128.0/17 masquerade`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the controller: missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Index(got, "tcp dport 22 accept") > strings.Index(got, `iifname "roostack" drop`) {
+		t.Error("the SSH forward comes after the drop")
+	}
+	if !fw.People.ForwardsTraffic() || (&People{Port: PeoplePort}).ForwardsTraffic() {
+		t.Error("ForwardsTraffic")
+	}
+	for _, bad := range []People{
+		{Forwarded: true, Port: PeoplePort},
+		{PassOn: []string{"192.168.1.20/32"}},
+		{Port: PeoplePort, PassOn: []string{"0.0.0.0/0"}},
+		{Servers: []string{"100.96.128.7"}},
+	} {
+		fw.People = &bad
+		if fw.Validate() == nil {
+			t.Errorf("%+v was accepted", bad)
+		}
+	}
+}

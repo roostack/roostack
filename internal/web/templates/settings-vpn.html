@@ -23,10 +23,18 @@
         <small>Leave it empty for no limit. A limit means a lost or forgotten device gets noticed when someone wants another.</small></label>
       <fieldset>
         <legend>Devices connect to</legend>
+        {{if gt (len .Way.Servers) 1}}
+        {{range $i, $s := .Way.Servers}}<label class="check"><input type="radio" name="server" value="{{.ID}}"{{if eq .ID $.VPN.Way.Chosen}} checked{{end}}>
+          <span>{{.Name}}{{if $i}}, in the cloud {{badge "Recommended"}}{{else}}, at home{{end}}<small>{{if $i}}At {{.Address}}, which the internet can reach already.
+            {{else}}At <code>link.{{$.LabDomain}}</code>, once you forward UDP port 51822 on your router to this server. Roostack can't check the forward
+            from inside your home: turn Wi-Fi off on a phone you've added, and its <strong>Last connected</strong> below will change when it reaches the lab.{{end}}</small></span></label>{{end}}
+        {{if .Devices}}<p class="hint">Changing this will stop every device until it gets new settings: Change on its page, then <strong>Give it new settings</strong>.</p>{{end}}
+        {{else}}
         <p>{{.Way.Server}}, at <code>{{.Way.Endpoint}}</code>.
           {{if .Way.AtHome}}Forward UDP port 51822 on your router to this server, as Roostack can't do that from inside your home.
           Roostack can't check the forward either: turn Wi-Fi off on a phone you've added, and its <strong>Last connected</strong> below will
-          change when it reaches the lab.{{else}}The internet can reach it already.{{end}}</p>
+          change when it reaches the lab. A cloud server in the lab would need no forward, and could be chosen here.{{else}}The internet can reach it already.{{end}}</p>
+        {{end}}
       </fieldset>
       <fieldset>
         <legend>What devices may reach</legend>

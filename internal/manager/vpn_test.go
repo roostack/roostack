@@ -2,12 +2,14 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
@@ -124,5 +126,98 @@ func TestVPN(t *testing.T) {
 	// Stopped, its key kept for when it's turned on again.
 	if links.wg == nil || !links.wg.Down || len(links.wg.Peers) != 0 || links.off != 0 || fw.applied[len(fw.applied)-1].People != nil {
 		t.Errorf("turned off: %+v %+v", links.wg, fw.applied[len(fw.applied)-1].People)
+	}
+}
+
+// Through a cloud server (SPEC.md §10.11): the Owner chooses it; it runs
+// the VPN's interface and passes devices on to the controller over its
+// link, which carries the lab's address; the other servers' links carry
+// the devices' range; the controller's network is told; the controller
+// doesn't run the interface.
+func TestVPNElsewhere(t *testing.T) {
+	m, home, vps, _ := setUpLinks(t)
+	ctx := context.Background()
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	m.Lab.DNS.LANIP = "192.168.1.20"
+	var mu sync.Mutex
+	synced := 0
+	m.SyncNetwork = func(context.Context) error { mu.Lock(); synced++; mu.Unlock(); return nil }
+	syncs := func() int {
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			mu.Lock()
+			n := synced
+			mu.Unlock()
+			if n > 0 || time.Now().After(deadline) {
+				return n
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	m.People = &fakePeople{devices: []store.VPNDevice{{UserID: 1, Role: auth.RoleOwner, PublicKey: "a2V5LWEta2V5LWEta2V5LWEta2V5LWEta2V5LWEta2U=",
+		Address: "100.96.128.2", SSH: true, Reach: store.ReachLab}}}
+	if err := m.SetVPN(config.VPN{On: true, Server: "n-0000000002"}); err == nil {
+		t.Error("a server the internet can't reach")
+	}
+	if err := m.SetVPN(config.VPN{On: true, Server: "n-0000000003"}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if n := syncs(); n != 1 || m.VPNElsewhere() != "n-0000000003" {
+		t.Errorf("synced %d, elsewhere %q", n, m.VPNElsewhere())
+	}
+	vps.mu.Lock()
+	va := vps.last
+	vps.mu.Unlock()
+	home.mu.Lock()
+	ha := home.last
+	home.mu.Unlock()
+	if va.People == nil || va.People.ListenPort != agent.PeoplePort || len(va.People.Peers) != 1 || ha.People != nil {
+		t.Fatalf("the interface: vps %+v, home %+v", va.People, ha.People)
+	}
+	if va.Links == nil || !slices.Contains(va.Links.ToController, "192.168.1.20/32") || slices.Contains(va.Links.ToController, "100.96.128.0/17") {
+		t.Errorf("vps's link: %+v", va.Links)
+	}
+	if ha.Links == nil || !slices.Equal(ha.Links.ToController, []string{"100.96.128.0/17"}) {
+		t.Errorf("home's link: %+v", ha.Links)
+	}
+	if d := va.Lab.Devices; !d.Elsewhere || !slices.Contains(d.PassOn, "192.168.1.20/32") || !slices.Contains(d.PassOn, "100.96.0.0/17") {
+		t.Errorf("devices: %+v", d)
+	}
+	if w := m.VPNWay(ctx); w.Endpoint != "203.0.113.7:51822" || w.AtHome || w.Chosen != "n-0000000003" || len(w.Servers) != 2 {
+		t.Errorf("the way in: %+v", w)
+	}
+
+	// Back to the controller: the network is told again.
+	if err := m.SetVPN(config.VPN{On: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	for deadline := time.Now().Add(5 * time.Second); syncs() < 2 && time.Now().Before(deadline); {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n := syncs(); n != 2 || m.VPNElsewhere() != "" {
+		t.Errorf("back: synced %d", n)
+	}
+}
+
+// Moving the VPN off the controller, Roostack's network is updated as
+// soon as the controller's own VPN interface has stopped: until then the
+// agent refuses the devices' range on the other server's link.
+func TestSyncNetworkRetries(t *testing.T) {
+	m, _ := newManager(t)
+	wait := syncNetworkWait
+	syncNetworkWait = time.Millisecond
+	t.Cleanup(func() { syncNetworkWait = wait })
+	tries := 0
+	m.SyncNetwork = func(context.Context) error {
+		if tries++; tries < 3 {
+			return errors.New("100.96.128.0/17 is already routed elsewhere on this server")
+		}
+		return nil
+	}
+	m.syncNetwork()
+	if tries != 3 {
+		t.Errorf("tried %d times", tries)
 	}
 }

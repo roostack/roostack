@@ -89,10 +89,22 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	if len(lab.Devices.SSH) > 0 && fw.SSHFrom != agent.FromOff {
 		people.Rules = append(people.Rules, agent.DeviceRule{Port: 22, Proto: "tcp", Devices: lab.Devices.SSH, Reason: "ssh"})
 	}
-	if roles.VPN {
-		people.Port, people.Home, people.Everything = agent.PeoplePort, lab.Devices.Home, lab.Devices.Everything
+	switch {
+	case roles.VPN:
+		// Devices connect here (SPEC.md §10.11). Their traffic for the
+		// home network goes on from the controller, and the rest to the
+		// controller over Roostack's network when this isn't it.
+		people.Port, people.Everything, people.Servers = agent.PeoplePort, lab.Devices.Everything, lab.Devices.SSH
+		if lab.IsNode() {
+			people.PassOn = lab.Devices.PassOn
+		} else {
+			people.Home = lab.Devices.Home
+		}
+	case lab.Devices.Elsewhere && !lab.IsNode():
+		// The controller, with devices connecting to another server.
+		people.Forwarded, people.Home, people.Servers = true, lab.Devices.Home, lab.Devices.SSH
 	}
-	if people.Port != 0 || len(people.Rules) > 0 {
+	if people.Port != 0 || people.Forwarded || len(people.Rules) > 0 {
 		fw.People = people
 	}
 	// Roostack's network between servers (SPEC.md §10.2).

@@ -50,6 +50,9 @@ type Host interface {
 	// ApplyFirewall checks and loads an nftables ruleset, and saves it so it
 	// is re-applied when the agent starts (firewall.go).
 	ApplyFirewall(ruleset string) error
+	// VPNForwarding turns forwarding on, or back as it was, on the
+	// interfaces the lab's VPN's answers come in on (setVPNForwarding).
+	VPNForwarding(uplinks, lab bool) error
 	// AllowWireGuardJoin lets WireGuard's port in until the firewall is
 	// next applied: a server joining a lab whose controller dials it
 	// (SPEC.md §10.2), before its own firewall says so.
@@ -145,7 +148,12 @@ func (s *Server) Handler() http.Handler {
 
 	// The firewall, the time zone, OS updates and rebooting.
 	handle("POST /v1/ports/unprivileged-start", do(s, "set unprivileged port start", h.SetUnprivilegedPortStart))
-	handle("PUT /v1/firewall", action(s, "apply firewall", 64<<10, func(fw Firewall) error { return h.ApplyFirewall(fw.Ruleset()) }))
+	handle("PUT /v1/firewall", action(s, "apply firewall", 64<<10, func(fw Firewall) error {
+		if err := h.ApplyFirewall(fw.Ruleset()); err != nil {
+			return err
+		}
+		return h.VPNForwarding(fw.People.ForwardsTraffic(), fw.People.PassesOn())
+	}))
 	// No arguments: it only ever opens WireGuard's own port.
 	handle("POST /v1/firewall/wireguard-join", do(s, "open wireguard for joining", h.AllowWireGuardJoin))
 	handle("PUT /v1/timezone", action(s, "set time zone", 4<<10, func(r TimezoneRequest) error { return h.SetTimezone(r.Timezone) }))

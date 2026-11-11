@@ -689,6 +689,12 @@ type Devices struct {
 	// network, or anywhere, from the server they connect to.
 	Home       []string `json:"home,omitempty"`
 	Everything []string `json:"everything,omitempty"`
+	// Elsewhere: devices connect to a server that isn't the controller,
+	// which passes their traffic on to it over Roostack's network to
+	// PassOn: the lab's address, the home's networks, and the lab's
+	// servers (SPEC.md §10.11).
+	Elsewhere bool     `json:"elsewhere,omitempty"`
+	PassOn    []string `json:"pass_on,omitempty"`
 }
 
 // What the bare domain shows (SPEC.md §5.3, DomainItself.Show).

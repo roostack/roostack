@@ -245,6 +245,8 @@
         <span>Everything<small>All its internet traffic will go through the lab, which is safer on public Wi-Fi. It will use the lab's internet connection.</small></span></label>{{end}}
       {{if .ID}}<p class="hint">Changing this will give the device new settings to add again, since Roostack doesn't keep its private key.</p>{{end}}
     </fieldset>
+    {{if .ID}}<label class="check"><input type="checkbox" name="new" value="yes">
+      <span>Give it new settings<small>If you've lost its settings, or the lab's VPN has moved to another server. The settings it has now will stop working.</small></span></label>{{end}}
     {{if or .CanPages .CanSSH}}<fieldset>
       <legend>Also</legend>
       {{if .CanPages}}<label class="check"><input type="checkbox" name="pages" value="yes"{{if .Pages}} checked{{end}}>

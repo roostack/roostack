@@ -96,8 +96,11 @@ type Manager struct {
 	// "Media libraries"). Nil: none.
 	Libraries LibraryStore
 	// People is the lab's VPN devices, and who may use each service
-	// (store.Store; vpn.go). Nil: no VPN.
-	People PeopleStore
+	// (store.Store; vpn.go). Nil: no VPN. SyncNetwork updates the
+	// controller's side of Roostack's network when the server devices
+	// connect to changes (labnet.Hub.SyncPeers; optional).
+	People      PeopleStore
+	SyncNetwork func(ctx context.Context) error
 
 	// Backups (backups.go; optional). BackupStore records backup
 	// providers and targets, and OpenRepo opens a repository with the

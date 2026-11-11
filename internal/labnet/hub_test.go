@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
@@ -211,5 +212,43 @@ func TestJoinCodeEither(t *testing.T) {
 		if _, err := ParseJoinCode(code.String()); (err == nil) != c.ok {
 			t.Errorf("endpoint %q listen %v: %v", c.endpoint, c.listen, err)
 		}
+	}
+}
+
+// The server the lab's VPN's devices connect to carries their range on the
+// hub, so the controller sends their answers to it (SPEC.md §10.11).
+func TestHubVPNServer(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "roostack.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ag := &fakeAgent{}
+	vpn := ""
+	h := &Hub{StateDir: dir, LabName: func() string { return "home" }, Self: nodeid.Identity{ID: "n-0000000001", Name: "nuc"}, Store: st, Agent: ag,
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now, VPNServer: func() string { return vpn }}
+	ctx := context.Background()
+	key, _ := agent.NewWireGuardKey()
+	pub, _ := agent.WireGuardPublicKey(key)
+	code, err := h.NewJoinCode(ctx, "10.0.2.2:51820", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Join(ctx, authkit.HashToken(code.Token), store.Server{ID: "n-0000000002", Name: "vps", PublicKey: pub}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.SyncPeers(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := ag.last.Peers[0].AllowedIPs; !slices.Equal(got, []string{"100.96.0.2/32"}) {
+		t.Errorf("without the VPN: %v", got)
+	}
+	vpn = "n-0000000002"
+	if err := h.SyncPeers(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := ag.last.Peers[0].AllowedIPs; !slices.Equal(got, []string{"100.96.0.2/32", "100.96.128.0/17"}) {
+		t.Errorf("with the VPN there: %v", got)
 	}
 }

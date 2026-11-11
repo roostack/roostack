@@ -337,6 +337,10 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		a.Storage = m.storageFor(context.Background(), id)
 		a.Libraries = m.librariesFor(context.Background(), id)
 		a.Links = m.linksFor(context.Background(), infos, id)
+		if a.Links != nil {
+			// The lab's VPN's traffic over the link to the controller.
+			a.Links.ToController = m.vpnToController(devices, id, infos[id].Home)
+		}
 		if id == edge {
 			a.Edge = edgeConfig(m.withStatusPage(), services)
 		}

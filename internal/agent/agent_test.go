@@ -49,6 +49,7 @@ func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
 
 func (f *fakeHost) SetUnprivilegedPortStart() error { f.portsSet = true; return nil }
 func (f *fakeHost) ApplyFirewall(r string) error    { f.ruleset = r; return nil }
+func (f *fakeHost) VPNForwarding(bool, bool) error  { return nil }
 func (f *fakeHost) AllowWireGuardJoin() error       { f.joinOpen = true; return nil }
 func (f *fakeHost) SetTimezone(name string) error   { f.tz = name; return nil }
 func (f *fakeHost) RunUpdates(_ context.Context, series string, w io.Writer) error {

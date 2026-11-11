@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"slices"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/trust"
 	"roostack.cloud/roostack/internal/usererr"
 )
 
@@ -44,13 +46,64 @@ func (m *Manager) SetVPN(v config.VPN) error {
 	if v.MaxDevices < 0 {
 		return usererr.New("The limit can't be below nothing.")
 	}
+	if v.Server == m.Lab.NodeID {
+		v.Server = ""
+	}
+	if v.Server != "" {
+		if m.Lab.OnInternet() {
+			return usererr.New("Your lab's controller is on the internet, so devices connect to it.")
+		}
+		if !slices.ContainsFunc(m.EdgeServers(context.Background()), func(e EdgeServer) bool { return e.ID == v.Server }) {
+			return usererr.New("Devices can connect only to a server the internet can reach: a cloud server in this lab.")
+		}
+	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	before := m.VPN()
 	if err := m.saveLab(func(l *config.Lab) { l.VPN = v }); err != nil {
+		m.mu.Unlock()
 		return err
 	}
 	m.startApplyLocked(map[bool]string{true: "Changing the lab's VPN", false: "Turning the lab's VPN off"}[v.On])
+	m.mu.Unlock()
+	if (before.On && before.Server != "") != (v.On && v.Server != "") || before.Server != v.Server {
+		// The controller's link to the server devices connect to carries
+		// their range (labnet.Hub.VPNServer).
+		go m.syncNetwork()
+	}
 	return nil
+}
+
+// syncNetwork updates the controller's side of Roostack's network, trying
+// again every few seconds for a while: moving the VPN off the controller,
+// the devices' range can't go to the other server's link until the apply
+// has stopped the controller's own VPN interface.
+func (m *Manager) syncNetwork() {
+	if m.SyncNetwork == nil {
+		return
+	}
+	var err error
+	for range syncNetworkTries {
+		if err = m.SyncNetwork(context.Background()); err == nil {
+			return
+		}
+		time.Sleep(syncNetworkWait)
+	}
+	m.Log.Error("updating Roostack's network for the lab's VPN", "err", err)
+}
+
+// How often, and how long, syncNetwork tries.
+var (
+	syncNetworkTries = 40
+	syncNetworkWait  = 3 * time.Second
+)
+
+// VPNElsewhere is the server devices connect to when it isn't the
+// controller, for Roostack's network (labnet.Hub.VPNServer); "" otherwise.
+func (m *Manager) VPNElsewhere() string {
+	if s := m.VPNServer(); m.VPN().On && s != m.Lab.NodeID {
+		return s
+	}
+	return ""
 }
 
 // VPNChanged applies a change to the VPN's devices (one added, changed,
@@ -82,8 +135,79 @@ func (m *Manager) vpnDevices(ctx context.Context, services []state.Service) (con
 	if !v.On || m.People == nil {
 		return config.Devices{}, nil
 	}
+	d, wg := m.vpnReach(ctx, v, services)
+	if m.VPNElsewhere() != "" {
+		// Devices connect to another server, which passes them on to the
+		// controller over Roostack's network (SPEC.md §10.11): the lab's
+		// address, the home's networks for those allowed them, and the
+		// lab's servers for those allowed SSH.
+		d.Elsewhere = true
+		d.PassOn = m.vpnPassOn(d)
+		d.PassOn = append(d.PassOn, trust.ServersRange.String())
+	}
+	return d, wg
+}
+
+// vpnPassOn are where the server devices connect to sends their traffic
+// on to the controller: the lab's address, and the home's networks while
+// any device may reach them.
+func (m *Manager) vpnPassOn(d config.Devices) []string {
+	var out []string
+	if a := m.vpnHomeAddress(); a != "" {
+		out = append(out, a+"/32")
+	}
+	if len(d.Home) > 0 {
+		for _, p := range labnet.HomeNetworks() {
+			out = append(out, p.String())
+		}
+	}
+	return out
+}
+
+// vpnHomeAddress is the controller's home address, where the lab's names
+// point at home (its own in lab.yaml, or its first).
+func (m *Manager) vpnHomeAddress() string {
+	if m.Lab.DNS.LANIP != "" {
+		return m.Lab.DNS.LANIP
+	}
+	if a := labnet.HomeAddresses(); len(a) > 0 {
+		return a[0].IP
+	}
+	return ""
+}
+
+// vpnToController is what a server's link to the controller carries for
+// the lab's VPN (agent.Links.ToController): on the server devices connect
+// to, where they go on to (Devices.PassOn, apart from the lab's servers,
+// which the link carries already, and anything on that server's own
+// networks); on the others, the devices' range, so that answers to devices
+// reaching them go back through the controller.
+func (m *Manager) vpnToController(d config.Devices, id string, own []string) []string {
+	if len(d.All) == 0 && !d.Elsewhere {
+		return nil
+	}
+	if id != m.VPNElsewhere() {
+		return []string{trust.DevicesRange.String()}
+	}
+	var out []string
+	for _, s := range d.PassOn {
+		p, err := netip.ParsePrefix(s)
+		if err != nil || s == trust.ServersRange.String() {
+			continue
+		}
+		if slices.ContainsFunc(own, func(a string) bool { ip, err := netip.ParseAddr(a); return err == nil && p.Contains(ip) }) {
+			m.Log.Warn("the lab's VPN: not passing this on to the controller, as it's the other server's own network too", "network", s)
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+// vpnReach is vpnDevices' devices and interface.
+func (m *Manager) vpnReach(ctx context.Context, v config.VPN, services []state.Service) (config.Devices, *agent.WireGuard) {
 	wg := &agent.WireGuard{Interface: agent.PeopleInterface, Address: VPNServerAddress, ListenPort: agent.PeoplePort,
-		Forward: v.HomeNetwork || v.Everything}
+		Forward: v.HomeNetwork || v.Everything || m.VPNElsewhere() != ""}
 	list, err := m.People.VPNDevices(ctx)
 	if err != nil {
 		m.Log.Error("listing the lab's VPN devices", "err", err)
@@ -144,6 +268,11 @@ type VPNWay struct {
 	Server, Endpoint, PublicKey string
 	// AtHome: Endpoint is the home's address, which needs a port forward.
 	AtHome bool
+	// Servers are the servers devices may connect to, for the Owner's
+	// choice: the controller first, then those the internet can reach.
+	Servers []EdgeServer
+	// Chosen is the one they connect to, by ID.
+	Chosen string
 	// LastConnected is when each device last connected, by public key.
 	LastConnected map[string]time.Time
 	// HomeNetworks are the home's networks, for devices allowed them.
@@ -161,14 +290,31 @@ func (m *Manager) VPNWay(ctx context.Context) VPNWay {
 	for _, p := range labnet.HomeNetworks() {
 		w.HomeNetworks = append(w.HomeNetworks, p.String())
 	}
-	w.HomeAddress = m.Lab.DNS.LANIP
-	if a := labnet.HomeAddresses(); w.HomeAddress == "" && len(a) > 0 && !m.Lab.OnInternet() {
-		w.HomeAddress = a[0].IP
+	if !m.Lab.OnInternet() {
+		w.HomeAddress = m.vpnHomeAddress()
+		w.Servers = append(w.Servers, EdgeServer{ID: m.Lab.NodeID, Name: m.Node.Identity().Name})
+		w.Servers = append(w.Servers, m.EdgeServers(ctx)...)
 	}
-	l, ok := m.Node.(interface {
+	w.Chosen = m.VPNServer()
+	var srv any = m.Node
+	if id := m.VPNElsewhere(); id != "" {
+		// A cloud server in the lab, at its public address.
+		w.AtHome, w.Endpoint = false, ""
+		for _, r := range m.others() {
+			if r.Identity().ID == id {
+				srv, w.Server = r, r.Identity().Name
+			}
+		}
+		for _, e := range m.EdgeServers(ctx) {
+			if e.ID == id {
+				w.Endpoint = fmt.Sprintf("%s:%d", e.Address, agent.PeoplePort)
+			}
+		}
+	}
+	l, ok := srv.(interface {
 		VPNStatus(context.Context) (agent.WireGuardStatus, error)
 	})
-	if !ok {
+	if !ok || w.Endpoint == "" {
 		return w
 	}
 	st, err := l.VPNStatus(ctx)

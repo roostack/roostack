@@ -204,6 +204,9 @@ type WireStatus struct {
 	Links map[string]int64 `json:"links,omitempty"`
 	// Arch is its processor (GOARCH), for placing services (Processor).
 	Arch string `json:"arch,omitempty"`
+	// VPN is the lab's VPN's interface there, when devices connect to it
+	// (SPEC.md §10.11): its key, and when each device last connected.
+	VPN *agent.WireGuardStatus `json:"vpn,omitempty"`
 }
 
 func (w WireStatus) apply() ApplyStatus {

@@ -829,7 +829,9 @@ func TestRoundTrip(t *testing.T) {
 	local := map[string]bool{"Identity": true, "Address": true, "Close": true, "Pending": true, "SetUpWaiting": true, "DataDirs": true,
 		"Backups": true, "Restores": true, "Updates": true, "Settings": true, "Media": true, "Imports": true,
 		"Mover": true, "Updater": true, "Disks": true, "Memory": true, "LeftData": true, "CleanUp": true, "History": true,
-		"Linked": true, "GuestHost": true, "Processor": true, "Photos": true}
+		"Linked": true, "GuestHost": true, "Processor": true, "Photos": true,
+		// From the server's status, as Linked's are.
+		"VPNStatus": true}
 	for prefix, v := range map[string]any{"": r, "Backups.": remoteBackups{}, "Restores.": remoteRestores{},
 		"Updates.": remoteUpdates{}, "Settings.": remoteSettings{}, "Media.": remoteMedia{}, "Imports.": remoteImports{}} {
 		typ := reflect.TypeOf(v)

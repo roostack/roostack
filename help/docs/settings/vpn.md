@@ -12,16 +12,24 @@ It's off until the Owner turns it on, on **Settings → VPN**.
 On **Settings → VPN**, turn on **Let people add devices**. Your lab needs
 an address first, since devices connect to it.
 
-**Devices connect to** the server that runs your lab, at
-`link.smith.family` on UDP port 51822. Roostack will keep that name
-pointing at your home's internet address, even when it changes.
+**Devices connect to** one of your lab's servers, on UDP port 51822:
 
-- **At home,** forward UDP port 51822 on your router to the server, as
-  you would for a game or a camera. Roostack can't check a forward from
-  inside your home, so once someone has added a phone, turn its Wi-Fi off
-  and turn the VPN on in the WireGuard app: its **Last connected** on
+- **A cloud server in your lab,** if you have one, which the internet can
+  reach already: recommended, as there's nothing to set up on your router.
+  Devices pass through it to your lab at home over Roostack's own network.
+- **The server that runs your lab, at home,** at `link.smith.family`, which
+  Roostack will keep pointing at your home's internet address, even when it
+  changes. Forward UDP port 51822 on your router to the server, as you
+  would for a game or a camera. Roostack can't check a forward from inside
+  your home, so once someone has added a phone, turn its Wi-Fi off and turn
+  the VPN on in the WireGuard app: its **Last connected** on
   **Settings → VPN** will change when it reaches the lab.
-- **On a cloud server,** the internet can reach it already.
+
+If your lab runs on a cloud server itself, devices connect to it.
+
+Changing the server will stop every device until it gets new settings:
+on **Your account → VPN devices**, choose **Change** for each one and tick
+**Give it new settings**.
 
 You also choose:
 
@@ -72,7 +80,9 @@ and remove the old one.
 
 **Changing a device:** its name, Roostack's pages, and SSH change straight
 away. Changing what it reaches gives it new settings to add again, since
-those are part of the settings on the device.
+those are part of the settings on the device. **Give it new settings**
+does the same without changing anything else, for a device whose settings
+were lost, or when the VPN has moved to another server.
 
 ## What a device reaches
 
@@ -93,8 +103,11 @@ clash with a café's network using the same addresses as yours.
 ??? note "For technical users"
 
     Roostack runs a WireGuard interface, `roostack-people`, on UDP 51822,
-    with addresses in `100.96.128.0/17`, one for each device; the server's
-    is `100.96.128.1`. Its settings are in
+    on the server devices connect to, with addresses in `100.96.128.0/17`,
+    one for each device; the server's is `100.96.128.1`. When that's a
+    cloud server, it passes devices' traffic on to the controller over
+    Roostack's network (`roostack`), keeping their addresses, so the
+    controller's firewall and Caddy still see each device. Its settings are in
     `/etc/wireguard/roostack-people.conf`, and its key is backed up with the
     lab's other WireGuard keys, so devices keep working after a restore.
 

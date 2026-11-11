@@ -42,3 +42,13 @@ func (n *Local) VPNStatus(ctx context.Context) (agent.WireGuardStatus, error) {
 	}
 	return n.Links.WireGuardStatus(ctx, agent.PeopleInterface)
 }
+
+// VPNStatus is what the server last said about the lab's VPN's interface
+// there (not configured if it has none, or hasn't said).
+func (r *Remote) VPNStatus(context.Context) (agent.WireGuardStatus, error) {
+	st, err := r.wireStatus()
+	if err != nil || st.VPN == nil {
+		return agent.WireGuardStatus{}, err
+	}
+	return *st.VPN, nil
+}

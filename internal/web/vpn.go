@@ -19,6 +19,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/trust"
 	"roostack.cloud/roostack/internal/usererr"
 	"roostack.cloud/roostack/internal/words"
 )
@@ -285,7 +286,7 @@ func (s *Server) acctDeviceChangeSubmit(w http.ResponseWriter, r *http.Request, 
 	f := s.newDeviceForm(a)
 	f.ID = d.ID
 	ready := func() string {
-		if f.Reach != d.Reach {
+		if f.Reach != d.Reach || r.FormValue("new") != "" {
 			return s.vpnNotReady(r.Context())
 		}
 		return ""
@@ -294,7 +295,7 @@ func (s *Server) acctDeviceChangeSubmit(w http.ResponseWriter, r *http.Request, 
 		s.renderDeviceForm(w, r, a, "Change "+d.Name, f, msg)
 		return
 	}
-	newKey := f.Reach != d.Reach
+	newKey := f.Reach != d.Reach || r.FormValue("new") != ""
 	var private string
 	if newKey {
 		var err error
@@ -415,6 +416,10 @@ func (s *Server) deviceConfig(ctx context.Context, d store.VPNDevice, private st
 	case store.ReachEverything:
 		allowed = []string{"0.0.0.0/0"}
 	}
+	if d.SSH && d.Reach != store.ReachEverything {
+		// The lab's servers, at their addresses on Roostack's network.
+		allowed = append(allowed, trust.ServersRange.String())
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s on %s's VPN, made by Roostack\n", d.Name, s.labName())
 	fmt.Fprintf(&b, "[Interface]\nPrivateKey = %s\nAddress = %s/32\n\n", private, d.Address)
@@ -514,7 +519,7 @@ func (s *Server) settingsVPNData(r *http.Request) (map[string]any, *settingsVPN,
 		people[d.UserID] = true
 	}
 	v.People = len(people)
-	data["VPN"] = v
+	data["VPN"], data["LabDomain"] = v, s.Domain
 	return data, v, nil
 }
 
@@ -540,6 +545,9 @@ func (s *Server) settingsVPNSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	v := s.VPN.VPN()
 	v.On = r.FormValue("on") != ""
+	if r.Form.Has("server") {
+		v.Server = r.FormValue("server")
+	}
 	v.HomeNetwork, v.Everything = r.FormValue("home") != "", r.FormValue("everything") != ""
 	problem := ""
 	switch limit := strings.TrimSpace(r.FormValue("limit")); {

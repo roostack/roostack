@@ -253,7 +253,13 @@ func (c *controller) wireManager() {
 		Submit:    func(j maintenance.Job) { c.coord.Submit(j) },
 		Settings:  c.st,
 		People:    c.st,
-		Audit:     func(ctx context.Context, action, detail string) { c.st.Audit(ctx, nil, action, detail) }}
+		SyncNetwork: func(ctx context.Context) error {
+			if c.hub == nil || !c.hub.Enabled() {
+				return nil
+			}
+			return c.hub.SyncPeers(ctx)
+		},
+		Audit: func(ctx context.Context, action, detail string) { c.st.Audit(ctx, nil, action, detail) }}
 	// Its own services' addresses waiting for setup open as soon as
 	// their install hooks succeed (SPEC.md §8.1).
 	c.local.SetUpDone = c.mgr.SetUpDone
@@ -538,6 +544,9 @@ func (c *controller) wireNetwork() {
 	if lab.Domain != "" {
 		c.hub.UI = "https://" + lab.UIHost()
 	}
+	// The server the lab's VPN's devices connect to, when it isn't this
+	// one, carries their range (SPEC.md §10.11).
+	c.hub.VPNServer = c.mgr.VPNElsewhere
 	c.hub.Start(ctx)
 	// A fresh server can join an existing lab from its first-run page
 	// (SPEC.md §10.2), as `roostack node join` does: undone if it fails,

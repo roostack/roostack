@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 )
 
 // The server itself on the lab API: its status, its assignment, its
@@ -83,6 +84,13 @@ func (s *Server) labRoutes(handle handleFunc) {
 		}
 		if l := n.Linked(); l != nil {
 			w.Addrs, w.Links = l.LinkStatus(r.Context())
+		}
+		if v, ok := n.(interface {
+			VPNStatus(context.Context) (agent.WireGuardStatus, error)
+		}); ok {
+			if st, err := v.VPNStatus(r.Context()); err == nil && st.Configured {
+				w.VPN = &st
+			}
 		}
 		return w, nil
 	})

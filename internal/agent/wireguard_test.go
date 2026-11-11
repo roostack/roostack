@@ -206,3 +206,32 @@ func TestLinksRequest(t *testing.T) {
 		t.Errorf("err %v, links %+v", err, host.links)
 	}
 }
+
+// The link to the controller carries more when the lab's VPN's devices
+// connect to this server (SPEC.md §10.11), and back to its own when they
+// don't; nothing but private networks and the lab's servers.
+func TestLinksToController(t *testing.T) {
+	ctrl := "Y29udHJvbGxlcmNvbnRyb2xsZXJjb250cm9sbGVyMTI="
+	node := WireGuard{Address: "100.96.0.3/24", Peers: []Peer{{PublicKey: ctrl, AllowedIPs: []string{"100.96.0.1/32"},
+		Endpoint: "lab.example.com:51820"}}}.Config("cHJpdmF0ZQ==")
+	l := Links{ToController: []string{"192.168.1.20/32", "192.168.1.0/24"}}
+	if err := l.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	conf, _ := l.apply(node)
+	if !strings.Contains(conf, "AllowedIPs = 100.96.0.1/32, 192.168.1.20/32, 192.168.1.0/24\n") {
+		t.Errorf("with the VPN:\n%s", conf)
+	}
+	if conf, _ = (Links{}).apply(conf); !strings.Contains(conf, "AllowedIPs = 100.96.0.1/32\n") {
+		t.Errorf("without:\n%s", conf)
+	}
+	// The devices' range, for answers to devices reaching other servers.
+	if err := (Links{ToController: []string{"100.96.128.0/17"}}).Validate(); err != nil {
+		t.Error(err)
+	}
+	for _, bad := range []string{"0.0.0.0/0", "8.8.8.0/24", "100.96.128.0/18", "100.96.0.0/24", "192.168.1.5/24", "10.0.0.0/7"} {
+		if (Links{ToController: []string{bad}}).Validate() == nil {
+			t.Errorf("%s should be refused", bad)
+		}
+	}
+}
