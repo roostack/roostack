@@ -84,6 +84,12 @@
   {{if .Running}}{{if .Waiting}}{{template "apply-waiting" .}}{{else}}{{notice "info" "Applying changes… Downloading a new service can take a few minutes."}}{{end}}
   {{else if .LastErr}}{{notice "error" (printf "The last change didn't finish: %v" .LastErr)}}{{end}}
 {{end}}
+{{if and .CanManage .UpdateTitles}}
+<div class="notice" role="status">
+  <p><strong>{{if eq (len .UpdateTitles) 1}}1 service has an update{{else}}{{len .UpdateTitles}} services have an update{{end}}:</strong>
+    {{joinAnd .UpdateTitles}}. <a href="/updates">See the updates</a></p>
+</div>
+{{end}}
 <section class="card">
   <div class="card-head"><h2>Your services</h2>
     {{if .CanManage}}<span class="more">{{if .Relayed}}<a href="/visitors">Visitors through the relay</a> · {{end}}

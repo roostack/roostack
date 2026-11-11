@@ -92,7 +92,7 @@ func TestPublicCmd(t *testing.T) {
 	}
 	want := attention.AuditPublicPaused + ": Vaultwarden via command line|" + attention.AuditPublicPaused +
 		": everything and services built with php and rust via command line|" + attention.AuditPublicOpened +
-		": everything, services built with php and rust and Vaultwarden via command line"
+		": everything, services built with php and rust, and Vaultwarden via command line"
 	if strings.Join(got, "|") != want {
 		t.Errorf("audit:\n%q", got)
 	}

@@ -886,6 +886,70 @@ func TestLookOnRoostacksPages(t *testing.T) {
 	}
 }
 
+// Name and look shows every image there is, whichever kind is in use, and
+// each can be replaced or deleted.
+func TestLookImages(t *testing.T) {
+	h, _ := loggedIn(t, "owner")
+	withSignIn(t, h, &fakeSSO{on: map[string]bool{}})
+	ctx := context.Background()
+	wide, mark := pngOf(t, 300, 100), pngOf(t, 64, 64)
+	if code, body := h.postForm("/settings/look", map[string]string{"palette": DefaultPalette, "logo": logoWide},
+		map[string][]byte{"logo_wide": wide, "logo_dark": wide, "logo_icon": mark, "logo_mark": mark}); code >= 400 {
+		t.Fatalf("saving: %d %s", code, body)
+	}
+	_, body := h.get("/settings/look")
+	for _, want := range []string{"/brand/mark?v=", "/brand/wide?v=", "/brand/dark?v=", "/brand/icon-file?v=",
+		`name="remove_mark"`, `name="remove_wide"`, `name="remove_dark"`, `name="remove_icon"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page lacks %q", want)
+		}
+	}
+	// The icon's own file, whatever the tab shows now.
+	if code, _ := h.get("/brand/icon-file"); code != 200 {
+		t.Errorf("/brand/icon-file: %d", code)
+	}
+	// Both wide logos, for CSS to choose from, in the sidebar and previews.
+	if strings.Contains(body, "prefers-color-scheme: dark)\"") || !strings.Contains(body, `class="for-dark" src="/brand/dark?v=`) {
+		t.Error("the dark version isn't there for the page's mode to choose")
+	}
+	// Replacing wins over deleting.
+	if code, _ := h.postForm("/settings/look", map[string]string{"palette": DefaultPalette, "logo": logoWide, "remove_dark": "on"}, map[string][]byte{"logo_dark": wide}); code >= 400 {
+		t.Fatal(code)
+	}
+	if !h.server.signInLook(ctx).Has("dark") {
+		t.Error("a replaced file was deleted")
+	}
+	// Deleting one that isn't in use leaves the logo alone.
+	h.postForm("/settings/look", map[string]string{"palette": DefaultPalette, "logo": logoWide, "remove_mark": "on"}, nil)
+	if l := h.server.signInLook(ctx); l.Has("mark") || l.Logo != logoWide {
+		t.Errorf("after deleting the mark: %+v", l)
+	}
+	// Deleting the logo in use means the hen, and its file is gone.
+	if code, body := h.postForm("/settings/look", map[string]string{"palette": DefaultPalette, "logo": logoWide, "remove_wide": "on"}, nil); code >= 400 {
+		t.Fatalf("deleting the logo in use: %d %s", code, body)
+	}
+	l := h.server.signInLook(ctx)
+	if l.Has("wide") || l.Logo != "" || !l.Has("dark") || !l.Has("icon") {
+		t.Errorf("after deleting the wide logo: %+v", l)
+	}
+	if _, err := os.Stat(h.server.lookPath("wide", "png")); err == nil {
+		t.Error("the wide logo's file is still there")
+	}
+	// Nor does it stay on the public status page.
+	h.server.StatusPageDir = t.TempDir()
+	stale := filepath.Join(h.server.StatusPageDir, statusLogo("wide", "png"))
+	os.WriteFile(stale, wide, 0o644)
+	if err := h.server.writeStatusFiles([]byte("page"), h.server.signInLook(ctx)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Error("the deleted logo is still on the status page")
+	}
+	if _, err := os.Stat(filepath.Join(h.server.StatusPageDir, statusLogo("dark", "png"))); err != nil {
+		t.Errorf("a logo still there left the status page: %v", err)
+	}
+}
+
 // Changing someone is a dialog: ?person= opens it, and refused details
 // open it again with the mistake.
 func TestPersonDialog(t *testing.T) {
@@ -995,6 +1059,27 @@ func TestRequiredSSOPages(t *testing.T) {
 	}
 	_, body = h.get("/services/forgejo")
 	if strings.Contains(body, "Turn off single sign-on") || !strings.Contains(body, "single sign-on stays on") {
+		t.Errorf("the card:\n%s", body)
+	}
+}
+
+// A wall in front of an app's own sign-in says it won't sign anyone in, and
+// isn't called single sign-on (SPEC.md §5.2).
+func TestOwnSignInPages(t *testing.T) {
+	h, fm := loggedIn(t, "owner")
+	fm.ownSignIn = true
+	withSignIn(t, h, &fakeSSO{on: map[string]bool{"forgejo": true}})
+	_, body := h.get("/install/forgejo")
+	if !strings.Contains(body, "Protect it with your lab's sign-in page") || !strings.Contains(body, "won't sign them in") ||
+		strings.Contains(body, "Sign in with your lab's account") {
+		t.Errorf("the install form:\n%s", body)
+	}
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "forgejo", Title: "Forgejo", Status: "running", Package: "forgejo", URLs: []string{"https://git.example.com"}}}, nil
+	}
+	_, body = h.get("/services/forgejo")
+	if !strings.Contains(body, "Lab sign-in page") || !strings.Contains(body, "doesn't sign them in") ||
+		strings.Contains(body, "Turn off single sign-on") || !strings.Contains(body, "Stop using the lab&#39;s sign-in page") {
 		t.Errorf("the card:\n%s", body)
 	}
 }

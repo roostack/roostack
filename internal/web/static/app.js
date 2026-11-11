@@ -166,4 +166,108 @@
       pickerLoad(dialog, link.href);
     }
   });
+
+  // The Updates page (SPEC.md §7.1, form.update-choice): the count of
+  // ticked updates and the shortcuts to choose fix releases, all, or none;
+  // ticking an update with notes opens them first (data-notes), and it's
+  // ticked once they've been read (its read.<service> field says so);
+  // Update now asks first (data-confirm-updates), listing what will
+  // update on each server. Without scripts the form still works, and the
+  // server asks for notes to be read.
+  const updateForm = () => document.querySelector("form.update-choice");
+  const updateBoxes = (form) => [...form.querySelectorAll('input[name="update"]:not(:disabled)')];
+  const updateCount = (form) => {
+    const n = updateBoxes(form).filter((b) => b.checked).length;
+    const label = form.querySelector("[data-chosen-count]");
+    if (label) label.textContent = n === 0 ? "Nothing chosen" : n === 1 ? "1 update chosen" : n + " updates chosen";
+    for (const b of form.querySelectorAll('button[name="when"]')) b.disabled = n === 0;
+  };
+  const markRead = (form, name, read) => {
+    const f = form.querySelector('[data-read="' + CSS.escape(name) + '"]');
+    if (f) f.value = read ? "1" : "";
+  };
+  document.addEventListener("DOMContentLoaded", () => {
+    const form = updateForm();
+    if (!form) return;
+    const shortcuts = form.querySelector(".choose-shortcuts");
+    if (shortcuts) shortcuts.hidden = false;
+    updateCount(form);
+  });
+  document.addEventListener("change", (e) => {
+    const form = e.target.closest("form.update-choice");
+    if (!form) return;
+    if (e.target.name === "update" && !e.target.checked && e.target.dataset.notes) markRead(form, e.target.value, false);
+    updateCount(form);
+  });
+  document.addEventListener("click", (e) => {
+    const form = updateForm();
+    if (!form) return;
+    const box = e.target.closest('form.update-choice input[name="update"][data-notes]');
+    if (box && box.checked && form.querySelector('[data-read="' + CSS.escape(box.value) + '"]').value !== "1") {
+      e.preventDefault(); // stays unticked until the notes are read
+      const d = document.getElementById(box.dataset.notes);
+      d.querySelector("[data-read-ok]").checked = false;
+      d.querySelector("[data-pick]").disabled = true;
+      d.showModal();
+      return;
+    }
+    const pick = e.target.closest("dialog.update-notes [data-pick]");
+    if (pick) {
+      const name = pick.dataset.pick;
+      markRead(form, name, true);
+      const b = form.querySelector('input[name="update"][value="' + CSS.escape(name) + '"]');
+      b.checked = true;
+      pick.closest("dialog").close();
+      updateCount(form);
+      return;
+    }
+    const choose = e.target.closest("form.update-choice [data-choose]");
+    if (choose) {
+      for (const b of updateBoxes(form)) {
+        const fix = b.dataset.kind === "patch" || b.dataset.kind === "revision";
+        const read = !b.dataset.notes || form.querySelector('[data-read="' + CSS.escape(b.value) + '"]').value === "1";
+        b.checked = choose.dataset.choose !== "none" && read && (choose.dataset.choose === "all" || fix);
+      }
+      updateCount(form);
+      return;
+    }
+    const now = e.target.closest("form.update-choice [data-confirm-updates]");
+    if (now) {
+      const chosen = updateBoxes(form).filter((b) => b.checked);
+      if (chosen.length === 0) return;
+      e.preventDefault();
+      const d = document.getElementById(now.dataset.confirmUpdates);
+      d.querySelector("[data-confirm-title]").textContent =
+        chosen.length === 1 ? "Update " + chosen[0].dataset.title + " now?" : "Update " + chosen.length + " services now?";
+      const byServer = new Map();
+      for (const b of chosen) {
+        const s = b.dataset.server;
+        if (!byServer.has(s)) byServer.set(s, []);
+        byServer.get(s).push(b.dataset.title + " (" + b.dataset.version + ")");
+      }
+      const list = d.querySelector("[data-confirm-list]");
+      list.replaceChildren(...[...byServer].map(([server, items]) => {
+        const li = document.createElement("li");
+        if (server) li.append(Object.assign(document.createElement("strong"), { textContent: "On " + server + ": " }));
+        li.append(listAnd(items));
+        return li;
+      }));
+      const unsaved = chosen.filter((b) => b.hasAttribute("data-no-backups"));
+      const servers = new Set(unsaved.map((b) => b.dataset.server)).size;
+      d.querySelector("[data-confirm-plan]").textContent = (unsaved.length === chosen.length ? "Roostack will update " : "Roostack will back up each server first, then update ") +
+        (chosen.length === 1 ? "it" : "them one at a time") + ". " + (chosen.length === 1 ? "It" : "Each one") + " will be unavailable for a minute or two while it switches over.";
+      const warn = d.querySelector("[data-confirm-no-backups]");
+      warn.hidden = unsaved.length === 0;
+      warn.textContent = unsaved.length === 0 ? "" : "Roostack can't back up " + listAnd(unsaved.map((b) => b.dataset.title)) + " first, since " +
+        (unsaved.length === 1 ? "its server has" : servers === 1 ? "their server has" : "their servers have") +
+        " no backups set up: if an update changes the data, there's no copy to go back to.";
+      d.showModal();
+      return;
+    }
+    const readOk = e.target.closest("dialog.update-notes [data-read-ok]");
+    if (readOk) readOk.closest("dialog").querySelector("[data-pick]").disabled = !readOk.checked;
+  });
+  // A list in a sentence, with the Oxford comma: "A", "A and B", "A, B, and C".
+  const listAnd = (items) =>
+    items.length < 3 ? items.join(" and ") : items.slice(0, -1).join(", ") + ", and " + items[items.length - 1];
 })();

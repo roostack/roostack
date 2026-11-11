@@ -207,8 +207,17 @@ func (h *harness) acts() *activity.Registry {
 // as a browser's file upload does.
 func (h *harness) postFiles(path string, files map[string][]byte) (int, string) {
 	h.t.Helper()
+	return h.postForm(path, nil, files)
+}
+
+// postForm posts a multipart form with these fields and files.
+func (h *harness) postForm(path string, fields map[string]string, files map[string][]byte) (int, string) {
+	h.t.Helper()
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		mw.WriteField(k, v)
+	}
 	for field, data := range files {
 		w, _ := mw.CreateFormFile(field, field+".file")
 		w.Write(data)

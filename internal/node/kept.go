@@ -39,7 +39,7 @@ func (n *Local) keptCopies() ([]kept.Copy, error) {
 	inside := map[string][]string{}
 	for _, s := range n.services() {
 		if out, err := generate.Service(n.currentLab(), s.Package, s.Instance); err == nil {
-			inside[s.Name()] = out.Backup.Include
+			inside[s.Name()] = out.Backup.KeptDirs()
 		}
 	}
 	return kept.Find([]string{n.Lab.Paths.ServicesDir, n.Lab.Paths.MediaDir}, inside)

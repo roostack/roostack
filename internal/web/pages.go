@@ -626,6 +626,7 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.addBuiltIns(r, data)
 	s.pauseData(data)
+	addUpdateTitles(data)
 	// Visitors through the relay, for those who manage services.
 	data["Relayed"] = s.Manager.RelayOn() && auth.Can(currentUser(r).Role, auth.ManageServices)
 	s.addRemoved(r, data)
@@ -639,7 +640,22 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 	}
 	s.addBuiltIns(r, data)
 	s.pauseData(data)
+	addUpdateTitles(data)
 	s.renderLive(w, r, "services", "services-live", data)
+}
+
+// addUpdateTitles adds the services with an update (UpdateTitles), for
+// the services list's link to the Updates page (SPEC.md §7.1). One
+// that's turned off can't update until it's on, so it isn't counted.
+func addUpdateTitles(data map[string]any) {
+	services, _ := data["Services"].([]ServiceView)
+	var titles []string
+	for _, sv := range services {
+		if sv.Update != "" && sv.Status != StatusOff {
+			titles = append(titles, sv.Title)
+		}
+	}
+	data["UpdateTitles"] = titles
 }
 
 // addBuiltIns adds Roostack's own parts on every server (?builtin=1): its

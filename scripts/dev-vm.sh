@@ -274,7 +274,7 @@ sync_repo() {
 test_repo() {
     running || { echo "VM is not running" >&2; exit 1; }
     local tag out
-    tag=test-$(basename "$REPO" | tr -c 'A-Za-z0-9._-\n' -)
+    tag=test-$(basename "$REPO" | tr -c 'A-Za-z0-9._\n-' -)
     out=$(mktemp -d)
     # Expanded now, on purpose: out is a local, gone by the time of exit.
     # shellcheck disable=SC2064

@@ -86,6 +86,9 @@ encrypted**: Roostack Cloud can't read them, and the certificate stays in
 your lab. It's part of a paid plan (by invitation while it's being tried
 out).
 
+A lab on the internet, such as a cloud server, won't offer the relay: it has
+a public address of its own, so visitors already reach it directly.
+
 ### With your own domain
 
 If your lab's address is your own domain (such as `lab.example.com`) rather

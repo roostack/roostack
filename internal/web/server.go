@@ -510,7 +510,7 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "local-editor", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
-		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
+		"home", "services", "services-updates", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-look", "settings-sign-in", "settings-cleanup",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
@@ -571,6 +571,10 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /services", s.require(auth.ViewDashboard, s.servicesPage))
 	mux.Handle("GET /partials/services", s.require(auth.ViewDashboard, s.servicesPartial))
 	mux.Handle("GET /services/{name}", s.require(auth.ManageServices, s.servicePage))
+	mux.Handle("GET /updates", s.require(auth.ManageServices, s.serviceUpdatesPage))
+	mux.Handle("GET /updates/live", s.require(auth.ManageServices, s.serviceUpdatesLive))
+	mux.Handle("POST /updates", s.require(auth.ManageServices, s.serviceUpdatesSubmit))
+	mux.Handle("POST /updates/cancel", s.require(auth.ManageServices, s.serviceUpdatesCancelSubmit))
 	mux.Handle("GET /services/{name}/settings", s.require(auth.ManageServices, s.serviceSettingsPage))
 	// Bringing a service's data in (SPEC.md §8.4): the Owner only.
 	// Migrating photos into Immich (SPEC.md §8.5): the steps on Immich's

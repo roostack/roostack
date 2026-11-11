@@ -263,8 +263,14 @@ func (m *Monitor) Round(ctx context.Context) {
 		m.record(ctx, c, results[i])
 	}
 	m.mu.Lock()
+	gone := m.goneLocked(checks)
 	m.checks = checks
 	m.mu.Unlock()
+	for _, key := range gone {
+		if err := m.Store.EndMonitorOutage(ctx, key, m.now()); err != nil {
+			m.log().Error("recording an outage's end", "check", key, "err", err)
+		}
+	}
 	m.prune(ctx)
 	if m.Changed != nil {
 		m.Changed(ctx)
@@ -339,6 +345,23 @@ func (m *Monitor) record(ctx context.Context, c Check, r store.MonitorResult) {
 	} else if wasDown && !down && r.Up {
 		m.log().Info("a monitored check is up again", "check", c.Key)
 	}
+}
+
+// goneLocked forgets the failures of checks that aren't listed any more
+// (a service turned off or removed), and returns those whose outage was
+// open, so it can end: nothing is down that isn't checked. Callers hold mu.
+func (m *Monitor) goneLocked(checks []Check) []string {
+	var gone []string
+	for key, st := range m.states {
+		if slices.ContainsFunc(checks, func(c Check) bool { return c.Key == key }) {
+			continue
+		}
+		if st.outage {
+			gone = append(gone, key)
+		}
+		st.fails, st.downSince, st.outage = 0, time.Time{}, false
+	}
+	return gone
 }
 
 // stateLocked is a check's state, rebuilt from its latest results the

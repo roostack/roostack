@@ -137,6 +137,14 @@ func (s *Server) writeStatusFiles(page []byte, look signInLook) error {
 		}
 		files[name] = b
 	}
+	// A logo that's been deleted or replaced by another type must leave
+	// the public folder with it.
+	old, _ := filepath.Glob(filepath.Join(s.StatusPageDir, statusLogo("*", "*")))
+	for _, path := range old {
+		if _, keep := files[filepath.Base(path)]; !keep {
+			os.Remove(path)
+		}
+	}
 	for name, b := range files {
 		path := filepath.Join(s.StatusPageDir, name)
 		if old, err := os.ReadFile(path); err == nil && bytes.Equal(old, b) {

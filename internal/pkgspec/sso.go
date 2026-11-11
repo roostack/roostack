@@ -100,6 +100,10 @@ type SSOForwardAuth struct {
 	// BypassPaths stay outside the wall (an API phone apps use with the
 	// app's own tokens, share links), each with the reason it's safe.
 	BypassPaths []PrivatePath `yaml:"bypass_paths"`
+	// OwnSignIn says the app keeps its own sign-in behind the wall, which
+	// protects the way in but doesn't sign anyone in to it, so people are
+	// told so (SPEC.md §5.2, "A wall in front of an app's own sign-in").
+	OwnSignIn bool `yaml:"own_sign_in"`
 }
 
 var (
@@ -130,6 +134,12 @@ func ValidStartPath(p string) bool {
 	rest, fragment, _ := strings.Cut(p, "#")
 	path, query, _ := strings.Cut(rest, "?")
 	return ValidRedirectPath(path) && startQueryRe.MatchString(query) && startQueryRe.MatchString(fragment)
+}
+
+// KeepsOwnSignIn says the app keeps its own sign-in behind a wall
+// (SSOForwardAuth.OwnSignIn).
+func (p *Package) KeepsOwnSignIn() bool {
+	return p.SSO != nil && p.SSO.ForwardAuth != nil && p.SSO.ForwardAuth.OwnSignIn
 }
 
 // RequiresSSO says the app has no sign-in of its own, so single sign-on
@@ -196,6 +206,9 @@ func (p *Package) validateSSO(v *validator) {
 		}
 	}
 	if f := s.ForwardAuth; f != nil {
+		if f.OwnSignIn && s.Required {
+			v.addf("sso.forward_auth.own_sign_in: an app with a sign-in of its own can't need single sign-on (required)")
+		}
 		if p.Routes[f.Route] == nil {
 			v.addf("sso.forward_auth.route: unknown route %q", f.Route)
 		}

@@ -105,7 +105,8 @@ Immich's `model-cache`).
   subordinate IDs (200000 and up). Immich's server and Plex (with
   `PLEX_UID: 0`) run as the container's root, so their files must belong
   to `roostack` on the host. A package using `UserNS=keep-id:uid=1000`
-  also wants `roostack`; one running as another user inside wants that
+  also wants `roostack` (Roostack gives it to the app's user with `:U` when
+  the app starts, ASSUMPTIONS B3c); one running as another user inside wants that
   user's mapped ID (`podman unshare chown`).
 - **So ownership is never copied:** the copy writes files as `roostack`,
   then sets the owner each storage needs (from the package), as moves and

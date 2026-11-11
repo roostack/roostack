@@ -198,6 +198,9 @@ func templateFuncs() template.FuncMap {
 		// Single sign-on (sso.go).
 		// offText says what turning single sign-on off does, for its confirm.
 		"offText": func(c *ssoCard) string {
+			if c.OwnSignIn {
+				return "Anyone who can reach " + c.Title + " will get as far as its own sign-in page again without signing in here."
+			}
 			if c.Wall {
 				return "Anyone who can reach " + c.Title + " will be able to use it again without signing in."
 			}

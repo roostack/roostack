@@ -22,6 +22,9 @@ func (s *Server) lookRoutes(mux *http.ServeMux) {
 	// The logo isn't private: the sign-in page shows it to anyone, and
 	// Roostack's pages use it before login too (the browser tab's icon).
 	mux.HandleFunc("GET /brand/icon", s.lookFavicon)
+	// The icon file itself, for Name and look: /brand/icon is whatever the
+	// tab shows now.
+	mux.HandleFunc("GET /brand/icon-file", func(w http.ResponseWriter, r *http.Request) { s.lookPart(w, r, "icon") })
 	mux.HandleFunc("GET /brand/{part}", s.lookFile)
 }
 

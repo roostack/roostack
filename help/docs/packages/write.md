@@ -152,7 +152,10 @@ Give each container what the app's own documentation asks for:
 
 If the app runs as a fixed user and its files must belong to that user,
 add `UserNS: keep-id:uid=1000,gid=1000` under `quadlet: Container:`, as
-Forgejo's package does. Only some Quadlet lines are allowed:
+Forgejo's package does. Roostack will run the app as that user and give
+it its storage folders each time it starts, so on the server those
+folders will belong to one of the high numbers Podman uses for that
+user. Only some Quadlet lines are allowed:
 [what a package may not do](../reference/packages.md#what-a-package-may-not-do)
 lists them, and what to use instead of the others.
 
@@ -269,6 +272,11 @@ takes its OIDC settings decides what the part needs:
   with `{{ json .SSO.ClientSecret }}` where the secret goes.
 - **No sign-in of its own** (Stirling-PDF): `forward_auth`, a wall in
   front of it.
+- **A sign-in of its own that can't use the lab's** (Docmost): `forward_auth`
+  with `own_sign_in: true`. People will sign in twice, and the wall will
+  keep everyone else away from the app's own sign-in page. List under
+  `bypass_paths` what phone apps or share links need, or the note can say
+  they won't work.
 
 The registry's Forgejo, Immich, and Paperless-ngx packages show each.
 [The package reference](../reference/packages.md) has every field.

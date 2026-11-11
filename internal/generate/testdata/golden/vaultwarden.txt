@@ -75,4 +75,4 @@ roostack-vaultwarden-admin_token generate=true setting="admin_token"
 /srv/roostack/services/vaultwarden/data/db.sqlite3-wal
 
 ==> backup prepare
-{Type:sqlite Container: User: Database: Source:/srv/roostack/services/vaultwarden/data/db.sqlite3 Target:/srv/roostack/services/vaultwarden/db-dump/main.sqlite3}
+{Type:sqlite Container: User: Database: Source:/srv/roostack/services/vaultwarden/data/db.sqlite3 DataDir: Target:/srv/roostack/services/vaultwarden/db-dump/main.sqlite3}

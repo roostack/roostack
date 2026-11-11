@@ -642,6 +642,10 @@ sso.forward_auth.route:
   help: The route that goes behind the wall. Its containers may read who someone is from the Remote-User, Remote-Email, Remote-Name, and Remote-Groups headers; Roostack will remove any a visitor sends.
   example: web
   link: reference/packages#the-parts
+sso.forward_auth.own_sign_in:
+  label: Keeps its own sign-in behind the wall
+  help: The app has a sign-in of its own that stays in use, so the wall will only protect the way in. Roostack will tell people that it won't sign them in to the app, and won't call it single sign-on.
+  link: reference/packages#the-parts
 sso.forward_auth.bypass_paths:
   label: Paths outside the wall
   help: Addresses that stay reachable without signing in to the lab, each with why that's safe, such as an API the phone apps use with the app's own tokens, or share links.

@@ -120,7 +120,7 @@ func (lab *Lab) serviceUpdates(ctx context.Context, services []Service, l *List)
 	case 1:
 		l.add(Item{Level: Info, Key: "updates-available", Text: "An update is available for " + waiting[0] + ".", Link: link, LinkText: "See it"})
 	default:
-		l.add(Item{Level: Info, Key: "updates-available", Text: "Updates are available for " + words.And(waiting) + ".", Link: "/services",
+		l.add(Item{Level: Info, Key: "updates-available", Text: "Updates are available for " + words.And(waiting) + ".", Link: "/updates",
 			LinkText: "See them"})
 	}
 }

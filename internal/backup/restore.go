@@ -52,7 +52,14 @@ type Restorer struct {
 	Now         func() time.Time
 	// Log shows the restore's steps live in the UI (optional, per run).
 	Log *activity.Log
+	// DBWait is how long a database may take to answer before its dump is
+	// loaded (dbStartWait if 0).
+	DBWait time.Duration
 }
+
+// dbStartWait is long enough for a database container to make its first,
+// empty database on a slow disk.
+const dbStartWait = 5 * time.Minute
 
 // RestoreResult says what happened, for the person running the restore.
 type RestoreResult struct {
@@ -85,10 +92,13 @@ func NotLoadedMsg(title string, taken time.Time) string {
 // RestoreService restores a service from one of its snapshots ("" = the
 // latest).
 //
-// The service is stopped, its current data directories are moved aside,
-// the snapshot is restored, databases are put back from their dumps, and
-// the service is started again. If getting the files back fails, the
-// original directories are put back.
+// The service is stopped, its current data directories and live databases
+// are moved aside, the snapshot is restored, databases start empty and are
+// put back from their dumps, and the service is started again. If getting
+// the files back fails, the original directories are put back. A database
+// moved aside is its only copy of what changed since the backup, as a
+// backup holds its dump and not its folder (SPEC.md §6.9, "What a restore
+// keeps").
 func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, snapshotID string) (*RestoreResult, error) {
 	snap, err := r.Repo.ServiceSnapshot(ctx, svc.Service, snapshotID)
 	if err != nil {
@@ -107,7 +117,7 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 	at := r.Now()
 	suffix := kept.Suffix(kept.BeforeRestore, "", at)
 	r.Log.Step("Moving the current data aside (nothing will be deleted)")
-	for _, dir := range dirs {
+	for _, dir := range svc.Backup.KeptDirs() {
 		if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -136,6 +146,16 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 
 	if len(svc.Backup.Prepare) > 0 {
 		r.Log.Step("Putting the database back")
+	}
+	for _, step := range svc.Backup.Prepare {
+		if step.DataDir == "" {
+			continue
+		}
+		// Its container needs the folder there to start, and will make an
+		// empty database in it.
+		if err := os.MkdirAll(step.DataDir, 0o750); err != nil {
+			return res, &DumpsError{Err: err}
+		}
 	}
 	if err := r.LoadDumps(ctx, svc); err != nil {
 		return res, &DumpsError{Err: err}
@@ -213,7 +233,16 @@ func (r *Restorer) rollback(res *RestoreResult, at time.Time) error {
 // (after a restore, or a move through a backup). The service's containers
 // must be stopped; the database's own is started for it.
 func (r *Restorer) LoadDumps(ctx context.Context, svc *generate.Output) error {
+	return r.loadDumps(ctx, svc, nil)
+}
+
+// loadDumps is LoadDumps, leaving out the databases and files keep says
+// are already what they should be (PutBack).
+func (r *Restorer) loadDumps(ctx context.Context, svc *generate.Output, keep func(generate.PrepareStep) bool) error {
 	for _, step := range svc.Backup.Prepare {
+		if keep != nil && keep(step) {
+			continue
+		}
 		switch step.Type {
 		case pkgspec.DBSQLite:
 			// The live file was excluded from the backup; the consistent copy
@@ -223,6 +252,11 @@ func (r *Restorer) LoadDumps(ctx context.Context, svc *generate.Output) error {
 			}
 		case pkgspec.DBPostgres:
 			if err := r.start(ctx, step.Container+".service"); err != nil {
+				return err
+			}
+			// Over TCP: while it makes a new database, a Postgres container
+			// answers only on its socket, then restarts.
+			if err := r.waitForDB(ctx, step, "pg_isready", "-h", "127.0.0.1", "-U", step.User, "-d", step.Database); err != nil {
 				return err
 			}
 			dump, err := os.Open(step.Target)
@@ -238,6 +272,12 @@ func (r *Restorer) LoadDumps(ctx context.Context, svc *generate.Output) error {
 			}
 		case pkgspec.DBMySQL, pkgspec.DBMariaDB:
 			if err := r.start(ctx, step.Container+".service"); err != nil {
+				return err
+			}
+			// Over TCP, as the same goes for MySQL and MariaDB. The app's
+			// user exists only once a new database is ready.
+			if err := r.waitForDB(ctx, step, "sh", "-c", generate.MySQLCommand(step.Type, "client")+` -h 127.0.0.1 -u "$1" -e "DO 1"`,
+				"ready", step.User); err != nil {
 				return err
 			}
 			// The app's user may drop and recreate its own database and
@@ -272,6 +312,30 @@ func (r *Restorer) LoadDumps(ctx context.Context, svc *generate.Output) error {
 	return nil
 }
 
+// waitForDB runs a command in a database's container until it succeeds,
+// or says what it last said once the wait is over.
+func (r *Restorer) waitForDB(ctx context.Context, step generate.PrepareStep, check ...string) error {
+	wait := r.DBWait
+	if wait == 0 {
+		wait = dbStartWait
+	}
+	deadline := time.Now().Add(wait)
+	for {
+		err := r.run(ctx, nil, "podman", append([]string{"exec", "-i", step.Container}, check...)...)
+		if err == nil {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%s didn't answer within %s: %w", step.Container, wait, err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+}
+
 func (r *Restorer) run(ctx context.Context, stdin *os.File, name string, args ...string) error {
 	cmd := r.Launch(ctx, nil, name, args...)
 	if stdin != nil {
@@ -287,10 +351,11 @@ func (r *Restorer) run(ctx context.Context, stdin *os.File, name string, args ..
 // PutBack puts a copy a restore on this server kept (kept.Copy, not
 // Whole) back in place of a service's data, with the copies of its other
 // folders from the same moment, and its databases from the dumps among
-// them (SPEC.md §8.4: every kept copy can be put back). The data it
-// replaces is kept in turn (kept.BeforePutBack), so changing one's mind
-// again is a put back too. The service is stopped meanwhile and started
-// again.
+// them (SPEC.md §8.4: every kept copy can be put back). A database kept
+// whole goes back as it was: its dump, from the backup before, is older.
+// The data it replaces is kept in turn (kept.BeforePutBack), so changing
+// one's mind again is a put back too. The service is stopped meanwhile and
+// started again.
 func (r *Restorer) PutBack(ctx context.Context, svc *generate.Output, path string) error {
 	f, err := keptInside(svc, path)
 	if err != nil {
@@ -303,10 +368,12 @@ func (r *Restorer) PutBack(ctx context.Context, svc *generate.Output, path strin
 		return err
 	}
 	r.Log.Step("Putting the kept copy back (what's there now will be kept)")
-	for _, dir := range svc.Backup.Include {
+	whole := map[string]bool{}
+	for _, dir := range svc.Backup.KeptDirs() {
 		if _, err := os.Stat(dir + suffix); err != nil {
 			continue
 		}
+		whole[dir] = true
 		if _, err := os.Stat(dir); err == nil {
 			if err := os.Rename(dir, dir+now); err != nil {
 				return err
@@ -321,7 +388,16 @@ func (r *Restorer) PutBack(ctx context.Context, svc *generate.Output, path strin
 	if len(svc.Backup.Prepare) > 0 {
 		r.Log.Step("Putting the database back")
 	}
-	if err := r.LoadDumps(ctx, svc); err != nil {
+	err = r.loadDumps(ctx, svc, func(step generate.PrepareStep) bool {
+		if step.Type == pkgspec.DBSQLite {
+			// Live in the data that went back, unless that's a backup's,
+			// which leaves it out.
+			_, err := os.Stat(step.Source)
+			return err == nil
+		}
+		return whole[step.DataDir]
+	})
+	if err != nil {
 		return err
 	}
 	r.Log.Step("Starting %s", svc.Service)
@@ -331,7 +407,7 @@ func (r *Restorer) PutBack(ctx context.Context, svc *generate.Output, path strin
 // keptInside is the kept folder at path, if it's one of a service's
 // backed-up folders that can go back (kept.Find).
 func keptInside(svc *generate.Output, path string) (kept.Folder, error) {
-	copies, err := kept.Find(nil, map[string][]string{svc.Service: svc.Backup.Include})
+	copies, err := kept.Find(nil, map[string][]string{svc.Service: svc.Backup.KeptDirs()})
 	if err != nil {
 		return kept.Folder{}, err
 	}

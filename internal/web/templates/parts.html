@@ -89,7 +89,7 @@
           {{- else if eq .Status "waiting"}}Its server, {{or .WasOn "a server that's gone"}}, is gone
           {{- else if and .Package (ne .Package .Name)}}{{.Package}}{{end}}</small>
         {{- if not $.CanManage}}{{with $.Migratable}}{{if index . $svc.Name}}<small><a href="/immich-photos/{{$svc.Name}}">Migrate your photos into it</a></small>{{end}}{{end}}{{end}}</div></div></td>
-      <td>{{status .Status}}{{with $.Paused}}{{if index . $svc.Name}} <span class="pill pill-warn">Public access paused</span>{{end}}{{end}}{{if and .Update $.CanManage (ne .Status "updating")}} <a href="/services/{{.Name}}#update">{{badge "Update" "highlight"}}</a>{{end}}</td>
+      <td><div class="status-line">{{status .Status}}{{with $.Paused}}{{if index . $svc.Name}} <span class="pill pill-warn">Public access paused</span>{{end}}{{end}}{{if and .Update $.CanManage (ne .Status "updating")}} <a href="/updates#{{.Name}}">{{badge "Update" "highlight"}}</a>{{end}}</div></td>
       <td class="hide-phone wrap">{{if .Install}}{{range .URLs}}<span class="address-pending">{{trimScheme .}}</span>{{end}}
         {{- else if .NoAddress}}{{template "address-waiting" $}}
         {{- else}}{{range $i, $u := .URLs}}{{if $i}}<br>{{end}}<a href="{{$u}}" target="_blank" rel="noopener">{{trimScheme $u}}{{template "new-window"}}</a>{{end}}{{end}}</td>
@@ -1009,6 +1009,6 @@
 
 {{/* The lab's logo, or the hen, with its name, small (Name and look's previews, and Single sign-on's). */}}
 {{define "look-brand"}}{{$l := .Look}}
-{{- if eq $l.Logo "wide"}}<img src="/brand/wide?v={{$l.Version}}" alt=""{{with $l.SidebarWidth "wide"}} width="{{.}}" height="{{$l.SidebarHeight}}"{{end}}>
+{{- if eq $l.Logo "wide"}}{{template "wide-logo" ($l.WideLogo "")}}
 {{- else}}<span class="look-thumb-name">{{if eq $l.Logo "mark"}}<img src="/brand/mark?v={{$l.Version}}" alt="" width="22" height="22">{{else}}{{brandMark}}{{end}}{{.LabName}}</span>{{end}}
 {{- end}}
