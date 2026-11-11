@@ -108,7 +108,8 @@ func TestDomainItselfCardNotes(t *testing.T) {
 	}
 	fd.d = config.DomainItself{}
 	h.server.DNSProvider = config.ProviderCloud
-	if _, body := h.get("/settings/domain"); !strings.Contains(body, `value="account" x-model="show" checked`) {
-		t.Errorf("a roost.ac name's default:\n%s", body)
+	if _, body := h.get("/settings/domain"); !strings.Contains(body, `value="account" x-model="show" checked`) ||
+		!strings.Contains(body, "a free roost.ac address") || strings.Contains(body, "your own domain") || !strings.Contains(body, "<code>my.lab.example.com</code>") {
+		t.Errorf("a roost.ac name's default and facts:\n%s", body)
 	}
 }

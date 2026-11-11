@@ -8,9 +8,10 @@
 <section class="card">
   {{if .DomainSet}}
   <dl class="facts">
-    <dt>Address</dt><dd>{{.LabDomain}} <small class="hint">· your own domain</small></dd>
-    <dt>DNS provider</dt><dd>{{.ProviderTitle}}</dd>
+    <dt>Address</dt><dd>{{.LabDomain}} <small class="hint">· {{if .RoostAc}}a free {{.CloudSuffix}} address{{else}}your own domain{{end}}</small></dd>
+    <dt>DNS provider</dt><dd>{{if .RoostAc}}Roostack Cloud, which runs the name's DNS{{else}}{{.ProviderTitle}}{{end}}</dd>
     <dt>Services</dt><dd>Addresses like <code>photos.{{.LabDomain}}</code>, with a free certificate from Let's Encrypt</dd>
+    <dt>Your account</dt><dd><code>my.{{.LabDomain}}</code>, where everyone signs in</dd>
     <dt>Roostack</dt><dd><code>{{.UIHost}}</code></dd>
   </dl>
   <p><a class="button secondary" href="/setup/domain">Change the address…</a></p>

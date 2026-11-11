@@ -319,6 +319,8 @@ func (s *Server) domainAreaData(r *http.Request) map[string]any {
 	data["LabDomain"] = s.Domain
 	data["UIHost"] = s.uiHost()
 	data["DomainSet"] = s.Domain != "" && s.domainDone(r)
+	data["RoostAc"] = s.DNSProvider == config.ProviderCloud
+	data["CloudSuffix"] = s.cloudSuffix(r.Context())
 	if p := dns.Get(s.DNSProvider); p != nil {
 		data["ProviderTitle"] = p.Title
 	}
@@ -338,7 +340,6 @@ func (s *Server) domainAreaData(r *http.Request) map[string]any {
 			data["OldProblem"] = o.Message
 		}
 		data["LeftRecords"] = leftGroups(st.Left)
-		data["CloudSuffix"] = s.cloudSuffix(r.Context())
 	}
 	data["Forgot"] = r.FormValue("forgot") != ""
 	return data
