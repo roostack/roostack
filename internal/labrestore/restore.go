@@ -95,14 +95,15 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 			continue
 		}
 		// A service's backup holds only its own folders (generate's
-		// storage: under the services' folder, or the media folder).
+		// storage: under the services' folder, or the media folder) and
+		// its saved secrets, which restorePaths leaves alone.
 		var own []string
 		for _, dir := range []string{paths.ServicesDir, paths.MediaDir} {
 			if dir != "" {
 				own = append(own, filepath.Join(dir, name))
 			}
 		}
-		if err := allowed(*snap, name+"'s backup", nil, own); err != nil {
+		if err := allowed(*snap, name+"'s backup", []string{backup.SecretsFile(paths, name)}, own); err != nil {
 			return err
 		}
 		log.Step("Restoring %s from its backup of %s", name, snap.Time.Local().Format("2 January 2006 15:04"))
