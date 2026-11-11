@@ -117,13 +117,21 @@ func (s *Server) renderStatusPage(ctx context.Context, now time.Time) ([]byte, e
 }
 
 // writeStatusFiles writes the page, and the files it links to where
-// they've changed (a new Roostack's stylesheet, the lab's logo), each
-// replaced whole so Caddy never serves half of one.
+// they've changed (writePageFiles).
 func (s *Server) writeStatusFiles(page []byte, look signInLook) error {
+	return writePageFiles(s.StatusPageDir, page, look, s.lookPath)
+}
+
+// writePageFiles writes a plain page Caddy serves from dir (the status
+// page, the domain itself's simple page), and the files it links to where
+// they've changed (a new Roostack's stylesheet, the lab's logo, read
+// through lookPath), each replaced whole so Caddy never serves half of
+// one.
+func writePageFiles(dir string, page []byte, look signInLook, lookPath func(part, kind string) string) error {
 	files := map[string][]byte{"index.html": page}
 	for _, part := range []string{"mark", "wide", "dark"} {
 		if kind := look.Files[part]; kind != "" {
-			b, err := os.ReadFile(s.lookPath(part, kind))
+			b, err := os.ReadFile(lookPath(part, kind))
 			if err != nil {
 				return err
 			}
@@ -139,14 +147,14 @@ func (s *Server) writeStatusFiles(page []byte, look signInLook) error {
 	}
 	// A logo that's been deleted or replaced by another type must leave
 	// the public folder with it.
-	old, _ := filepath.Glob(filepath.Join(s.StatusPageDir, statusLogo("*", "*")))
+	old, _ := filepath.Glob(filepath.Join(dir, statusLogo("*", "*")))
 	for _, path := range old {
 		if _, keep := files[filepath.Base(path)]; !keep {
 			os.Remove(path)
 		}
 	}
 	for name, b := range files {
-		path := filepath.Join(s.StatusPageDir, name)
+		path := filepath.Join(dir, name)
 		if old, err := os.ReadFile(path); err == nil && bytes.Equal(old, b) {
 			continue
 		}

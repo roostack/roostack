@@ -94,11 +94,14 @@ type SystemOptions struct {
 	// serves the sign-in page; SignInPublic: one of them is public, and so
 	// is the sign-in page (SPEC.md §5.2).
 	SignIn, SignInPublic bool
+	// FirstHosts are each service's first address, by name, where the
+	// domain itself may go (DomainRedirect).
+	FirstHosts map[string]string
 }
 
 // SystemWith is System with everything the services ask for.
 func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
-	public := opts.Public || opts.SignInPublic
+	public := opts.Public || opts.SignInPublic || lab.DomainPublic()
 	out := &SystemOutput{}
 	if lab.IsNode() {
 		// Nodes have no Caddy: the controller's serves their routes.
@@ -191,17 +194,19 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 		PrivateFrom:   PrivateFrom(lab),
 		EdgeFrom:      lab.EdgeAddrs,
 	}
-	mc.AdminHost = lab.UIHost()
+	if lab.ServesDomain() {
+		// The domain itself (SPEC.md §5.3).
+		mc.DomainItself = &caddy.DomainSite{Redirect: DomainRedirect(lab, opts.FirstHosts), Page: lab.Shows() == config.ShowPage, Public: lab.DomainPublic()}
+	}
 	if opts.SignIn {
 		mc.SignIn = &caddy.SignInSite{Host: lab.SignInHost(), Upstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, config.SignInPort),
 			Public: opts.SignInPublic, Containers: ContainerHostGateway}
 	}
 	if old != nil {
 		mc.OldDomain, mc.OldDNSDirective = old.Domain, oldDirective
-		mc.OldAdminHost = config.Lab{Domain: old.Domain, DNS: old.DNS}.UIHost()
 	}
 	out.Dirs = []string{lab.Paths.CaddyDataDir(), lab.Paths.CaddySitesDir(), filepath.Join(lab.Paths.CaddyDir(), "errors"),
-		lab.Paths.StatusPageDir()}
+		lab.Paths.StatusPageDir(), lab.Paths.DomainPageDir()}
 	// The services' error pages (SPEC.md §6.3), which Caddy's handle_errors
 	// serves from caddy.ErrorPagesDir.
 	pages := errpage.CaddyPages(lab.DisplayName(), "https://"+lab.UIHost())
@@ -417,4 +422,22 @@ func dnsConfig(lab config.Lab) (string, []string, error) {
 		}
 	}
 	return directive, fields, nil
+}
+
+// DomainRedirect is where the domain itself goes when it's a redirect
+// (SPEC.md §5.3): Your account, a web address, or a service's first
+// address, from first (each service's, by name; one turned off answers
+// that it is); "" otherwise, and for a service that isn't there.
+func DomainRedirect(lab config.Lab, first map[string]string) string {
+	switch lab.Shows() {
+	case config.ShowAccount:
+		return "https://" + lab.SignInHost() + "/"
+	case config.ShowAddress:
+		return lab.DomainItself.Address
+	case config.ShowService:
+		if h := first[lab.DomainItself.Service]; h != "" {
+			return "https://" + h + "/"
+		}
+	}
+	return ""
 }

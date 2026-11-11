@@ -1,0 +1,35 @@
+<!doctype html><html lang="en" data-palette="{{.Look.Palette}}"{{with .Look.Accent}} data-accent="{{.}}"{{end}}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{with .Heading}}{{.}} · {{end}}{{.LabName}}</title>
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/{{.Theme}}">
+  {{- if and (eq .Look.Logo "mark") .Logomark}}
+  <link rel="icon" href="/{{.Logomark}}">{{end}}
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/status.css">
+</head>
+{{/* The domain itself's simple page (SPEC.md §5.3): a plain file Roostack
+     writes when the Owner chooses it, served by Caddy at the bare domain
+     with no scripts allowed. The heading, text, and links are the
+     Owner's; the logo and colours are the lab's (Name and look). */ -}}
+<body class="status-page">
+  <main class="status-main">
+    <header>
+      {{if and (eq .Look.Logo "wide") .Logowide}}<p class="status-logo"><span class="status-logo-img{{if not .Logodark}} on-light{{end}}"><picture>
+        {{- with .Logodark}}<source srcset="/{{.}}" media="(prefers-color-scheme: dark)"{{with $.Look.Width "dark"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}>{{end -}}
+        <img src="/{{.Logowide}}" alt="{{.LabName}}"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}></picture></span></p>
+      {{- else if and (eq .Look.Logo "mark") .Logomark}}<p class="status-brand"><img src="/{{.Logomark}}" alt="" width="40" height="40">{{.LabName}}</p>
+      {{- else}}<p class="status-brand">{{.LabName}}</p>{{end}}
+    </header>
+    <h1 class="domain-heading">{{or .Heading .LabName}}</h1>
+    {{range .Paragraphs}}<p>{{.}}</p>{{end}}
+    {{with .Links}}
+    <ul class="domain-links">
+      {{range .}}<li><a href="{{.URL}}">{{.Title}}</a></li>{{end}}
+    </ul>
+    {{end}}
+    <footer class="hint">Made with Roostack</footer>
+  </main>
+</body></html>

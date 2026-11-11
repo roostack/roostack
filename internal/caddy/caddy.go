@@ -463,10 +463,6 @@ type MainConfig struct {
 	// AdminUpstream is where the Roostack web UI listens, as seen from the
 	// Caddy container. Empty disables the admin route.
 	AdminUpstream string
-	// AdminHost is where it's served: roost.<domain> when empty, or the
-	// domain itself (a roost.ac name, SPEC.md §6.6). OldAdminHost is the
-	// same at the old address.
-	AdminHost, OldAdminHost string
 	// AdminPublic serves the UI to anyone, like a public service (CrowdSec,
 	// rate limits, a strict one on logging in): on a lab on the internet
 	// (SPEC.md §6.3.2). Otherwise it's private.
@@ -499,7 +495,23 @@ type MainConfig struct {
 	// SignIn serves the sign-in page for services (single sign-on, SPEC.md
 	// §5.2) while any service has it on; nil: none.
 	SignIn *SignInSite
+	// DomainItself is what the bare domain shows (SPEC.md §5.3); nil:
+	// Caddy doesn't serve it.
+	DomainItself *DomainSite
 }
+
+// DomainSite is the bare domain: a redirect to Redirect, or the simple
+// page's files in DomainPageDir (Page), or neither (a service it went to
+// that isn't there now): the "nobody roosts here" page. Public: anyone
+// reaches it; otherwise the home network, like a private route.
+type DomainSite struct {
+	Redirect     string
+	Page, Public bool
+}
+
+// DomainPageDir is where the bare domain's simple page is inside Caddy's
+// container: Roostack writes it (SPEC.md §5.3).
+const DomainPageDir = "/etc/caddy/domain"
 
 // SignInSite is the sign-in page for services at Host (my.<domain>),
 // answered by the sign-in listener at Upstream. Public once a service
@@ -585,6 +597,9 @@ func Main(c MainConfig) (string, error) {
 		b.WriteString("\t}\n")
 	}
 	b.WriteString("}\n")
+	if d := c.DomainItself; d != nil && strings.ContainsAny(d.Redirect, " \t\n{}\"#") {
+		return "", fmt.Errorf("caddy: invalid address for the domain itself %q", d.Redirect)
+	}
 	if c.OldDomain != "" && (strings.ContainsAny(c.OldDomain, " \t\n{}\"#") || strings.TrimSpace(c.OldDNSDirective) == "") {
 		return "", fmt.Errorf("caddy: invalid old address %q", c.OldDomain)
 	}
@@ -593,7 +608,7 @@ func Main(c MainConfig) (string, error) {
 		if edge && len(c.EdgeFrom) == 0 {
 			break
 		}
-		if err := site(&b, c, c.Domain, c.AdminHost, c.DNSDirective, "", edge); err != nil {
+		if err := site(&b, c, c.Domain, c.DNSDirective, "", edge); err != nil {
 			return "", err
 		}
 		// The previous address (SPEC.md §6.6): the same services, through
@@ -601,7 +616,7 @@ func Main(c MainConfig) (string, error) {
 		if c.OldDomain == "" {
 			continue
 		}
-		if err := site(&b, c, c.OldDomain, c.OldAdminHost, c.OldDNSDirective, c.Domain, edge); err != nil {
+		if err := site(&b, c, c.OldDomain, c.OldDNSDirective, c.Domain, edge); err != nil {
 			return "", err
 		}
 	}
@@ -609,18 +624,17 @@ func Main(c MainConfig) (string, error) {
 }
 
 // site writes one wildcard site block for domain, with Roostack's pages
-// at adminHost (roost.<domain> if empty; the domain itself is added to the
+// at roost.<domain>, and the domain itself when it's served (added to the
 // block, since the wildcard doesn't cover it). now is the lab's current
 // address when domain is its previous one. An edge site is the same on
 // EdgePort, for visitors through an edge: it sets EdgeVar, so every
 // private check counts them as outside, and has no Roostack pages (the
 // UI is never reached through an edge).
-func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now string, edge bool) error {
-	if adminHost == "" {
-		adminHost = AdminSubdomain + "." + domain
-	}
-	if strings.ContainsAny(adminHost, " \t\n{}\"#,") {
-		return fmt.Errorf("caddy: invalid admin host %q", adminHost)
+func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge bool) error {
+	adminHost := AdminSubdomain + "." + domain
+	bare := c.DomainItself
+	if bare != nil && edge && !bare.Public {
+		bare = nil
 	}
 	b.WriteString("\n")
 	if now != "" {
@@ -631,7 +645,7 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 		port = fmt.Sprintf(":%d", EdgePort)
 		fmt.Fprintf(b, "# Visitors through the lab's edges: never private (SPEC.md §10.5).\n")
 	}
-	if adminHost == domain {
+	if bare != nil {
 		fmt.Fprintf(b, "*.%s%s, %s%s {\n", domain, port, domain, port)
 	} else {
 		fmt.Fprintf(b, "*.%s%s {\n", domain, port)
@@ -696,6 +710,9 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 			fmt.Fprintf(b, "\t%s\n", line)
 		}
 	}
+	if bare != nil {
+		domainSite(b, c, bare, domain)
+	}
 	if c.StatusPage && now == "" {
 		// The public status page (SPEC.md §6.15): plain files, for anyone.
 		fmt.Fprintf(b, "\n\t@status host %s.%s\n\thandle @status {\n\t\theader Cache-Control \"max-age=30\"\n\t\troot * %s\n\t\tfile_server\n\t}\n",
@@ -711,6 +728,34 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 		"\t\tfile_server {\n\t\t\tstatus {err.status_code}\n\t\t}\n\t}\n", ErrorPagesDir)
 	b.WriteString("}\n")
 	return nil
+}
+
+// domainSite writes the bare domain's handler (SPEC.md §5.3): home-only
+// unless it's public, when CrowdSec's bans apply as on any public route;
+// then the redirect, or the simple page as plain files that allow no
+// scripts.
+func domainSite(b *strings.Builder, c MainConfig, d *DomainSite, domain string) {
+	fmt.Fprintf(b, "\n\t@domain-itself host %s\n\thandle @domain-itself {\n", domain)
+	if !d.Public {
+		r := Route{PrivateFrom: c.PrivateFrom, PrivateExcept: c.EdgeFrom}
+		fmt.Fprintf(b, "\t\t@domain-itself-external %s\n\t\tabort @domain-itself-external\n", r.notPrivate("\t\t"))
+	}
+	// In a route block, which runs in the order written, so the bans come
+	// first.
+	b.WriteString("\t\troute {\n")
+	if d.Public && c.CrowdSecAPI != "" {
+		b.WriteString("\t\t\tcrowdsec\n")
+	}
+	switch {
+	case d.Redirect != "":
+		fmt.Fprintf(b, "\t\t\tredir %s 302\n", d.Redirect)
+	case d.Page:
+		fmt.Fprintf(b, "\t\t\theader Content-Security-Policy \"default-src 'self'; script-src 'none'\"\n"+
+			"\t\t\theader Cache-Control \"max-age=300\"\n\t\t\troot * %s\n\t\t\tfile_server\n", DomainPageDir)
+	default:
+		b.WriteString("\t\t\terror 404\n")
+	}
+	b.WriteString("\t\t}\n\t}\n")
 }
 
 // checkPrefixes checks addresses or ranges (100.96.0.2/32) for Caddy.

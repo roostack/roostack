@@ -137,6 +137,10 @@ type Manager struct {
 	// (optional; Lab.OldAddress otherwise): kept after it stops working,
 	// until its records are deleted (SPEC.md §6.6).
 	OldAddress func() *config.OldAddress
+	// DomainItself is what the bare domain shows as the Owner last chose
+	// (optional; Lab.DomainItself otherwise): when it's served, it needs
+	// its own record, which the wildcard doesn't cover (SPEC.md §5.3).
+	DomainItself func() config.DomainItself
 
 	mu     sync.Mutex
 	status Status
@@ -280,6 +284,9 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	m.syncMu.Lock()
 	defer m.syncMu.Unlock()
 	m.mu.Lock()
+	if m.DomainItself != nil {
+		m.Lab.DomainItself = m.DomainItself()
+	}
 	lab := m.Lab
 	m.syncing = true
 	m.mu.Unlock()
@@ -375,15 +382,25 @@ func (m *Manager) syncCurrent(ctx context.Context, lab config.Lab) Status {
 	}
 
 	err := m.ensure(ctx, p, values, zone, name, ip)
-	if err == nil && lab.UIHost() == lab.Domain {
-		// Roostack's pages are at the name itself (a roost.ac name), which
-		// the wildcard doesn't cover (SPEC.md §6.6).
-		err = m.ensure(ctx, p, values, zone, strings.TrimPrefix(strings.TrimPrefix(name, "*"), "."), ip)
+	bare := strings.TrimPrefix(strings.TrimPrefix(name, "*"), ".")
+	switch {
+	case err != nil:
+	case lab.ServesDomain() && (lab.OnInternet() || !lab.DomainPublic()):
+		// The domain itself, which the wildcard doesn't cover (SPEC.md
+		// §5.3): here, unless it's public from home, when it's a public
+		// address's (syncPublic).
+		err = m.ensure(ctx, p, values, zone, bare, ip)
+	case !lab.ServesDomain() && lab.OnInternet():
+		// No longer served: Roostack's record goes (at home, syncPublic
+		// lets go of it with the rest).
+		err = m.releaseOwned(ctx, p, values, zone, lab.Domain, bare, ip)
 	}
 	if err != nil {
 		var conflict *conflictError
 		if errors.As(err, &conflict) {
 			st.State, st.Message, st.Current = StateConflict, conflict.Error(), conflict.current
+			// The record in the way, which Take over this record… takes.
+			st.Record = conflict.record
 		} else {
 			st.State, st.Message = StateError, err.Error()
 		}
@@ -554,11 +571,26 @@ func (m *Manager) release(ctx context.Context, p *dns.Provider, values map[strin
 	return m.ensure(ctx, p, values, zone, name, home)
 }
 
+// releaseOwned lets go of Roostack's A record at host (name in zone), if
+// it has one (release).
+func (m *Manager) releaseOwned(ctx context.Context, p *dns.Provider, values map[string]string, zone, host, name, home string) error {
+	owned, err := m.Records(ctx)
+	if err != nil {
+		return err
+	}
+	for _, r := range owned {
+		if r.Type == "A" && r.Name == host {
+			return m.release(ctx, p, values, zone, name, r, home)
+		}
+	}
+	return nil
+}
+
 // wantsA reports whether the current address wants an A record at host:
-// the wildcard, the name itself where Roostack's pages are (a roost.ac
-// name), a public address or link.<domain>.
+// the wildcard, the domain itself while it's served (SPEC.md §5.3), a
+// public address or link.<domain>.
 func (m *Manager) wantsA(lab config.Lab, host string, publicHosts []string) bool {
-	return host == "*."+lab.Domain || host == lab.Domain && lab.UIHost() == lab.Domain ||
+	return host == "*."+lab.Domain || host == lab.Domain && lab.ServesDomain() ||
 		slices.Contains(publicHosts, host) || host == m.linkHost() && m.linkWanted()
 }
 

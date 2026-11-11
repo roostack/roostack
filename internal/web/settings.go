@@ -307,6 +307,14 @@ type areaNav struct {
 }
 
 func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
+	data := s.domainAreaData(r)
+	data["DomainItself"] = s.domainItselfView(r)
+	s.render(w, "settings-domain", withArea(data, "domain"))
+}
+
+// domainAreaData is Settings → Your lab's address's data, apart from the
+// domain itself's card.
+func (s *Server) domainAreaData(r *http.Request) map[string]any {
 	data := s.pageData(r)
 	data["LabDomain"] = s.Domain
 	data["UIHost"] = s.uiHost()
@@ -333,7 +341,7 @@ func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
 		data["CloudSuffix"] = s.cloudSuffix(r.Context())
 	}
 	data["Forgot"] = r.FormValue("forgot") != ""
-	s.render(w, "settings-domain", withArea(data, "domain"))
+	return data
 }
 
 func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {

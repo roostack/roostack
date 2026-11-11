@@ -790,6 +790,7 @@ func (n *Local) lab(a Assignment) config.Lab {
 	lab.Monitoring.StatusPage = a.Lab.StatusPage
 	lab.Public.Pause = a.Lab.Pause
 	lab.Public.Refused = a.Lab.Refused
+	lab.DomainItself = a.Lab.DomainItself
 	return lab
 }
 

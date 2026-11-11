@@ -293,7 +293,7 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	m.refused.Store(&refused)
 	m.sendCloudPublic()
 	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked,
-		StatusPage: m.StatusPageOn(), Pause: pause, Refused: refused}
+		StatusPage: m.StatusPageOn(), Pause: pause, Refused: refused, DomainItself: m.labNow().DomainItself}
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
 		nodes = append(nodes, r)

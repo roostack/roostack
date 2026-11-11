@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -96,5 +97,33 @@ func TestLoadNewInstall(t *testing.T) {
 	os.WriteFile(path, []byte("cloud:\n  disabled: true\n"), 0o640)
 	if lab, err := Load(path); err != nil || !lab.Cloud.Disabled {
 		t.Errorf("cloud off: %+v, %v", lab.Cloud, err)
+	}
+}
+
+// What the domain itself shows (SPEC.md §5.3): nothing on an own domain
+// and Your account on a roost.ac name by default, the Owner's choice
+// otherwise; a choice that isn't whole is refused.
+func TestDomainItself(t *testing.T) {
+	own := Lab{Domain: "smith.family"}
+	roost := Lab{Domain: "smiths.roost.ac", DNS: DNS{Provider: ProviderCloud}}
+	if own.Shows() != ShowNothing || own.ServesDomain() || roost.Shows() != ShowAccount || (Lab{}).ServesDomain() {
+		t.Errorf("defaults: %q %q", own.Shows(), roost.Shows())
+	}
+	if roost.UIHost() != "roost.smiths.roost.ac" || own.UIHost() != "roost.smith.family" {
+		t.Errorf("Roostack's pages: %q %q", roost.UIHost(), own.UIHost())
+	}
+	roost.DomainItself = DomainItself{Show: ShowNothing, Public: true}
+	own.DomainItself = DomainItself{Show: ShowPage, Public: true}
+	if roost.ServesDomain() || roost.DomainPublic() || own.Shows() != ShowPage || !own.DomainPublic() {
+		t.Errorf("chosen: %q %q", own.Shows(), roost.Shows())
+	}
+	for _, bad := range []DomainItself{{Show: "website"}, {Show: ShowService}, {Show: ShowAddress, Address: "ftp://x"},
+		{Show: ShowAddress, Address: "https://x.example/{a}"}, {Show: ShowPage, Page: SimplePage{Heading: strings.Repeat("x", 101)}}} {
+		if bad.Validate() == nil {
+			t.Errorf("%+v was accepted", bad)
+		}
+	}
+	if err := (DomainItself{Show: ShowAddress, Address: "https://blog.example/"}).Validate(); err != nil {
+		t.Error(err)
 	}
 }

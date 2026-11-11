@@ -12,8 +12,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"go.yaml.in/yaml/v3"
 
@@ -167,6 +169,10 @@ func (p Paths) CaddyDir() string { return filepath.Join(p.StateDir, "caddy") }
 
 // CaddySitesDir holds one snippet per service.
 func (p Paths) CaddySitesDir() string { return filepath.Join(p.CaddyDir(), "sites") }
+
+// DomainPageDir holds the bare domain's simple page, which Roostack
+// writes and Caddy serves (SPEC.md §5.3).
+func (p Paths) DomainPageDir() string { return filepath.Join(p.CaddyDir(), "domain") }
 
 // StatusPageDir holds the public status page Roostack writes every minute
 // (SPEC.md §6.15), which Caddy serves at status.<domain>.
@@ -508,6 +514,8 @@ type Lab struct {
 	Registry Registry `yaml:"registry,omitempty"`
 	// Monitoring is how the lab's monitoring is shown (SPEC.md §6.15).
 	Monitoring Monitoring `yaml:"monitoring,omitempty"`
+	// DomainItself is what the bare domain shows (SPEC.md §5.3).
+	DomainItself DomainItself `yaml:"domain_itself,omitempty"`
 	// OldAddress is the lab's previous address, still served for a while
 	// after switching so bookmarks and apps can be updated (SPEC.md §6.6).
 	OldAddress *OldAddress `yaml:"old_address,omitempty"`
@@ -624,18 +632,97 @@ const ProviderCloud = "roostack-cloud"
 // Roostack Cloud.
 func (l Lab) RoostAc() bool { return l.DNS.Provider == ProviderCloud }
 
-// UIHost is where Roostack's own pages are: the roost.ac name itself, or
-// roost.<domain> on an own domain (SPEC.md §6.6).
-func (l Lab) UIHost() string {
-	if l.RoostAc() {
-		return l.Domain
-	}
-	return "roost." + l.Domain
+// UIHost is where Roostack's own pages are: roost.<domain>, for a
+// roost.ac name too since 2026-11-11 (SPEC.md §5.3).
+func (l Lab) UIHost() string { return "roost." + l.Domain }
+
+// What the bare domain shows (SPEC.md §5.3, DomainItself.Show).
+const (
+	ShowNothing = "nothing" // Roostack leaves it alone
+	ShowAccount = "account" // a redirect to my.<domain>
+	ShowService = "service" // a redirect to one of the lab's services
+	ShowAddress = "address" // a redirect to any web address
+	ShowPage    = "page"    // a simple page Roostack writes
+)
+
+// DomainItself is what someone gets at the bare domain (smith.family),
+// the Owner's choice (SPEC.md §5.3).
+type DomainItself struct {
+	// Show is one of the Show constants; empty is the default for the
+	// address (Lab.Shows).
+	Show string `yaml:"show,omitempty"`
+	// Service is the service it redirects to (ShowService), Address the
+	// web address (ShowAddress).
+	Service string `yaml:"service,omitempty"`
+	Address string `yaml:"address,omitempty"`
+	// Public: anyone reaches it, not only the home network.
+	Public bool `yaml:"public,omitempty"`
+	// Page is the simple page's words and links (ShowPage).
+	Page SimplePage `yaml:"page,omitempty"`
 }
+
+// SimplePage is the bare domain's simple page: a heading, a few lines
+// of text, and links to the services the Owner picked, in the lab's look.
+type SimplePage struct {
+	Heading  string   `yaml:"heading,omitempty"`
+	Text     string   `yaml:"text,omitempty"`
+	Services []string `yaml:"services,omitempty"`
+}
+
+// Limits on the simple page's words.
+const (
+	PageHeadingMax = 100
+	PageTextMax    = 2000
+)
+
+// Shows is what the bare domain shows: the Owner's choice, or by default
+// nothing on an own domain (its website stays where it is) and Your
+// account on a roost.ac name; nothing without an address.
+func (l Lab) Shows() string {
+	switch {
+	case !l.HasAddress():
+		return ShowNothing
+	case l.DomainItself.Show != "":
+		return l.DomainItself.Show
+	case l.RoostAc():
+		return ShowAccount
+	}
+	return ShowNothing
+}
+
+// ServesDomain reports whether Caddy serves the bare domain, which then
+// needs a DNS record pointing at the lab.
+func (l Lab) ServesDomain() bool { return l.Shows() != ShowNothing }
+
+// DomainPublic reports whether the bare domain is served to anyone.
+func (l Lab) DomainPublic() bool { return l.ServesDomain() && l.DomainItself.Public }
 
 // SignInHost is the sign-in page for services, my.<domain> (single
 // sign-on, SPEC.md §5.2).
 func (l Lab) SignInHost() string { return "my." + l.Domain }
+
+// Validate checks the choice is whole: a service or an address to go
+// to, and words that fit.
+func (d DomainItself) Validate() error {
+	switch d.Show {
+	case "", ShowNothing, ShowAccount, ShowPage:
+	case ShowService:
+		if d.Service == "" {
+			return errors.New("show: service needs a service")
+		}
+	case ShowAddress:
+		if u, err := url.Parse(d.Address); err != nil || u.Scheme != "https" && u.Scheme != "http" || u.Host == "" ||
+			strings.ContainsAny(d.Address, " \t\n\"{}") {
+			return fmt.Errorf("address must be an http or https address, got %q", d.Address)
+		}
+	default:
+		return fmt.Errorf("show must be %q, %q, %q, %q, or %q, got %q", ShowNothing, ShowAccount, ShowService, ShowAddress, ShowPage, d.Show)
+	}
+	if utf8.RuneCountInString(d.Page.Heading) > PageHeadingMax || utf8.RuneCountInString(d.Page.Text) > PageTextMax {
+		return errors.New("the page's heading or text is too long")
+	}
+	return nil
+}
 
 // HasAddress reports whether the lab has an address (a roost.ac name or
 // its own domain): until then its services have no web addresses and
@@ -799,6 +886,9 @@ func (l Lab) Validate() error {
 	case "", SSHLoginKey, SSHLoginPassword:
 	default:
 		errs = append(errs, fmt.Errorf("firewall.ssh_login must be %q or %q", SSHLoginKey, SSHLoginPassword))
+	}
+	if err := l.DomainItself.Validate(); err != nil {
+		errs = append(errs, fmt.Errorf("domain_itself: %w", err))
 	}
 	if u := l.Registry.URL; u != "" {
 		if parsed, err := url.Parse(u); err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {

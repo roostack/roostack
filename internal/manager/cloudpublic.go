@@ -70,6 +70,9 @@ func cloudHostsOf(lab config.Lab, services []state.Service, ix *registry.Index) 
 	if lab.Monitoring.StatusPage {
 		add(caddy.StatusSubdomain+"."+lab.Domain, own, "")
 	}
+	if lab.DomainPublic() {
+		add(lab.Domain, own, "")
+	}
 	for _, s := range services {
 		h := cloudapi.PublicHost{Kind: cloudapi.HostOwn}
 		if s.Instance == nil || !s.Instance.Local {

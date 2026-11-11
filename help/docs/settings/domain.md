@@ -11,12 +11,16 @@ There are two ways to give your lab an address, in the setup wizard or in
 A free roost.ac address
 :   Nothing to buy or set up. You'll pick a name, such as `smiths`; your
     services will be at `photos.smiths.roost.ac`, and Roostack itself at
-    `smiths.roost.ac`. It uses Roostack Cloud, with a free account: see
+    `roost.smiths.roost.ac`. It uses Roostack Cloud, with a free account: see
     [Roostack Cloud](cloud.md) for how the lab is linked to it.
 
 Your own domain
 :   A domain you own, such as `smith.family`: services at
     `photos.smith.family`, and Roostack at `roost.smith.family`.
+
+Either way, everyone's own account (where they sign in and find their
+services) is at `my.` in front of the address, and you choose what the
+address on its own shows: see [The address on its own](#the-address-on-its-own).
 
 You can switch later. When you do, every service's address will change, so
 the old addresses will keep working for 30 days while you update bookmarks
@@ -41,6 +45,56 @@ own help explains how to change a domain's *nameservers*.
 **Then, in Roostack:** choose **Your own domain**, enter the domain, your
 email address, and a login (an API token or key) for its DNS provider. The
 page shows what each provider needs and where to get it.
+
+## The address on its own
+
+What someone gets when they open `smith.family` (or `smiths.roost.ac`) on
+its own, without a service's name in front of it, is your choice, under
+**What smith.family shows** on **Settings → Your lab's address**:
+
+Nothing from Roostack
+:   Roostack won't set a DNS record for it, so your own website or anything
+    else there will keep working. This is the default for your own domain.
+
+Your account
+:   It will go to `my.smith.family`, where everyone signs in and finds their
+    services. This is the default for a roost.ac address.
+
+A service
+:   It will go to one of your lab's services, such as a blog.
+
+Another address
+:   It will go to any web address, such as a website you have elsewhere.
+
+A simple page
+:   A page in your lab's look (its name and logo, from **Settings → Name
+    and look**) with a heading, a few lines of text, and links to the
+    services you pick. Leave a blank line between paragraphs.
+
+You also choose who can open it: your home network only, or anyone on the
+internet, for a website's visitors. If it's public, CrowdSec will turn
+away known attackers, as it does for a public service.
+
+Any choice but the first needs a DNS record for the address itself.
+Roostack will add it and keep it pointing at your lab. If there's already
+one that Roostack didn't create (your website's, say), Roostack will leave
+it alone and offer **Take over this record…**, which asks you to confirm
+first, since whatever uses that record now will stop working there.
+
+??? note "For technical users"
+
+    Caddy serves the address itself with its own certificate, beside the
+    wildcard one. The redirects are temporary (302), so browsers won't
+    remember them if you change your mind. The simple page is plain files
+    Roostack writes to `/var/lib/roostack/caddy/domain` whenever you save
+    it, the lab's look changes, or the monitoring checks run, served with a
+    content security policy that allows no scripts. The choice is kept in
+    `lab.yaml` under `domain_itself`.
+
+    Through Roostack Cloud's relay on your own domain, public addresses are
+    CNAMEs to the relay, but DNS allows no CNAME at the top of a domain. If
+    your domain's DNS provider flattens CNAMEs there (Cloudflare does), add
+    that record by hand; otherwise keep the address on its own home-only.
 
 ## Secure addresses (HTTPS)
 

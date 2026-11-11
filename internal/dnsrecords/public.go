@@ -131,8 +131,17 @@ func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[st
 		if relayed {
 			r.Type = "CNAME"
 		}
-		name, inZone := relName(h, zone)
+		name, inZone := zoneName(h, zone)
 		switch {
+		case relayed && inZone && name == "":
+			// The domain itself at the top of its zone, which can't be a
+			// CNAME (SPEC.md §5.3).
+			r.State, r.Message = m.relayedState(ctx, h, relay.Name)
+			if r.State != PublicOK {
+				r.State, r.Message = PublicManual, fmt.Sprintf("DNS doesn't allow a CNAME at the top of a domain, so Roostack can't point %s at "+
+					"Roostack Cloud's relay. If your DNS provider flattens CNAMEs there (Cloudflare does), add %s  CNAME  %s yourself; "+
+					"otherwise make the domain itself home-only.", h, h, relay.Name)
+			}
 		case relayed && inZone && protected:
 			r.State, r.Message = m.setRelayedHost(ctx, p, values, zone, name, h, relay.Name)
 		case err != nil:

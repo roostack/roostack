@@ -67,6 +67,9 @@ type LabContext struct {
 	// Refused are the services Roostack Cloud won't carry (config.Public):
 	// the server running Caddy keeps their addresses private.
 	Refused map[string]string `json:"refused,omitempty"`
+	// DomainItself is what the bare domain shows (config.Lab, SPEC.md
+	// §5.3), for the server running Caddy.
+	DomainItself config.DomainItself `json:"domain_itself,omitzero"`
 }
 
 // WireService is a service's instance and package files.

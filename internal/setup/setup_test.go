@@ -398,7 +398,7 @@ func TestRoostAc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lab.Domain != "smiths.roost.ac" || !lab.RoostAc() || lab.UIHost() != "smiths.roost.ac" || !lab.DNS.ManageRecords ||
+	if lab.Domain != "smiths.roost.ac" || !lab.RoostAc() || lab.UIHost() != "roost.smiths.roost.ac" || !lab.DNS.ManageRecords ||
 		lab.DNS.Zone != "smiths.roost.ac" || string(secrets[dns.SecretName("password")]) != "p" || *restarts != 1 ||
 		lab.DNS.Values["server_url"] != "https://acme.example" || secrets[dns.SecretName("username")] != nil {
 		t.Fatalf("lab = %+v, restarts %d", lab.DNS, *restarts)

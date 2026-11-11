@@ -31,7 +31,7 @@ Owned by the `roostack` user, and readable only by it (and root).
 | `cloud-backup-keys.json`, `cloud-prune-keys.json` | Roostack Cloud's short-lived storage keys, while backups go there. Never backed up |
 | `setup-token` | The first-run setup code; deleted once the Owner exists |
 | `setup-tls.crt`, `setup-tls.key` | The [setup page](../start/install.md#check-the-setup-pages-certificate)'s self-signed certificate and its key, for the home network during first-run setup; deleted when setup is finished |
-| `caddy/` | The generated web server config: `Caddyfile`, and `sites/<name>.caddy` for each service |
+| `caddy/` | The generated web server config: `Caddyfile`, and `sites/<name>.caddy` for each service; the pages it serves as plain files: `status/` (the [public status page](../servers/monitoring.md)) and `domain/` (the [simple page](../settings/domain.md#the-address-on-its-own) at your address on its own) |
 | `caddy-data/` | HTTPS certificates and the certificate account |
 | `caddy-build.log` | The output of the latest build of Roostack's web proxy image (Caddy), shown on the Services page while it runs |
 | `caddy-logs/` | The web server's access log, while anything is [public](../services/public.md), for CrowdSec |

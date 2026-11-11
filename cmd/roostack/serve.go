@@ -743,8 +743,16 @@ func (c *controller) wireMonitoring() {
 	srv := c.srv
 	srv.AutoChecks = c.mgr.MonitorChecks
 	srv.StatusPage, srv.StatusPageDir = c.mgr, c.lab.Paths.StatusPageDir()
+	// The domain itself's simple page (SPEC.md §5.3) is written now, when
+	// it's chosen or the lab's look changes, and with the status page, so
+	// that services' new addresses reach it.
+	srv.DomainItself, srv.DomainPageDir = c.mgr, c.lab.Paths.DomainPageDir()
 	srv.Monitor = &monitor.Monitor{Checks: srv.MonitorChecks, Store: c.st, Log: c.log,
-		Enabled: srv.MonitorOn, KeepDays: srv.HistoryKeepDays, Changed: srv.WriteStatusPage}
+		Enabled: srv.MonitorOn, KeepDays: srv.HistoryKeepDays, Changed: func(ctx context.Context) {
+			srv.WriteStatusPage(ctx)
+			srv.WriteDomainPage(ctx)
+		}}
+	go srv.WriteDomainPage(c.ctx)
 	go srv.Monitor.Run(c.ctx)
 	go srv.RunHistoryCull(c.ctx)
 }
@@ -780,7 +788,7 @@ func (c *controller) wireDNS() {
 			// Public addresses point at the lab's edge, if it has one
 			// (SPEC.md §10.5), else the home's public address (port
 			// forwarding), once CrowdSec is up.
-			PublicHosts: mgr.PublicHosts, Protected: c.crowdSecUp,
+			PublicHosts: mgr.PublicHosts, Protected: c.crowdSecUp, DomainItself: mgr.DomainItself,
 			Entry: public.Chosen{Home: public.PortForwarding{}, Edge: func(ctx context.Context) (public.Edge, bool) {
 				if mgr.RelayOn() && mgr.Relay.Edges != nil {
 					// Cloud points relayed names at its edges itself.

@@ -144,6 +144,10 @@ func publicHostsOf(lab config.Lab, services []state.Service, old bool) []string 
 		// The public status page (SPEC.md §6.15).
 		hosts = append(hosts, caddy.StatusSubdomain+"."+lab.Domain)
 	}
+	if lab.DomainPublic() {
+		// The domain itself (SPEC.md §5.3).
+		hosts = append(hosts, lab.Domain)
+	}
 	for _, s := range services {
 		if lab.Public.Refused[s.Name()] != "" {
 			// Roostack Cloud won't carry it (cloudpublic.go).

@@ -772,13 +772,16 @@ func TestRoostAcAddress(t *testing.T) {
 	cf := sys.Caddyfile.Content
 	// Only the password is a placeholder: acmedns reads placeholders in
 	// nothing else.
+	// Roostack's pages at roost.<name>, and the name itself goes to Your
+	// account by default (SPEC.md §5.3).
 	for _, want := range []string{"*.smiths.roost.ac, smiths.roost.ac {", "dns acmedns {", `username "acme_x"`,
-		"password {env.DNS_PASSWORD}", `subdomain "abc"`, `server_url "https://acme.roost.ac"`, "@roostack-admin host smiths.roost.ac\n"} {
+		"password {env.DNS_PASSWORD}", `subdomain "abc"`, `server_url "https://acme.roost.ac"`, "@roostack-admin host roost.smiths.roost.ac\n",
+		"@domain-itself host smiths.roost.ac\n", "redir https://my.smiths.roost.ac/ 302"} {
 		if !strings.Contains(cf, want) {
 			t.Errorf("Caddyfile missing %q:\n%s", want, cf)
 		}
 	}
-	if strings.Contains(cf, "records_url") || strings.Contains(cf, "roost.smiths") {
+	if strings.Contains(cf, "records_url") {
 		t.Errorf("Caddyfile:\n%s", cf)
 	}
 	if q := Dump(&Output{Quadlets: sys.Quadlets}); !strings.Contains(q, "Secret=roostack-caddy-dns-password,type=env,target=DNS_PASSWORD") ||

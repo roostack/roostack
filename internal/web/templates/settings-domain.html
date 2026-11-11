@@ -39,6 +39,64 @@
   <p><a class="button" href="/setup/domain">Give your lab an address</a></p>
   {{end}}
 </section>
+{{if .DomainSet}}{{with .DomainItself}}
+<section class="card section" id="domain-itself">
+  <h2>What {{.Domain}} shows</h2>
+  <p class="hint">What someone gets when they open <code>{{.Domain}}</code> on its own, without a service's name in front of it.</p>
+  {{if .Saved}}{{notice "ok" "Saved. Roostack is applying it now, which takes a few seconds."}}{{end}}
+  {{with .Error}}{{notice "error" .}}{{end}}
+  {{with .Conflict}}{{notice "warn" (printf "%s already has a DNS record that Roostack didn't create, pointing at %s, so Roostack won't change it until you choose Take over this record. Anything that uses it now, such as a website, will stop working there." $.LabDomain .)}}
+  <p><a class="button secondary" href="/dns/take-over">Take over this record…</a></p>{{end}}
+  {{with .Manual}}{{notice "info" (printf "Roostack doesn't manage your DNS records, so add this one at your DNS provider: %s" .)}}{{end}}
+  <form method="post" action="/settings/domain/itself" x-data="{ show: '{{.Shows}}' }">
+    <fieldset>
+      <legend class="sr-only">What {{.Domain}} shows</legend>
+      <label class="check"><input type="radio" name="show" value="nothing" x-model="show"{{if eq .Shows "nothing"}} checked{{end}}>
+        <span>Nothing from Roostack{{if not .RoostAc}} {{badge "Default"}}{{end}}<small>Roostack won't set a DNS record for it, so your own website or anything else there will keep working.</small></span></label>
+      <label class="check"><input type="radio" name="show" value="account" x-model="show"{{if eq .Shows "account"}} checked{{end}}>
+        <span>Your account{{if .RoostAc}} {{badge "Default"}}{{end}}<small>It will go to <code>my.{{.Domain}}</code>, where everyone signs in and finds their services.</small></span></label>
+      <label class="check"><input type="radio" name="show" value="service" x-model="show"{{if eq .Shows "service"}} checked{{end}}{{if not .Services}} disabled{{end}}>
+        <span>A service<small>{{if .Services}}It will go to one of your lab's services, such as a blog.{{else}}Once a service has an address, it can go there.{{end}}</small></span></label>
+      {{if .Services}}
+      <div class="choice-detail" x-show="show === 'service'"{{if ne .Shows "service"}} x-cloak{{end}}>
+        <label>Service <select name="service">
+          {{range .Services}}<option value="{{.Name}}"{{if eq .Name $.DomainItself.Choice.Service}} selected{{end}}>{{.Title}}</option>{{end}}
+        </select></label>
+      </div>
+      {{end}}
+      <label class="check"><input type="radio" name="show" value="address" x-model="show"{{if eq .Shows "address"}} checked{{end}}>
+        <span>Another address<small>It will go to any web address, such as a website you have somewhere else.</small></span></label>
+      <div class="choice-detail" x-show="show === 'address'"{{if ne .Shows "address"}} x-cloak{{end}}>
+        <label>Web address <input type="url" name="address" value="{{.Choice.Address}}" placeholder="https://" maxlength="2000"></label>
+      </div>
+      <label class="check"><input type="radio" name="show" value="page" x-model="show"{{if eq .Shows "page"}} checked{{end}}>
+        <span>A simple page<small>A page in your lab's look, with its name and logo, a heading, a few lines of text, and links to the services you pick.</small></span></label>
+      <div class="choice-detail" x-show="show === 'page'"{{if ne .Shows "page"}} x-cloak{{end}}>
+        <label>Heading <input name="heading" value="{{.Choice.Page.Heading}}" maxlength="100" placeholder="{{$.LabName}}"></label>
+        <label>Text <textarea name="text" rows="4" maxlength="2000">{{.Choice.Page.Text}}</textarea>
+          <small class="hint">Plain text: leave a blank line between paragraphs.</small></label>
+        {{if .Services}}
+        <p class="field-label">Links</p>
+        {{range .Services}}<label class="check"><input type="checkbox" name="link" value="{{.Name}}"{{if has $.DomainItself.Choice.Page.Services .Name}} checked{{end}}><span>{{.Title}}</span></label>{{end}}
+        {{end}}
+      </div>
+    </fieldset>
+    <fieldset x-show="show !== 'nothing'"{{if eq .Shows "nothing"}} x-cloak{{end}}>
+      <legend>Who can open it</legend>
+      <label class="check"><input type="radio" name="public" value="home"{{if not .Choice.Public}} checked{{end}}>
+        <span>{{if .Internet}}Only through an SSH tunnel{{else}}Your home network only{{end}}</span></label>
+      <label class="check"><input type="radio" name="public" value="anyone"{{if .Choice.Public}} checked{{end}}>
+        <span>Anyone on the internet<small>For a website's visitors. Roostack will point {{.Domain}} at {{if .Internet}}this server{{else}}your home's internet address{{end}}, and CrowdSec will turn away known attackers, as for a public service.</small></span></label>
+    </fieldset>
+    <button type="submit">Save</button>
+  </form>
+  <details class="technical"><summary>Details</summary>
+    <p>Caddy serves <code>{{.Domain}}</code> with its own certificate, beside the wildcard one for <code>*.{{.Domain}}</code>: a redirect (302), or the simple page
+      as plain files Roostack writes to <code>/var/lib/roostack/caddy/domain</code>, which allow no scripts. Roostack's own pages are at <code>roost.{{.Domain}}</code> whatever you choose here.
+      Any choice but the first needs a DNS record for <code>{{.Domain}}</code> itself, which Roostack will keep pointing at the lab.</p>
+  </details>
+</section>
+{{end}}{{end}}
 {{if .Forgot}}<p class="notice notice-ok" role="status">Done. Roostack is no longer looking after those records.</p>{{end}}
 {{if or .OldRecords .LeftRecords}}
 <section class="card section" id="old-records">

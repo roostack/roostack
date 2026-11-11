@@ -835,7 +835,7 @@
   {{- else if .Free}}<span class="cloud-linked">✓ {{.Name}}.{{$.Suffix}} is free</span>
   {{- else if .Held}}{{.Name}}.{{$.Suffix}} is kept for the account that had it. If that's yours, you'll get it back once the lab is linked to it.
   {{- else if .Problem}}<span class="name-taken">{{.Problem}}</span>
-  {{- else}}Services at <code>photos.<em>name</em>.{{$.Suffix}}</code>, Roostack itself at <code><em>name</em>.{{$.Suffix}}</code>.{{end}}</small>{{end}}
+  {{- else}}Services at <code>photos.<em>name</em>.{{$.Suffix}}</code>, Roostack itself at <code>roost.<em>name</em>.{{$.Suffix}}</code>.{{end}}</small>{{end}}
 
 {{/* Visitors through Roostack Cloud's relay (relayStatsView), loaded on its
      own: Public access (Owners) and /visitors (Admins). */}}

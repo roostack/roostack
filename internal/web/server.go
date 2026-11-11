@@ -186,6 +186,10 @@ type LabSettings struct {
 	Domain string
 	// UIHost is where Roostack's own pages are (config.Lab.UIHost).
 	UIHost string
+	// DomainItself is what the bare domain shows (the manager), and
+	// DomainPageDir where its simple page is written (SPEC.md §5.3).
+	DomainItself  DomainItselfChooser
+	DomainPageDir string
 	// DNSProvider is the lab's current DNS provider ID (wizard default).
 	DNSProvider string
 	// OldAddress is the lab's previous address, still served for a while
@@ -599,6 +603,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /settings/people", s.requireOwner(s.usersPage))
 	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
+	mux.Handle("POST /settings/domain/itself", s.requireOwner(s.domainItselfSubmit))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
 	mux.Handle("POST /settings/network", s.requireOwner(s.networkSubmit))
 	// Servers is a main area (docs/DESIGN.md "Layout"); its list was under

@@ -158,12 +158,13 @@ func (m *Manager) StatusPageProgress() StatusPageProgress {
 	return StatusPageProgress{Applied: a.At}
 }
 
-// withStatusPage is the lab's settings with the status page's switch as
-// last set, and the services Roostack Cloud won't carry as the last
+// withStatusPage is the lab's settings with the status page's switch and
+// the domain itself as last set, and the services Roostack Cloud won't carry as the last
 // assignment worked them out.
 func (m *Manager) withStatusPage() config.Lab {
 	lab := m.Lab
 	lab.Monitoring.StatusPage = m.StatusPageOn()
+	lab.DomainItself = m.labNow().DomainItself
 	// The services Roostack Cloud won't carry have no public names
 	// (cloudpublic.go).
 	if r := m.refused.Load(); r != nil {

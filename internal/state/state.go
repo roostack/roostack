@@ -150,6 +150,9 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	ports := map[int]string{lab.UIPort: "the Roostack admin UI", config.SignInPort: "the sign-in page for services"}
 	hostPorts := map[string]string{} // "2222/tcp" -> service
 	var errs []error
+	// Each service's first address, where the domain itself may go
+	// (SPEC.md §5.3).
+	first := map[string]string{}
 	for _, s := range services {
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
@@ -163,6 +166,9 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 				errs = append(errs, &HostInUseError{Service: s.Name(), Host: h, UsedBy: other})
 			}
 			hosts[h] = s.Name()
+		}
+		if len(out.Hosts) > 0 {
+			first[s.Name()] = out.Hosts[0]
 		}
 		for _, p := range out.Ports {
 			if other, dup := ports[p]; dup {
@@ -193,6 +199,9 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 			}
 			hosts[h] = s.Name()
 		}
+		if len(out.Hosts) > 0 {
+			first[s.Name()] = out.Hosts[0]
+		}
 		d.Services = append(d.Services, out)
 	}
 	slices.SortFunc(d.Services, func(a, b *generate.Output) int { return strings.Compare(a.Service, b.Service) })
@@ -203,7 +212,8 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	// §5.3): public while a service using single sign-on is, or Roostack's
 	// own pages are, which sign in there too (SPEC.md §5.2).
 	sys, err := generate.SystemWith(lab, generate.SystemOptions{Public: public, SignIn: true,
-		SignInPublic: lab.PublicUI() || slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSOPublic })})
+		SignInPublic: lab.PublicUI() || slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSOPublic }),
+		FirstHosts:   first})
 	if err != nil {
 		return reconcile.Desired{}, errors.Join(append(errs, err)...)
 	}

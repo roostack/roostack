@@ -80,8 +80,9 @@ func (s *Server) lookSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "settings", "the lab's logo and colours")
-	// The status page shows them too: write it again now rather than at
-	// the next round of checks.
+	// The status page and the domain itself's simple page show them too:
+	// write them again now rather than at the next round of checks.
 	go s.WriteStatusPage(context.Background())
+	go s.WriteDomainPage(context.Background())
 	redirect(w, r, "/settings/look?look=saved#logo")
 }

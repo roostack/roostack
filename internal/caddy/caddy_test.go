@@ -1,6 +1,7 @@
 package caddy
 
 import (
+	"fmt"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -216,6 +217,7 @@ func TestCaddyAdapt(t *testing.T) {
 		Domain: "lab.example.com", Email: "a@example.com", DNSDirective: "dns cloudflare {env.DNS_API_TOKEN}",
 		AdminUpstream: "host.containers.internal:8480",
 		CrowdSecAPI:   "http://169.254.1.3:8473", AppSecURL: "http://169.254.1.3:8475/", AccessLog: "/var/log/caddy/access.log",
+		DomainItself: &DomainSite{Page: true, Public: true},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -244,7 +246,8 @@ func TestCaddyAdapt(t *testing.T) {
 	for _, want := range []string{`"web.lab.example.com"`, `"api.lab.example.com"`, `"*.lab.example.com"`, `"cloudflare"`,
 		`"handler":"crowdsec"`, `"handler":"rate_limit"`, `"/-/admin/*"`, `"crowdsec":{`, `"filename":"/var/log/caddy/access.log"`, `"path_regexp"`,
 		`"handler":"appsec"`, `"appsec_url":"http://169.254.1.3:8475/"`, `"appsec_fail_open":true`, `"appsec_max_body_bytes":1048576`,
-		`"enable_caddy_error":true`, `"roostack_waf":"yes"`, `"roostack_blocked":"yes"`, `"status_code":503`} {
+		`"enable_caddy_error":true`, `"roostack_waf":"yes"`, `"roostack_blocked":"yes"`, `"status_code":503`,
+		`"lab.example.com"`, `"root":"/etc/caddy/domain"`, `script-src 'none'`} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("adapted config missing %s", want)
 		}
@@ -417,6 +420,49 @@ func TestStatusPage(t *testing.T) {
 	c.StatusPage = false
 	if main, _ = Main(c); strings.Contains(main, "@status") {
 		t.Errorf("served while off:\n%s", main)
+	}
+}
+
+// The domain itself (SPEC.md §5.3): in the site block only when it's
+// served; home-only unless public, when CrowdSec's bans apply; a
+// redirect, the simple page with no scripts, or a 404; through an edge
+// only when public; at the old address too.
+func TestDomainItself(t *testing.T) {
+	c := MainConfig{Domain: "smith.family", DNSDirective: "dns cloudflare {env.X}", AdminUpstream: "169.254.1.3:8480",
+		OldDomain: "old.family", OldDNSDirective: "dns cloudflare {env.X}", EdgeFrom: []string{"100.96.0.2/32"}}
+	main, err := Main(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(main, "*.smith.family, smith.family") || strings.Contains(main, "@domain-itself") {
+		t.Errorf("served while left alone:\n%s", main)
+	}
+
+	c.DomainItself = &DomainSite{Redirect: "https://my.smith.family/"}
+	main, _ = Main(c)
+	edge := main[strings.Index(main, fmt.Sprintf("*.smith.family:%d", EdgePort)):]
+	if !strings.Contains(main, "*.smith.family, smith.family {") || !strings.Contains(main, "*.old.family, old.family {") ||
+		!strings.Contains(main, "@domain-itself host smith.family\n") || !strings.Contains(main, "abort @domain-itself-external") ||
+		!strings.Contains(main, "redir https://my.smith.family/ 302") || strings.Contains(main, "crowdsec") ||
+		strings.Contains(edge, "@domain-itself") || strings.Contains(edge, fmt.Sprintf("smith.family:%d, smith.family:%d", EdgePort, EdgePort)) {
+		t.Errorf("home-only redirect:\n%s", main)
+	}
+
+	c.DomainItself, c.CrowdSecAPI = &DomainSite{Page: true, Public: true}, "http://169.254.1.3:8473"
+	main, _ = Main(c)
+	edge = main[strings.Index(main, fmt.Sprintf("*.smith.family:%d", EdgePort)):]
+	if strings.Contains(main, "abort @domain-itself-external") || !strings.Contains(main, "route {\n\t\t\tcrowdsec\n\t\t\theader Content-Security-Policy") ||
+		!strings.Contains(main, "root * "+DomainPageDir) || !strings.Contains(edge, "@domain-itself host smith.family") {
+		t.Errorf("public page:\n%s", main)
+	}
+
+	c.DomainItself = &DomainSite{}
+	if main, _ = Main(c); !strings.Contains(main, "route {\n\t\t\terror 404") {
+		t.Errorf("a service that isn't there:\n%s", main)
+	}
+	c.DomainItself = &DomainSite{Redirect: "https://x.example/{http.request.uri}"}
+	if _, err := Main(c); err == nil {
+		t.Error("a placeholder was let through")
 	}
 }
 

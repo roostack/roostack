@@ -28,8 +28,11 @@ and restart. A lab that's already linked gets a name straight away: choose
 
 ## Your roost.ac address
 
-Your lab's services are at `photos.smiths.roost.ac`, and Roostack itself
-at `smiths.roost.ac`. Roostack Cloud runs the name's DNS; your lab tells
+Your lab's services are at `photos.smiths.roost.ac`, Roostack itself
+at `roost.smiths.roost.ac`, and everyone's own account at
+`my.smiths.roost.ac`, where `smiths.roost.ac` on its own will go unless
+you [choose something else](domain.md#the-address-on-its-own). Roostack
+Cloud runs the name's DNS; your lab tells
 it where the name points (your server's home-network address, and your
 home's internet address for services you make public), and gets its
 certificates from Let's Encrypt through it.

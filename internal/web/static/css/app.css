@@ -353,6 +353,10 @@ legend { font-weight: var(--weight-medium); padding: 0; margin-bottom: var(--spa
 label.check { display: flex; gap: var(--space-3); align-items: flex-start; margin-bottom: var(--space-3); }
 label.check input { margin-top: 5px; }
 label.check small { display: block; font-weight: var(--weight-normal); }
+/* A choice's own fields, under its radio button (Settings → Your lab's
+   address, what the domain shows). */
+.choice-detail { margin: 0 0 var(--space-4) 28px; }
+.choice-detail textarea { width: 100%; }
 .with-suffix { display: flex; align-items: center; gap: var(--space-2); }
 .with-suffix input { flex: 1; }
 .with-suffix span { color: var(--muted); font-weight: var(--weight-normal); margin-top: var(--space-2); }
