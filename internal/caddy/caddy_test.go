@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -226,6 +227,8 @@ func TestCaddyAdapt(t *testing.T) {
 			PrivatePaths: []string{"/admin", "/-/admin"}, LoginPaths: []string{"/login"}, MaxBodySize: "1GB",
 			CheckUpstream: "169.254.1.3:8480", WAF: true},
 		{ID: "svc-paused", Host: "paused.lab.example.com", Upstream: "roostack-svc-api:8080", WAF: true, Blocked: true},
+		{ID: "svc-files", Host: "files.lab.example.com", Upstream: "roostack-svc-api:8080", Private: true,
+			UploadPaths: []string{"/file", "/api/shares/*/files"}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -244,7 +247,9 @@ func TestCaddyAdapt(t *testing.T) {
 	for _, want := range []string{`"web.lab.example.com"`, `"api.lab.example.com"`, `"*.lab.example.com"`, `"cloudflare"`,
 		`"handler":"crowdsec"`, `"handler":"rate_limit"`, `"/-/admin/*"`, `"crowdsec":{`, `"filename":"/var/log/caddy/access.log"`, `"path_regexp"`,
 		`"handler":"appsec"`, `"appsec_url":"http://169.254.1.3:8475/"`, `"appsec_fail_open":true`, `"appsec_max_body_bytes":1048576`,
-		`"enable_caddy_error":true`, `"roostack_waf":"yes"`, `"roostack_blocked":"yes"`, `"status_code":503`} {
+		`"enable_caddy_error":true`, `"roostack_waf":"yes"`, `"roostack_blocked":"yes"`, `"status_code":503`,
+		`"handle_response":[`, `"handler":"copy_response"`, `"vars_regexp":{"{http.reverse_proxy.header.Content-Type}"`,
+		`"search_regexp":"^[^;]*"`, `"Content-Disposition":null`, `"/api/shares/*/files/*"`} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("adapted config missing %s", want)
 		}
@@ -398,6 +403,78 @@ func TestClientIPHeader(t *testing.T) {
 	}
 	if _, err := Site("vw", []Route{{ID: "vw-web", Host: "h", Upstream: "u:1", Private: true, ClientIPHeader: "X-Real-IP {x}"}}); err == nil {
 		t.Error("a header name with spaces or braces must be refused")
+	}
+}
+
+// Upload paths (SPEC.md §8.1, "Uploaded files as downloads"): their
+// requests go to a reverse_proxy of their own, first in a route block,
+// whose answers become downloads unless they're InlineTypes; the rest go
+// to the service as before. Private, public and walled routes alike.
+func TestUploadPaths(t *testing.T) {
+	site, err := Site("memos", []Route{{ID: "memos-web", Host: "memos.example.com", Upstream: "169.254.1.3:20004", Private: true,
+		UploadPaths: []string{"/file/attachments", "/api/shares/*/files"}, ClientIPHeader: "X-Real-IP"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `	request_header -Remote-Groups
+	route {
+		@memos-web-uploads path /file/attachments /file/attachments/* /api/shares/*/files /api/shares/*/files/*
+		reverse_proxy @memos-web-uploads 169.254.1.3:20004 {
+			header_up X-Real-IP {remote_host}
+			handle_response {
+				@memos-web-download not vars_regexp {http.reverse_proxy.header.Content-Type} ` + "`" + InlineTypes + "`" + `
+				header @memos-web-download >Content-Disposition "^[^;]*" "attachment"
+				header @memos-web-download ?Content-Disposition "attachment"
+				header >X-Content-Type-Options "nosniff"
+				copy_response
+			}
+		}
+		reverse_proxy 169.254.1.3:20004 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+}
+`
+	if !strings.HasSuffix(site, want) {
+		t.Errorf("private route with upload paths:\n%s\nwant the end:\n%s", site, want)
+	}
+	wall := &Wall{Upstream: "169.254.1.3:8482", Service: "memos"}
+	for _, r := range []Route{
+		{ID: "memos-web", Host: "memos.example.com", Upstream: "169.254.1.3:20004", WAF: true, UploadPaths: []string{"/file"}},
+		{ID: "memos-web", Host: "memos.example.com", Upstream: "169.254.1.3:20004", Private: true, Wall: wall, UploadPaths: []string{"/file"}},
+	} {
+		site, err := Site("memos", []Route{r})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// After the bans, limits, AppSec and the wall, and the rest
+		// passed on after them.
+		i, j := strings.Index(site, "reverse_proxy @memos-web-uploads"), strings.LastIndex(site, "reverse_proxy 169.254.1.3:20004")
+		if k := max(strings.Index(site, "appsec"), strings.Index(site, "forward_auth")); i < 0 || j < i || k < 0 || i < k {
+			t.Errorf("route %+v:\n%s", r, site)
+		}
+	}
+	if _, err := Site("x", []Route{{ID: "x", Host: "x", Upstream: "a:1", UploadPaths: []string{"/a`b"}}}); err == nil {
+		t.Error("an upload path that could break out of the Caddyfile must be refused")
+	}
+}
+
+// InlineTypes shows only plain images, audio, video and text, whatever
+// their letter case and parameters; everything else is a download.
+func TestInlineTypes(t *testing.T) {
+	re := regexp.MustCompile(InlineTypes)
+	for _, ct := range []string{"image/png", "IMAGE/PNG", "image/jpeg; charset=binary", " image/webp", "video/mp4", "audio/ogg; codecs=opus",
+		"text/plain", "text/plain; charset=utf-8", "image/vnd.microsoft.icon"} {
+		if !re.MatchString(ct) {
+			t.Errorf("%q should be shown", ct)
+		}
+	}
+	for _, ct := range []string{"text/html", "TEXT/HTML; charset=utf-8", "image/svg+xml", "Image/SVG+XML", "application/xhtml+xml",
+		"text/xml", "application/xml", "video/x+xml", "application/pdf", "text/plain,text/html", "image/png, text/html", "",
+		"<nil>", "application/octet-stream", "text/javascript", "image/png-x", "multipart/x-mixed-replace"} {
+		if re.MatchString(ct) {
+			t.Errorf("%q should be a download", ct)
+		}
 	}
 }
 

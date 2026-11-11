@@ -13,7 +13,11 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/pkgtest"
+	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/systemd"
 	"roostack.cloud/roostack/internal/testwait"
 	"roostack.cloud/roostack/internal/usererr"
 )
@@ -489,5 +493,97 @@ func TestInstallWithSSO(t *testing.T) {
 	m.Lab.Domain = ""
 	if m.SSOAtInstall(p, "") {
 		t.Error("offered without the lab's address")
+	}
+}
+
+// notes has an install-only password in its config file and no install
+// hooks: the app makes its administrator from the file when it starts.
+const notes = `schema: roostack/v1alpha1
+name: notes
+title: Notes
+description: Keeps notes
+version: 1.0.0-roostack.1
+about: { maker: Notes Inc, licence: MIT, website: "https://notes.example.com", source: "https://notes.example.com/src", icon: icon.png, categories: [documents] }
+requires: { roostack: "0.1" }
+settings:
+  - { key: admin_password, title: Administrator password, type: secret, min_length: 8, install_only: true }
+containers:
+  app:
+    image: example.org/notes:1@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    memory: 50 MB
+    mounts: [{ storage: config, path: /config }]
+storage:
+  config: { class: replaceable }
+config_files:
+  main: { title: Settings, storage: config, path: notes.json, format: json, content: '{"password": {{ .Secrets.admin_password }}}' }
+routes:
+  web: { container: app, port: 8080, subdomain: notes, public: { login_paths: [/login] } }
+`
+
+// unitsStarting says a service's units are still starting until started.
+type unitsStarting struct{ started atomic.Bool }
+
+func (u *unitsStarting) Status(_ context.Context, units ...string) ([]systemd.UnitStatus, error) {
+	state := map[bool]string{true: "active", false: "activating"}[u.started.Load()]
+	var out []systemd.UnitStatus
+	for _, n := range units {
+		out = append(out, systemd.UnitStatus{Unit: n, ActiveState: state})
+	}
+	return out, nil
+}
+
+// A package with install-only secrets and no install hooks has finished
+// setting up once it has started (SPEC.md §8.1): its addresses wait until
+// then, and then the password is forgotten and its config file is written
+// again without it.
+func TestInstallOnlyWithoutHooks(t *testing.T) {
+	m, secrets, _, _ := newHookManager(t)
+	ctx := context.Background()
+	dir := m.Lab.Paths.CatalogPackageDir("notes")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "1.0.0-roostack.1.yaml"), []byte(notes), 0o644)
+	icon, _ := os.ReadFile(filepath.Join(filepath.Dir(pkgtest.File("immich")), "icon.png"))
+	os.WriteFile(filepath.Join(dir, "icon.png"), icon, 0o644)
+	units := &unitsStarting{}
+	local(m).Units = units
+	local(m).SetUpDone = m.SetUpDone
+
+	if err := m.Install(ctx, "notes", InstallRequest{Secrets: map[string]string{"admin_password": "correct horse"}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	file := filepath.Join(m.Lab.Paths.ServicesDir, "notes", "config", "notes.json")
+	if b, _ := os.ReadFile(file); !strings.Contains(string(b), "correct horse") {
+		t.Fatalf("before it has started, the file has the password: %q", b)
+	}
+	testwait.For(t, 5*time.Second, func() bool { return local(m).InstallStatus(ctx, "notes").Running })
+	if in, _ := instance.Load(state.InstanceFile(m.Lab, "notes")); in == nil || !in.SettingUp {
+		t.Error("its addresses must wait for it to start")
+	}
+	if _, kept := secrets.values["roostack-notes-admin_password"]; !kept {
+		t.Error("the password must be kept until it has started")
+	}
+
+	units.started.Store(true)
+	local(m).WaitHooks()
+	m.Wait()
+	if st := local(m).InstallStatus(ctx, "notes"); !st.Done {
+		t.Errorf("status = %+v, want done", st)
+	}
+	if _, kept := secrets.values["roostack-notes-admin_password"]; kept {
+		t.Error("the password must be forgotten once it has started")
+	}
+	testwait.For(t, 5*time.Second, func() bool {
+		m.Wait()
+		b, _ := os.ReadFile(file)
+		return string(b) == `{"password": ""}`+"\n"
+	})
+	if in, _ := instance.Load(state.InstanceFile(m.Lab, "notes")); in == nil || in.SettingUp {
+		t.Error("it has finished setting up")
+	}
+	setupLog, _ := m.Activity.Latest(activity.Setup)
+	if logText := strings.Join(setupLog.Lines, "\n"); !strings.Contains(logText, "Waiting for Notes to start") ||
+		setupLog.Status != "Notes has started" || strings.Contains(logText, "correct horse") {
+		t.Errorf("setup log:\n%s", logText)
 	}
 }

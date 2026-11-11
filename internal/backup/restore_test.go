@@ -70,6 +70,12 @@ func (f *fakeUnits) Stop(_ context.Context, u ...string) error {
 	f.calls = append(f.calls, "stop "+strings.Join(u, " "))
 	return nil
 }
+func (f *fakeUnits) ResetFailed(_ context.Context, u ...string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "reset-failed "+strings.Join(u, " "))
+	return nil
+}
 func (f *fakeUnits) Start(_ context.Context, u ...string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -144,7 +150,9 @@ func TestRestoreService(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(aside, "db.sqlite3")); string(got) != "garbage" {
 		t.Error("the broken data should be kept aside, not deleted")
 	}
-	if want := []string{"stop roostack-app-app.service", "start roostack-app-app.service"}; strings.Join(units.calls, ",") != strings.Join(want, ",") {
+	// A service systemd gave up on (it crash-looped, which is often why
+	// it's restored) is reset first, or it wouldn't start again.
+	if want := []string{"stop roostack-app-app.service", "reset-failed roostack-app-app.service", "start roostack-app-app.service"}; strings.Join(units.calls, ",") != strings.Join(want, ",") {
 		t.Errorf("units = %v, want %v", units.calls, want)
 	}
 
@@ -213,7 +221,7 @@ func TestUndoFailedRestore(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "data.failed-restore-20260926-120000", "partial.txt")); err != nil {
 		t.Errorf("the partial restore isn't kept: %v", err)
 	}
-	if strings.Join(units.calls, ",") != "start roostack-app-app.service" {
+	if strings.Join(units.calls, ",") != "reset-failed roostack-app-app.service,start roostack-app-app.service" {
 		t.Errorf("units = %v", units.calls)
 	}
 
@@ -277,7 +285,7 @@ func TestMySQLLoadDumps(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("client ran:\n%s\nwant:\n%s", got, want)
 	}
-	if !slices.Equal(units.calls, []string{"start roostack-seafile-db-main.service"}) {
+	if !slices.Equal(units.calls, []string{"reset-failed roostack-seafile-db-main.service", "start roostack-seafile-db-main.service"}) {
 		t.Errorf("units: %q", units.calls)
 	}
 }

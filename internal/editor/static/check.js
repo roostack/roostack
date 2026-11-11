@@ -754,6 +754,12 @@
     (r.public.login_paths || []).forEach((lp, i) => {
       if (!validPath(lp)) add(`${at}.public.login_paths[${i}]: ${goQuote(lp)} must start with / and have only letters, digits, and - _ . : / (no * or trailing /)`);
     });
+    const seenUpload = new Set();
+    (r.upload_paths || []).forEach((up, i) => {
+      if (!re.uploadPath.test(up)) add(`${at}.upload_paths[${i}]: ${goQuote(up)} must start with / and have only letters, digits, and - _ . : /, where * may stand for a whole part but not the last (no trailing /)`);
+      if (seenUpload.has(up)) add(`${at}.upload_paths[${i}]: ${goQuote(up)} is listed twice`);
+      seenUpload.add(up);
+    });
   }
 
   const validClientIPHeader = (h) => re.clientIPHeader.test(h) && !h.toLowerCase().startsWith("x-forwarded-");
@@ -909,6 +915,10 @@
   function validateAbout(p, add) {
     const a = p.about;
     if (bytes(a.maker) > S.limits.maxMakerBytes) add("about.maker: at most 100 characters; say who makes it in a few words");
+    const n = a.notice || "";
+    if (n !== "" && goTrim(n) === "") add("about.notice: say what someone should know before installing, or leave it out");
+    else if (/[\n\r]/.test(n)) add("about.notice: one paragraph, without line breaks (in YAML, >- folds lines into one)");
+    else if (bytes(n) > S.limits.maxNoticeBytes) add("about.notice: at most 400 characters; say what someone should know before installing in a sentence or two");
     for (const [at, v] of [["about.website", a.website], ["about.source", a.source], ["about.support", a.support]]) {
       if (v !== "" && !validHTTPS(v)) add(`${at}: ${goQuote(v)} must be an https:// address`);
     }

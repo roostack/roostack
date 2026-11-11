@@ -122,6 +122,30 @@ func TestNoWAF(t *testing.T) {
 	}
 }
 
+// A route's upload paths reach its Caddy site (SPEC.md §8.1, "Uploaded
+// files as downloads"), public or private.
+func TestUploadPaths(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("immich"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Routes["web"].UploadPaths = []string{"/api/assets/*/original"}
+	in, err := instance.Load(filepath.Join("testdata", "immich-no-ml.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, exposure := range []string{pkgspec.ExposurePublic, pkgspec.ExposurePrivate} {
+		r := in.Routes["web"]
+		r.Exposure = exposure
+		in.Routes["web"] = r
+		out, err := Service(testLab(), p, in)
+		if err != nil || !strings.Contains(out.CaddySite.Content, "@immich-web-uploads path /api/assets/*/original /api/assets/*/original/*\n") ||
+			!strings.Contains(out.CaddySite.Content, "copy_response") {
+			t.Errorf("%s: %v\n%s", exposure, err, out.CaddySite.Content)
+		}
+	}
+}
+
 // TestPaused: a service whose public access is paused (SPEC.md §6.16), by
 // its own pause, the lab's for everything, or the lab's for something it's
 // built with, answers visitors from outside with the paused page, opens

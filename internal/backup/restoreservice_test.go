@@ -45,7 +45,7 @@ func TestPutBack(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(data+".before-put-back-20260928-100000", "now.txt")); string(got) != "now" {
 		t.Error("what it replaced isn't kept")
 	}
-	if strings.Join(units.calls, ",") != "stop roostack-forgejo-app.service,start roostack-forgejo-app.service" {
+	if strings.Join(units.calls, ",") != "stop roostack-forgejo-app.service,reset-failed roostack-forgejo-app.service,start roostack-forgejo-app.service" {
 		t.Errorf("units = %v", units.calls)
 	}
 }

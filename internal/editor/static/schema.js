@@ -70,6 +70,10 @@
       "item": {
        "type": "string"
       }
+     },
+     {
+      "name": "notice",
+      "type": "string"
      }
     ]
    },
@@ -380,6 +384,13 @@
       {
        "name": "client_ip_header",
        "type": "string"
+      },
+      {
+       "name": "upload_paths",
+       "type": "list",
+       "item": {
+        "type": "string"
+       }
       },
       {
        "name": "monitor",
@@ -808,6 +819,7 @@
   "ssoRedirectPath": "^(/([A-Za-z0-9._:~-]|%[0-9A-F]{2})*)+$",
   "ssoStartQuery": "^([A-Za-z0-9._:~/=\u0026+?-]|%[0-9A-F]{2})*$",
   "subdomain": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+  "uploadPath": "^(/([A-Za-z0-9._:-]+|\\*))*/[A-Za-z0-9._:-]+$",
   "version": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
  },
  "lists": {
@@ -936,6 +948,7 @@
   "maxKeywords": 10,
   "maxMakerBytes": 100,
   "maxMemory": 1000000000000,
+  "maxNoticeBytes": 400,
   "maxStorageTitle": 60,
   "minHostPort": 1024,
   "minMemory": 1000000
@@ -1342,6 +1355,12 @@
    "label": "Who makes it",
    "help": "Who makes the app, in a few words, so that the catalog credits them.",
    "example": "a volunteer community",
+   "link": "reference/packages#the-parts"
+  },
+  "about.notice": {
+   "label": "What to know before installing",
+   "help": "Something the app does that someone should know before installing it and that the package can't change, in a sentence or two. Roostack will show it as a warning on the install page and on the service's page.",
+   "example": "The app will send usage data to its makers from each person's browser, and only each person can turn it off.",
    "link": "reference/packages#the-parts"
   },
   "about.releases": {
@@ -1891,6 +1910,12 @@
    "help": "The default name before your lab's domain, such as notes for notes.smith.family. People can change it.",
    "example": "notes",
    "link": "packages/write#its-web-address"
+  },
+  "routes.*.upload_paths": {
+   "label": "Where uploaded files are",
+   "help": "The addresses where the app serves files people uploaded, each with everything under it; a * may stand for one part of an address. Roostack will show only plain images, audio, video, and text from there, and anything else, such as HTML, SVG, or a PDF, will come as a download.",
+   "example": "/file/attachments",
+   "link": "reference/packages#the-parts"
   },
   "schema": {
    "label": "Schema",

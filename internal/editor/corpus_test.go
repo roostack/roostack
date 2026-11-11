@@ -372,6 +372,19 @@ func structural(first map[string]string) [][]edit {
 	}
 	add(append(set(`{on: schedule, name: gc, title: A, container: `+c+`, every: day, command: [x]}`, "hooks", 98), set(`{on: schedule, name: gc, title: B, container: `+c+`, every: week, command: [y]}`, "hooks", 99)...))
 
+	// What to know before installing, which no test package has.
+	for _, v := range []string{`"  "`, `"a\nb"`, `"` + strings.Repeat("x", 401) + `"`, `"` + strings.Repeat("é", 201) + `"`,
+		`"` + strings.Repeat("é", 200) + `"`, `It sends usage data.`, `[x]`} {
+		add(set(v, "about", "notice"))
+	}
+
+	// Upload paths, which no test package has (SPEC.md §8.1, "Uploaded
+	// files as downloads").
+	for _, v := range []string{`[/file/attachments, /api/shares/*/files, "/*/x"]`, `[/a, /a]`,
+		`["/a/*", /, /b/, "/a*b", "/a b", a, "/**/c", "/a/{x}"]`, `/a`, `[]`} {
+		add(set(v, "routes", r, "upload_paths"))
+	}
+
 	// Links and ports.
 	for _, v := range []string{`{title: "", route: nope, path: "//x"}`, `{title: T, route: ` + r + `, path: admin}`, `{title: T, route: ` + r + `, path: /ok}`} {
 		add(set(v, "links", 99))

@@ -426,8 +426,10 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	in.AwaitingData = req.BringData
 	// Install hooks (e.g. creating the admin account) run once the
 	// service has started, and its addresses stay private until they've
-	// succeeded (SPEC.md §8.1, "Public addresses wait for setup").
-	setUp := len(p.HooksOn(pkgspec.HookInstall)) > 0 && !keep
+	// succeeded (SPEC.md §8.1, "Public addresses wait for setup"). A
+	// package with install-only secrets but no hooks has finished setting
+	// up once it has started: its secrets are forgotten then.
+	setUp := p.NeedsSetUp() && !keep
 	in.SettingUp = setUp
 	secrets := map[string][]byte{}
 	for _, s := range p.Settings {
@@ -653,7 +655,7 @@ func (m *Manager) InstallSummary(name string, req InstallRequest) (*InstallSumma
 	// Its addresses wait for its install hooks, as Install will decide
 	// (SPEC.md §8.1, "Public addresses wait for setup").
 	keep := req.BringData || setupLeftEmpty(p, req) && len(left) > 0
-	in.SettingUp = len(p.HooksOn(pkgspec.HookInstall)) > 0 && !keep
+	in.SettingUp = p.NeedsSetUp() && !keep
 	sum, err := generate.Summarize(m.Lab, p, in)
 	if err != nil {
 		return nil, err

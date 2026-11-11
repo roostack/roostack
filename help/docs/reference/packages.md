@@ -126,6 +126,12 @@ routes:
       (Network).
     - `keywords`: up to ten words or short phrases people might search
       for.
+    - `notice`: what someone should know before installing the app, in a
+      sentence or two of plain text, such as an app that sends usage data
+      from each person's browser that the package can't turn off. It's
+      one paragraph of at most 400 characters (in YAML, `>-` folds lines
+      into one). Roostack will show it as a warning on the install page
+      and on the service's page, and the registry's page shows it too.
 
 `built_with`
 :   What the app is built on, as short names: its language (`php`,
@@ -163,7 +169,9 @@ routes:
 `settings`
 :   What people choose, at install and later. `type` is `bool`, `string`,
     `int`, or `secret`. A secret can be `generate`d by Roostack, `reveal`ed
-    to Admins, or `install_only` (deleted once setup has run). Secrets are
+    to Admins, or `install_only` (deleted once setup has finished: after
+    the install hooks have succeeded or, in a package without any, once
+    the service has started and answers its health checks). Secrets are
     Podman secrets, never in files. A setting that isn't a secret can have
     an `install_value`, used until the install hooks succeed (or while
     they've failed and are waiting for Try again); the package needs an
@@ -242,6 +250,16 @@ routes:
     whose usual answer doesn't say it works: a `path` to ask instead, and
     the `statuses` that count as up, e.g.
     `monitor: { path: /api/health, statuses: [200] }`.
+    `upload_paths` lists where the app serves files people uploaded, each
+    with everything under it, e.g. `upload_paths: [/file/attachments]`.
+    There, a `*` may stand for one whole part of a path, but not the last:
+    `/api/shares/*/files`. Roostack's proxy will show a file from those
+    paths only if it's a plain image (PNG, JPEG, GIF, WebP, AVIF, BMP, or
+    ICO), audio, video, or plain text; anything else, such as HTML, SVG,
+    or a PDF, will come as a download, so nobody can upload a page that
+    then opens on the app's address. The app's own pages still show
+    pictures and videos from those paths. The service registry asks for
+    them in a package whose app would otherwise show uploaded HTML or SVG.
 
 `ports`
 :   [Extra connections](../services/settings.md#extra-connections) that

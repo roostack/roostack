@@ -11,6 +11,8 @@
 <div class="grid install-grid">
 <section class="card span-7">
   {{template "project-credit" .Credit}}
+  {{/* What to know before installing it (SPEC.md §8.3.6). */}}
+  {{with .Credit}}{{with .About.Notice}}{{notice "warn" .}}{{end}}{{end}}
   {{/* The package policy (SPEC.md §8.3.4). */}}
   {{if .Policy.Local}}
   {{notice "warn" "You added this package yourself, so nobody has reviewed it. Only install it if you wrote it or trust whoever did."}}

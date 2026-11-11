@@ -1457,6 +1457,29 @@ func TestServicesWithoutAddress(t *testing.T) {
 	}
 }
 
+// A package's about.notice, what to know before installing it, is an
+// amber notice on the install page and in the service page's About card
+// (SPEC.md §8.3.6, "What to know before installing").
+func TestPackageNotice(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	want := `<p class="notice notice-warn" role="status">
+  Its web app will send usage data to its makers from each person&#39;s browser.</p>`
+	for _, path := range []string{"/install/immich", "/services/vaultwarden"} {
+		if _, body := h.get(path); strings.Contains(body, "notice-warn") && strings.Contains(body, "usage data") {
+			t.Errorf("%s: a notice without one in the package", path)
+		}
+	}
+	fm.notices = map[string]string{"immich": "Its web app will send usage data to its makers from each person's browser.",
+		"vaultwarden": "Its web app will send usage data to its makers from each person's browser."}
+	if _, body := h.get("/install/immich"); !strings.Contains(body, want) {
+		t.Errorf("install page without the notice:\n%s", body)
+	}
+	_, body := h.get("/services/vaultwarden")
+	if i, j := strings.Index(body, "About Vaultwarden"), strings.Index(body, want); i < 0 || j < i {
+		t.Errorf("service page without the notice in its About card:\n%s", body)
+	}
+}
+
 // Before installing, the page says what the service would set up, from its
 // package and the form as it stands, and credits its project (SPEC.md
 // §8.3.4, §8.3.6).
