@@ -29,3 +29,8 @@
   border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 13px; }
 .mock-bar a, .mock-bar button { color: inherit; background: none; border: 0; padding: 2px 6px; font: inherit; cursor: pointer; text-decoration: none; }
 .mock-bar [aria-current] { text-decoration: underline; }
+/* The charts' axes. */
+.chart-box { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2); }
+.chart-y { display: flex; flex-direction: column; justify-content: space-between; height: 70px; font-size: 11px; color: var(--muted, inherit);
+  text-align: right; line-height: 1; opacity: .8; }
+.chart-x { display: flex; justify-content: space-between; font-size: 11px; opacity: .8; margin-top: 2px; }

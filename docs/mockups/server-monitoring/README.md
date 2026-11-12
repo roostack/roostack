@@ -23,10 +23,11 @@ then <http://127.0.0.1:8791/docs/mockups/server-monitoring/monitoring.html>. The
 - **Glances:** Debian's `glances` package (so Debian's security updates keep it patched), installed by the agent when it's turned on and removed when it's turned off, and run as a sandboxed systemd service (`roostack-glances`) whose web server listens only on the server's address on Roostack's network. Roostack's pages pass it on after Roostack's own login, so it has no login of its own. It sees the host's processes and network but not inside containers, which would need Podman's socket; each service's figures come from the core instead.
 - **Charts** are SVG drawn on the server, like the uptime bars: no charting library.
 
-## Questions
+## Decided (2026-11-12), the maintainer
 
-1. **Where it lives:** on Monitoring (Admins and Owners can see it), with each server's page under Monitoring, rather than on Settings → Servers (Owners only)? *Proposal:* Monitoring, and the server's settings page links to it.
-2. **The alerts' marks:** under 10% of memory free for 15 minutes, swapping heavily for 15 minutes, and a temperature at its sensor's high mark (or 90 °C where the sensor gives none)? Warnings or problems?
-3. **Glances:** installed only when someone turns it on for a server, and removed when they turn it off (*proposal*), or always installed with Roostack (about 40 MB on every server, but nothing to wait for)?
-4. **Who can turn Glances on:** Owners and Admins, as they can see Monitoring? It shows every process on the server, including their command lines.
-5. **History:** every reading for two days, then hourly averages and peaks for History's setting (90 days by default), as the checks have?
+1. **Where it lives:** on Monitoring (Admins and Owners), each server's page under Monitoring; the server's settings page links to it.
+2. **The alerts' marks:** under 10% of memory free for 15 minutes, swapping heavily for 15 minutes, and a temperature at its sensor's high mark (or 90 °C where the sensor gives none), each a **problem**.
+3. **Glances:** installed only when someone turns it on for a server, and removed when they turn it off.
+4. **Who can turn Glances on:** Owners and Admins.
+5. **History:** every reading for two days, then hourly averages and peaks for History's setting.
+6. **The charts and bars (the maintainer's notes):** the charts have values on both axes (time below, the scale beside); a bar under What's using it is out of the server's whole memory, or all its processors, as its column's heading and a line under the table say.
