@@ -72,7 +72,9 @@ elif [[ -f $VM_DIR/disk.qcow2 ]]; then
     ARCH=amd64 # made before VMs recorded their architecture
 fi
 [[ $ARCH == amd64 || $ARCH == arm64 ]] || { echo "ROOSTACK_VM_ARCH must be amd64 or arm64" >&2; exit 2; }
-IMAGE_NAME=debian-13-genericcloud-$ARCH.qcow2
+# Debian's generic image, with cloud-init: its build of 2026-11-11
+# stopped publishing the smaller genericcloud one.
+IMAGE_NAME=debian-13-generic-$ARCH.qcow2
 IMAGE_URL=https://cloud.debian.org/images/cloud/trixie/latest/$IMAGE_NAME
 SUMS_URL=https://cloud.debian.org/images/cloud/trixie/latest/SHA512SUMS
 # Every VM starts from the same downloaded image, kept with VM 1.
