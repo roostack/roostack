@@ -56,9 +56,10 @@ type Hub struct {
 	Agent   WireGuardAgent
 	Log     *slog.Logger
 	Now     func() time.Time
-	// Started is called once the network is first set up (Roostack restarts
-	// to pick up its new role, e.g. for the firewall). Optional.
-	Started func()
+	// Started is called once the network is first set up, with the
+	// controller's membership, so that the rest of Roostack takes its new
+	// role (the firewall lets servers join). Optional.
+	Started func(Membership)
 	// UI is where the lab's pages are (https://roost.<domain>), put in
 	// join codes. Optional.
 	UI string
@@ -145,7 +146,7 @@ func (h *Hub) init(ctx context.Context) error {
 		return err
 	}
 	if h.Started != nil {
-		h.Started()
+		h.Started(m)
 	}
 	return nil
 }

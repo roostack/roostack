@@ -279,7 +279,10 @@ type Local struct {
 	// sshChoice is a new SSH choice made while running (UseSSH); "" uses
 	// Lab's.
 	sshChoice string
-	status    ApplyStatus
+	// role and overlayAddr are the server's role and address on Roostack's
+	// network once it's set up while running (UseNetwork); "" uses Lab's.
+	role, overlayAddr string
+	status            ApplyStatus
 	// again is set when an assignment arrives during an apply, so another
 	// apply runs afterwards.
 	again bool
@@ -755,6 +758,19 @@ func (n *Local) UseSSH(choice string) {
 	n.Apply(a)
 }
 
+// UseNetwork takes this server's role and address on Roostack's network,
+// set up while running (the controller's first join code), without a
+// restart: the next apply's firewall lets servers join, and one starts
+// now.
+func (n *Local) UseNetwork(role, addr string) {
+	n.mu.Lock()
+	n.role, n.overlayAddr = role, addr
+	a := n.assignment
+	n.mu.Unlock()
+	a.Secrets, a.SetUp, a.Reason = nil, nil, "Roostack's network between servers is set up"
+	n.Apply(a)
+}
+
 // SetLabServers tells the hub how to list the lab's servers, for the
 // firewall: anyone else on Roostack's network reaches only the lab API.
 func (n *Local) SetLabServers(f func(ctx context.Context) ([]string, error)) {
@@ -787,6 +803,9 @@ func (n *Local) lab(a Assignment) config.Lab {
 	n.mu.Lock()
 	if n.sshChoice != "" {
 		lab.Firewall.SSH = n.sshChoice
+	}
+	if n.overlayAddr != "" {
+		lab.Role, lab.OverlayAddr = n.role, n.overlayAddr
 	}
 	n.mu.Unlock()
 	if a.Lab.Domain != "" {
@@ -892,7 +911,7 @@ func (n *Local) addStorage(d *reconcile.Desired, st *Storage) error {
 	if st == nil {
 		return nil
 	}
-	lab := n.Lab
+	lab := n.currentLab()
 	if lab.OverlayAddr == "" {
 		return fmt.Errorf("offering this server's disk for backups needs Roostack's network")
 	}

@@ -525,7 +525,11 @@ func (c *controller) wirePublic() {
 func (c *controller) wireNetwork() {
 	ctx, lab, st, mgr, srv, log := c.ctx, c.lab, c.st, c.mgr, c.srv, c.log
 	c.hub = &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: c.labName, Self: c.id, Store: st, Agent: c.agent,
-		Log: log, Now: time.Now, Started: c.restarts.restart,
+		Log: log, Now: time.Now,
+		// The firewall takes the new role at once, so a server can join
+		// straight away; nothing else on the controller needs a restart
+		// (the lab API starts by itself once the network exists).
+		Started: func(m labnet.Membership) { c.local.UseNetwork(m.Role, m.Addr.String()) },
 		Joined: func(ctx context.Context, id, name string) {
 			st.Audit(ctx, nil, attention.AuditServerJoined, name)
 			// A new server keeps the lab's time zone (it can change it).

@@ -698,3 +698,30 @@ func TestInstallSummary(t *testing.T) {
 		t.Errorf("catalog: %+v", items)
 	}
 }
+
+// The controller's first join code sets up Roostack's network while
+// Roostack runs: its firewall lets servers join at once, with no restart
+// (which waits for first-run setup to finish).
+func TestFirewallTakesTheNetwork(t *testing.T) {
+	m, _ := newManager(t)
+	fw := &fakeFirewall{}
+	local(m).Firewall = fw
+	m.Lab.Firewall.SSH = config.SSHFromLAN
+	local(m).Lab = m.Lab
+	m.Apply()
+	m.Wait()
+	wg := func() bool {
+		fw.mu.Lock()
+		defer fw.mu.Unlock()
+		last := fw.applied[len(fw.applied)-1]
+		return slices.ContainsFunc(last.Allow, func(r agent.Rule) bool { return r.Port == agent.WireGuardPort && r.Proto == "udp" })
+	}
+	if wg() {
+		t.Fatal("WireGuard's port before the network")
+	}
+	local(m).UseNetwork(config.RoleController, "100.96.0.1")
+	m.Wait()
+	if !wg() {
+		t.Error("WireGuard's port isn't open once the network is set up")
+	}
+}
