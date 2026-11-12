@@ -831,7 +831,7 @@ func TestRoundTrip(t *testing.T) {
 		"Mover": true, "Updater": true, "Disks": true, "Memory": true, "LeftData": true, "CleanUp": true, "History": true,
 		"Linked": true, "GuestHost": true, "Processor": true, "Photos": true,
 		// From the server's status, as Linked's are.
-		"VPNStatus": true}
+		"VPNStatus": true, "Vitals": true}
 	for prefix, v := range map[string]any{"": r, "Backups.": remoteBackups{}, "Restores.": remoteRestores{},
 		"Updates.": remoteUpdates{}, "Settings.": remoteSettings{}, "Media.": remoteMedia{}, "Imports.": remoteImports{}} {
 		typ := reflect.TypeOf(v)

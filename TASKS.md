@@ -366,6 +366,11 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [ ] The VPN through Roostack Cloud's relay (a question for Cloud's design)
 - [ ] Check Your account through Caddy on a VM with an address: `my.` with no service using single sign-on, Roostack's pages signing in there, a Member sent there, and where you're signed in after a sign-in on a phone
 
+## How each server is doing (SPEC §6.15.1; decided 2026-11-12)
+
+- [x] The core: each server's processors, memory, swap, network, temperatures, and each service's share every minute, kept like the checks, with charts on Monitoring and alerts as problems (2026-11-12)
+- [ ] Glances for a live view: installed from Debian when an Owner or Admin turns it on for a server, removed when they turn it off, passed on through Roostack's pages
+
 ## Single sign-on: what's next (SPEC §5.2)
 
 - [x] A service's own pages (public access, removing it) keep it marked in the sidebar, and the Services pages built without `pageData` (those two, the catalog, installing, adding a package of your own) list the services there at all (2026-11-06, `TestServiceSubpagesMarkTheService`); the service page's header no longer touches what's below it, and the catalog's "Add your own" card has its space above

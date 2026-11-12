@@ -100,6 +100,7 @@
   </dl>
   <div id="changes-{{.ID}}">{{activity (index $.ApplyActivities .ID)}}</div>
   {{if $.Only}}
+  {{if $.VitalsOn}}<p><a href="/monitoring/servers/{{.ID}}">How it's doing</a>: its processors, memory, network, and temperature over time, on Monitoring.</p>{{end}}
   <h3>Settings</h3>
   <dl class="facts">
     {{range $.ServerAreas}}<dt><a href="{{.Href}}">{{.Title}}</a></dt>

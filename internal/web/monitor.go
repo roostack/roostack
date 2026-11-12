@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/vitals"
 )
 
 // Monitoring (SPEC.md §6.15): the Monitoring page, a check's Details,
@@ -34,6 +35,8 @@ type Monitoring struct {
 	AutoChecks    func(ctx context.Context) []monitor.Check
 	StatusPage    StatusPageSwitch
 	StatusPageDir string
+	// Vitals is how each server is doing (SPEC.md §6.15.1); nil hides it.
+	Vitals *vitals.Collector
 }
 
 // Runtime settings.
@@ -314,6 +317,8 @@ func (s *Server) renderMonitoring(w http.ResponseWriter, r *http.Request, formEr
 		}
 	}
 	data["Down"] = down
+	// How each server is doing (SPEC.md §6.15.1).
+	data["Vitals"] = s.vitalsRows()
 	if s.Node != nil {
 		data["CheckedFrom"] = s.Node.Identity().Name
 	}

@@ -85,6 +85,9 @@ func templateFuncs() template.FuncMap {
 		"list": func(items ...string) []string { return items },
 		"size": units.Bytes,
 		"gb":   func(b int64) int64 { return b / units.GB },
+		// gb1 is gigabytes to one decimal ("5.1"), and sub64 a difference.
+		"gb1":   func(b int64) string { return fmt.Sprintf("%.1f", float64(b)/float64(units.GB)) },
+		"sub64": func(a, b int64) int64 { return a - b },
 		// image is a container image without its digest (shown in full on
 		// hover): docker.io/vaultwarden/server:1.34.3.
 		"image": func(ref string) string { name, _, _ := strings.Cut(ref, "@"); return name },

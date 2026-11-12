@@ -1,0 +1,73 @@
+{{define "title"}}{{.Server.Name}}{{end}}
+{{define "page-help"}}{{help "servers/monitoring" "Monitoring"}}{{end}}
+{{define "content"}}
+{{/* How a server is doing (SPEC.md §6.15.1). Mock-up:
+     docs/mockups/server-monitoring/server.html. */}}
+{{with .Reading}}
+<div class="page-head">
+  <div>
+    <h1>{{$.Server.Name}}</h1>
+    <p class="lede">{{$.Sub}}</p>
+  </div>
+</div>
+{{range $.Problems}}{{notice "error" .}}{{end}}
+
+<ul class="figures">
+  <li class="card"><h2 class="figure-label">Processors</h2><p class="figure-value">{{printf "%.0f" .CPUBusy}}%</p>
+    <p class="hint">Load {{printf "%.1f" (index .Load 0)}} · {{printf "%.1f" (index .Load 1)}} · {{printf "%.1f" (index .Load 2)}} over 1, 5, and 15 minutes</p></li>
+  <li class="card"><h2 class="figure-label">Memory</h2><p class="figure-value">{{gb1 .MemoryUsed}} GB <small>of {{size .MemTotal}}</small></p>
+    <div class="meter{{if ge $.MemoryPercent 90}} meter-warning{{end}}" title="{{$.MemoryPercent}}% used"><span data-width="{{$.MemoryPercent}}"></span></div>
+    <p class="hint">{{size .MemAvailable}} free, counting what the system gives back</p></li>
+  <li class="card"><h2 class="figure-label">Swap</h2>
+    {{if .SwapTotal}}<p class="figure-value">{{gb1 (sub64 .SwapTotal .SwapFree)}} GB <small>of {{size .SwapTotal}}</small></p>
+    <div class="meter{{if ge $.SwapPercent 50}} meter-warning{{end}}" title="{{$.SwapPercent}}% used"><span data-width="{{$.SwapPercent}}"></span></div>
+    <p class="hint">{{if .SwapIn}}Reading back {{size .SwapIn}} a second{{else}}Not reading anything back from it{{end}}</p>
+    {{else}}<p class="figure-value">None</p><p class="hint">This server has no swap.</p>{{end}}</li>
+  <li class="card"><h2 class="figure-label">Network</h2><p class="figure-value">{{size .NetIn}}/s <small>in</small></p>
+    <p class="hint">{{size .NetOut}}/s out</p></li>
+  {{if .Temp}}<li class="card"><h2 class="figure-label">Temperature</h2><p class="figure-value">{{printf "%.0f" .Temp}} °C</p>
+    <p class="hint">{{with .TempName}}{{.}}. {{end}}It's too hot from {{printf "%.0f" .TempHigh}} °C.</p></li>{{end}}
+</ul>
+
+<section class="card section">
+  <div class="card-head"><h2>Over time</h2>
+    <nav class="segmented small links" aria-label="How far back">
+      {{- range $.Ranges}}<a href="?range={{.ID}}"{{if eq .ID $.Range}} aria-current="true"{{end}}>{{.Title}}</a>{{end -}}
+    </nav></div>
+  {{range $.Charts}}
+  <div class="chart-row">
+    <h3>{{.Title}}{{with .Peak}} <small class="hint">{{.}}</small>{{end}}</h3>
+    {{.SVG}}
+    {{if index .Key 1}}<p class="hint chart-key"><span class="key"></span> {{index .Key 0}} <span class="key second"></span> {{index .Key 1}}</p>{{end}}
+  </div>
+  {{else}}<p class="hint">Roostack has only just started reading this server: the charts will fill in over the next few minutes.</p>{{end}}
+</section>
+
+<section class="card section">
+  <div class="card-head"><h2>What's using it</h2><span class="hint">Over the last hour</span></div>
+  {{if $.Shares}}
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Service</th><th>Memory <small class="hint">of {{size .MemTotal}}</small></th>
+      <th class="hide-phone">Processors <small class="hint">of all {{.CPUs}}</small></th></tr></thead>
+    <tbody>{{range $.Shares}}<tr>
+      <td class="list-name">{{if .Href}}<a href="{{.Href}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</td>
+      <td><div class="meter" title="{{.Memory}}%"><span data-width="{{.Memory}}"></span></div> <small class="hint">{{.MemoryText}}</small></td>
+      <td class="hide-phone"><div class="meter" title="{{.CPU}}%"><span data-width="{{.CPU}}"></span></div> <small class="hint">{{.CPUText}}</small></td>
+    </tr>{{end}}</tbody>
+  </table></div>
+  <p class="hint">A full bar is all of {{$.Server.Name}}'s memory, or all {{.CPUs}} of its processors busy. Each service's share comes from its
+    containers, as systemd counts them; the rest is the system itself and its caches.</p>
+  {{else}}<p class="hint">Nothing yet: each service's share will show after a few minutes.</p>{{end}}
+</section>
+
+<details class="card technical section">
+  <summary>Technical details</summary>
+  <p>Each server reads these every minute from <code>/proc</code> (processors, memory, swap, load, and network), <code>/sys/class/hwmon</code>
+    (temperatures), and each service's systemd units' cgroups under the <code>roostack</code> user's manager (their memory and processor
+    time), with no extra software. The controller keeps every reading for two days, then hourly averages and peaks for as long as History's setting.</p>
+  <p>Roostack will tell you, here, under Needs attention, and by email (Problems), when less than 10% of the memory has been free for
+    15 minutes, when the server has been swapping heavily (reading back 256 KB a second or more on average) for 15 minutes, or when a
+    temperature has reached its sensor's own high mark for 3 minutes.</p>
+</details>
+{{end}}
+{{end}}

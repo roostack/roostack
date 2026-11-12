@@ -519,7 +519,7 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 		"home", "services", "services-updates", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account-appearance", "users", "about",
 		"settings-domain", "settings-vpn", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-look", "settings-sign-in", "settings-cleanup",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
-		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
+		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check", "monitoring-server",
 		"import", "import-folders", "photos", "photos-home", "photos-folders", "pause", "pause-close"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs()).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
@@ -644,6 +644,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
 	mux.Handle("GET /monitoring", s.require(auth.ManageServices, s.monitoringPage))
 	mux.Handle("GET /monitoring/check/{key}", s.require(auth.ManageServices, s.monitorCheckPage))
+	mux.Handle("GET /monitoring/servers/{server}", s.require(auth.ManageServices, s.serverVitalsPage))
 	mux.Handle("POST /monitoring/checks", s.require(auth.ManageServices, s.monitorAddSubmit))
 	mux.Handle("POST /monitoring/checks/{id}/remove", s.require(auth.ManageServices, s.monitorRemoveSubmit))
 	mux.Handle("POST /monitoring/switch", s.requireOwner(s.monitorSwitchSubmit))

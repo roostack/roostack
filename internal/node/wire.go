@@ -207,6 +207,8 @@ type WireStatus struct {
 	// VPN is the lab's VPN's interface there, when devices connect to it
 	// (SPEC.md §10.11): its key, and when each device last connected.
 	VPN *agent.WireGuardStatus `json:"vpn,omitempty"`
+	// Vitals is its latest reading of how it's doing (SPEC.md §6.15.1).
+	Vitals *Vitals `json:"vitals,omitempty"`
 }
 
 func (w WireStatus) apply() ApplyStatus {

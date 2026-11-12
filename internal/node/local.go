@@ -282,7 +282,10 @@ type Local struct {
 	// role and overlayAddr are the server's role and address on Roostack's
 	// network once it's set up while running (UseNetwork); "" uses Lab's.
 	role, overlayAddr string
-	status            ApplyStatus
+	// vitals reads how the server is doing (vitals.go).
+	vitalsOnce sync.Once
+	vitals     *vitalsReader
+	status     ApplyStatus
 	// again is set when an assignment arrives during an apply, so another
 	// apply runs afterwards.
 	again bool

@@ -36,8 +36,10 @@ import (
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/vitals"
 	"roostack.cloud/roostack/internal/web"
 )
 
@@ -766,6 +768,10 @@ func (c *controller) wireMonitoring() {
 	srv.Monitor = &monitor.Monitor{Checks: srv.MonitorChecks, Store: c.st, Log: c.log,
 		Enabled: srv.MonitorOn, KeepDays: srv.HistoryKeepDays, Changed: srv.WriteStatusPage}
 	go srv.Monitor.Run(c.ctx)
+	// How each server is doing (SPEC.md §6.15.1), read every minute.
+	srv.Vitals = &vitals.Collector{Servers: c.mgr.VitalsServers, Store: c.st, Log: c.log, Enabled: srv.MonitorOn,
+		KeepDays: srv.HistoryKeepDays}
+	go sleep.Every(c.ctx, node.VitalsEvery, func() { srv.Vitals.Round(c.ctx) })
 	go srv.RunHistoryCull(c.ctx)
 }
 

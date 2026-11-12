@@ -204,5 +204,5 @@ func (s *Server) serverPage(w http.ResponseWriter, r *http.Request) {
 		sa.Summary, sa.Level = pa.summary(r, n)
 		areas = append(areas, sa)
 	}
-	s.renderServers(w, r, map[string]any{"Only": m.ID, "ServerAreas": areas})
+	s.renderServers(w, r, map[string]any{"Only": m.ID, "ServerAreas": areas, "VitalsOn": s.Vitals != nil})
 }

@@ -1,9 +1,36 @@
 # Monitoring
 
 Every minute, Roostack checks that each of your services answers at its
-address, and tells you when one stops. **Monitoring** in the sidebar shows
-every check: whether it's up now, its uptime over the last 30 days, and a
-bar for each day.
+address and how each of your servers is doing, and tells you when
+something needs you. **Monitoring** in the sidebar shows every check:
+whether it's up now, its uptime over the last 30 days, and a bar for each
+day.
+
+## How each server is doing
+
+**Servers**, at the top of Monitoring, shows each server's processors,
+memory, swap, and temperature now. **Details** opens the server's own
+page:
+
+- its figures now: how busy its processors are and its load, memory and
+  what's free, swap, network in and out, and the temperature where the
+  server reports one;
+- **Over time**, for a day, a week, or a month, with each chart's busiest
+  moment;
+- **What's using it**: each service's memory and processor time over the
+  last hour. A full bar is all of the server's memory, or all its
+  processors busy. What's left over is the system itself and its caches.
+
+Roostack will tell you, on Monitoring, under **Needs attention**, and by
+email (**Problems**), when a server:
+
+- has had less than 10% of its memory free for 15 minutes;
+- has been swapping heavily (reading memory back from its disk) for 15
+  minutes, which slows its services down;
+- has a temperature at its sensor's high mark (or 90 °C where it gives
+  none) for 3 minutes.
+
+A server's settings page links to its page here (**How it's doing**).
 
 ## What's checked
 
@@ -88,4 +115,5 @@ attention" will carry on.
 | What | Where |
 |---|---|
 | Every result of the last two days, then each hour's summary | The controller's database, `/var/lib/roostack/roostack.db`, kept as long as **History** keeps things |
+| Each server's readings | Read every minute on each server from `/proc`, `/sys/class/hwmon`, and each service's systemd units' cgroups (no extra software); kept in the controller's database like the checks: every reading for two days, then hourly averages and peaks |
 | Where checks run from | The lab's controller, asking its own Caddy (`127.0.0.1:443`) with each address's name |

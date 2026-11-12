@@ -420,6 +420,43 @@ var migrations = []string{
 		ssh INTEGER NOT NULL DEFAULT 0,
 		created_at INTEGER NOT NULL
 	)`,
+	// 41 (2026-11-12): how each server is doing (SPEC.md §6.15.1): every
+	// minute's reading for two days, hourly averages and peaks for the
+	// lab's history, and each service's share for two days.
+	`CREATE TABLE server_readings (
+		server TEXT NOT NULL,
+		at INTEGER NOT NULL,
+		cpu REAL NOT NULL,
+		mem_used INTEGER NOT NULL,
+		mem_total INTEGER NOT NULL,
+		swap_used INTEGER NOT NULL,
+		swap_total INTEGER NOT NULL,
+		swap_in INTEGER NOT NULL,
+		net_in INTEGER NOT NULL,
+		net_out INTEGER NOT NULL,
+		temp REAL NOT NULL,
+		PRIMARY KEY (server, at)
+	);
+	CREATE TABLE server_hours (
+		server TEXT NOT NULL,
+		hour INTEGER NOT NULL,
+		readings INTEGER NOT NULL,
+		cpu_sum REAL NOT NULL, cpu_max REAL NOT NULL,
+		mem_sum INTEGER NOT NULL, mem_max INTEGER NOT NULL, mem_total INTEGER NOT NULL,
+		swap_sum INTEGER NOT NULL, swap_max INTEGER NOT NULL, swap_total INTEGER NOT NULL,
+		net_in_sum INTEGER NOT NULL, net_in_max INTEGER NOT NULL,
+		net_out_sum INTEGER NOT NULL, net_out_max INTEGER NOT NULL,
+		temp_sum REAL NOT NULL, temp_max REAL NOT NULL,
+		PRIMARY KEY (server, hour)
+	);
+	CREATE TABLE service_readings (
+		server TEXT NOT NULL,
+		service TEXT NOT NULL,
+		at INTEGER NOT NULL,
+		memory INTEGER NOT NULL,
+		cpu REAL NOT NULL,
+		PRIMARY KEY (server, service, at)
+	)`,
 }
 
 // Open opens (creating if needed) and migrates the database.

@@ -53,6 +53,7 @@ type Lab struct {
 	Libraries     Libraries
 	DNS           DNS
 	Monitor       Monitor
+	Vitals        Vitals
 	// HostChecks are the servers' checks for changes Roostack didn't
 	// make, kept for a while (the Updates pages share them).
 	HostChecks *HostChecks

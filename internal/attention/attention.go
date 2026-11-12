@@ -357,8 +357,10 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 		for _, mn := range lab.servers() {
 			lab.backups(ctx, mn.view, mn.node, owner, &l)
 		}
-		// What monitoring found down (SPEC.md §6.15).
+		// What monitoring found down (SPEC.md §6.15), and how the servers
+		// are doing (§6.15.1).
 		lab.monitor(&l)
+		lab.vitals(ctx, &l)
 	}
 	if owner {
 		lab.space(ctx, &l)

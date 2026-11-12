@@ -20,8 +20,8 @@
 <div class="page-head">
   <div>
     <h1>Monitoring</h1>
-    <p class="lede">Every minute, Roostack checks that each service answers at its address, and tells you when one stops.
-      It checks from inside your lab, so it can't tell whether your router lets the internet in.</p>
+    <p class="lede">Every minute, Roostack checks that each service answers at its address and how each server is doing, and tells you
+      when something needs you. It checks from inside your lab, so it can't tell whether your router lets the internet in.</p>
   </div>
 </div>
 
@@ -33,6 +33,24 @@
 {{end}}
 
 {{if .On}}
+{{with .Vitals}}
+<section class="card" id="servers">
+  <div class="card-head"><h2>Servers</h2><span class="hint">Measured every minute on each server</span></div>
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Server</th><th class="hide-phone">Processors <small class="hint">busy</small></th><th>Memory <small class="hint">used</small></th>
+      <th class="hide-phone">Swap <small class="hint">used</small></th><th class="hide-phone">Temperature</th><th>Now</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>{{range .}}<tr>
+      <td class="list-name"><span>{{.Name}}<small>{{.Sub}}</small></span></td>
+      <td class="hide-phone"><div class="meter" title="{{.CPU}}%"><span data-width="{{.CPU}}"></span></div> <small class="hint">{{.CPU}}%</small></td>
+      <td><div class="meter{{with .MemoryLevel}} meter-warning{{end}}" title="{{.Memory}}%"><span data-width="{{.Memory}}"></span></div> <small class="hint">{{.MemoryText}}</small></td>
+      <td class="hide-phone">{{if ge .Swap 0}}<div class="meter{{with .SwapLevel}} meter-warning{{end}}" title="{{.Swap}}%"><span data-width="{{.Swap}}"></span></div> <small class="hint">{{.SwapText}}</small>{{else}}<small class="hint">No swap</small>{{end}}</td>
+      <td class="hide-phone">{{or .Temp "—"}}</td>
+      <td>{{with .Problem}}<span class="status status-failed">{{.}}</span>{{else}}<span class="status status-running">Fine</span>{{end}}</td>
+      <td><a href="/monitoring/servers/{{.ID}}">Details</a></td>
+    </tr>{{end}}</tbody>
+  </table></div>
+</section>
+{{end}}
 <section class="card">
   <div class="card-head"><h2>Services</h2>{{with .CheckedFrom}}<span class="hint">Checked every minute from {{.}}</span>{{end}}</div>
   {{if .Services}}{{template "check-rows" .Services}}
@@ -42,7 +60,7 @@
 
 {{if .Servers}}
 <section class="card">
-  <div class="card-head"><h2>Servers</h2></div>
+  <div class="card-head"><h2>Connections</h2><span class="hint">Whether the lab's servers and address answer</span></div>
   {{template "check-rows" .Servers}}
 </section>
 {{end}}

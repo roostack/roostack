@@ -86,6 +86,13 @@ func (s *Server) labRoutes(handle handleFunc) {
 			w.Addrs, w.Links = l.LinkStatus(r.Context())
 		}
 		if v, ok := n.(interface {
+			Vitals(context.Context) (Vitals, error)
+		}); ok {
+			if vi, err := v.Vitals(r.Context()); err == nil && !vi.At.IsZero() {
+				w.Vitals = &vi
+			}
+		}
+		if v, ok := n.(interface {
 			VPNStatus(context.Context) (agent.WireGuardStatus, error)
 		}); ok {
 			if st, err := v.VPNStatus(r.Context()); err == nil && st.Configured {

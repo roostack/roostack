@@ -40,6 +40,9 @@ func (s *Server) AttentionLab() *attention.Lab {
 	if s.Monitor != nil {
 		lab.Monitor = s.Monitor
 	}
+	if s.Vitals != nil {
+		lab.Vitals = s.Vitals
+	}
 	return lab
 }
 
