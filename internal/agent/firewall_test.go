@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"net/netip"
 	"strings"
 	"testing"
@@ -374,5 +375,28 @@ func TestRulesetPeopleElsewhere(t *testing.T) {
 		if fw.Validate() == nil {
 			t.Errorf("%+v was accepted", bad)
 		}
+	}
+}
+
+// Where the agent turns forwarding on itself for the lab's VPN, only
+// answers are forwarded from there (docs/ASSUMPTIONS.md C15); a request
+// can't name those interfaces.
+func TestRulesetForwardOwned(t *testing.T) {
+	fw := DefaultFirewall()
+	fw.People = &People{Port: PeoplePort, Home: []string{"100.96.128.5"}}
+	fw.ForwardOwned = []string{"enp0s2", "lan2", "bad/name"}
+	got := fw.Ruleset()
+	accept := `iifname { "enp0s2", "lan2" } ct state established,related accept`
+	drop := `iifname { "enp0s2", "lan2" } drop`
+	if !strings.Contains(got, accept) || !strings.Contains(got, drop) || strings.Contains(got, "bad/name") ||
+		strings.Index(got, "ip daddr @lan4 accept") > strings.Index(got, drop) {
+		t.Errorf("forwarding kept to answers:\n%s", got)
+	}
+	var in Firewall
+	if err := json.Unmarshal([]byte(`{"ssh_from":"lan","ForwardOwned":["eth0"],"forward_owned":["eth0"]}`), &in); err != nil || in.ForwardOwned != nil {
+		t.Errorf("set from a request: %+v %v", in.ForwardOwned, err)
+	}
+	if strings.Contains(DefaultFirewall().Ruleset(), "answers only") {
+		t.Error("without the VPN")
 	}
 }

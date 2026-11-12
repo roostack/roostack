@@ -2173,6 +2173,7 @@ Until now each server's backups could only be restored onto that server, and a f
 - **A device's settings:** `Address` its own `/32`, `Endpoint` `link.<domain>:51822` (the record is kept while the VPN is on), `AllowedIPs` the address the lab's names point at (the records manager's), plus the home's ranges (the controller's private networks) or `0.0.0.0/0`, and a keepalive of 25 seconds. The file is named from the device (at most 15 characters, as WireGuard on Linux names the interface after it).
 - **Adding or changing a device asks for the person's two-factor code** when they have two-factor; wrong codes count against their account as at login. Changing what a device reaches waits for the VPN to be ready, as adding does.
 - **Audited:** `vpn device added` (emailed to the person and the Owners, Security group), `vpn device changed`, `vpn device removed`.
+- **Forwarding (2026-11-12):** devices' traffic that goes on needs forwarding on the interfaces its answers come back in on: the default route's and every one on the home's networks (a second network card too), and Roostack's network's on a server that passes devices on. Where that was off before, the agent turns it on and the firewall forwards only answers from there, so the server doesn't become a router for the home's other devices; its old setting comes back when the VPN no longer needs it (docs/ASSUMPTIONS.md C15).
 
 ## Deferred Decisions (post-MVP)
 

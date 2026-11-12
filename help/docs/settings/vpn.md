@@ -115,7 +115,11 @@ clash with a café's network using the same addresses as yours.
     (`nft list table inet roostack`) lets them reach Caddy, and SSH or a
     service's home-only ports only from the addresses allowed them; it
     forwards only the traffic of devices allowed the home network or
-    everything, and gives it the server's address (masquerade). Caddy
+    everything, and gives it the server's address (masquerade). For that,
+    it turns forwarding on for the interfaces the answers come back in on;
+    where it was off before, only answers are forwarded from there, so the
+    server doesn't route anything else for your network, and it goes back
+    off when the VPN no longer needs it. Caddy
     lets each device through to a private service only if its address is
     listed for it.
 

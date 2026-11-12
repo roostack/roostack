@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -506,22 +507,44 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 // the lab's VPN turns it on.
 const uplinkSaved = "/run/roostack-people-forwarding-"
 
-// setVPNForwarding turns forwarding on for the interfaces the lab's VPN's
-// traffic comes back in on, and puts any others it turned on back as they
-// were: an interface only forwards what arrives on it if its own
-// forwarding is on (docs/ASSUMPTIONS.md C15). They're the default route's
-// interfaces while devices' traffic goes on to the home network or the
-// internet (uplinks), and Roostack's network's on the server devices
-// connect to when it passes them on to the controller (lab). The firewall
-// decides what passes, and sets this with each ruleset.
-func setVPNForwarding(uplinks, lab bool) error {
-	var want []string
+// vpnForwardingPlan says which interfaces the lab's VPN's traffic comes
+// back in on, which need their own forwarding on: an interface only
+// forwards what arrives on it if it's on (docs/ASSUMPTIONS.md C15). They're
+// the default route's interfaces and those on the home's networks while
+// devices' traffic goes on to the internet or the home network (uplinks),
+// and Roostack's network's on the server devices connect to when it passes
+// them on to the controller (lab). Own are those whose forwarding was off
+// before Roostack turned it on: on them, the firewall lets only answers be
+// forwarded (Firewall.ForwardOwned), so the server doesn't become a router
+// for anything else there.
+func vpnForwardingPlan(uplinks, lab bool) (want, own []string) {
 	if uplinks {
 		want = defaultRouteIfaces()
+		for _, iface := range homeIfaces() {
+			if !slices.Contains(want, iface) {
+				want = append(want, iface)
+			}
+		}
 	}
 	if lab {
 		want = append(want, WireGuardInterface)
 	}
+	for _, iface := range want {
+		v, err := os.ReadFile(uplinkSaved + iface)
+		if err != nil {
+			v, err = os.ReadFile("/proc/sys/net/ipv4/conf/" + iface + "/forwarding")
+		}
+		if err == nil && strings.TrimSpace(string(v)) == "0" {
+			own = append(own, iface)
+		}
+	}
+	return want, own
+}
+
+// setVPNForwarding turns forwarding on for want (vpnForwardingPlan),
+// keeping each one's own setting in /run, and puts any others it turned on
+// back as they were.
+func setVPNForwarding(want []string) error {
 	saved, _ := filepath.Glob(uplinkSaved + "*")
 	for _, f := range saved {
 		iface := strings.TrimPrefix(f, uplinkSaved)
@@ -553,6 +576,29 @@ func setVPNForwarding(uplinks, lab bool) error {
 		}
 	}
 	return nil
+}
+
+// homeIfaces are the interfaces with a private IPv4 address, apart from
+// Roostack's WireGuard and container and VM bridges: the home's networks
+// (as labnet.HomeAddresses finds them).
+func homeIfaces() []string {
+	ifaces, _ := net.Interfaces()
+	var out []string
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 || !ValidIfaceName(ifc.Name) ||
+			slices.ContainsFunc([]string{"roostack", "wg", "podman", "veth", "docker", "br-", "cni", "virbr", "tun", "tap"},
+				func(p string) bool { return strings.HasPrefix(ifc.Name, p) }) {
+			continue
+		}
+		addrs, _ := ifc.Addrs()
+		for _, a := range addrs {
+			if ipn, ok := a.(*net.IPNet); ok && ipn.IP.To4() != nil && ipn.IP.IsPrivate() {
+				out = append(out, ifc.Name)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // defaultRouteIfaces are the interfaces of the IPv4 default routes, from

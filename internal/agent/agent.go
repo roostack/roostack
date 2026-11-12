@@ -50,9 +50,12 @@ type Host interface {
 	// ApplyFirewall checks and loads an nftables ruleset, and saves it so it
 	// is re-applied when the agent starts (firewall.go).
 	ApplyFirewall(ruleset string) error
-	// VPNForwarding turns forwarding on, or back as it was, on the
-	// interfaces the lab's VPN's answers come in on (setVPNForwarding).
-	VPNForwarding(uplinks, lab bool) error
+	// VPNForwardingPlan says which interfaces the lab's VPN needs
+	// forwarding on, and which of those the agent turns on itself
+	// (vpnForwardingPlan); VPNForwarding turns them on, and others it
+	// turned on back as they were (setVPNForwarding).
+	VPNForwardingPlan(uplinks, lab bool) (want, own []string)
+	VPNForwarding(want []string) error
 	// AllowWireGuardJoin lets WireGuard's port in until the firewall is
 	// next applied: a server joining a lab whose controller dials it
 	// (SPEC.md §10.2), before its own firewall says so.
@@ -149,10 +152,14 @@ func (s *Server) Handler() http.Handler {
 	// The firewall, the time zone, OS updates and rebooting.
 	handle("POST /v1/ports/unprivileged-start", do(s, "set unprivileged port start", h.SetUnprivilegedPortStart))
 	handle("PUT /v1/firewall", action(s, "apply firewall", 64<<10, func(fw Firewall) error {
+		// The firewall keeping forwarded traffic to the VPN's answers is in
+		// place before forwarding is turned on.
+		want, own := h.VPNForwardingPlan(fw.People.ForwardsTraffic(), fw.People.PassesOn())
+		fw.ForwardOwned = own
 		if err := h.ApplyFirewall(fw.Ruleset()); err != nil {
 			return err
 		}
-		return h.VPNForwarding(fw.People.ForwardsTraffic(), fw.People.PassesOn())
+		return h.VPNForwarding(want)
 	}))
 	// No arguments: it only ever opens WireGuard's own port.
 	handle("POST /v1/firewall/wireguard-join", do(s, "open wireguard for joining", h.AllowWireGuardJoin))

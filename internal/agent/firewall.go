@@ -57,6 +57,11 @@ type Firewall struct {
 	Unchosen bool `json:"unchosen,omitempty"`
 	// People is the lab's VPN on this server (SPEC.md §10.11); nil: none.
 	People *People `json:"people,omitempty"`
+	// ForwardOwned are the interfaces the agent turns forwarding on for,
+	// for the lab's VPN, where it was off (vpnForwardingPlan): only answers
+	// are forwarded from them. The agent works them out itself; a request
+	// can't set them.
+	ForwardOwned []string `json:"-"`
 }
 
 // People is what the lab's VPN's devices (trust.DevicesRange) reach on
@@ -432,6 +437,14 @@ func (f Firewall) Ruleset() string {
 	}
 	fmt.Fprintf(&b, "\t\tiifname %q drop\n", WireGuardInterface)
 	fmt.Fprintf(&b, "\t\toifname %q drop\n", WireGuardInterface)
+	if owned := slices.DeleteFunc(slices.Clone(f.ForwardOwned), func(i string) bool { return !ValidIfaceName(i) }); len(owned) > 0 {
+		// Forwarding is on there only for the lab's VPN's answers: nothing
+		// else is routed through this server.
+		set := `"` + strings.Join(owned, `", "`) + `"`
+		b.WriteString("\t\t# forwarding is on here for the lab's VPN's answers only\n")
+		fmt.Fprintf(&b, "\t\tiifname { %s } ct state established,related accept\n", set)
+		fmt.Fprintf(&b, "\t\tiifname { %s } drop\n", set)
+	}
 	b.WriteString("\t}\n")
 	f.peopleNAT(&b)
 	b.WriteString("}\n")
@@ -599,9 +612,14 @@ func (h LinuxHost) AllowWireGuardJoin() error {
 	return nil
 }
 
+// VPNForwardingPlan is vpnForwardingPlan.
+func (h LinuxHost) VPNForwardingPlan(uplinks, lab bool) (want, own []string) {
+	return vpnForwardingPlan(uplinks, lab)
+}
+
 // VPNForwarding sets the forwarding the lab's VPN needs on this server
 // (setVPNForwarding).
-func (h LinuxHost) VPNForwarding(uplinks, lab bool) error { return setVPNForwarding(uplinks, lab) }
+func (h LinuxHost) VPNForwarding(want []string) error { return setVPNForwarding(want) }
 
 // ApplyFirewall checks the ruleset with `nft -c`, loads it, then saves it.
 func (h LinuxHost) ApplyFirewall(ruleset string) error {
