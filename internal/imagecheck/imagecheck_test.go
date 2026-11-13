@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // registryServer is a registry asking for an anonymous token first, with
@@ -69,5 +70,36 @@ func TestParseRef(t *testing.T) {
 	}
 	if _, err := ParseRef("vaultwarden/server:1.0"); err == nil {
 		t.Error("a reference without its registry was taken")
+	}
+}
+
+// A refusal (Codeberg's 403), too many requests, or the registry's own
+// error is tried again, and the answer after it used; a refusal that
+// lasts is the error.
+func TestRetries(t *testing.T) {
+	answers := []int{http.StatusForbidden, http.StatusTooManyRequests, http.StatusBadGateway, http.StatusOK}
+	var asked int
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		status := answers[min(asked, len(answers)-1)]
+		asked++
+		if status != http.StatusOK {
+			w.WriteHeader(status)
+			return
+		}
+		fmt.Fprint(w, `{"manifests":[{"platform":{"os":"linux","architecture":"amd64"}}]}`)
+	}))
+	t.Cleanup(srv.Close)
+	oldClient, oldSleep := registryClient, sleep
+	registryClient, sleep = srv.Client(), func(time.Duration) {}
+	t.Cleanup(func() { registryClient, sleep = oldClient, oldSleep })
+	host := strings.TrimPrefix(srv.URL, "https://")
+	digest := "sha256:" + strings.Repeat("ab", 32)
+	p, err := IndexPlatforms(host, "org/app", digest)
+	if err != nil || !slices.Equal(p, []string{"linux/amd64"}) || asked != 4 {
+		t.Fatalf("after three refusals: %v, %v, asked %d", p, err, asked)
+	}
+	answers, asked = []int{http.StatusForbidden}, 0
+	if _, err := IndexPlatforms(host, "org/app", digest); err == nil || !strings.Contains(err.Error(), "403") || asked != 4 {
+		t.Errorf("a lasting refusal: %v, asked %d", err, asked)
 	}
 }

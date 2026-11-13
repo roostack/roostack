@@ -694,6 +694,45 @@ func TestBuildImageGone(t *testing.T) {
 	}
 }
 
+// A pull request's check (OnlyNew) asks about the versions it adds and
+// no others, so it makes a request or two rather than one for every
+// version's image; an added version's gone image still fails it.
+func TestBuildOnlyNew(t *testing.T) {
+	r := newTestRegistry(t)
+	data, _ := os.ReadFile(filepath.Join(r.repo, "packages", "vaultwarden", "1.34.3-roostack.1.yaml"))
+	old := regexp.MustCompile(`docker\.io/vaultwarden/server:[^\s]+`).FindString(string(data))
+	image := "docker.io/vaultwarden/server:1.34.4@sha256:" + strings.Repeat("ab", 32)
+	r.write("packages/vaultwarden/1.34.4-roostack.1.yaml", strings.Replace(strings.Replace(string(data),
+		"version: 1.34.3-roostack.1", "version: 1.34.4-roostack.1", 1), old, image, 1))
+	var asked []string
+	gone := false
+	build := func() (*Index, error) {
+		asked = nil
+		return Build(BuildOptions{Repo: r.repo, Now: r.now, New: []string{"vaultwarden@1.34.4-roostack.1"}, OnlyNew: true,
+			Platforms: func(img string) ([]string, error) {
+				asked = append(asked, img)
+				if gone {
+					return nil, fmt.Errorf("registry answered 404 Not Found: %w", imagecheck.ErrGone)
+				}
+				return []string{"linux/amd64", "linux/arm64"}, nil
+			}})
+	}
+	ix, err := build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(asked, []string{image}) {
+		t.Errorf("asked about %q, not only the added version's image", asked)
+	}
+	if v := ix.Packages["vaultwarden"].Versions; len(v["1.34.4-roostack.1"].Architectures) != 2 || len(v["1.34.3-roostack.1"].Architectures) != 0 {
+		t.Errorf("architectures: %+v, %+v", v["1.34.4-roostack.1"], v["1.34.3-roostack.1"])
+	}
+	gone = true
+	if _, err := build(); err == nil || !strings.Contains(err.Error(), "registry answered 404") {
+		t.Errorf("an added version's image gone: %v", err)
+	}
+}
+
 // registry.yaml's roost_ac flag (Cloud's DESIGN §5) goes into the signed
 // index, where a lab reads it, and needs its reason.
 func TestBuildRoostAc(t *testing.T) {

@@ -211,20 +211,34 @@ func registryDo(method, u, token string) (*http.Response, error) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	// Registries rate-limit anonymous requests (ghcr.io after a couple of
-	// runs in a row): wait and try again a few times.
+	// runs in a row) or refuse them for a while (Codeberg answered 403 to
+	// two of the registry's runs at once, 2026-11-12): wait and try again
+	// a few times before giving up.
 	for attempt := 1; ; attempt++ {
 		resp, err := registryClient.Do(req)
-		if err != nil || resp.StatusCode != http.StatusTooManyRequests || attempt == 4 {
+		if (err == nil && !retryable(resp.StatusCode)) || attempt == 4 {
 			return resp, err
 		}
-		resp.Body.Close()
 		wait := time.Duration(attempt*5) * time.Second
-		if secs, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil && secs < 60 {
-			wait = time.Duration(secs) * time.Second
+		if err == nil {
+			resp.Body.Close()
+			if secs, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil && secs < 60 {
+				wait = time.Duration(secs) * time.Second
+			}
 		}
-		time.Sleep(wait)
+		sleep(wait)
 	}
 }
+
+// retryable says an answer may be different a little later: too many
+// requests, a refusal (some registries refuse rather than rate-limit),
+// or the registry's own trouble.
+func retryable(status int) bool {
+	return status == http.StatusTooManyRequests || status == http.StatusForbidden || status >= 500
+}
+
+// sleep waits between tries; the tests don't.
+var sleep = time.Sleep
 
 // registryToken gets an anonymous pull token, as the registry's
 // `WWW-Authenticate: Bearer realm="…",service="…",scope="…"` asks.

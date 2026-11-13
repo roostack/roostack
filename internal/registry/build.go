@@ -73,6 +73,13 @@ type BuildOptions struct {
 	// image of one of these gone from its registry fails the build, since
 	// it's a mistake in the pull request rather than a project's doing.
 	New []string
+	// OnlyNew asks the image registries about New's images alone (a pull
+	// request's check): the rest were asked when they were added, and the
+	// publish after the merge asks about them all again, so a pull request
+	// needn't make a request for every version's image, which a registry
+	// may refuse (Codeberg's 403, 2026-11-12). Versions not asked about have
+	// no architectures in the index the check builds.
+	OnlyNew bool
 	// Now is when it's signed: the index's date and serial.
 	Now time.Time
 }
@@ -125,7 +132,7 @@ func Build(opts BuildOptions) (*Index, error) {
 		if !d.IsDir() {
 			continue
 		}
-		p, pkgFiles, err := buildPackage(filepath.Join(opts.Repo, "packages"), d.Name(), opts.Platforms, platforms, known, opts.New, opts.Warn)
+		p, pkgFiles, err := buildPackage(filepath.Join(opts.Repo, "packages"), d.Name(), opts.Platforms, platforms, known, opts.New, opts.OnlyNew, opts.Warn)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -175,8 +182,9 @@ func Build(opts BuildOptions) (*Index, error) {
 // buildPackage reads one package folder: its registry.yaml, each
 // <version>.yaml and its icon. It returns the index's entry and the files
 // to publish. known are the names built_with: may use (nil: any), and
-// added are the versions whose images must be there (BuildOptions.New).
-func buildPackage(root, name string, lookup func(string) ([]string, error), seen map[string][]string, known map[string]bool, added []string, warn func(string)) (*Package, map[string][]byte, error) {
+// added are the versions whose images must be there (BuildOptions.New),
+// and with onlyAdded the only ones whose images are asked about.
+func buildPackage(root, name string, lookup func(string) ([]string, error), seen map[string][]string, known map[string]bool, added []string, onlyAdded bool, warn func(string)) (*Package, map[string][]byte, error) {
 	dir := filepath.Join(root, name)
 	fail := func(format string, args ...any) (*Package, map[string][]byte, error) {
 		return nil, nil, fmt.Errorf("packages/%s: %s", name, fmt.Sprintf(format, args...))
@@ -244,7 +252,7 @@ func buildPackage(root, name string, lookup func(string) ([]string, error), seen
 		}
 		published := "packages/" + name + "/" + e.Name()
 		v := &Version{File: fileOf(published, data), Schema: pkg.Schema, RequiresRoostack: pkg.Requires.Roostack}
-		if lookup != nil {
+		if lookup != nil && (!onlyAdded || slices.Contains(added, name+"@"+version)) {
 			arch, err := architectures(pkg, lookup, seen)
 			switch {
 			case errors.Is(err, imagecheck.ErrGone):
