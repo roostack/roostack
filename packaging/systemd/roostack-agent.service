@@ -31,6 +31,10 @@ RuntimeDirectoryPreserve=yes
 # namespace.
 ProtectSystem=strict
 ReadWritePaths=/etc/sysctl.d /etc/wireguard -/etc/roostack -/etc/ssh/sshd_config.d /mnt -/media /srv
+# /run too, apart from its own folder above: on Debian 13 (systemd 257),
+# ProtectSystem=strict with ProtectControlGroups=yes leaves it writable,
+# which nothing documents (docs/ASSUMPTIONS.md S7).
+ReadOnlyPaths=/run
 ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes
