@@ -298,6 +298,9 @@ func TestRestoreOnlyRoostacksPlaces(t *testing.T) {
 	elsewhere := filepath.Join(root, "etc", "cron.d")
 	vault, media, other := filepath.Join(paths.ServicesDir, "vaultwarden"), filepath.Join(paths.MediaDir, "vaultwarden", "files"),
 		filepath.Join(paths.ServicesDir, "photos")
+	// Each service's snapshot also holds its saved secrets, which the
+	// server's snapshot leaves out (backup.LabPlan).
+	secrets, otherSecrets := backup.SecretsFile(paths, "vaultwarden"), backup.SecretsFile(paths, "photos")
 	// backupOf backs up the old server's files, then removes them (all but
 	// its state) as from a new server.
 	backupOf := func(server []string, service ...string) (*backup.Repo, Found) {
@@ -305,8 +308,10 @@ func TestRestoreOnlyRoostacksPlaces(t *testing.T) {
 		for _, d := range []string{vault, media, other} {
 			write(t, filepath.Join(d, "data"), d)
 		}
+		write(t, secrets, `{"admin-token":"c2VjcmV0"}`)
+		write(t, otherSecrets, `{}`)
 		defer func() {
-			for _, d := range []string{elsewhere, paths.ServicesDir, paths.MediaDir} {
+			for _, d := range []string{elsewhere, paths.ServicesDir, paths.MediaDir, backup.SecretsDir(paths)} {
 				os.RemoveAll(d)
 			}
 		}()
@@ -315,7 +320,8 @@ func TestRestoreOnlyRoostacksPlaces(t *testing.T) {
 		if err := r.Init(ctx); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := r.Backup(ctx, backup.BackupOptions{Paths: server, Tags: []string{backup.TagRoostack, backup.TagServer}}); err != nil {
+		if _, err := r.Backup(ctx, backup.BackupOptions{Paths: server, Excludes: []string{backup.SecretsDir(paths)},
+			Tags: []string{backup.TagRoostack, backup.TagServer}}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := r.Backup(ctx, backup.BackupOptions{Paths: service, Tags: []string{backup.TagRoostack, backup.ServiceTag("vaultwarden")}}); err != nil {
@@ -328,8 +334,9 @@ func TestRestoreOnlyRoostacksPlaces(t *testing.T) {
 		return r, *fd
 	}
 	for name, c := range map[string]struct{ server, service []string }{
-		"a server's backup with another folder":  {[]string{paths.StateDir, elsewhere}, []string{vault}},
-		"a service's backup with another's data": {[]string{paths.StateDir}, []string{vault, other}},
+		"a server's backup with another folder":     {[]string{paths.StateDir, elsewhere}, []string{vault}},
+		"a service's backup with another's data":    {[]string{paths.StateDir}, []string{vault, other}},
+		"a service's backup with another's secrets": {[]string{paths.StateDir}, []string{vault, otherSecrets}},
 	} {
 		r, fd := backupOf(c.server, c.service...)
 		err := Restore(ctx, paths, r, fd, key, activity.New().Start("restore", name))
@@ -344,13 +351,18 @@ func TestRestoreOnlyRoostacksPlaces(t *testing.T) {
 		}
 	}
 	// What Roostack backs up is restored: a service's folders under both
-	// the services' and the media folder.
-	r, fd := backupOf([]string{paths.StateDir}, vault, media)
+	// the services' and the media folder. Its saved secrets are allowed
+	// but not put back: the secrets store has them (a lab backed up by
+	// Roostack since 2026-10-04 was refused for holding them).
+	r, fd := backupOf([]string{paths.StateDir}, vault, media, secrets)
 	if err := Restore(ctx, paths, r, fd, key, activity.New().Start("restore", "restore")); err != nil {
 		t.Fatal(err)
 	}
 	if got := read(t, filepath.Join(media, "data")); got != media {
 		t.Errorf("media folder = %q", got)
+	}
+	if _, err := os.Stat(secrets); !os.IsNotExist(err) {
+		t.Errorf("a service's saved secrets were put back: %v", err)
 	}
 }
 
