@@ -40,6 +40,8 @@ sensors, and more), Owners and Admins can turn on
 server's page. Roostack will download Glances' official image (about
 125 MB) and run it on that server, and it will open at an address of its
 own, `glances-<server>.<your domain>`, so your lab needs an address first.
+Until Glances is ready, the card will say it's starting, and its address
+will show there by itself once it answers.
 You sign in there as you do for services, and only Owners and Admins are
 let in. Roostack keeps the history; Glances is for looking at the server
 now.

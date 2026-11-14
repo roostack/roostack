@@ -3,6 +3,7 @@ package node
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -41,12 +42,16 @@ func TestVitals(t *testing.T) {
 			"sys/class/hwmon/hwmon1/name":        "nvme\n",
 			"sys/class/hwmon/hwmon1/temp1_input": "45000\n",
 			"sys/class/hwmon/hwmon1/temp1_max":   "-273000\n", // nonsense: the default mark
-			user + "roostack-immich-server.service/memory.current":  "1500000000\n",
-			user + "roostack-immich-server.service/cpu.stat":        "usage_usec " + immich + "\nuser_usec 1\n",
-			user + "roostack-immich-db-main.service/memory.current": "600000000\n",
-			user + "roostack-immich-db-main.service/cpu.stat":       "usage_usec 0\n",
-			user + "roostack-caddy.service/memory.current":          "80000000\n",
-			user + "roostack-caddy.service/cpu.stat":                "usage_usec " + caddy + "\n",
+			user + "roostack-immich-server.service/memory.current":       "1500000000\n",
+			user + "roostack-immich-server.service/cpu.stat":             "usage_usec " + immich + "\nuser_usec 1\n",
+			user + "roostack-immich-db-main.service/memory.current":      "600000000\n",
+			user + "roostack-immich-db-main.service/cpu.stat":            "usage_usec 0\n",
+			user + "roostack-caddy.service/memory.current":               "80000000\n",
+			user + "roostack-caddy.service/cpu.stat":                     "usage_usec " + caddy + "\n",
+			user + "roostack-glances.service/memory.current":             "20000000\n",
+			user + "roostack-glances.service/cpu.stat":                   "usage_usec 0\n",
+			"sys/fs/cgroup/system.slice/roostack.service/memory.current": "50000000\n",
+			"sys/fs/cgroup/system.slice/roostack.service/cpu.stat":       "usage_usec 0\n",
 		}
 	}
 	writeTree(t, root, tree("100", "300", "10", "1000", "500", "0", "0"))
@@ -66,8 +71,8 @@ func TestVitals(t *testing.T) {
 	if v.Temp != 52 || v.TempHigh != 100 || v.TempName != "coretemp Package id 0" {
 		t.Errorf("temperature: %v of %v (%s)", v.Temp, v.TempHigh, v.TempName)
 	}
-	if len(v.Services) != 2 || v.Services[0] != (ServiceUse{Service: "immich", Memory: 2100000000, CPU: 50}) ||
-		v.Services[1] != (ServiceUse{Service: "", Memory: 80000000, CPU: 1}) {
+	if len(v.Services) != 2 || !reflect.DeepEqual(v.Services[0], ServiceUse{Service: "immich", Memory: 2100000000, CPU: 50}) ||
+		!reflect.DeepEqual(v.Services[1], ServiceUse{Service: "", Memory: 150000000, CPU: 1, Parts: []string{"Roostack", "Caddy", "Glances"}}) {
 		t.Errorf("services: %+v", v.Services)
 	}
 	if r.latest().At != v.At || v.MemoryUsed() != 5000000*1024 {

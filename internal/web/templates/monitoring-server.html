@@ -61,14 +61,34 @@
   {{else}}<p class="hint">Nothing yet: each service's share will show after a few minutes.</p>{{end}}
 </section>
 
-{{if $.GlancesSwitch}}
-<section class="card section" id="live-view">
-  <div class="card-head"><h2>Live view</h2>{{if $.GlancesOn}}<span class="pill pill-ok">On</span>{{else}}<span class="pill">Off</span>{{end}}</div>
+{{if $.GlancesSwitch}}{{template "live-view" $}}{{end}}
+
+<details class="card technical section">
+  <summary>Technical details</summary>
+  <p>Each server reads these every minute from <code>/proc</code> (processors, memory, swap, load, and network), <code>/sys/class/hwmon</code>
+    (temperatures), and each service's systemd units' cgroups under the <code>roostack</code> user's manager (their memory and processor
+    time), with no extra software. The controller keeps every reading for two days, then hourly averages and peaks for as long as History's setting.</p>
+  <p>Roostack will tell you, here, under Needs attention, and by email (Problems), when less than 10% of the memory has been free for
+    15 minutes, when the server has been swapping heavily (reading back 256 KB a second or more on average) for 15 minutes, or when a
+    temperature has reached its sensor's own high mark for 3 minutes.</p>
+</details>
+{{end}}
+{{end}}
+
+{{define "live-view"}}
+<section class="card section" id="live-view"{{if and $.GlancesOn (not $.GlancesURL)}} hx-get="/monitoring/servers/{{$.Server.ID}}?part=live-view" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
+  <div class="card-head"><h2>Live view</h2>{{if $.GlancesURL}}<span class="pill pill-ok">On</span>{{else if $.GlancesOn}}<span class="pill pill-info">Starting</span>{{else}}<span class="pill">Off</span>{{end}}</div>
   {{with $.GlancesDone}}{{notice "ok" .}}{{end}}
   {{with $.GlancesError}}{{notice "error" .}}{{end}}
   <p>Glances shows everything on {{$.Server.Name}} as it happens: each process, the disks, sensors, and more. It's for looking at the
     server now, while Roostack keeps the history.</p>
-  {{if $.GlancesOn}}
+  {{if and $.GlancesOn (not $.GlancesURL)}}
+  <p class="hint">Glances is starting on {{$.Server.Name}}, and its address will show here once it answers. The first time, Roostack is
+    downloading its image, which takes a minute or two. If it's taking longer, <a href="/settings/servers/{{$.Server.ID}}">the server's latest
+    changes</a> will say why.</p>
+  <form method="post" action="/monitoring/servers/{{$.Server.ID}}/glances"><input type="hidden" name="on" value="no">
+    <button type="submit" class="secondary">Turn off Glances</button></form>
+  {{else if $.GlancesOn}}
   <p>It's at <a href="{{$.GlancesURL}}" target="_blank" rel="noopener"><code>{{trimScheme $.GlancesURL}}</code>{{template "new-window"}}</a>, for Owners and
     Admins, signing in as you do for services.</p>
   <form method="post" action="/monitoring/servers/{{$.Server.ID}}/glances"><input type="hidden" name="on" value="no">
@@ -81,7 +101,7 @@
   {{else}}
   <p class="hint">It opens at an address of its own, so it needs your lab to have an address first: <a href="/settings/domain">give it one</a>.</p>
   {{end}}
-  <details class="technical"><summary>Technical details</summary>
+  <details class="technical" id="live-view-technical"><summary>Technical details</summary>
     <p>Glances' official image, pinned by Roostack (<code>nicolargo/glances</code>) and updated with Roostack, runs as the container
       <code>roostack-glances</code> under the <code>roostack</code> user, seeing the host's processes and network (<code>--pid=host</code>,
       the host's network) and reading <code>/sys</code>, with nothing it can write and no Podman socket. Caddy serves its page at its own
@@ -90,16 +110,4 @@
       Turning it off stops the container, and Roostack deletes its image a week later, as it does others no longer used.</p>
   </details>
 </section>
-{{end}}
-
-<details class="card technical section">
-  <summary>Technical details</summary>
-  <p>Each server reads these every minute from <code>/proc</code> (processors, memory, swap, load, and network), <code>/sys/class/hwmon</code>
-    (temperatures), and each service's systemd units' cgroups under the <code>roostack</code> user's manager (their memory and processor
-    time), with no extra software. The controller keeps every reading for two days, then hourly averages and peaks for as long as History's setting.</p>
-  <p>Roostack will tell you, here, under Needs attention, and by email (Problems), when less than 10% of the memory has been free for
-    15 minutes, when the server has been swapping heavily (reading back 256 KB a second or more on average) for 15 minutes, or when a
-    temperature has reached its sensor's own high mark for 3 minutes.</p>
-</details>
-{{end}}
 {{end}}

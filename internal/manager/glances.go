@@ -1,10 +1,14 @@
 package manager
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
@@ -55,6 +59,30 @@ func (m *Manager) GlancesURL(server string) string {
 		return ""
 	}
 	return "https://" + glancesHost(m.labServerName(server), m.Lab.Domain)
+}
+
+// GlancesReady reports whether a server's live view answers, asking
+// Glances where it listens: until then, it's starting (the first time,
+// downloading its image).
+func (m *Manager) GlancesReady(ctx context.Context, server string) bool {
+	_, binds := m.glancesSites()
+	bind := binds[server]
+	if bind == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	url := "http://" + net.JoinHostPort(bind, strconv.Itoa(generate.GlancesPort)) + "/api/4/processcount"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 // labServerName is a server's name, by ID ("" if it isn't in the lab).

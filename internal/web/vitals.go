@@ -114,6 +114,13 @@ func (s *Server) serverVitalsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	if r.URL.Query().Get("part") == "live-view" && s.Glances != nil {
+		// The live view's card, refreshing itself while Glances is starting.
+		data := map[string]any{"Server": sn}
+		s.glancesData(r, data, id)
+		s.renderLive(w, r, "monitoring-server", "live-view", data)
+		return
+	}
 	rng := r.URL.Query().Get("range")
 	if !slices.ContainsFunc(vitalsRanges, func(x struct{ ID, Title string }) bool { return x.ID == rng }) {
 		rng = "day"
@@ -127,20 +134,30 @@ func (s *Server) serverVitalsPage(w http.ResponseWriter, r *http.Request) {
 	data["Shares"] = s.serviceShares(ctx, id, v, time.Now())
 	data["Problems"] = s.serverProblems(ctx, id)
 	if s.Glances != nil {
-		data["GlancesSwitch"] = true
-		data["GlancesOn"], data["GlancesURL"] = s.Glances.GlancesOn(id), s.Glances.GlancesURL(id)
-		data["HasAddress"] = s.Domain != ""
-		switch g := r.URL.Query().Get("glances"); g {
-		case "":
-		case "on":
-			data["GlancesDone"] = "Turned on. Roostack is downloading Glances and starting it, which takes a minute or two the first time."
-		case "off":
-			data["GlancesDone"] = "Turned off. Roostack is stopping Glances."
-		default:
-			data["GlancesError"] = g
-		}
+		s.glancesData(r, data, id)
 	}
 	s.render(w, "monitoring-server", data)
+}
+
+// glancesData is what the live view's card shows. Its address shows once
+// Glances answers; until then the card says it's starting, and checks
+// again every few seconds.
+func (s *Server) glancesData(r *http.Request, data map[string]any, id string) {
+	data["GlancesSwitch"] = true
+	data["HasAddress"] = s.Domain != ""
+	if s.Glances.GlancesOn(id) {
+		data["GlancesOn"] = true
+		if s.Glances.GlancesReady(r.Context(), id) {
+			data["GlancesURL"] = s.Glances.GlancesURL(id)
+		}
+	}
+	switch g := r.URL.Query().Get("glances"); g {
+	case "", "on": // the card says it's starting
+	case "off":
+		data["GlancesDone"] = "Turned off. Roostack is stopping Glances."
+	default:
+		data["GlancesError"] = g
+	}
 }
 
 // serverProblems are the server's problems now, as Needs attention says
@@ -155,6 +172,17 @@ func (s *Server) serverProblems(ctx context.Context, id string) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// ownTitle names Roostack's own share by what the server counted in it
+// ("Roostack, Caddy, and Glances").
+func ownTitle(v node.Vitals) string {
+	for _, u := range v.Services {
+		if u.Service == "" && len(u.Parts) > 0 {
+			return words.And(u.Parts)
+		}
+	}
+	return "Roostack"
 }
 
 // serviceShares are each service's memory and processors over the last
@@ -189,7 +217,7 @@ func (s *Server) serviceShares(ctx context.Context, id string, v node.Vitals, no
 			CPU: int(math.Round(cpu / cpus)), MemoryText: units.Bytes(mem), CPUText: fmt.Sprintf("%.1f%%", cpu/cpus)}
 		sh.MemoryText = fmt.Sprintf("%s · %d%%", sh.MemoryText, sh.Memory)
 		if name == "" {
-			sh.Title = "Roostack and Caddy"
+			sh.Title = ownTitle(v)
 		} else {
 			sh.Href = "/services/" + name
 		}
@@ -452,6 +480,7 @@ type GlancesSwitch interface {
 	GlancesOn(server string) bool
 	SetGlances(server string, on bool) error
 	GlancesURL(server string) string
+	GlancesReady(ctx context.Context, server string) bool
 }
 
 // glancesSubmit turns a server's live view on or off.

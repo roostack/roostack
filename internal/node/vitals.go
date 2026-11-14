@@ -50,8 +50,8 @@ type Vitals struct {
 	// Up is how long since the server started.
 	Up time.Duration `json:"up"`
 	// Services are each service's memory and processor time, by the
-	// service's name ("" for Roostack's own: Caddy, CrowdSec, and Roostack
-	// itself).
+	// service's name ("" for Roostack's own: Roostack itself, and Caddy,
+	// CrowdSec, and Glances where they run).
 	Services []ServiceUse `json:"services,omitempty"`
 }
 
@@ -63,6 +63,34 @@ type ServiceUse struct {
 	// processor (100 is one processor busy all the time).
 	Memory int64   `json:"memory"`
 	CPU    float64 `json:"cpu"`
+	// Parts are, for Roostack's own, what it counted: "Roostack", "Caddy",
+	// "CrowdSec", "Glances".
+	Parts []string `json:"parts,omitempty"`
+}
+
+// ownParts name Roostack's own units, by the start of their names; any
+// other is Roostack's.
+var ownParts = []struct{ prefix, name string }{
+	{"roostack-caddy", "Caddy"}, {"roostack-crowdsec", "CrowdSec"}, {"roostack-glances", "Glances"},
+}
+
+func partRank(name string) int {
+	for i, p := range ownParts {
+		if p.name == name {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// ownPart is what part of Roostack's own a unit is.
+func ownPart(unit string) string {
+	for _, p := range ownParts {
+		if unit == p.prefix || strings.HasPrefix(unit, p.prefix+"-") {
+			return p.name
+		}
+	}
+	return "Roostack"
 }
 
 // DefaultTempHigh is the high mark for a sensor that gives none.
@@ -137,11 +165,16 @@ func (r *vitalsReader) read(now time.Time) Vitals {
 				byService[svc] = u
 			}
 			u.Memory += memory[unit]
+			if part := ownPart(unit); svc == "" && !slices.Contains(u.Parts, part) {
+				u.Parts = append(u.Parts, part)
+			}
 			if prev, ok := r.last.usage[unit]; ok && secs > 0 {
 				u.CPU += float64(sub(c.usage[unit], prev)) / 1e6 / secs * 100
 			}
 		}
 		for _, u := range byService {
+			// Roostack first, then the rest as ownParts lists them.
+			slices.SortFunc(u.Parts, func(a, b string) int { return partRank(a) - partRank(b) })
 			v.Services = append(v.Services, *u)
 		}
 		slices.SortFunc(v.Services, func(a, b ServiceUse) int { return int(b.Memory - a.Memory) })
