@@ -289,7 +289,7 @@ func TestRulesetPeople(t *testing.T) {
 	if !strings.Contains(got, `iifname "roostack-people" drop`) || strings.Contains(got, "masquerade") || strings.Contains(got, "51822") {
 		t.Errorf("without the VPN:\n%s", got)
 	}
-	fw.People = &People{Port: PeoplePort, Home: []string{"100.96.128.5"}, Everything: []string{"100.96.128.6"}}
+	fw.People = &People{Port: PeoplePort, Home: []string{"100.96.128.5"}, Internet: []string{"100.96.128.6"}}
 	if err := fw.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func TestRulesetPeople(t *testing.T) {
 // masqueraded, and those allowed SSH on to the other servers' SSH.
 func TestRulesetPeopleElsewhere(t *testing.T) {
 	fw := DefaultFirewall()
-	fw.People = &People{Port: PeoplePort, PassOn: []string{"192.168.1.20/32", "192.168.1.0/24"}, Everything: []string{"100.96.128.6"},
+	fw.People = &People{Port: PeoplePort, PassOn: []string{"192.168.1.20/32", "192.168.1.0/24"}, Internet: []string{"100.96.128.6"},
 		Servers: []string{"100.96.128.7"}}
 	if err := fw.Validate(); err != nil {
 		t.Fatal(err)

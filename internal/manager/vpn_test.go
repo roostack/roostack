@@ -73,9 +73,9 @@ func TestVPN(t *testing.T) {
 	local(m).Firewall, local(m).Links = fw, links
 	people := &fakePeople{cannot: map[string]int64{"forgejo": 2}, devices: []store.VPNDevice{
 		{UserID: 1, Role: auth.RoleOwner, PublicKey: "a2V5LWEta2V5LWEta2V5LWEta2V5LWEta2V5LWEta2U=", Address: "100.96.128.2",
-			Pages: true, SSH: true, Reach: store.ReachEverything},
+			Pages: true, SSH: true, Internet: true},
 		{UserID: 2, Role: auth.RoleMember, PublicKey: "a2V5LWIta2V5LWIta2V5LWIta2V5LWIta2V5LWIta2U=", Address: "100.96.128.3",
-			Pages: true, SSH: true, Reach: store.ReachHome},
+			Pages: true, SSH: true, Home: true, Internet: true},
 	}}
 	m.People = people
 	addForgejo(t, m)
@@ -94,9 +94,22 @@ func TestVPN(t *testing.T) {
 		t.Fatalf("the interface: %+v", links.wg)
 	}
 	last := fw.applied[len(fw.applied)-1].People
-	if last == nil || last.Port != agent.PeoplePort || !slices.Equal(last.Home, []string{"100.96.128.3"}) || len(last.Everything) != 0 {
+	if last == nil || last.Port != agent.PeoplePort || !slices.Equal(last.Home, []string{"100.96.128.3"}) || len(last.Internet) != 0 {
 		t.Errorf("the firewall: %+v", last)
 	}
+	// Both at once, once the Owner allows the internet too.
+	if err := m.SetVPN(config.VPN{On: true, HomeNetwork: true, Internet: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if both := fw.applied[len(fw.applied)-1].People; !slices.Equal(both.Home, []string{"100.96.128.3"}) ||
+		!slices.Equal(both.Internet, []string{"100.96.128.2", "100.96.128.3"}) {
+		t.Errorf("the home network and the internet: %+v", both)
+	}
+	if err := m.SetVPN(config.VPN{On: true, HomeNetwork: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
 	ssh := slices.IndexFunc(last.Rules, func(r agent.DeviceRule) bool { return r.Port == 22 })
 	if ssh < 0 || !slices.Equal(last.Rules[ssh].Devices, []string{"100.96.128.2"}) {
 		t.Errorf("SSH for the Owner's device only: %+v", last.Rules)
@@ -155,7 +168,7 @@ func TestVPNElsewhere(t *testing.T) {
 		}
 	}
 	m.People = &fakePeople{devices: []store.VPNDevice{{UserID: 1, Role: auth.RoleOwner, PublicKey: "a2V5LWEta2V5LWEta2V5LWEta2V5LWEta2V5LWEta2U=",
-		Address: "100.96.128.2", SSH: true, Reach: store.ReachLab}}}
+		Address: "100.96.128.2", SSH: true}}}
 	if err := m.SetVPN(config.VPN{On: true, Server: "n-0000000002"}); err == nil {
 		t.Error("a server the internet can't reach")
 	}

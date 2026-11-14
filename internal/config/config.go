@@ -678,10 +678,10 @@ type VPN struct {
 	MaxDevices int  `yaml:"max_devices,omitempty"`
 	NoLimit    bool `yaml:"no_limit,omitempty"`
 	// HomeNetwork lets devices reach the home network's other devices,
-	// and Everything lets them send all their traffic through the lab, if
-	// their person chooses.
+	// and Internet lets them send all their internet traffic through the
+	// lab, if their person chooses either or both.
 	HomeNetwork bool `yaml:"home_network,omitempty"`
-	Everything  bool `yaml:"everything,omitempty"`
+	Internet    bool `yaml:"internet,omitempty"`
 }
 
 // Limit is how many devices each person may add (0: no limit).
@@ -707,8 +707,8 @@ type Devices struct {
 	All   []string `json:"all,omitempty"`
 	// Home and Everything are devices whose traffic goes on to the home
 	// network, or anywhere, from the server they connect to.
-	Home       []string `json:"home,omitempty"`
-	Everything []string `json:"everything,omitempty"`
+	Home     []string `json:"home,omitempty"`
+	Internet []string `json:"internet,omitempty"`
 	// Elsewhere: devices connect to a server that isn't the controller,
 	// which passes their traffic on to it over Roostack's network to
 	// PassOn: the lab's address and the home's networks (SPEC.md §10.11).

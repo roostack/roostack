@@ -237,13 +237,14 @@
       <small>So you'll know it in the list, such as "Alex's phone".</small></label>
     <fieldset>
       <legend>What should it reach?</legend>
-      <label class="check"><input type="radio" name="reach" value="lab"{{if eq .Reach "lab"}} checked{{end}}>
-        <span>The lab only<small>The lab's services. Its other internet traffic will go the usual way.</small></span></label>
-      {{if .Home}}<label class="check"><input type="radio" name="reach" value="home"{{if eq .Reach "home"}} checked{{end}}>
-        <span>The lab and the home network<small>Also the home's other devices, such as a NAS or a printer.</small></span></label>{{end}}
-      {{if .Everything}}<label class="check"><input type="radio" name="reach" value="everything"{{if eq .Reach "everything"}} checked{{end}}>
-        <span>Everything<small>All its internet traffic will go through the lab, which is safer on public Wi-Fi. It will use the lab's internet connection.</small></span></label>{{end}}
-      {{if .ID}}<p class="hint">Changing this will give the device new settings to add again, since Roostack doesn't keep its private key.</p>{{end}}
+      <label class="check"><input type="checkbox" checked disabled>
+        <span>The lab<small>The lab's services, always.</small></span></label>
+      {{if .CanHome}}<label class="check"><input type="checkbox" name="home" value="yes"{{if .Home}} checked{{end}}>
+        <span>The home network<small>Also the home's other devices, such as a NAS or a printer.</small></span></label>{{end}}
+      {{if .CanInternet}}<label class="check"><input type="checkbox" name="internet" value="yes"{{if .Internet}} checked{{end}}>
+        <span>The internet<small>All its internet traffic will go through the lab, which is safer on public Wi-Fi. It will use the lab's internet
+          connection. Without it, its other internet traffic will go the usual way.</small></span></label>{{end}}
+      {{if .ID}}<p class="hint">Changing these will give the device new settings to add again, since Roostack doesn't keep its private key.</p>{{end}}
     </fieldset>
     {{if .ID}}<label class="check"><input type="checkbox" name="new" value="yes">
       <span>Give it new settings<small>If you've lost its settings, or the lab's VPN has moved to another server. The settings it has now will stop working.</small></span></label>{{end}}

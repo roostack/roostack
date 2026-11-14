@@ -457,6 +457,13 @@ var migrations = []string{
 		cpu REAL NOT NULL,
 		PRIMARY KEY (server, service, at)
 	)`,
+	// 42 (2026-11-15): what a VPN device reaches besides the lab is two
+	// choices, the home network and the internet, either or both, instead
+	// of one of three (SPEC.md §10.11).
+	`ALTER TABLE vpn_devices ADD COLUMN home INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE vpn_devices ADD COLUMN internet INTEGER NOT NULL DEFAULT 0;
+	UPDATE vpn_devices SET home = (reach = 'home'), internet = (reach = 'everything');
+	ALTER TABLE vpn_devices DROP COLUMN reach`,
 }
 
 // Open opens (creating if needed) and migrates the database.

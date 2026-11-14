@@ -62,7 +62,7 @@ func TestVPNDevices(t *testing.T) {
 		t.Error("no tab")
 	}
 	_, body := h.get("/account/devices/add")
-	if !strings.Contains(body, `value="home"`) || strings.Contains(body, `value="everything"`) || strings.Contains(body, `name="ssh"`) ||
+	if !strings.Contains(body, `name="home"`) || strings.Contains(body, `name="internet"`) || strings.Contains(body, `type="radio"`) || strings.Contains(body, `name="ssh"`) ||
 		strings.Contains(body, `name="pages"`) || strings.Contains(body, `name="code"`) {
 		t.Errorf("a Member's form:\n%s", body)
 	}
@@ -71,13 +71,13 @@ func TestVPNDevices(t *testing.T) {
 	// what was typed.
 	key := fv.key
 	fv.key = ""
-	if code, body := h.post("/account/devices", url.Values{"name": {"Sam's phone"}, "reach": {"home"}}, h.srv.URL); code != http.StatusBadRequest ||
+	if code, body := h.post("/account/devices", url.Values{"name": {"Sam's phone"}, "home": {"yes"}}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "still starting") || !strings.Contains(body, `value="Sam&#39;s phone"`) {
 		t.Errorf("not ready: %d\n%s", code, body)
 	}
 	fv.key = key
 
-	code, body := h.post("/account/devices", url.Values{"name": {"Sam's  phone"}, "reach": {"home"}, "ssh": {"yes"}, "pages": {"yes"}}, h.srv.URL)
+	code, body := h.post("/account/devices", url.Values{"name": {"Sam's  phone"}, "home": {"yes"}, "ssh": {"yes"}, "pages": {"yes"}}, h.srv.URL)
 	if code != http.StatusOK || !strings.Contains(body, "Sam&#39;s phone is ready to add") || !strings.Contains(body, `<svg class="qr"`) ||
 		!strings.Contains(body, `download="sam-s-phone.conf"`) || !strings.Contains(body, "only see this once") {
 		t.Fatalf("added: %d\n%s", code, body)
@@ -94,7 +94,7 @@ func TestVPNDevices(t *testing.T) {
 	if len(list) != 1 || m == nil {
 		t.Fatalf("devices %+v", list)
 	}
-	if pub, _ := agent.WireGuardPublicKey(html.UnescapeString(m[1])); pub != list[0].PublicKey || list[0].SSH || list[0].Pages || list[0].Reach != store.ReachHome {
+	if pub, _ := agent.WireGuardPublicKey(html.UnescapeString(m[1])); pub != list[0].PublicKey || list[0].SSH || list[0].Pages || !list[0].Home || list[0].Internet {
 		t.Errorf("kept %+v (only the public key, nothing a Member may not tick)", list[0])
 	}
 	if strings.Contains(fv.changes[len(fv.changes)-1], "added") == false {
@@ -111,11 +111,12 @@ func TestVPNDevices(t *testing.T) {
 		!strings.Contains(body, "You can add 1 more") {
 		t.Errorf("the list:\n%s", body)
 	}
-	if code, _ := h.post("/account/devices", url.Values{"name": {"x"}, "reach": {"everything"}}, h.srv.URL); code != http.StatusBadRequest {
-		t.Errorf("everything while not allowed: %d", code)
+	// The internet isn't allowed, so asking for it by hand gives the lab only.
+	h.post("/account/devices", url.Values{"name": {"Laptop"}, "internet": {"yes"}}, h.srv.URL)
+	if all, _ := h.store.VPNDevices(ctx); len(all) != 2 || all[0].Name != "Laptop" || all[0].Internet || all[0].Home {
+		t.Errorf("the internet while not allowed: %+v", all)
 	}
-	h.post("/account/devices", url.Values{"name": {"Laptop"}, "reach": {"lab"}}, h.srv.URL)
-	if code, body := h.post("/account/devices", url.Values{"name": {"Third"}, "reach": {"lab"}}, h.srv.URL); code != http.StatusBadRequest ||
+	if code, body := h.post("/account/devices", url.Values{"name": {"Third"}}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "as many devices as the lab allows") {
 		t.Errorf("past the limit: %d", code)
 	}
@@ -125,21 +126,21 @@ func TestVPNDevices(t *testing.T) {
 	if !strings.Contains(mustGet(t, h, "/account/devices"), `href="/account/devices/`+id+`"`) {
 		t.Error("no Change link")
 	}
-	h.post("/account/devices/"+id, url.Values{"name": {"Sam's old phone"}, "reach": {"home"}}, h.srv.URL)
+	h.post("/account/devices/"+id, url.Values{"name": {"Sam's old phone"}, "home": {"yes"}}, h.srv.URL)
 	d, _ := h.store.VPNDevice(ctx, list[0].ID)
 	if d.Name != "Sam's old phone" || d.PublicKey != list[0].PublicKey {
 		t.Errorf("renamed: %+v", d)
 	}
-	if _, body := h.post("/account/devices/"+id, url.Values{"name": {"Sam's old phone"}, "reach": {"lab"}}, h.srv.URL); !strings.Contains(body, "new settings") {
+	if _, body := h.post("/account/devices/"+id, url.Values{"name": {"Sam's old phone"}}, h.srv.URL); !strings.Contains(body, "new settings") {
 		t.Error("no new settings")
 	}
-	if d, _ = h.store.VPNDevice(ctx, list[0].ID); d.PublicKey == list[0].PublicKey || d.Reach != store.ReachLab {
+	if d, _ = h.store.VPNDevice(ctx, list[0].ID); d.PublicKey == list[0].PublicKey || d.Home || d.Internet {
 		t.Errorf("the key wasn't replaced: %+v", d)
 	}
 
 	// Someone else's device.
 	eve := addPerson(t, h.store, "eve", auth.RoleMember)
-	theirs, _ := h.store.AddVPNDevice(ctx, store.VPNDevice{UserID: eve, Name: "Eve's", PublicKey: "ZXZlLWtleS1ldmUta2V5LWV2ZS1rZXktZXZlLWtleS0=", Reach: "lab"}, 0)
+	theirs, _ := h.store.AddVPNDevice(ctx, store.VPNDevice{UserID: eve, Name: "Eve's", PublicKey: "ZXZlLWtleS1ldmUta2V5LWV2ZS1rZXktZXZlLWtleS0="}, 0)
 	if code, _ := h.post("/account/devices/"+itoa(theirs.ID)+"/remove", nil, h.srv.URL); code != http.StatusNotFound {
 		t.Errorf("someone else's: %d", code)
 	}
@@ -162,7 +163,7 @@ func TestVPNDevicesOwner(t *testing.T) {
 	if _, body := h.get("/account/devices/add"); !strings.Contains(body, `name="ssh"`) || !strings.Contains(body, `name="code"`) {
 		t.Errorf("an Owner's form:\n%s", body)
 	}
-	form := url.Values{"name": {"Laptop"}, "reach": {"lab"}, "ssh": {"yes"}, "pages": {"yes"}, "code": {"000000"}}
+	form := url.Values{"name": {"Laptop"}, "ssh": {"yes"}, "pages": {"yes"}, "code": {"000000"}}
 	if code, body := h.post("/account/devices", form, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "code isn&#39;t right") {
 		t.Errorf("a wrong code: %d", code)
 	}
@@ -180,10 +181,29 @@ func TestVPNDevicesOwner(t *testing.T) {
 	if !strings.Contains(body, "Laptop") || !strings.Contains(body, "link.lab.example.com:51822") || !strings.Contains(body, "Forward UDP port 51822") {
 		t.Errorf("Settings → VPN:\n%s", body)
 	}
-	h.post("/settings/vpn", url.Values{"on": {"yes"}, "limit": {""}, "everything": {"yes"}}, h.srv.URL)
-	if !fv.v.On || !fv.v.NoLimit || !fv.v.Everything || fv.v.HomeNetwork || fv.v.Limit() != 0 {
+	h.post("/settings/vpn", url.Values{"on": {"yes"}, "limit": {""}, "internet": {"yes"}}, h.srv.URL)
+	if !fv.v.On || !fv.v.NoLimit || !fv.v.Internet || fv.v.HomeNetwork || fv.v.Limit() != 0 {
 		t.Errorf("saved %+v", fv.v)
 	}
+	// Both at once: the home network and the internet, which sends everything.
+	fv.v.HomeNetwork = true
+	if _, body := h.get("/account/devices/add"); !strings.Contains(body, `name="home"`) || !strings.Contains(body, `name="internet"`) ||
+		!strings.Contains(body, "checked disabled") {
+		t.Errorf("the form with both allowed:\n%s", body)
+	}
+	h.store.SetTOTP(ctx, u.ID, u.TOTPSecret, 0) // so that this step's code is accepted again
+	form2 := url.Values{"name": {"Tablet"}, "home": {"yes"}, "internet": {"yes"}, "code": {codeNow(t, u.TOTPSecret, 0)}}
+	if code, body := h.post("/account/devices", form2, h.srv.URL); !strings.Contains(body, "AllowedIPs = 0.0.0.0/0\n") {
+		t.Errorf("both: %d\n%s", code, body)
+	}
+	if logs, _ := h.store.RecentAudit(ctx, 1); !strings.Contains(logs[0].Detail, "Tablet, reaching the lab, the home network, and the internet") {
+		t.Errorf("audit %+v", logs[0])
+	}
+	if all, _ := h.store.VPNDevices(ctx); len(all) == 2 {
+		h.store.DeleteVPNDevice(ctx, all[1].ID) // Tablet
+	}
+	h.store.SetTOTP(ctx, u.ID, u.TOTPSecret, 0)
+	fv.v.HomeNetwork = false
 	if code, _ := h.post("/settings/vpn", url.Values{"on": {"yes"}, "limit": {"0"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("a limit of 0: %d", code)
 	}
@@ -200,7 +220,7 @@ func TestVPNDevicesOwner(t *testing.T) {
 	}
 	list, _ := h.store.VPNDevices(ctx)
 	h.store.SetTOTP(ctx, u.ID, u.TOTPSecret, 0) // so that this step's code is accepted again
-	form = url.Values{"name": {"Laptop"}, "reach": {"lab"}, "ssh": {"yes"}, "new": {"yes"}, "code": {codeNow(t, u.TOTPSecret, 0)}}
+	form = url.Values{"name": {"Laptop"}, "ssh": {"yes"}, "new": {"yes"}, "code": {codeNow(t, u.TOTPSecret, 0)}}
 	if _, body := h.post("/account/devices/"+itoa(list[0].ID), form, h.srv.URL); !strings.Contains(body, "new settings") ||
 		!strings.Contains(body, "AllowedIPs = 192.168.1.20/32, 100.96.0.0/17") {
 		t.Errorf("new settings:\n%s", body)

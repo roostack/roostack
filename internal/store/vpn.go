@@ -8,14 +8,6 @@ import (
 	"time"
 )
 
-// What a device's traffic reaches, besides the lab's services (SPEC.md
-// §10.11).
-const (
-	ReachLab        = "lab"        // the lab's services only
-	ReachHome       = "home"       // and the home network's other devices
-	ReachEverything = "everything" // all its traffic goes through the lab
-)
-
 // VPNDevice is a person's device on the lab's VPN: its own address, and
 // the public key of a key pair its person's browser made (Roostack never
 // holds the private key).
@@ -27,7 +19,10 @@ type VPNDevice struct {
 	Name           string
 	PublicKey      string
 	Address        string
-	Reach          string
+	// What it reaches besides the lab's services (SPEC.md §10.11): Home,
+	// the home network's other devices; Internet, the internet by way of
+	// the lab, which all its internet traffic then goes through.
+	Home, Internet bool
 	// Pages: it reaches Roostack's pages (an Owner's or Admin's); SSH:
 	// it reaches SSH (an Owner's).
 	Pages, SSH bool
@@ -41,12 +36,12 @@ var ErrDeviceLimit = errors.New("that's as many devices as the lab allows each p
 // devices get the ones after it (trust.DevicesRange).
 var vpnServerAddress = netip.MustParseAddr("100.96.128.1")
 
-const vpnDeviceColumns = `d.id, d.user_id, u.username, u.role, d.name, d.public_key, d.address, d.reach, d.pages, d.ssh, d.created_at`
+const vpnDeviceColumns = `d.id, d.user_id, u.username, u.role, d.name, d.public_key, d.address, d.home, d.internet, d.pages, d.ssh, d.created_at`
 
 func scanVPNDevice(row scanner) (VPNDevice, error) {
 	var d VPNDevice
 	var created int64
-	err := row.Scan(&d.ID, &d.UserID, &d.Username, &d.Role, &d.Name, &d.PublicKey, &d.Address, &d.Reach, &d.Pages, &d.SSH, &created)
+	err := row.Scan(&d.ID, &d.UserID, &d.Username, &d.Role, &d.Name, &d.PublicKey, &d.Address, &d.Home, &d.Internet, &d.Pages, &d.SSH, &created)
 	d.Created = time.Unix(created, 0)
 	return d, err
 }
@@ -105,8 +100,8 @@ func (s *Store) AddVPNDevice(ctx context.Context, d VPNDevice, limit int) (VPNDe
 	if d.Created.IsZero() {
 		d.Created = time.Now()
 	}
-	res, err := tx.ExecContext(ctx, `INSERT INTO vpn_devices (user_id, name, public_key, address, reach, pages, ssh, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, d.UserID, d.Name, d.PublicKey, d.Address, d.Reach, d.Pages, d.SSH, d.Created.Unix())
+	res, err := tx.ExecContext(ctx, `INSERT INTO vpn_devices (user_id, name, public_key, address, home, internet, pages, ssh, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, d.UserID, d.Name, d.PublicKey, d.Address, d.Home, d.Internet, d.Pages, d.SSH, d.Created.Unix())
 	if err != nil {
 		return d, err
 	}
@@ -127,8 +122,8 @@ func (s *Store) VPNDevice(ctx context.Context, id int64) (VPNDevice, error) {
 // SetVPNDevice changes a device's name, key, what it reaches, Roostack's
 // pages and SSH.
 func (s *Store) SetVPNDevice(ctx context.Context, d VPNDevice) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE vpn_devices SET name = ?, public_key = ?, reach = ?, pages = ?, ssh = ? WHERE id = ?`,
-		d.Name, d.PublicKey, d.Reach, d.Pages, d.SSH, d.ID)
+	res, err := s.db.ExecContext(ctx, `UPDATE vpn_devices SET name = ?, public_key = ?, home = ?, internet = ?, pages = ?, ssh = ? WHERE id = ?`,
+		d.Name, d.PublicKey, d.Home, d.Internet, d.Pages, d.SSH, d.ID)
 	if err != nil {
 		return err
 	}

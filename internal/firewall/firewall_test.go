@@ -224,7 +224,7 @@ func TestDesiredPeople(t *testing.T) {
 		t.Errorf("no devices: %+v", fw.People)
 	}
 	lab.Devices = config.Devices{Services: map[string][]string{"forgejo": {"100.96.128.2"}}, SSH: []string{"100.96.128.3"},
-		Home: []string{"100.96.128.2"}, Everything: []string{"100.96.128.3"}}
+		Home: []string{"100.96.128.2"}, Internet: []string{"100.96.128.3"}}
 	fw, _ := Desired(lab, services, Roles{})
 	p := fw.People
 	if p == nil || p.Port != 0 || len(p.Home) != 0 || len(p.Rules) != 2 ||
@@ -232,7 +232,7 @@ func TestDesiredPeople(t *testing.T) {
 		t.Fatalf("another server: %+v", p)
 	}
 	fw, _ = Desired(lab, services, Roles{VPN: true})
-	if p := fw.People; p.Port != agent.PeoplePort || !slices.Equal(p.Everything, []string{"100.96.128.3"}) || fw.Validate() != nil {
+	if p := fw.People; p.Port != agent.PeoplePort || !slices.Equal(p.Internet, []string{"100.96.128.3"}) || fw.Validate() != nil {
 		t.Errorf("the VPN's server: %+v", p)
 	}
 	lab.Firewall.SSH = config.SSHOff

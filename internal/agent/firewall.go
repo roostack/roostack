@@ -76,11 +76,12 @@ type People struct {
 	// home-only port for those whose person may use the service.
 	Rules []DeviceRule `json:"rules,omitempty"`
 	// Home are devices whose traffic may go on to the home network, and
-	// Everything those whose traffic may go anywhere, leaving from this
-	// server's address: on the server they connect to, or Home on the
-	// controller when they connect to another (Forwarded).
-	Home       []string `json:"home,omitempty"`
-	Everything []string `json:"everything,omitempty"`
+	// Internet those whose traffic may go on to the internet (public
+	// addresses only), leaving from this server's address: on the server
+	// they connect to, or Home on the controller when they connect to
+	// another (Forwarded). A device may be in both.
+	Home     []string `json:"home,omitempty"`
+	Internet []string `json:"internet,omitempty"`
 	// PassOn, on the server devices connect to when it isn't the
 	// controller, are where their traffic goes on to over Roostack's
 	// network, keeping their addresses: the lab's address and the home's
@@ -98,7 +99,7 @@ type People struct {
 // ForwardsTraffic reports whether devices' traffic goes on from this
 // server to the home network or the internet, for which the default
 // route's interface must forward too (setVPNForwarding).
-func (p *People) ForwardsTraffic() bool { return p != nil && len(p.Home)+len(p.Everything) > 0 }
+func (p *People) ForwardsTraffic() bool { return p != nil && len(p.Home)+len(p.Internet) > 0 }
 
 // DeviceRule opens one port to some of the VPN's devices.
 type DeviceRule struct {
@@ -244,7 +245,7 @@ func (p People) validate() []error {
 		devices(fmt.Sprintf("rules[%d]", i), r.Devices)
 	}
 	switch {
-	case p.Port == 0 && len(p.Everything) > 0, p.Port == 0 && !p.Forwarded && len(p.Home) > 0:
+	case p.Port == 0 && len(p.Internet) > 0, p.Port == 0 && !p.Forwarded && len(p.Home) > 0:
 		errs = append(errs, errors.New("people: only the server devices connect to passes their traffic on"))
 	case p.Forwarded && (p.Port != 0 || len(p.PassOn) > 0):
 		errs = append(errs, errors.New("people: devices can't both connect here and arrive from another server"))
@@ -259,7 +260,7 @@ func (p People) validate() []error {
 		}
 	}
 	devices("home", p.Home)
-	devices("everything", p.Everything)
+	devices("internet", p.Internet)
 	devices("servers", p.Servers)
 	return errs
 }
@@ -454,7 +455,7 @@ func (f Firewall) Ruleset() string {
 }
 
 // peopleForward writes what the VPN's devices may pass through to: the
-// home network for People.Home, anywhere for People.Everything, and the
+// home network for People.Home, anywhere for People.Internet, and the
 // answers; nothing else goes to or from their interface (SPEC.md
 // §10.11).
 func (f Firewall) peopleForward(b *strings.Builder) {
@@ -489,12 +490,12 @@ func (f Firewall) peopleForward(b *strings.Builder) {
 			WireGuardInterface, strings.Join(p.Servers, ", "), trust.ServersRange)
 	}
 	if p := f.People; p != nil && p.Port != 0 {
-		if len(p.Everything) > 0 {
+		if len(p.Internet) > 0 {
 			// The internet, not this server's own private networks (a
 			// cloud provider's, or the home's, which is Home's).
 			b.WriteString("\t\t# the lab's VPN devices whose internet traffic leaves from here\n")
 			fmt.Fprintf(b, "\t\tiifname %q oifname != { %q, %q } ip saddr { %s } ip daddr != @lan4 accept\n", PeopleInterface, PeopleInterface,
-				WireGuardInterface, strings.Join(p.Everything, ", "))
+				WireGuardInterface, strings.Join(p.Internet, ", "))
 		}
 		if len(p.Home) > 0 {
 			b.WriteString("\t\t# the lab's VPN devices that reach the home network\n")

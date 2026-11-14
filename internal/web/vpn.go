@@ -79,12 +79,14 @@ type deviceRow struct {
 
 // deviceForm adds or changes a device.
 type deviceForm struct {
-	ID          int64 // 0: adding
-	Name, Reach string
-	Pages, SSH  bool
+	ID   int64 // 0: adding
+	Name string
+	// Home and Internet: it also reaches the home network's other
+	// devices, and the internet by way of the lab.
+	Home, Internet, Pages, SSH bool
 	// What this person may choose: Roostack's pages (Owners and Admins),
 	// SSH (Owners), and what the Owner allows.
-	CanPages, CanSSH, Home, Everything bool
+	CanPages, CanSSH, CanHome, CanInternet bool
 	// NeedCode: they have two-factor, so it's asked for again.
 	NeedCode bool
 }
@@ -100,8 +102,15 @@ type deviceAdded struct {
 
 // reachText says what a device reaches.
 func reachText(d store.VPNDevice) string {
-	t := map[string]string{store.ReachLab: "The lab only", store.ReachHome: "The lab and the home network",
-		store.ReachEverything: "Everything"}[d.Reach]
+	t := "The lab only"
+	switch {
+	case d.Home && d.Internet:
+		t = "The lab, the home network, and the internet"
+	case d.Home:
+		t = "The lab and the home network"
+	case d.Internet:
+		t = "The lab and the internet"
+	}
 	var also []string
 	if d.Pages {
 		also = append(also, "Roostack's pages")
@@ -174,8 +183,8 @@ func (s *Server) acctDevicesPage(w http.ResponseWriter, r *http.Request, a *acct
 // newDeviceForm is the form's choices for a.
 func (s *Server) newDeviceForm(a *acct) *deviceForm {
 	v := s.VPN.VPN()
-	return &deviceForm{Reach: store.ReachLab, CanPages: a.User.Role == auth.RoleOwner || a.User.Role == auth.RoleAdmin,
-		CanSSH: a.User.Role == auth.RoleOwner, Home: v.HomeNetwork, Everything: v.Everything, NeedCode: a.User.TOTPSecret != ""}
+	return &deviceForm{CanPages: a.User.Role == auth.RoleOwner || a.User.Role == auth.RoleAdmin,
+		CanSSH: a.User.Role == auth.RoleOwner, CanHome: v.HomeNetwork, CanInternet: v.Internet, NeedCode: a.User.TOTPSecret != ""}
 }
 
 // acctDeviceAdd shows the form to add a device.
@@ -204,7 +213,14 @@ func (s *Server) acctDeviceAdd(w http.ResponseWriter, r *http.Request, a *acct) 
 // code, which is used up once it's right.
 func (s *Server) readDeviceForm(r *http.Request, a *acct, f *deviceForm, ready func() string) string {
 	f.Name = strings.Join(strings.Fields(r.FormValue("name")), " ")
-	f.Reach = r.FormValue("reach")
+	// What the Owner doesn't allow isn't on the form: a device that had
+	// it keeps the choice, for when it's allowed again.
+	if f.CanHome {
+		f.Home = r.FormValue("home") != ""
+	}
+	if f.CanInternet {
+		f.Internet = r.FormValue("internet") != ""
+	}
 	f.Pages = f.CanPages && r.FormValue("pages") != ""
 	f.SSH = f.CanSSH && r.FormValue("ssh") != ""
 	switch {
@@ -212,8 +228,6 @@ func (s *Server) readDeviceForm(r *http.Request, a *acct, f *deviceForm, ready f
 		return "Give the device a name, such as \"Alex's phone\"."
 	case utf8.RuneCountInString(f.Name) > 60:
 		return "The name can be at most 60 characters."
-	case f.Reach != store.ReachLab && !(f.Reach == store.ReachHome && f.Home) && !(f.Reach == store.ReachEverything && f.Everything):
-		return "Choose what the device should reach."
 	}
 	if msg := ready(); msg != "" {
 		return msg
@@ -248,7 +262,7 @@ func (s *Server) acctDeviceSubmit(w http.ResponseWriter, r *http.Request, a *acc
 		s.serverError(w, err)
 		return
 	}
-	d, err := s.Store.AddVPNDevice(r.Context(), store.VPNDevice{UserID: a.User.ID, Name: f.Name, PublicKey: public, Reach: f.Reach,
+	d, err := s.Store.AddVPNDevice(r.Context(), store.VPNDevice{UserID: a.User.ID, Name: f.Name, PublicKey: public, Home: f.Home, Internet: f.Internet,
 		Pages: f.Pages, SSH: f.SSH}, s.VPN.VPN().Limit())
 	if errors.Is(err, store.ErrDeviceLimit) {
 		s.renderDeviceForm(w, r, a, "Add a device", f, "That's as many devices as the lab allows each person. Remove one to add another.")
@@ -271,7 +285,7 @@ func (s *Server) acctDeviceChange(w http.ResponseWriter, r *http.Request, a *acc
 		return
 	}
 	f := s.newDeviceForm(a)
-	f.ID, f.Name, f.Reach, f.Pages, f.SSH = d.ID, d.Name, d.Reach, d.Pages, d.SSH
+	f.ID, f.Name, f.Home, f.Internet, f.Pages, f.SSH = d.ID, d.Name, d.Home, d.Internet, d.Pages, d.SSH
 	s.renderDeviceForm(w, r, a, "Change "+d.Name, f, "")
 }
 
@@ -284,9 +298,9 @@ func (s *Server) acctDeviceChangeSubmit(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	f := s.newDeviceForm(a)
-	f.ID = d.ID
+	f.ID, f.Home, f.Internet = d.ID, d.Home, d.Internet
 	ready := func() string {
-		if f.Reach != d.Reach || r.FormValue("new") != "" {
+		if f.Home != d.Home || f.Internet != d.Internet || r.FormValue("new") != "" {
 			return s.vpnNotReady(r.Context())
 		}
 		return ""
@@ -295,7 +309,7 @@ func (s *Server) acctDeviceChangeSubmit(w http.ResponseWriter, r *http.Request, 
 		s.renderDeviceForm(w, r, a, "Change "+d.Name, f, msg)
 		return
 	}
-	newKey := f.Reach != d.Reach || r.FormValue("new") != ""
+	newKey := f.Home != d.Home || f.Internet != d.Internet || r.FormValue("new") != ""
 	var private string
 	if newKey {
 		var err error
@@ -304,7 +318,7 @@ func (s *Server) acctDeviceChangeSubmit(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 	}
-	d.Name, d.Reach, d.Pages, d.SSH = f.Name, f.Reach, f.Pages, f.SSH
+	d.Name, d.Home, d.Internet, d.Pages, d.SSH = f.Name, f.Home, f.Internet, f.Pages, f.SSH
 	if err := s.Store.SetVPNDevice(r.Context(), d); err != nil {
 		s.serverError(w, err)
 		return
@@ -410,13 +424,15 @@ func (s *Server) deviceConfig(ctx context.Context, d store.VPNDevice, private st
 		return "", errors.New("the lab's VPN isn't ready")
 	}
 	allowed := []string{lab + "/32"}
-	switch d.Reach {
-	case store.ReachHome:
+	if d.Home {
 		allowed = append(allowed, way.HomeNetworks...)
-	case store.ReachEverything:
+	}
+	if d.Internet {
+		// Everything, which covers the rest; the firewall still decides
+		// what a device reaches.
 		allowed = []string{"0.0.0.0/0"}
 	}
-	if d.SSH && d.Reach != store.ReachEverything {
+	if d.SSH && !d.Internet {
 		// The lab's servers, at their addresses on Roostack's network.
 		allowed = append(allowed, trust.ServersRange.String())
 	}
@@ -548,7 +564,7 @@ func (s *Server) settingsVPNSubmit(w http.ResponseWriter, r *http.Request) {
 	if r.Form.Has("server") {
 		v.Server = r.FormValue("server")
 	}
-	v.HomeNetwork, v.Everything = r.FormValue("home") != "", r.FormValue("everything") != ""
+	v.HomeNetwork, v.Internet = r.FormValue("home") != "", r.FormValue("internet") != ""
 	problem := ""
 	switch limit := strings.TrimSpace(r.FormValue("limit")); {
 	case limit == "":

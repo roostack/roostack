@@ -40,8 +40,8 @@
         <legend>What devices may reach</legend>
         <label class="check"><input type="checkbox" class="switch" role="switch" name="home" value="yes"{{if .VPN.HomeNetwork}} checked{{end}}>
           <span>The home network<small>A device set to reach it will also reach the home's other devices, such as a NAS or a printer.</small></span></label>
-        <label class="check"><input type="checkbox" class="switch" role="switch" name="everything" value="yes"{{if .VPN.Everything}} checked{{end}}>
-          <span>Everything<small>A device set to send all its traffic through the lab will use this server's internet connection, and what it does online will appear to come from its address.</small></span></label>
+        <label class="check"><input type="checkbox" class="switch" role="switch" name="internet" value="yes"{{if .VPN.Internet}} checked{{end}}>
+          <span>The internet<small>A device set to send all its internet traffic through the lab will use this server's internet connection, and what it does online will appear to come from its address.</small></span></label>
       </fieldset>
       <button type="submit" class="secondary">Save</button>
     </form>

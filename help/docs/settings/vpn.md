@@ -44,12 +44,11 @@ The home network
 :   Whether a device may also reach your home's other devices, such as a
     NAS or a printer. Off by default.
 
-Everything
+The internet
 :   Whether a device may send all its internet traffic through the lab,
     which is safer on public Wi-Fi. It will use your lab's internet
     connection, and what it does online will appear to come from your
-    home's address. It's for the internet only: such a device won't reach
-    your home's other devices. Off by default.
+    home's address. Off by default.
 
 **Settings → VPN** lists everyone's devices, when each last connected,
 and **Remove** for any of them. A device that hasn't connected for 90
@@ -62,9 +61,10 @@ security emails.
 On **Your account → VPN devices**, choose **Add a device…**, then:
 
 1. Give it a name, such as "Alex's phone".
-2. Choose what it should reach: **The lab only** (its other internet
-   traffic will go the usual way), or the home network or everything, if
-   the Owner allows them.
+2. Choose what it should reach. **The lab** is always ticked. Tick **The
+   home network**, **The internet**, or both, if the Owner allows them.
+   Without **The internet**, its other internet traffic will go the usual
+   way.
 3. Owners and Admins can also tick **Roostack's pages**, and Owners
    **SSH to the lab's servers**, for that device only.
 4. Enter your two-factor code if you have two-factor turned on.
@@ -98,7 +98,8 @@ Each device has its own address, so Roostack knows whose it is:
 - **Roostack's pages:** only from a device that has them ticked.
 - **SSH:** only from an Owner's device that has it ticked, and only while
   someone can log in over SSH at all (**Settings → Remote access**).
-- **Anything else at home:** only with **The lab and the home network**.
+- **Anything else at home:** only with **The home network** ticked.
+- **The internet, by way of the lab:** only with **The internet** ticked.
 
 The lab's addresses (`photos.smith.family`) work exactly as at home: the
 device sends only the lab's own address through the VPN, so it doesn't
@@ -119,8 +120,8 @@ clash with a café's network using the same addresses as yours.
     (`nft list table inet roostack`) lets them reach Caddy, and SSH or a
     service's home-only ports only from the addresses allowed them; it
     forwards only the traffic of devices allowed the home network or
-    everything, and gives it the server's address (masquerade). Everything
-    means public addresses only: never private ranges, and never
+    the internet, and gives it the server's address (masquerade). The
+    internet means public addresses only: never private ranges, and never
     link-local ones (`169.254.0.0/16`), where a cloud provider's metadata
     service is. For that,
     it turns forwarding on for the interfaces the answers come back in on;

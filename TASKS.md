@@ -362,7 +362,7 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [x] The domain itself: the Owner's choice on Your lab's address (leave it alone, Your account, a service, another address, or a simple page), and a roost.ac lab's pages moving to `roost.<name>` (SPEC §5.3; built 2026-11-11)
 - [x] The lab's VPN (SPEC §10.11), with Your account's VPN devices tab and Settings → VPN, devices connecting to the controller (2026-11-11, SPEC §10.11 "As built")
 - [x] The agent's share of the VPN reviewed by a second session, and what it found fixed: link-local and private addresses for Everything, forwarding beside Docker, the pass-on rule, VLAN interfaces, and the smaller points (2026-11-14; SPEC §10.11)
-- [ ] The maintainer to decide: should Everything include the home network too? (It's the internet only since 2026-11-14)
+- [x] What a VPN device reaches as two tick boxes, the home network and the internet, either or both, instead of one choice of three (2026-11-15)
 - [ ] Check the VPN through another server on two VMs with the fixes of 2026-11-14 (checked then: one VM, the agent driven directly with pretend devices)
 - [x] The VPN through another server: devices connecting to a cloud server in the lab, which passes their traffic to the controller over Roostack's network keeping their addresses; SSH to every server; the choice on Settings → VPN; Give it new settings (2026-11-12)
 - [ ] The VPN through Roostack Cloud's relay (a question for Cloud's design)

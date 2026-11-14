@@ -94,7 +94,7 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 		// Devices connect here (SPEC.md §10.11). Their traffic for the
 		// home network goes on from the controller, and the rest to the
 		// controller over Roostack's network when this isn't it.
-		people.Port, people.Everything, people.Servers = agent.PeoplePort, lab.Devices.Everything, lab.Devices.SSH
+		people.Port, people.Internet, people.Servers = agent.PeoplePort, lab.Devices.Internet, lab.Devices.SSH
 		if lab.IsNode() {
 			people.PassOn = lab.Devices.PassOn
 		} else {

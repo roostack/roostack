@@ -2,8 +2,10 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -19,7 +21,7 @@ func TestVPNDevices(t *testing.T) {
 	sam, _ := s.CreateUser(ctx, User{Username: "sam", PasswordHash: "x", Role: "member"})
 	jo, _ := s.CreateUser(ctx, User{Username: "jo", PasswordHash: "x", Role: "owner"})
 	add := func(user int64, key string, limit int) (VPNDevice, error) {
-		return s.AddVPNDevice(ctx, VPNDevice{UserID: user, Name: key, PublicKey: key, Reach: ReachLab}, limit)
+		return s.AddVPNDevice(ctx, VPNDevice{UserID: user, Name: key, PublicKey: key}, limit)
 	}
 	a, err := add(sam, "k1", 2)
 	if err != nil || a.Address != "100.96.128.2" {
@@ -40,11 +42,11 @@ func TestVPNDevices(t *testing.T) {
 	if d, _ := add(jo, "k5", 0); d.Address != "100.96.128.2" {
 		t.Errorf("a freed address: %s", d.Address)
 	}
-	c.SSH, c.Reach = true, ReachEverything
+	c.SSH, c.Home, c.Internet = true, true, true
 	if err := s.SetVPNDevice(ctx, c); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := s.VPNDevice(ctx, c.ID); !got.SSH || got.Reach != ReachEverything || got.Role != "owner" {
+	if got, _ := s.VPNDevice(ctx, c.ID); !got.SSH || !got.Home || !got.Internet || got.Role != "owner" {
 		t.Errorf("changed: %+v", got)
 	}
 	if list, _ := s.UserVPNDevices(ctx, sam); len(list) != 1 {
@@ -55,5 +57,38 @@ func TestVPNDevices(t *testing.T) {
 	}
 	if list, _ := s.VPNDevices(ctx); len(list) != 2 {
 		t.Errorf("after removing sam: %+v", list)
+	}
+}
+
+// A database from before step 42, where a device had one of three choices:
+// the home network stays the home network, and everything is the internet.
+func TestVPNDeviceReachMigrated(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "roostack.db")
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range append(slices.Clone(schema), migrations[:41-schemaVersion]...) {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, q := range []string{`PRAGMA user_version = 41`,
+		`INSERT INTO users (id, username, password_hash, role, created_at) VALUES (1, 'sam', 'x', 'owner', 0)`,
+		`INSERT INTO vpn_devices (user_id, name, public_key, address, reach, created_at) VALUES
+			(1, 'a', 'ka', '100.96.128.2', 'lab', 0), (1, 'b', 'kb', '100.96.128.3', 'home', 0), (1, 'c', 'kc', '100.96.128.4', 'everything', 0)`} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	list, err := s.VPNDevices(context.Background())
+	if err != nil || len(list) != 3 || list[0].Home || list[0].Internet || !list[1].Home || list[1].Internet || list[2].Home || !list[2].Internet {
+		t.Errorf("%v %+v", err, list)
 	}
 }

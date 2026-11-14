@@ -206,7 +206,7 @@ func (m *Manager) vpnToController(d config.Devices, id string, own []string) []s
 // vpnReach is vpnDevices' devices and interface.
 func (m *Manager) vpnReach(ctx context.Context, v config.VPN, services []state.Service) (config.Devices, *agent.WireGuard) {
 	wg := &agent.WireGuard{Interface: agent.PeopleInterface, Address: VPNServerAddress, ListenPort: agent.PeoplePort,
-		Forward: v.HomeNetwork || v.Everything || m.VPNElsewhere() != ""}
+		Forward: v.HomeNetwork || v.Internet || m.VPNElsewhere() != ""}
 	list, err := m.People.VPNDevices(ctx)
 	if err != nil {
 		m.Log.Error("listing the lab's VPN devices", "err", err)
@@ -225,10 +225,11 @@ func (m *Manager) vpnReach(ctx context.Context, v config.VPN, services []state.S
 		if dev.SSH && dev.Role == auth.RoleOwner {
 			d.SSH = append(d.SSH, dev.Address)
 		}
-		switch {
-		case dev.Reach == store.ReachEverything && v.Everything:
-			d.Everything = append(d.Everything, dev.Address)
-		case dev.Reach == store.ReachHome && v.HomeNetwork:
+		// Either or both, while the Owner allows each.
+		if dev.Internet && v.Internet {
+			d.Internet = append(d.Internet, dev.Address)
+		}
+		if dev.Home && v.HomeNetwork {
 			d.Home = append(d.Home, dev.Address)
 		}
 		for _, s := range services {
