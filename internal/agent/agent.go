@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"roostack.cloud/roostack/internal/fsutil"
 )
@@ -52,10 +53,11 @@ type Host interface {
 	ApplyFirewall(ruleset string) error
 	// VPNForwardingPlan says which interfaces the lab's VPN needs
 	// forwarding on, and which of those the agent turns on itself
-	// (vpnForwardingPlan); VPNForwarding turns them on, and others it
-	// turned on back as they were (setVPNForwarding).
-	VPNForwardingPlan(uplinks, lab bool) (want, own []string)
-	VPNForwarding(want []string) error
+	// (vpnForwardingPlan); VPNForwardingOn turns them on, and
+	// VPNForwardingOff puts others it turned on back as they were.
+	VPNForwardingPlan(uplinks bool) (want, own []string)
+	VPNForwardingOff(want []string) error
+	VPNForwardingOn(want []string) error
 	// AllowWireGuardJoin lets WireGuard's port in until the firewall is
 	// next applied: a server joining a lab whose controller dials it
 	// (SPEC.md §10.2), before its own firewall says so.
@@ -133,6 +135,9 @@ type Server struct {
 	AllowedUIDs []uint32
 	Version     string
 	Log         *slog.Logger
+
+	// firewallMu keeps firewall applies one at a time.
+	firewallMu sync.Mutex
 }
 
 type ctxKey struct{}
@@ -152,14 +157,21 @@ func (s *Server) Handler() http.Handler {
 	// The firewall, the time zone, OS updates and rebooting.
 	handle("POST /v1/ports/unprivileged-start", do(s, "set unprivileged port start", h.SetUnprivilegedPortStart))
 	handle("PUT /v1/firewall", action(s, "apply firewall", 64<<10, func(fw Firewall) error {
-		// The firewall keeping forwarded traffic to the VPN's answers is in
-		// place before forwarding is turned on.
-		want, own := h.VPNForwardingPlan(fw.People.ForwardsTraffic(), fw.People.PassesOn())
+		// One at a time: the plan, the firewall and forwarding go together.
+		s.firewallMu.Lock()
+		defer s.firewallMu.Unlock()
+		// Forwarding the VPN no longer needs goes off while the firewall
+		// still keeps it to the VPN's answers, and the firewall that keeps
+		// new forwarding to them is in place before that's turned on.
+		want, own := h.VPNForwardingPlan(fw.People.ForwardsTraffic())
+		if err := h.VPNForwardingOff(want); err != nil {
+			return err
+		}
 		fw.ForwardOwned = own
 		if err := h.ApplyFirewall(fw.Ruleset()); err != nil {
 			return err
 		}
-		return h.VPNForwarding(want)
+		return h.VPNForwardingOn(want)
 	}))
 	// No arguments: it only ever opens WireGuard's own port.
 	handle("POST /v1/firewall/wireguard-join", do(s, "open wireguard for joining", h.AllowWireGuardJoin))

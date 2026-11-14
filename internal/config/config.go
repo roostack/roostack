@@ -711,8 +711,7 @@ type Devices struct {
 	Everything []string `json:"everything,omitempty"`
 	// Elsewhere: devices connect to a server that isn't the controller,
 	// which passes their traffic on to it over Roostack's network to
-	// PassOn: the lab's address, the home's networks, and the lab's
-	// servers (SPEC.md §10.11).
+	// PassOn: the lab's address and the home's networks (SPEC.md §10.11).
 	Elsewhere bool     `json:"elsewhere,omitempty"`
 	PassOn    []string `json:"pass_on,omitempty"`
 }

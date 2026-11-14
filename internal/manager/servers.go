@@ -342,6 +342,9 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		if a.Links != nil {
 			// The lab's VPN's traffic over the link to the controller.
 			a.Links.ToController = m.vpnToController(devices, id, infos[id].Home)
+			// The server devices connect to forwards the controller's
+			// answers back to them.
+			a.Links.PassesOn = devices.Elsewhere && id == m.VPNElsewhere()
 		}
 		if id == edge {
 			a.Edge = edgeConfig(m.withStatusPage(), services)

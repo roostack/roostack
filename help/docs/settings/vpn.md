@@ -17,6 +17,9 @@ an address first, since devices connect to it.
 - **A cloud server in your lab,** if you have one, which the internet can
   reach already: recommended, as there's nothing to set up on your router.
   Devices pass through it to your lab at home over Roostack's own network.
+  That server is then trusted with every device: whoever controls it could
+  reach what your devices reach, the home network included if any device
+  may. Choose one that only you look after.
 - **The server that runs your lab, at home,** at `link.smith.family`, which
   Roostack will keep pointing at your home's internet address, even when it
   changes. Forward UDP port 51822 on your router to the server, as you
@@ -45,7 +48,8 @@ Everything
 :   Whether a device may send all its internet traffic through the lab,
     which is safer on public Wi-Fi. It will use your lab's internet
     connection, and what it does online will appear to come from your
-    home's address. Off by default.
+    home's address. It's for the internet only: such a device won't reach
+    your home's other devices. Off by default.
 
 **Settings → VPN** lists everyone's devices, when each last connected,
 and **Remove** for any of them. A device that hasn't connected for 90
@@ -115,11 +119,15 @@ clash with a café's network using the same addresses as yours.
     (`nft list table inet roostack`) lets them reach Caddy, and SSH or a
     service's home-only ports only from the addresses allowed them; it
     forwards only the traffic of devices allowed the home network or
-    everything, and gives it the server's address (masquerade). For that,
+    everything, and gives it the server's address (masquerade). Everything
+    means public addresses only: never private ranges, and never
+    link-local ones (`169.254.0.0/16`), where a cloud provider's metadata
+    service is. For that,
     it turns forwarding on for the interfaces the answers come back in on;
     where it was off before, only answers are forwarded from there, so the
     server doesn't route anything else for your network, and it goes back
-    off when the VPN no longer needs it (other software's forwarding is
+    off when the VPN no longer needs it. Each one's old setting is kept in
+    `/run/roostack-agent/forwarding-<interface>` meanwhile (other software's forwarding is
     left alone: [traffic passing through a server](../reference/ports.md)).
     Caddy
     lets each device through to a private service only if its address is

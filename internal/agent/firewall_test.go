@@ -297,7 +297,10 @@ func TestRulesetPeople(t *testing.T) {
 	for _, want := range []string{
 		"udp dport 51822 @th,64,8 1 add @wg_handshakes4",
 		`iifname "roostack-people" ip saddr != 100.96.128.0/17 drop`,
-		`iifname "roostack-people" oifname != { "roostack-people", "roostack" } ip saddr { 100.96.128.6 } accept`,
+		// Everything is the internet: not this server's private networks,
+		// nor a cloud provider's metadata service.
+		`iifname "roostack-people" ip daddr 169.254.0.0/16 drop`,
+		`iifname "roostack-people" oifname != { "roostack-people", "roostack" } ip saddr { 100.96.128.6 } ip daddr != @lan4 accept`,
 		`iifname "roostack-people" oifname != { "roostack-people", "roostack" } ip saddr { 100.96.128.5 } ip daddr @lan4 accept`,
 		`oifname "roostack-people" ct state established,related accept`,
 		"type nat hook postrouting priority srcnat",
@@ -307,8 +310,9 @@ func TestRulesetPeople(t *testing.T) {
 			t.Errorf("missing %q:\n%s", want, got)
 		}
 	}
-	if strings.Index(got, "ip saddr { 100.96.128.6 } accept") > strings.Index(got, `iifname "roostack-people" drop`) {
-		t.Error("the devices' forwarding comes after the drop")
+	if strings.Index(got, "ip saddr { 100.96.128.6 } ip daddr != @lan4 accept") > strings.Index(got, `iifname "roostack-people" drop`) ||
+		strings.Index(got, "ip daddr 169.254.0.0/16 drop") > strings.Index(got, "ip daddr != @lan4 accept") {
+		t.Error("the devices' forwarding comes after the drop, or before the link-local one")
 	}
 	for _, bad := range []People{
 		{Port: PeoplePort, Home: []string{"192.168.1.5"}},
@@ -330,13 +334,16 @@ func TestRulesetPeople(t *testing.T) {
 // masqueraded, and those allowed SSH on to the other servers' SSH.
 func TestRulesetPeopleElsewhere(t *testing.T) {
 	fw := DefaultFirewall()
-	fw.People = &People{Port: PeoplePort, PassOn: []string{"192.168.1.20/32", "100.96.0.0/24"}, Everything: []string{"100.96.128.6"}}
+	fw.People = &People{Port: PeoplePort, PassOn: []string{"192.168.1.20/32", "192.168.1.0/24"}, Everything: []string{"100.96.128.6"},
+		Servers: []string{"100.96.128.7"}}
 	if err := fw.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	got := fw.Ruleset()
 	for _, want := range []string{
-		`iifname "roostack-people" oifname "roostack" ip saddr 100.96.128.0/17 ip daddr { 192.168.1.20/32, 100.96.0.0/24 } accept`,
+		`iifname "roostack-people" oifname "roostack" ip saddr 100.96.128.0/17 ip daddr { 192.168.1.20/32, 192.168.1.0/24 } accept`,
+		// The lab's servers aren't passed on to: only SSH, for those allowed it.
+		`iifname "roostack-people" oifname "roostack" ip saddr { 100.96.128.7 } ip daddr 100.96.0.0/17 tcp dport 22 accept`,
 		`iifname "roostack" oifname "roostack-people" ip daddr 100.96.128.0/17 ct state established,related accept`,
 		`iifname "roostack-people" oifname != { "roostack-people", "roostack" } ip saddr 100.96.128.0/17 masquerade`,
 	} {
@@ -369,6 +376,8 @@ func TestRulesetPeopleElsewhere(t *testing.T) {
 		{Forwarded: true, Port: PeoplePort},
 		{PassOn: []string{"192.168.1.20/32"}},
 		{Port: PeoplePort, PassOn: []string{"0.0.0.0/0"}},
+		{Port: PeoplePort, PassOn: []string{"100.96.0.0/17"}},
+		{Port: PeoplePort, PassOn: []string{"100.96.0.3/32"}},
 		{Servers: []string{"100.96.128.7"}},
 	} {
 		fw.People = &bad
@@ -388,9 +397,17 @@ func TestRulesetForwardOwned(t *testing.T) {
 	got := fw.Ruleset()
 	accept := `iifname { "enp0s2", "lan2" } ct state established,related accept`
 	drop := `iifname { "enp0s2", "lan2" } drop`
+	// Other software's forwarding there (a container's published port) passes.
+	dnat := `iifname { "enp0s2", "lan2" } ct status dnat accept`
 	if !strings.Contains(got, accept) || !strings.Contains(got, drop) || strings.Contains(got, "bad/name") ||
-		strings.Index(got, "ip daddr @lan4 accept") > strings.Index(got, drop) {
+		strings.Index(got, "ip daddr @lan4 accept") > strings.Index(got, drop) || !strings.Contains(got, dnat) ||
+		strings.Index(got, dnat) > strings.Index(got, drop) {
 		t.Errorf("forwarding kept to answers:\n%s", got)
+	}
+	// A server with nothing for the VPN's devices lets none in from
+	// Roostack's network.
+	if none := DefaultFirewall().Ruleset(); !strings.Contains(none, "icmp accept\n\t\t# nothing else from the lab's servers\n\t\tiifname \"roostack\" drop\n") {
+		t.Errorf("without the VPN, devices' addresses on Roostack's network:\n%s", none)
 	}
 	var in Firewall
 	if err := json.Unmarshal([]byte(`{"ssh_from":"lan","ForwardOwned":["eth0"],"forward_owned":["eth0"]}`), &in); err != nil || in.ForwardOwned != nil {

@@ -139,11 +139,11 @@ func (m *Manager) vpnDevices(ctx context.Context, services []state.Service) (con
 	if m.VPNElsewhere() != "" {
 		// Devices connect to another server, which passes them on to the
 		// controller over Roostack's network (SPEC.md §10.11): the lab's
-		// address, the home's networks for those allowed them, and the
-		// lab's servers for those allowed SSH.
+		// address, and the home's networks for those allowed them. Those
+		// allowed SSH reach the lab's servers by a rule of their own
+		// (agent.People.Servers), so the servers aren't passed on to.
 		d.Elsewhere = true
 		d.PassOn = m.vpnPassOn(d)
-		d.PassOn = append(d.PassOn, trust.ServersRange.String())
 	}
 	return d, wg
 }
@@ -178,9 +178,8 @@ func (m *Manager) vpnHomeAddress() string {
 
 // vpnToController is what a server's link to the controller carries for
 // the lab's VPN (agent.Links.ToController): on the server devices connect
-// to, where they go on to (Devices.PassOn, apart from the lab's servers,
-// which the link carries already, and anything on that server's own
-// networks); on the others, the devices' range, so that answers to devices
+// to, where they go on to (Devices.PassOn, apart from anything on that
+// server's own networks); on the others, the devices' range, so that answers to devices
 // reaching them go back through the controller.
 func (m *Manager) vpnToController(d config.Devices, id string, own []string) []string {
 	if len(d.All) == 0 && !d.Elsewhere {
@@ -192,7 +191,7 @@ func (m *Manager) vpnToController(d config.Devices, id string, own []string) []s
 	var out []string
 	for _, s := range d.PassOn {
 		p, err := netip.ParsePrefix(s)
-		if err != nil || s == trust.ServersRange.String() {
+		if err != nil {
 			continue
 		}
 		if slices.ContainsFunc(own, func(a string) bool { ip, err := netip.ParseAddr(a); return err == nil && p.Contains(ip) }) {

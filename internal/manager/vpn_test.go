@@ -181,8 +181,12 @@ func TestVPNElsewhere(t *testing.T) {
 	if ha.Links == nil || !slices.Equal(ha.Links.ToController, []string{"100.96.128.0/17"}) {
 		t.Errorf("home's link: %+v", ha.Links)
 	}
-	if d := va.Lab.Devices; !d.Elsewhere || !slices.Contains(d.PassOn, "192.168.1.20/32") || !slices.Contains(d.PassOn, "100.96.0.0/17") {
+	// The lab's servers aren't passed on to: SSH there is a rule of its own.
+	if d := va.Lab.Devices; !d.Elsewhere || !slices.Contains(d.PassOn, "192.168.1.20/32") || slices.Contains(d.PassOn, "100.96.0.0/17") {
 		t.Errorf("devices: %+v", d)
+	}
+	if !va.Links.PassesOn || ha.Links.PassesOn {
+		t.Errorf("who forwards the answers back: vps %v, home %v", va.Links.PassesOn, ha.Links.PassesOn)
 	}
 	if w := m.VPNWay(ctx); w.Endpoint != "203.0.113.7:51822" || w.AtHome || w.Chosen != "n-0000000003" || len(w.Servers) != 2 {
 		t.Errorf("the way in: %+v", w)

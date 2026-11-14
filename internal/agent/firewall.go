@@ -59,8 +59,9 @@ type Firewall struct {
 	People *People `json:"people,omitempty"`
 	// ForwardOwned are the interfaces the agent turns forwarding on for,
 	// for the lab's VPN, where it was off (vpnForwardingPlan): only answers
-	// are forwarded from them. The agent works them out itself; a request
-	// can't set them.
+	// are forwarded from them, and connections other software sends on
+	// (a container's published port). The agent works them out itself; a
+	// request can't set them.
 	ForwardOwned []string `json:"-"`
 }
 
@@ -82,8 +83,9 @@ type People struct {
 	Everything []string `json:"everything,omitempty"`
 	// PassOn, on the server devices connect to when it isn't the
 	// controller, are where their traffic goes on to over Roostack's
-	// network, keeping their addresses: the lab's address, the home's
-	// networks, and the lab's servers (agent.Links.ToController).
+	// network, keeping their addresses: the lab's address and the home's
+	// networks (agent.Links.ToController). Never the lab's servers: only
+	// Servers' devices reach those, and only their SSH.
 	PassOn []string `json:"pass_on,omitempty"`
 	// Forwarded, on the controller, means devices connect to another
 	// server and arrive over Roostack's network: Home's traffic goes on
@@ -97,11 +99,6 @@ type People struct {
 // server to the home network or the internet, for which the default
 // route's interface must forward too (setVPNForwarding).
 func (p *People) ForwardsTraffic() bool { return p != nil && len(p.Home)+len(p.Everything) > 0 }
-
-// PassesOn reports whether this server passes devices on to the
-// controller, for which Roostack's network's interface must forward the
-// answers back to them (setVPNForwarding).
-func (p *People) PassesOn() bool { return p != nil && len(p.PassOn) > 0 }
 
 // DeviceRule opens one port to some of the VPN's devices.
 type DeviceRule struct {
@@ -257,8 +254,8 @@ func (p People) validate() []error {
 		errs = append(errs, errors.New("people: only the server devices connect to, or the controller, passes them on to other servers"))
 	}
 	for i, a := range p.PassOn {
-		if !validPrivate(a, true) {
-			errs = append(errs, fmt.Errorf("people: pass_on[%d]: %q must be a private network or the lab's servers", i, a))
+		if !validPrivate(a) {
+			errs = append(errs, fmt.Errorf("people: pass_on[%d]: %q must be a private network", i, a))
 		}
 	}
 	devices("home", p.Home)
@@ -445,6 +442,9 @@ func (f Firewall) Ruleset() string {
 		set := `"` + strings.Join(owned, `", "`) + `"`
 		b.WriteString("\t\t# forwarding is on here for the lab's VPN's answers only\n")
 		fmt.Fprintf(&b, "\t\tiifname { %s } ct state established,related accept\n", set)
+		// Other software's own forwarding there, started since (a
+		// container's published port), is left alone: SPEC.md §10.11.
+		fmt.Fprintf(&b, "\t\tiifname { %s } ct status dnat accept\n", set)
 		fmt.Fprintf(&b, "\t\tiifname { %s } drop\n", set)
 	}
 	b.WriteString("\t}\n")
@@ -458,6 +458,10 @@ func (f Firewall) Ruleset() string {
 // answers; nothing else goes to or from their interface (SPEC.md
 // §10.11).
 func (f Firewall) peopleForward(b *strings.Builder) {
+	// Never to link-local addresses, where a cloud server's provider keeps
+	// its metadata service (169.254.169.254): it would answer a device as
+	// it answers the server.
+	fmt.Fprintf(b, "\t\tiifname %q ip daddr %s drop\n", PeopleInterface, linkLocal)
 	if p := f.People; p != nil && len(p.PassOn) > 0 {
 		b.WriteString("\t\t# the lab's VPN devices, passed on to the controller over Roostack's network\n")
 		fmt.Fprintf(b, "\t\tiifname %q oifname %q ip saddr %s ip daddr { %s } accept\n", PeopleInterface, WireGuardInterface,
@@ -486,8 +490,10 @@ func (f Firewall) peopleForward(b *strings.Builder) {
 	}
 	if p := f.People; p != nil && p.Port != 0 {
 		if len(p.Everything) > 0 {
-			b.WriteString("\t\t# the lab's VPN devices whose traffic goes anywhere\n")
-			fmt.Fprintf(b, "\t\tiifname %q oifname != { %q, %q } ip saddr { %s } accept\n", PeopleInterface, PeopleInterface,
+			// The internet, not this server's own private networks (a
+			// cloud provider's, or the home's, which is Home's).
+			b.WriteString("\t\t# the lab's VPN devices whose internet traffic leaves from here\n")
+			fmt.Fprintf(b, "\t\tiifname %q oifname != { %q, %q } ip saddr { %s } ip daddr != @lan4 accept\n", PeopleInterface, PeopleInterface,
 				WireGuardInterface, strings.Join(p.Everything, ", "))
 		}
 		if len(p.Home) > 0 {
@@ -519,6 +525,9 @@ func (f Firewall) peopleNAT(b *strings.Builder) {
 		WireGuardInterface, trust.DevicesRange)
 	b.WriteString("\t}\n")
 }
+
+// linkLocal is IPv4's link-local range (RFC 3927).
+const linkLocal = "169.254.0.0/16"
 
 // setupReason labels the setup pages' rule.
 const setupReason = "first-run setup pages, until the Owner has finished setup"
@@ -577,8 +586,15 @@ func (f Firewall) servers(b *strings.Builder) {
 		b.WriteString("\t\t# ssh from the controller\n")
 		fmt.Fprintf(b, "\t\tiifname %q ip saddr %s tcp dport 22 accept\n", WireGuardInterface, f.Controller)
 	}
-	b.WriteString("\t\t# nothing else from the lab's servers; people's devices go on to their own rules\n")
 	fmt.Fprintf(b, "\t\t%smeta l4proto icmp accept\n", from)
+	if f.People == nil {
+		// No device has anything opened here, so none gets in, whatever
+		// the other end of the link lets through.
+		b.WriteString("\t\t# nothing else from the lab's servers\n")
+		fmt.Fprintf(b, "\t\tiifname %q drop\n", WireGuardInterface)
+		return
+	}
+	b.WriteString("\t\t# nothing else from the lab's servers; people's devices go on to their own rules\n")
 	fmt.Fprintf(b, "\t\tiifname %q ip saddr != %s drop\n", WireGuardInterface, trust.DevicesRange)
 	fmt.Fprintf(b, "\t\tiifname %q meta nfproto ipv6 drop\n", WireGuardInterface)
 }
@@ -622,13 +638,15 @@ func (h LinuxHost) AllowWireGuardJoin() error {
 }
 
 // VPNForwardingPlan is vpnForwardingPlan.
-func (h LinuxHost) VPNForwardingPlan(uplinks, lab bool) (want, own []string) {
-	return vpnForwardingPlan(uplinks, lab)
+func (h LinuxHost) VPNForwardingPlan(uplinks bool) (want, own []string) {
+	return vpnForwardingPlan(uplinks)
 }
 
-// VPNForwarding sets the forwarding the lab's VPN needs on this server
-// (setVPNForwarding).
-func (h LinuxHost) VPNForwarding(want []string) error { return setVPNForwarding(want) }
+// VPNForwardingOff puts forwarding back as it was on the interfaces the
+// lab's VPN no longer needs (restoreVPNForwarding), and VPNForwardingOn
+// turns it on for those it needs (setVPNForwarding).
+func (h LinuxHost) VPNForwardingOff(want []string) error { return restoreVPNForwarding(want) }
+func (h LinuxHost) VPNForwardingOn(want []string) error  { return setVPNForwarding(want) }
 
 // ApplyFirewall checks the ruleset with `nft -c`, loads it, then saves it.
 func (h LinuxHost) ApplyFirewall(ruleset string) error {

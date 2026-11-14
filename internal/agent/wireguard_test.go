@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -233,5 +235,99 @@ func TestLinksToController(t *testing.T) {
 		if (Links{ToController: []string{bad}}).Validate() == nil {
 			t.Errorf("%s should be refused", bad)
 		}
+	}
+}
+
+// The server that passes the VPN's devices on forwards on Roostack's
+// network whenever its interface comes up (a marked line in its file),
+// and no longer once it stops; a hub's own line, unmarked, stays.
+func TestLinksPassesOn(t *testing.T) {
+	ctrl := "Y29udHJvbGxlcmNvbnRyb2xsZXJjb250cm9sbGVyMTI="
+	node := WireGuard{Address: "100.96.0.3/24", Peers: []Peer{{PublicKey: ctrl, AllowedIPs: []string{"100.96.0.1/32"}}}}.Config("cHJpdmF0ZQ==")
+	line := forwardUp + " " + passesOnMark + "\n"
+	conf, err := Links{PassesOn: true, Listen: true}.apply(node)
+	if err != nil || strings.Count(conf, line) != 1 || !strings.Contains(conf, "ListenPort = 51820\n") ||
+		strings.Index(conf, line) > strings.Index(conf, "[Peer]") {
+		t.Fatalf("passing on: %v\n%s", err, conf)
+	}
+	if again, _ := (Links{PassesOn: true, Listen: true}).apply(conf); again != conf {
+		t.Errorf("applied twice:\n%s", again)
+	}
+	if conf, _ = (Links{}).apply(conf); strings.Contains(conf, "PostUp") {
+		t.Errorf("no longer passing on:\n%s", conf)
+	}
+	hub := WireGuard{Address: "100.96.0.1/24", Forward: true}.Config("cHJpdmF0ZQ==")
+	if conf, _ = (Links{}).apply(hub); !strings.Contains(conf, forwardUp+"\n") {
+		t.Errorf("the hub's own forwarding went:\n%s", conf)
+	}
+}
+
+// An interface's name goes into a path under /proc and between quotes in
+// the firewall's file.
+func TestValidIfaceName(t *testing.T) {
+	for name, want := range map[string]bool{"eth0": true, "enp1s0.20": true, "br-lan": true, "wlan0@x": true, "": false, ".": false,
+		"..": false, "a/b": false, `a"b`: false, "a b": false, "a;b": false, "a{b": false, "a\nb": false, "sixteen-chars-xx": false} {
+		if ValidIfaceName(name) != want {
+			t.Errorf("%q: %v", name, !want)
+		}
+	}
+}
+
+// Forwarding for the lab's VPN (docs/ASSUMPTIONS.md C15): turned on where
+// it's needed with the old setting kept, put back when it isn't, and left
+// alone, with no interface counted as Roostack's own, once something else
+// has turned forwarding on for the whole machine.
+func TestVPNForwardingState(t *testing.T) {
+	dir := t.TempDir()
+	oldSaved, oldProc := uplinkSaved, procNet
+	uplinkSaved, procNet = dir+"/saved-", dir+"/proc/"
+	t.Cleanup(func() { uplinkSaved, procNet = oldSaved, oldProc })
+	set := func(iface, v string) {
+		os.MkdirAll(procNet+iface, 0o755)
+		os.WriteFile(procNet+iface+"/forwarding", []byte(v+"\n"), 0o644)
+	}
+	get := func(iface string) string {
+		v, _ := os.ReadFile(procNet + iface + "/forwarding")
+		return strings.TrimSpace(string(v))
+	}
+	set("all", "0")
+	set("eth0", "0")
+	set("eth1.20", "1") // already forwarding: not Roostack's own
+	want := []string{"eth0", "eth1.20", "gone0"}
+	if own := ownedOf(want); !slices.Equal(own, []string{"eth0"}) {
+		t.Errorf("own before: %v", own)
+	}
+	if err := setVPNForwarding(want); err != nil {
+		t.Fatal(err)
+	}
+	if get("eth0") != "1" || get("eth1.20") != "1" {
+		t.Errorf("on: eth0 %s, eth1.20 %s", get("eth0"), get("eth1.20"))
+	}
+	// Still its own once it's on, by what was kept; and kept only once.
+	setVPNForwarding(want)
+	if own := ownedOf(want); !slices.Equal(own, []string{"eth0"}) {
+		t.Errorf("own while on: %v", own)
+	}
+	// Something else (Docker) turns forwarding on for the whole machine:
+	// nothing is Roostack's own any more, and it isn't turned off.
+	set("all", "1")
+	if own := ownedOf(want); own != nil {
+		t.Errorf("own with forwarding on everywhere: %v", own)
+	}
+	if err := restoreVPNForwarding(nil); err != nil {
+		t.Fatal(err)
+	}
+	if left, _ := filepath.Glob(uplinkSaved + "*"); get("eth0") != "1" || len(left) != 0 {
+		t.Errorf("left alone: eth0 %s, kept %v", get("eth0"), left)
+	}
+	// Without that, each goes back as it was, only where it's not needed.
+	set("all", "0")
+	set("eth0", "0")
+	setVPNForwarding(want)
+	if err := restoreVPNForwarding([]string{"eth1.20"}); err != nil {
+		t.Fatal(err)
+	}
+	if left, _ := filepath.Glob(uplinkSaved + "*"); get("eth0") != "0" || get("eth1.20") != "1" || len(left) != 1 {
+		t.Errorf("put back: eth0 %s, eth1.20 %s, kept %v", get("eth0"), get("eth1.20"), left)
 	}
 }

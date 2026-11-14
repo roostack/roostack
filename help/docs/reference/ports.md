@@ -71,7 +71,11 @@ over the lab's network they reach nothing else.
     one server to another's store pass through the server they're sent
     through; the [VPN's devices](../settings/vpn.md#what-a-device-reaches)
     pass only where they're allowed; and where Roostack turned forwarding
-    on for the VPN, only answers to those devices pass. Everything else
+    on for the VPN, only answers to those devices pass, and connections
+    other software sends on, such as to a container's published port.
+    Once anything turns forwarding on for the whole server
+    (`net.ipv4.ip_forward`), Roostack stops limiting those interfaces and
+    won't turn their forwarding off again. Everything else
     passing through is left alone: if other software on the server, such
     as Docker or a host for virtual machines, routes traffic between its
     own networks, Roostack's firewall lets it through so that it keeps

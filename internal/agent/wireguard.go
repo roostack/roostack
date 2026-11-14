@@ -220,7 +220,7 @@ func (wg WireGuard) Config(privateKey string) string {
 	}
 	if wg.Forward {
 		// This interface only, not the whole machine (and again at boot).
-		b.WriteString("PostUp = echo 1 > /proc/sys/net/ipv4/conf/%i/forwarding\n")
+		b.WriteString(forwardUp + "\n")
 	}
 	for _, p := range wg.Peers {
 		fmt.Fprintf(&b, "\n[Peer]\nPublicKey = %s\nAllowedIPs = %s\n", p.PublicKey, strings.Join(p.AllowedIPs, ", "))
@@ -326,7 +326,20 @@ type Links struct {
 	// networks, which devices reach through the controller (SPEC.md
 	// §10.11).
 	ToController []string `json:"to_controller,omitempty"`
+	// PassesOn: this is the server the lab's VPN's devices connect to, and
+	// it passes them on to the controller, so Roostack's network's
+	// interface forwards the controller's answers back to them: now, and
+	// whenever it comes up (a line in its file, marked with passesOnMark).
+	PassesOn bool `json:"passes_on,omitempty"`
 }
+
+// forwardUp is the wg-quick line that turns forwarding on for an
+// interface as it comes up (this interface only, not the whole machine),
+// and passesOnMark marks the one Links.PassesOn adds.
+const (
+	forwardUp    = "PostUp = echo 1 > /proc/sys/net/ipv4/conf/%i/forwarding"
+	passesOnMark = "# roostack vpn"
+)
 
 // LinkMarker comes before each direct link's [Peer] section.
 const LinkMarker = "# roostack link"
@@ -365,7 +378,7 @@ func (l Links) Validate() error {
 		}
 	}
 	for i, a := range l.ToController {
-		if !validPrivate(a, false) && a != trust.DevicesRange.String() {
+		if !validPrivate(a) && a != trust.DevicesRange.String() {
 			errs = append(errs, fmt.Errorf("to_controller[%d]: %q must be a private network or the lab's VPN", i, a))
 		}
 	}
@@ -400,7 +413,7 @@ func (l Links) apply(conf string) (string, error) {
 			}
 			marked, pending = pending, false
 		}
-		if strings.HasPrefix(t, "ListenPort") && strings.Contains(t, "=") {
+		if strings.HasPrefix(t, "ListenPort") && strings.Contains(t, "=") || strings.HasSuffix(t, passesOnMark) {
 			continue
 		}
 		section = append(section, line)
@@ -412,6 +425,9 @@ func (l Links) apply(conf string) (string, error) {
 		if strings.Contains(out, "PublicKey = "+p.PublicKey) {
 			return "", errors.New("a link can't take over another peer's key")
 		}
+	}
+	if l.PassesOn {
+		out = strings.Replace(out, "[Interface]\n", "[Interface]\n"+forwardUp+" "+passesOnMark+"\n", 1)
 	}
 	if l.Listen {
 		out = strings.Replace(out, "[Interface]\n", fmt.Sprintf("[Interface]\nListenPort = %d\n", WireGuardPort), 1)
@@ -452,7 +468,12 @@ func (h LinuxHost) WireGuardKeys() (map[string]string, error) { return WireGuard
 func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	iface := wg.Iface()
 	file := wireGuardConf(iface)
-	old, _ := os.ReadFile(file)
+	old, err := os.ReadFile(file)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// Not "no key yet": a new key would cut off everyone who knows
+		// this one.
+		return "", fmt.Errorf("reading %s: %w", file, err)
+	}
 	key := confKey(string(old))
 	switch {
 	case wg.JoinKey != "":
@@ -486,9 +507,9 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	if out, err := exec.Command("systemctl", "enable", unit).CombinedOutput(); err != nil {
 		return "", fmt.Errorf("enabling %s: %w: %s", unit, err, out)
 	}
-	_, statErr := os.Stat("/sys/class/net/" + iface)
-	sameIface := statErr == nil && confKey(string(old)) == key && confAddress(string(old)) == wg.Address
-	if sameIface {
+	// By the running interface, not the file it was started from: an
+	// earlier apply may have written the file and then failed to restart.
+	if sameInterface(iface, pub, wg.Address) {
 		if err := syncConf(iface); err != nil {
 			return "", err
 		}
@@ -504,20 +525,33 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 }
 
 // uplinkSaved is where an interface's own forwarding setting is kept while
-// the lab's VPN turns it on.
-const uplinkSaved = "/run/roostack-people-forwarding-"
+// the lab's VPN turns it on: in the agent's own folder in /run
+// (RuntimeDirectory), which the agent's restarts keep and a reboot clears,
+// as it clears the setting.
+var uplinkSaved = "/run/roostack-agent/forwarding-"
+
+// procNet is where the kernel's IPv4 settings for each interface are.
+var procNet = "/proc/sys/net/ipv4/conf/"
+
+// forwardsEverywhere reports whether forwarding is on for the whole
+// machine (net.ipv4.ip_forward), which Roostack never sets: something else
+// on this server routes, such as Docker or a host for virtual machines.
+func forwardsEverywhere() bool {
+	v, err := os.ReadFile(procNet + "all/forwarding")
+	return err == nil && strings.TrimSpace(string(v)) == "1"
+}
 
 // vpnForwardingPlan says which interfaces the lab's VPN's traffic comes
 // back in on, which need their own forwarding on: an interface only
 // forwards what arrives on it if it's on (docs/ASSUMPTIONS.md C15). They're
 // the default route's interfaces and those on the home's networks while
-// devices' traffic goes on to the internet or the home network (uplinks),
-// and Roostack's network's on the server devices connect to when it passes
-// them on to the controller (lab). Own are those whose forwarding was off
-// before Roostack turned it on: on them, the firewall lets only answers be
-// forwarded (Firewall.ForwardOwned), so the server doesn't become a router
-// for anything else there.
-func vpnForwardingPlan(uplinks, lab bool) (want, own []string) {
+// devices' traffic goes on to the internet or the home network (uplinks).
+// Own are those whose forwarding was off before Roostack turned it on: on
+// them, the firewall lets only answers be forwarded
+// (Firewall.ForwardOwned), so the server doesn't become a router for
+// anything else there. None are while something else has turned
+// forwarding on for the whole machine: its forwarding is left alone.
+func vpnForwardingPlan(uplinks bool) (want, own []string) {
 	if uplinks {
 		want = defaultRouteIfaces()
 		for _, iface := range homeIfaces() {
@@ -526,56 +560,78 @@ func vpnForwardingPlan(uplinks, lab bool) (want, own []string) {
 			}
 		}
 	}
-	if lab {
-		want = append(want, WireGuardInterface)
+	return want, ownedOf(want)
+}
+
+// ownedOf are the interfaces of want whose forwarding was off before
+// Roostack turned it on (vpnForwardingPlan).
+func ownedOf(want []string) (own []string) {
+	if forwardsEverywhere() {
+		return nil
 	}
 	for _, iface := range want {
 		v, err := os.ReadFile(uplinkSaved + iface)
 		if err != nil {
-			v, err = os.ReadFile("/proc/sys/net/ipv4/conf/" + iface + "/forwarding")
+			v, err = os.ReadFile(procNet + iface + "/forwarding")
 		}
 		if err == nil && strings.TrimSpace(string(v)) == "0" {
 			own = append(own, iface)
 		}
 	}
-	return want, own
+	return own
 }
 
-// setVPNForwarding turns forwarding on for want (vpnForwardingPlan),
-// keeping each one's own setting in /run, and puts any others it turned on
-// back as they were.
-func setVPNForwarding(want []string) error {
+// restoreVPNForwarding puts forwarding back as it was on the interfaces
+// Roostack turned it on for that aren't in want any more. Not where
+// something else has since turned forwarding on for the whole machine:
+// turning it off there would break that.
+func restoreVPNForwarding(want []string) error {
 	saved, _ := filepath.Glob(uplinkSaved + "*")
 	for _, f := range saved {
 		iface := strings.TrimPrefix(f, uplinkSaved)
-		if slices.Contains(want, iface) {
+		if slices.Contains(want, iface) || !ValidIfaceName(iface) {
 			continue
 		}
-		v, err := os.ReadFile(f)
-		if err == nil {
-			err = os.WriteFile("/proc/sys/net/ipv4/conf/"+iface+"/forwarding", v, 0o644)
-		}
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		os.Remove(f)
-	}
-	for _, iface := range want {
-		proc := "/proc/sys/net/ipv4/conf/" + iface + "/forwarding"
-		if !slices.Contains(saved, uplinkSaved+iface) {
-			v, err := os.ReadFile(proc)
-			if err != nil {
-				return err
+		if !forwardsEverywhere() {
+			v, err := os.ReadFile(f)
+			if err == nil {
+				err = os.WriteFile(procNet+iface+"/forwarding", v, 0o644)
 			}
-			if err := os.WriteFile(uplinkSaved+iface, v, 0o600); err != nil {
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
 		}
-		if err := os.WriteFile(proc, []byte("1\n"), 0o644); err != nil {
+		if err := os.Remove(f); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}
 	return nil
+}
+
+// setVPNForwarding turns forwarding on for want (vpnForwardingPlan),
+// keeping each one's own setting first. One interface that has gone
+// doesn't stop the others.
+func setVPNForwarding(want []string) error {
+	var errs []error
+	for _, iface := range want {
+		proc := procNet + iface + "/forwarding"
+		v, err := os.ReadFile(proc)
+		if errors.Is(err, os.ErrNotExist) {
+			continue // unplugged since the plan
+		}
+		if err == nil {
+			if _, statErr := os.Stat(uplinkSaved + iface); errors.Is(statErr, os.ErrNotExist) {
+				err = os.WriteFile(uplinkSaved+iface, v, 0o600)
+			}
+		}
+		if err == nil {
+			err = os.WriteFile(proc, []byte("1\n"), 0o644)
+		}
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // homeIfaces are the interfaces with a private IPv4 address, apart from
@@ -619,9 +675,41 @@ func defaultRouteIfaces() []string {
 }
 
 // ValidIfaceName reports whether name can be a network interface's name
-// (and so a path under /proc).
+// that's safe as a path under /proc and inside quotes in the firewall's
+// file: a VLAN's (eth0.100) is, one with a quote or a space isn't.
 func ValidIfaceName(name string) bool {
-	return name != "" && len(name) <= 15 && !strings.ContainsAny(name, "/. ")
+	if name == "" || len(name) > 15 || name == "." || name == ".." {
+		return false
+	}
+	return !strings.ContainsFunc(name, func(c rune) bool {
+		return c <= ' ' || c >= 0x7f || strings.ContainsRune(`/"\:;{}`, c)
+	})
+}
+
+// sameInterface reports whether the running interface has this key and
+// address, so that new peers can be given to it as it runs.
+func sameInterface(iface, publicKey, address string) bool {
+	want, err := netip.ParsePrefix(address)
+	if err != nil {
+		return false
+	}
+	pub, err := exec.Command("wg", "show", iface, "public-key").Output()
+	if err != nil || strings.TrimSpace(string(pub)) != publicKey {
+		return false
+	}
+	out, err := exec.Command("ip", "-4", "-o", "addr", "show", "dev", iface).Output()
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		f := strings.Fields(line)
+		if i := slices.Index(f, "inet"); i >= 0 && i+1 < len(f) {
+			if have, err := netip.ParsePrefix(f[i+1]); err == nil && have == want {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // syncConf applies an interface's file to the running interface, without
@@ -655,19 +743,60 @@ func (h LinuxHost) ApplyLinks(l Links) error {
 	if err != nil {
 		return err
 	}
-	if conf == string(old) {
-		return nil
+	// Before anything is written: wg-quick routes these as the interface
+	// comes up, without asking, so a file that names a network this server
+	// already routes elsewhere would take it over at the next restart.
+	for _, a := range l.ToController {
+		if p, err := netip.ParsePrefix(a); err == nil {
+			if via := routedElsewhere(p, WireGuardInterface); via != "" {
+				return alreadyRouted(p, via, WireGuardInterface)
+			}
+		}
 	}
-	if err := fsutil.WritePrivate(file, []byte(conf)); err != nil {
-		return err
+	_, statErr := os.Stat("/sys/class/net/" + WireGuardInterface)
+	up := statErr == nil
+	if conf != string(old) {
+		if err := fsutil.WritePrivate(file, []byte(conf)); err != nil {
+			return err
+		}
+		if up {
+			if err := syncConf(WireGuardInterface); err != nil {
+				return err
+			}
+			if err := syncRoutes(WireGuardInterface); err != nil {
+				return err
+			}
+		}
 	}
-	if _, err := os.Stat("/sys/class/net/" + WireGuardInterface); err != nil {
+	if !up {
 		return nil // it comes up with them
 	}
-	if err := syncConf(WireGuardInterface); err != nil {
-		return err
+	// Passing the VPN's devices on: forwarding now too, and off again once
+	// this server no longer does (never the hub's own, which has no mark).
+	switch {
+	case l.PassesOn:
+		return setForwarding(WireGuardInterface, true)
+	case strings.Contains(string(old), passesOnMark):
+		return setForwarding(WireGuardInterface, false)
 	}
-	return syncRoutes(WireGuardInterface)
+	return nil
+}
+
+// routedElsewhere says how this server already routes exactly p through
+// another interface ("" if it doesn't).
+func routedElsewhere(p netip.Prefix, iface string) string {
+	out, _ := exec.Command("ip", "-4", "route", "show", "exact", p.Masked().String()).Output()
+	var other []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if f := strings.Fields(line); len(f) > 0 && !slices.Contains(f, iface) {
+			other = append(other, strings.TrimSpace(line))
+		}
+	}
+	return strings.Join(other, "; ")
+}
+
+func alreadyRouted(p netip.Prefix, via, iface string) error {
+	return fmt.Errorf("%s is already routed elsewhere on this server (%s), so Roostack won't route it through %s", p, via, iface)
 }
 
 // setForwarding turns forwarding of packets arriving on an interface on
@@ -677,7 +806,7 @@ func setForwarding(iface string, on bool) error {
 	if on {
 		v = "1\n"
 	}
-	return os.WriteFile("/proc/sys/net/ipv4/conf/"+iface+"/forwarding", []byte(v), 0o644)
+	return os.WriteFile(procNet+iface+"/forwarding", []byte(v), 0o644)
 }
 
 // RemoveWireGuard stops and disables an interface and deletes its file.
@@ -741,17 +870,14 @@ func (l Links) controllerAllowed(conf string) string {
 }
 
 // validPrivate reports whether a prefix is inside the home network's
-// private ranges (or, with servers, the lab's servers'), never everything.
-func validPrivate(s string, servers bool) bool {
+// private ranges, never everything.
+func validPrivate(s string) bool {
 	p, err := netip.ParsePrefix(s)
 	if err != nil || p != p.Masked() || !p.Addr().Is4() || p.Bits() < 8 {
 		return false
 	}
 	ranges := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("172.16.0.0/12"),
 		netip.MustParsePrefix("192.168.0.0/16")}
-	if servers {
-		ranges = append(ranges, trust.ServersRange)
-	}
 	for _, r := range ranges {
 		if r.Bits() <= p.Bits() && r.Contains(p.Addr()) {
 			return true
@@ -812,9 +938,8 @@ func syncRoutes(iface string) error {
 		if !have[p] {
 			// Never take over a route through another interface, such as a
 			// cloud server's own network matching the home's.
-			if out, _ := exec.Command("ip", "-4", "route", "show", "exact", p.String()).Output(); strings.TrimSpace(string(out)) != "" {
-				return fmt.Errorf("%s is already routed elsewhere on this server (%s), so Roostack won't route it through %s",
-					p, strings.TrimSpace(string(out)), iface)
+			if via := routedElsewhere(p, iface); via != "" {
+				return alreadyRouted(p, via, iface)
 			}
 			if out, err := exec.Command("ip", "route", "add", p.String(), "dev", iface).CombinedOutput(); err != nil {
 				return fmt.Errorf("routing %s through %s: %w: %s", p, iface, err, out)

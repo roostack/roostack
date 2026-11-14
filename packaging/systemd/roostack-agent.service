@@ -7,12 +7,16 @@ Wants=network-online.target
 [Service]
 ExecStart=/usr/bin/roostack-agent
 Restart=on-failure
-# Its socket, /run/roostack-agent/agent.sock, and the last OS updates' log
-# (os-updates.log), kept when the agent restarts: upgrading Roostack
-# restarts it while the updates carry on (internal/agent/updates.go).
+# Its socket, /run/roostack-agent/agent.sock, the last OS updates' log
+# (os-updates.log), and each interface's own forwarding setting while the
+# lab's VPN has it on (forwarding-<interface>, internal/agent/wireguard.go).
+# Kept when the agent restarts or stops, until a reboot: upgrading Roostack
+# restarts it while the updates carry on (internal/agent/updates.go), and
+# the forwarding it turned on outlasts it. It's the only part of /run the
+# agent may count on writing to (docs/ASSUMPTIONS.md S7).
 RuntimeDirectory=roostack-agent
 RuntimeDirectoryMode=0755
-RuntimeDirectoryPreserve=restart
+RuntimeDirectoryPreserve=yes
 
 # Sandboxing (SPEC.md §6.1, checked on a VM: docs/ASSUMPTIONS.md S7). The
 # agent is root, but writes only where its jobs need: the firewall and

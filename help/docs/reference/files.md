@@ -110,6 +110,7 @@ changes only these:
 | `/mnt/roostack-<drive>/` | Where backup drives are mounted |
 | `/run/roostack-agent/agent.sock` | How Roostack talks to the agent (in a folder of its own, since the agent's sandbox can't write to `/run` itself) |
 | `/run/roostack-agent/os-updates.log` | The last OS updates' output |
+| `/run/roostack-agent/forwarding-<interface>` | A network interface's own forwarding setting, kept while the [lab's VPN](../settings/vpn.md) has turned it on, and put back afterwards |
 | `/etc/apt/sources.list.d/roostack.sources` | Its `Suites:` line, when you accept a new series of Roostack |
 
 ??? note "Logs"
