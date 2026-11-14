@@ -45,7 +45,7 @@ func (p *Provider) Check(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(HostCookie); err == nil {
 		t, u, err := p.Store.LookupSSOToken(r.Context(), authkit.HashToken(cookie.Value), store.TokenHost)
 		if err == nil && t.Service == c.ID {
-			if ok, err := p.Store.CanUse(r.Context(), c.ID, u.ID); err == nil && ok {
+			if ok, err := MayUse(r.Context(), p.Store, c, u); err == nil && ok {
 				p.Seen(r.Context(), t.Session)
 				claims, err := p.claims(r.Context(), c, u, allScopes)
 				if err != nil {

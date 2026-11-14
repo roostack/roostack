@@ -89,8 +89,13 @@
         <p class="hint">Roostack's pages work only at home or on the lab's VPN.</p>
 
         {{else if eq .State "denied"}}
+        {{if .AdminsOnly}}
+        <h1>Only Owners and Admins can open this</h1>
+        <p>{{.App}} is part of looking after {{.LabName}}, so it's only for its Owners and Admins.</p>
+        {{else}}
         <h1>You can't use {{.App}} yet</h1>
         <p>{{capitalise .Owner}}, who looks after {{.LabName}}, chooses who can use each service. Ask them to add you to {{.App}}.</p>
+        {{end}}
         {{with .User}}<form method="post" action="/sign-out" class="signin-who"><span class="hint">Signed in as <strong>{{.Username}}</strong></span>
           <button type="submit" class="quiet">Not you? Sign out</button></form>{{end}}
         <p><a class="button secondary" href="/">Your services</a></p>

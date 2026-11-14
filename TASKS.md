@@ -369,7 +369,8 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 ## How each server is doing (SPEC §6.15.1; decided 2026-11-12)
 
 - [x] The core: each server's processors, memory, swap, network, temperatures, and each service's share every minute, kept like the checks, with charts on Monitoring and alerts as problems (2026-11-12)
-- [ ] Glances for a live view: installed from Debian when an Owner or Admin turns it on for a server, removed when they turn it off, passed on through Roostack's pages
+- [x] Glances for a live view: its official image, pinned and updated with Roostack, turned on for a server by an Owner or Admin, at its own address behind the sign-in page for Owners and Admins (2026-11-14)
+- [ ] Check Glances on a node on a VM: listening on its address on Roostack's network, and its firewall letting only the controller in (the controller's side is checked)
 
 ## Single sign-on: what's next (SPEC §5.2)
 

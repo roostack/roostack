@@ -535,3 +535,27 @@ func TestSignInSite(t *testing.T) {
 		}
 	}
 }
+
+// A server's live view (SPEC.md §6.15.1): at its own address, behind the
+// wall, from home only unless Roostack's own pages are public, and never
+// through an edge.
+func TestGlancesSite(t *testing.T) {
+	c := MainConfig{Domain: "lab.example", DNSDirective: "dns cloudflare {env.CF}", AdminUpstream: "169.254.1.3:8480",
+		EdgeFrom: []string{"100.96.0.2/32"},
+		Glances: []GlancesSite{{Host: "glances-vps.lab.example", Upstream: "100.96.0.3:61208",
+			Wall: Wall{Upstream: "169.254.1.3:8482", Service: "roostack-glances-n-3"}}}}
+	main, err := Main(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edge := main[strings.Index(main, fmt.Sprintf("*.lab.example:%d", EdgePort)):]
+	if !strings.Contains(main, "@roostack-glances-1 host glances-vps.lab.example") || !strings.Contains(main, "abort @roostack-glances-1-external") ||
+		!strings.Contains(main, "uri /check?service=roostack-glances-n-3") || !strings.Contains(main, "reverse_proxy 100.96.0.3:61208") ||
+		strings.Contains(edge, "glances") {
+		t.Errorf("live view:\n%s", main)
+	}
+	c.AdminPublic = true
+	if main, _ = Main(c); strings.Contains(main, "abort @roostack-glances-1-external") || !strings.Contains(main, "forward_auth") {
+		t.Errorf("public:\n%s", main)
+	}
+}

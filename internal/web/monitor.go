@@ -36,7 +36,9 @@ type Monitoring struct {
 	StatusPage    StatusPageSwitch
 	StatusPageDir string
 	// Vitals is how each server is doing (SPEC.md §6.15.1); nil hides it.
-	Vitals *vitals.Collector
+	// Glances turns servers' live views on and off.
+	Vitals  *vitals.Collector
+	Glances GlancesSwitch
 }
 
 // Runtime settings.

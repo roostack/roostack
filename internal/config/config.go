@@ -553,6 +553,13 @@ type Lab struct {
 	// Devices are the lab's VPN devices as the controller works them out
 	// for each apply (SPEC.md §10.11): never in lab.yaml.
 	Devices Devices `yaml:"-"`
+	// GlancesHere: this server runs Glances for its live view, listening
+	// at GlancesBind; GlancesSites are every server's live views, which
+	// the controller's Caddy serves (SPEC.md §6.15.1). From the
+	// assignment, never in lab.yaml.
+	GlancesHere  bool          `yaml:"-"`
+	GlancesBind  string        `yaml:"-"`
+	GlancesSites []GlancesSite `yaml:"-"`
 }
 
 // Cloud is the lab's use of Roostack Cloud.
@@ -574,6 +581,19 @@ type Cloud struct {
 type Monitoring struct {
 	// StatusPage serves the public status page at status.<domain>.
 	StatusPage bool `yaml:"status_page,omitempty"`
+	// Glances are the servers (by ID) where an Owner or Admin turned on a
+	// live view with Glances (SPEC.md §6.15.1).
+	Glances []string `yaml:"glances,omitempty"`
+}
+
+// GlancesSite is a server's live view, as the controller's Caddy serves
+// it: at Host, from Upstream (as Caddy reaches it), behind single sign-on
+// as Client, for Owners and Admins.
+type GlancesSite struct {
+	Server   string `json:"server"`
+	Host     string `json:"host"`
+	Upstream string `json:"upstream"`
+	Client   string `json:"client"`
 }
 
 // Registry is the service registry the controller fetches its catalog

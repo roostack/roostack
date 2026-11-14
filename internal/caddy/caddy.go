@@ -498,6 +498,9 @@ type MainConfig struct {
 	// DomainItself is what the bare domain shows (SPEC.md §5.3); nil:
 	// Caddy doesn't serve it.
 	DomainItself *DomainSite
+	// Glances are the servers' live views (SPEC.md §6.15.1): each at its
+	// own address, behind single sign-on, reached as Roostack's pages are.
+	Glances []GlancesSite
 	// PagesDevices are the lab's VPN devices that reach Roostack's pages,
 	// and AllDevices every device, which reaches the sign-in page and the
 	// domain itself (SPEC.md §10.11). They're never home.
@@ -527,6 +530,14 @@ type SignInSite struct {
 	// sees them (generate.ContainerHostGateway): OIDC apps swap codes for
 	// tokens here themselves, so a private sign-in page lets them in too.
 	Containers string
+}
+
+// GlancesSite is a server's live view at Host, served from Upstream
+// behind a wall (Wall.Service names its single sign-on client).
+type GlancesSite struct {
+	Host     string
+	Upstream string
+	Wall     Wall
 }
 
 // StatusPageDir is where the public status page's files are inside
@@ -720,6 +731,30 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge 
 	}
 	if bare != nil {
 		domainSite(b, c, bare, domain)
+	}
+	if now == "" && !edge {
+		// The servers' live views (SPEC.md §6.15.1): their own addresses
+		// (so Glances' own page never runs on Roostack's), private as
+		// Roostack's pages are, and only Owners and Admins get past the
+		// wall.
+		var routes []Route
+		for i, g := range c.Glances {
+			w := g.Wall
+			routes = append(routes, Route{ID: fmt.Sprintf("roostack-glances-%d", i+1), Title: "Live view", Host: g.Host,
+				Upstream: g.Upstream, Private: !c.AdminPublic, PrivateFrom: WithDevices(c.PrivateFrom, c.PagesDevices),
+				PrivateExcept: c.EdgeFrom, Wall: &w})
+		}
+		if len(routes) > 0 {
+			gl, err := Site("roostack-glances", routes)
+			if err != nil {
+				return err
+			}
+			_, body, _ := strings.Cut(gl, "\n")
+			b.WriteString("\n")
+			for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
+				fmt.Fprintf(b, "\t%s\n", line)
+			}
+		}
 	}
 	if c.StatusPage && now == "" {
 		// The public status page (SPEC.md §6.15): plain files, for anyone.

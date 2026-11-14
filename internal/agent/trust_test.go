@@ -63,6 +63,7 @@ func TestTrustClasses(t *testing.T) {
 			Rule{Port: GuestsPort, Proto: "udp", For: trust.Anyone, Reason: "storage for other labs (wireguard)"},
 			Rule{Port: 8472, Proto: "tcp", For: trust.Guests, Reason: "storage for other labs"},
 			Rule{Port: 8100, Proto: "tcp", For: trust.Guests, Source: "100.100.5.2", Reason: "storage for g1"},
+			Rule{Port: 61208, Proto: "tcp", For: trust.Controller, Reason: "glances (live view)"},
 		)
 		fw.Edges = []string{"100.96.0.3"}
 		fw.JoinPort, fw.Members = 8471, []string{"100.96.0.1", "100.96.0.2", "100.96.0.3"}

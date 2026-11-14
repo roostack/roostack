@@ -149,6 +149,11 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 			}
 		}
 	}
+	// A live view's Glances on another server, for the controller's Caddy
+	// alone (SPEC.md §6.15.1); on the controller it listens on loopback.
+	if lab.GlancesHere && lab.IsNode() {
+		fw.Allow = append(fw.Allow, agent.Rule{Port: generate.GlancesPort, Proto: "tcp", For: trust.Controller, Reason: "glances (live view)"})
+	}
 	if roles.Store {
 		for _, port := range []int{generate.StoragePort, generate.StorageAdminPort} {
 			fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", For: trust.Servers, Reason: "backup store"})

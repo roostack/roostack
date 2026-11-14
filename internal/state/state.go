@@ -147,6 +147,9 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		caddy.LinkSubdomain + "." + lab.Domain:   "Roostack's address for other servers and labs",
 		caddy.StatusSubdomain + "." + lab.Domain: "the lab's public status page",
 		lab.SignInHost():                         "the sign-in page for services"}
+	for _, g := range lab.GlancesSites {
+		hosts[g.Host] = "a server's live view"
+	}
 	ports := map[int]string{lab.UIPort: "the Roostack admin UI", config.SignInPort: "the sign-in page for services"}
 	hostPorts := map[string]string{} // "2222/tcp" -> service
 	var errs []error

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/store/storetest"
 )
@@ -620,6 +621,24 @@ func TestDiscovery(t *testing.T) {
 	for _, k := range []string{"request_parameter_supported", "request_uri_parameter_supported", "claims_parameter_supported"} {
 		if v, ok := d[k]; !ok || v != false {
 			t.Errorf("%s: %v", k, v)
+		}
+	}
+}
+
+// A client that's Owners' and Admins' only (a server's live view) lets them
+// in whoever may use services, and nobody else.
+func TestAdminsOnly(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	c := Client{ID: "roostack-glances-n-1", AdminsOnly: true}
+	for role, want := range map[string]bool{auth.RoleOwner: true, auth.RoleAdmin: true, auth.RoleMember: false} {
+		id, err := f.st.CreateUser(ctx, store.User{Username: "u-" + role, PasswordHash: "x", Role: role})
+		if err != nil {
+			t.Fatal(err)
+		}
+		u, _ := f.st.UserByID(ctx, id)
+		if ok, err := MayUse(ctx, f.st, c, u); ok != want || err != nil {
+			t.Errorf("%s: %v %v", role, ok, err)
 		}
 	}
 }

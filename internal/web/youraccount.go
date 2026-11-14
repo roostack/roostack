@@ -310,6 +310,9 @@ func (s *Server) usableApps(r *http.Request, a *acct) []signInApp {
 	// An app with single sign-on that isn't listed (on another server's
 	// list not yet in): at the address its sign-in comes back to.
 	for _, c := range clients {
+		if c.AdminsOnly {
+			continue // Roostack's own, not a service
+		}
 		host := c.Host
 		if host == "" && len(c.RedirectURIs) > 0 {
 			if u, err := url.Parse(c.RedirectURIs[0]); err == nil {

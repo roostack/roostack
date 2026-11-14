@@ -7,12 +7,14 @@ import (
 	"html/template"
 	"math"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/usererr"
 	"roostack.cloud/roostack/internal/vitals"
 	"roostack.cloud/roostack/internal/words"
 	"roostack.cloud/roostack/units"
@@ -124,6 +126,20 @@ func (s *Server) serverVitalsPage(w http.ResponseWriter, r *http.Request) {
 	data["Charts"] = s.vitalsCharts(ctx, id, v, rng, time.Now())
 	data["Shares"] = s.serviceShares(ctx, id, v, time.Now())
 	data["Problems"] = s.serverProblems(ctx, id)
+	if s.Glances != nil {
+		data["GlancesSwitch"] = true
+		data["GlancesOn"], data["GlancesURL"] = s.Glances.GlancesOn(id), s.Glances.GlancesURL(id)
+		data["HasAddress"] = s.Domain != ""
+		switch g := r.URL.Query().Get("glances"); g {
+		case "":
+		case "on":
+			data["GlancesDone"] = "Turned on. Roostack is downloading Glances and starting it, which takes a minute or two the first time."
+		case "off":
+			data["GlancesDone"] = "Turned off. Roostack is stopping Glances."
+		default:
+			data["GlancesError"] = g
+		}
+	}
 	s.render(w, "monitoring-server", data)
 }
 
@@ -428,4 +444,32 @@ func chartSVG(label string, top float64, yLabels [2]string, xLabels []string, li
 	}
 	b.WriteString(`</div></div></div>`)
 	return template.HTML(b.String())
+}
+
+// GlancesSwitch turns servers' live views on and off (the manager, SPEC.md
+// §6.15.1).
+type GlancesSwitch interface {
+	GlancesOn(server string) bool
+	SetGlances(server string, on bool) error
+	GlancesURL(server string) string
+}
+
+// glancesSubmit turns a server's live view on or off.
+func (s *Server) glancesSubmit(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("server")
+	if s.Glances == nil {
+		http.NotFound(w, r)
+		return
+	}
+	on := r.FormValue("on") == "yes"
+	if err := s.Glances.SetGlances(id, on); err != nil {
+		if msg, ok := usererr.Message(err); ok {
+			redirect(w, r, "/monitoring/servers/"+id+"?glances="+url.QueryEscape(msg)+"#live-view")
+			return
+		}
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "settings", map[bool]string{true: "turned on", false: "turned off"}[on]+" the live view of "+id)
+	redirect(w, r, "/monitoring/servers/"+id+"?glances="+map[bool]string{true: "on", false: "off"}[on]+"#live-view")
 }

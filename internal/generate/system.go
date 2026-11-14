@@ -3,6 +3,7 @@ package generate
 import (
 	"fmt"
 	"maps"
+	"net"
 	"path/filepath"
 	"slices"
 	"time"
@@ -103,6 +104,12 @@ type SystemOptions struct {
 func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	public := opts.Public || opts.SignInPublic || lab.DomainPublic()
 	out := &SystemOutput{}
+	if lab.GlancesHere {
+		// A live view of this server (SPEC.md §6.15.1), on any server.
+		if err := glances(lab, out); err != nil {
+			return nil, err
+		}
+	}
 	if lab.IsNode() {
 		// Nodes have no Caddy: the controller's serves their routes.
 		return out, nil
@@ -198,6 +205,10 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 		PagesDevices: lab.Devices.Pages,
 		AllDevices:   lab.Devices.All,
 	}
+	for _, g := range lab.GlancesSites {
+		mc.Glances = append(mc.Glances, caddy.GlancesSite{Host: g.Host, Upstream: g.Upstream,
+			Wall: caddy.Wall{Upstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, config.SignInPort), Service: g.Client}})
+	}
 	if lab.ServesDomain() {
 		// The domain itself (SPEC.md §5.3).
 		mc.DomainItself = &caddy.DomainSite{Redirect: DomainRedirect(lab, opts.FirstHosts), Page: lab.Shows() == config.ShowPage, Public: lab.DomainPublic()}
@@ -217,7 +228,7 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	for _, name := range slices.Sorted(maps.Keys(pages)) {
 		out.Files = append(out.Files, File{Name: filepath.Join(lab.Paths.CaddyDir(), "errors", name), Content: pages[name]})
 	}
-	out.Units = []string{CaddyUnit + ".service"}
+	out.Units = append(out.Units, CaddyUnit+".service")
 	if public {
 		mc.CrowdSecAPI = fmt.Sprintf("http://%s:%d", CaddyHostLoopback, config.CrowdSecPort)
 		mc.AppSecURL = fmt.Sprintf("http://%s:%d/", CaddyHostLoopback, config.AppSecPort)
@@ -400,6 +411,56 @@ func crowdSec(lab config.Lab, out *SystemOutput) error {
 	out.Secrets = append(out.Secrets, Secret{Name: CrowdSecBouncerKey, Generate: true})
 	out.Dirs = append(out.Dirs, lab.Paths.CaddyLogDir(), dir+"/config", dir+"/data")
 	out.Units = append(out.Units, CrowdSecUnit+".service")
+	return nil
+}
+
+// Glances, a live view of a server (SPEC.md §6.15.1): its official image,
+// pinned like every other (SPEC.md §8.1), and where it listens. To
+// update: the release's tag, its index's digest (Docker Hub's
+// Docker-Content-Digest for the tag), then check on a VM that it starts
+// and shows the host's processes.
+const (
+	GlancesImage = "docker.io/nicolargo/glances:4.5.9@sha256:1d994d181732cfbf68b7c5826a1f71b89624e3eaaa2fe28b28048b2f61b200d7"
+	GlancesUnit  = "roostack-glances"
+	GlancesPort  = 61208
+)
+
+// glances adds Glances, while an Owner or Admin has it on for this server:
+// it sees the host's processes and network (--pid=host, the host's
+// network) and reads /sys, but has no Podman socket and nothing it can
+// write. Its web server listens at GlancesBind (the host's loopback on
+// the controller, its address on Roostack's network elsewhere), where the
+// controller's Caddy reaches it, behind single sign-on.
+func glances(lab config.Lab, out *SystemOutput) error {
+	if net.ParseIP(lab.GlancesBind) == nil {
+		return fmt.Errorf("glances: invalid address %q", lab.GlancesBind)
+	}
+	var u quadlet.Unit
+	u.Section("Unit").Add("Description", "Roostack: Glances, a live view of this server")
+	cs := u.Section("Container")
+	cs.Add("ContainerName", GlancesUnit)
+	cs.Add("Image", GlancesImage)
+	addTimezone(cs, lab)
+	cs.Add("Network", "host")
+	cs.Add("PodmanArgs", "--pid=host")
+	cs.Add("Volume", "/sys:/sys:ro")
+	cs.Add("ReadOnly", "true")
+	cs.Add("Tmpfs", "/tmp")
+	cs.Add("NoNewPrivileges", "true")
+	cs.Add("DropCapability", "ALL")
+	cs.Env("GLANCES_OPT", fmt.Sprintf("-w --disable-autodiscover --disable-check-update -B %s -p %d", lab.GlancesBind, GlancesPort))
+	cs.Add("Label", "io.roostack.service=_system")
+	cs.Add("Label", "io.roostack.component=glances")
+	svc := u.Section("Service")
+	svc.Add("Restart", "always")
+	// The first start downloads the image.
+	svc.Add("TimeoutStartSec", "900")
+	u.Section("Install").Add("WantedBy", "default.target")
+	if err := u.Validate(); err != nil {
+		return err
+	}
+	out.Quadlets = append(out.Quadlets, File{Name: GlancesUnit + ".container", Content: u.String()})
+	out.Units = append(out.Units, GlancesUnit+".service")
 	return nil
 }
 

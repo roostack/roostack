@@ -32,6 +32,33 @@ email (**Problems**), when a server:
 
 A server's settings page links to its page here (**How it's doing**).
 
+### A live view with Glances
+
+For everything on a server as it happens (each process, the disks,
+sensors, and more), Owners and Admins can turn on
+[Glances](https://github.com/nicolargo/glances) under **Live view** on the
+server's page. Roostack will download Glances' official image (about
+125 MB) and run it on that server, and it will open at an address of its
+own, `glances-<server>.<your domain>`, so your lab needs an address first.
+You sign in there as you do for services, and only Owners and Admins are
+let in. Roostack keeps the history; Glances is for looking at the server
+now.
+
+??? note "For technical users"
+    Roostack pins Glances' image by its digest and updates it with
+    Roostack's own releases. It runs as the container `roostack-glances`
+    under the `roostack` user, seeing the host's processes (`--pid=host`)
+    and network and reading `/sys`, with a read-only filesystem, no
+    capabilities, and no Podman socket. On the server running Roostack it
+    listens on `127.0.0.1:61208`; on another server, on its address on
+    Roostack's network, where its firewall lets only the controller in.
+    Caddy serves it behind single sign-on, at an address of its own so
+    that its scripts never run on Roostack's address. Because of the
+    container's user namespace, other users' processes show as `nobody`
+    and Roostack's own as `root`. Turning it off stops and removes the
+    container, and Roostack deletes the image a week later, as it does
+    others no longer used.
+
 ## What's checked
 
 Nothing to set up: Roostack checks by itself

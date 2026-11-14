@@ -1708,6 +1708,9 @@ func (f *fakeSSO) SSOClients() []sso.Client {
 	if f.on["stirling-pdf"] {
 		out = append(out, sso.Client{ID: "stirling-pdf", Title: "Stirling-PDF", Host: "pdf.lab.example.com"})
 	}
+	if f.on["glances"] {
+		out = append(out, sso.Client{ID: "roostack-glances-n-1", Title: "Live view of nuc", Host: "glances-nuc.lab.example.com", AdminsOnly: true})
+	}
 	if f.on["forgejo"] {
 		out = append(out, sso.Client{ID: "forgejo", Title: "Forgejo", RedirectURIs: []string{"https://git.lab.example.com/user/oauth2/lab.example.com/callback"}})
 	}

@@ -296,6 +296,8 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		StatusPage: m.StatusPageOn(), Pause: pause, Refused: refused, DomainItself: m.labNow().DomainItself}
 	devices, people := m.vpnDevices(context.Background(), services)
 	lab.Devices = devices
+	glancesSites, glancesBinds := m.glancesSites()
+	lab.GlancesSites = glancesSites
 	vpnServer := m.VPNServer()
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
@@ -347,6 +349,7 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		if id == vpnServer {
 			a.People = people
 		}
+		a.Glances = glancesBinds[id]
 		n.Apply(a)
 	}
 	m.secrets, m.setUp = nil, nil

@@ -151,6 +151,9 @@ type Assignment struct {
 	// interface (agent.PeopleInterface) with every device as a peer
 	// (SPEC.md §10.11); nil elsewhere, where it's removed if it was here.
 	People *agent.WireGuard
+	// Glances, when set, is where this server's Glances listens, for its
+	// live view (SPEC.md §6.15.1); "" for none.
+	Glances string
 	// Reason says why it was sent, for the apply's log.
 	Reason string
 	// CaddyFirst: the change is to web addresses and mustn't wait behind
@@ -400,7 +403,7 @@ func (n *Local) Apply(a Assignment) {
 	}
 	old := n.assignment.Services
 	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage, Links: a.Links,
-		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge, Libraries: a.Libraries, People: a.People}
+		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge, Libraries: a.Libraries, People: a.People, Glances: a.Glances}
 	if n.State != nil {
 		// A service taken off this server forgets its setup progress, and
 		// stops any setup still running: its hooks would keep retrying
@@ -821,6 +824,7 @@ func (n *Local) lab(a Assignment) config.Lab {
 	lab.Public.Refused = a.Lab.Refused
 	lab.DomainItself = a.Lab.DomainItself
 	lab.Devices = a.Lab.Devices
+	lab.GlancesHere, lab.GlancesBind, lab.GlancesSites = a.Glances != "", a.Glances, a.Lab.GlancesSites
 	return lab
 }
 

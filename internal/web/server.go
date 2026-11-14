@@ -645,6 +645,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /monitoring", s.require(auth.ManageServices, s.monitoringPage))
 	mux.Handle("GET /monitoring/check/{key}", s.require(auth.ManageServices, s.monitorCheckPage))
 	mux.Handle("GET /monitoring/servers/{server}", s.require(auth.ManageServices, s.serverVitalsPage))
+	mux.Handle("POST /monitoring/servers/{server}/glances", s.require(auth.ManageServices, s.glancesSubmit))
 	mux.Handle("POST /monitoring/checks", s.require(auth.ManageServices, s.monitorAddSubmit))
 	mux.Handle("POST /monitoring/checks/{id}/remove", s.require(auth.ManageServices, s.monitorRemoveSubmit))
 	mux.Handle("POST /monitoring/switch", s.requireOwner(s.monitorSwitchSubmit))

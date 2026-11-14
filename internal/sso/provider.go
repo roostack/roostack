@@ -92,6 +92,19 @@ type Client struct {
 	// for an app that expects its own words (Immich: user and admin;
 	// the package's sso.oidc.groups). Empty: UserGroup and AdminGroup.
 	UserGroup, AdminGroup string
+	// AdminsOnly: one of Roostack's own walled addresses that only Owners
+	// and Admins may use, whoever may use services (a server's live view,
+	// Glances: SPEC.md §6.15.1). It isn't a service, so it isn't listed.
+	AdminsOnly bool
+}
+
+// MayUse reports whether someone may use a client: Owners and Admins for
+// one that's theirs only, otherwise as its service's access says.
+func MayUse(ctx context.Context, st *store.Store, c Client, u *store.User) (bool, error) {
+	if c.AdminsOnly {
+		return u.Role == auth.RoleOwner || u.Role == auth.RoleAdmin, nil
+	}
+	return st.CanUse(ctx, c.ID, u.ID)
 }
 
 // Session is someone signed in on the sign-in page.
@@ -589,7 +602,7 @@ func (p *Provider) revoke(ctx context.Context, rot *rotation, why string) {
 // hashes (none if it refused).
 func (p *Provider) issue(w http.ResponseWriter, r *http.Request, c Client, u *store.User, session string, sessionEnds, authTime time.Time, scope, nonce string) []string {
 	ctx := r.Context()
-	if ok, err := p.Store.CanUse(ctx, c.ID, u.ID); err != nil || !ok {
+	if ok, err := MayUse(ctx, p.Store, c, u); err != nil || !ok {
 		tokenError(w, http.StatusBadRequest, "invalid_grant", "this person may no longer use this app")
 		return nil
 	}
@@ -699,7 +712,11 @@ func (p *Provider) UserInfo(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
 		return
 	}
-	if ok, err := p.Store.CanUse(r.Context(), t.Service, u.ID); err != nil || !ok {
+	c, known := p.Client(t.Service)
+	if !known {
+		c = Client{ID: t.Service}
+	}
+	if ok, err := MayUse(r.Context(), p.Store, c, u); err != nil || !ok {
 		w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
 		return

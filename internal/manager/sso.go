@@ -174,6 +174,8 @@ func (m *Manager) SSOClients() []sso.Client {
 		}
 		clients = append(clients, c)
 	}
+	// The servers' live views (glances.go).
+	clients = append(clients, m.glancesClients()...)
 	m.ssoClients, m.ssoAt = clients, time.Now()
 	return clients
 }

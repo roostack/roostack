@@ -14,7 +14,7 @@ then <http://127.0.0.1:8791/docs/mockups/server-monitoring/monitoring.html>. The
 
 - **Monitoring** (`monitoring.html`): a **Servers** section above the services' checks: each server's processors, memory, swap, and temperature now, and whether it's fine, with **Details**. A server low on memory has a notice at the top, naming the service using the most.
 - **A server** (`server.html`, `/monitoring/servers/<server>`): the figures now; **Over time** for a day, a week, or a month (processors, memory with swap, network in and out, temperature), each with its peak; **What's using it**, each service's memory and processor time over the last hour; and **Live view (Glances)…**.
-- **Live view** (`glances.html`): Glances is off until an Owner or Admin turns it on for a server. Turning it on installs it from Debian and runs it there; **Open Glances** shows its own page through Roostack's.
+- **Live view** (`glances.html`): Glances is off until an Owner or Admin turns it on for a server. Turning it on installs it from Debian and runs it there; **Open Glances** shows its own page through Roostack's. *As built (2026-11-14), the card is on the server's page, and Glances is its official container at its own address behind the sign-in page (SPEC §6.15.1).*
 
 ## How it would work
 

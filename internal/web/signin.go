@@ -172,10 +172,13 @@ type signInView struct {
 	Look    signInLook
 	// App is what they're signing in to ("" for the page itself).
 	App, AppLogo string
-	Next         string
-	Error        string
-	Username     string
-	Remember     bool
+	// AdminsOnly: App is one only Owners and Admins may use (a server's
+	// live view), so nobody can be added to it.
+	AdminsOnly bool
+	Next       string
+	Error      string
+	Username   string
+	Remember   bool
 	// User is who's signed in, on the pages for someone signed in.
 	User *store.User
 	// Owner names who to ask for access or a password.
@@ -299,7 +302,7 @@ func (s *Server) signInAuthorize(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/sign-in?"+url.Values{"next": {sso.PathAuthorize + "?" + next.Encode()}}.Encode(), http.StatusSeeOther)
 		return
 	}
-	if ok, err := s.Store.CanUse(r.Context(), req.Client.ID, sess.User.ID); err != nil || !ok {
+	if ok, err := sso.MayUse(r.Context(), s.Store, req.Client, sess.User); err != nil || !ok {
 		if err != nil {
 			s.serverError(w, err)
 			return
@@ -309,7 +312,7 @@ func (s *Server) signInAuthorize(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.renderSignIn(w, r, http.StatusForbidden, signInView{State: "denied", App: req.Client.Title,
-			AppLogo: "/look/app/" + req.Client.ID, User: sess.User})
+			AppLogo: "/look/app/" + req.Client.ID, AdminsOnly: req.Client.AdminsOnly, User: sess.User})
 		return
 	}
 	to, err := s.SignIn.Approve(req, sess)
@@ -333,13 +336,13 @@ func (s *Server) signInStart(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/sign-in?"+url.Values{"next": {r.URL.RequestURI()}}.Encode(), http.StatusSeeOther)
 		return
 	}
-	if ok, err := s.Store.CanUse(r.Context(), req.Client.ID, sess.User.ID); err != nil || !ok {
+	if ok, err := sso.MayUse(r.Context(), s.Store, req.Client, sess.User); err != nil || !ok {
 		if err != nil {
 			s.serverError(w, err)
 			return
 		}
 		s.renderSignIn(w, r, http.StatusForbidden, signInView{State: "denied", App: req.Client.Title,
-			AppLogo: "/look/app/" + req.Client.ID, User: sess.User})
+			AppLogo: "/look/app/" + req.Client.ID, AdminsOnly: req.Client.AdminsOnly, User: sess.User})
 		return
 	}
 	to, err := s.SignIn.Handoff(req, sess)

@@ -1218,3 +1218,44 @@ func TestRunAsUserLeavesThePackage(t *testing.T) {
 		t.Errorf("the package's lines changed: %v", q)
 	}
 }
+
+// A server's live view (SPEC.md §6.15.1): Glances' pinned image, seeing
+// the host's processes and network, read-only, at its address; and the
+// controller's Caddy serving each live view behind the wall.
+func TestGlances(t *testing.T) {
+	lab := testLab()
+	lab.DNS.Provider = "cloudflare"
+	sys, err := System(lab, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(Dump(&Output{Quadlets: sys.Quadlets}), "glances") {
+		t.Fatal("Glances while it's off")
+	}
+	lab.GlancesHere, lab.GlancesBind = true, "127.0.0.1"
+	lab.GlancesSites = []config.GlancesSite{{Server: "n-1", Host: "glances-nuc.lab.example.com", Upstream: CaddyHostLoopback + ":61208",
+		Client: "roostack-glances-n-1"}}
+	sys, err = System(lab, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := Dump(&Output{Quadlets: sys.Quadlets})
+	for _, want := range []string{"Image=" + GlancesImage, "Network=host", "PodmanArgs=--pid=host", "Volume=/sys:/sys:ro", "ReadOnly=true",
+		"DropCapability=ALL", "-B 127.0.0.1 -p 61208"} {
+		if !strings.Contains(q, want) {
+			t.Errorf("the unit missing %q:\n%s", want, q)
+		}
+	}
+	if !slices.Contains(sys.Units, GlancesUnit+".service") || !slices.Contains(sys.Units, CaddyUnit+".service") {
+		t.Errorf("units: %v", sys.Units)
+	}
+	cf := sys.Caddyfile.Content
+	if !strings.Contains(cf, "@roostack-glances-1 host glances-nuc.lab.example.com") || !strings.Contains(cf, "service=roostack-glances-n-1") ||
+		!strings.Contains(cf, "reverse_proxy "+CaddyHostLoopback+":61208") {
+		t.Errorf("Caddy:\n%s", cf)
+	}
+	lab.GlancesBind = "not an address"
+	if _, err := System(lab, false); err == nil {
+		t.Error("a bad address was let through")
+	}
+}

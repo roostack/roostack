@@ -182,8 +182,8 @@ func (f Firewall) Validate() error {
 			errs = append(errs, fmt.Errorf("allow[%d]: proto must be tcp or udp", i))
 		}
 		if !r.For.Ruled() {
-			errs = append(errs, fmt.Errorf("allow[%d]: for must be %q, %q, %q or %q", i, trust.Anyone, trust.Home,
-				trust.Servers, trust.Guests))
+			errs = append(errs, fmt.Errorf("allow[%d]: for must be %q, %q, %q, %q or %q", i, trust.Anyone, trust.Home,
+				trust.Servers, trust.Guests, trust.Controller))
 		}
 		if r.Source != "" {
 			if a, err := netip.ParseAddr(r.Source); err != nil || r.For != trust.Guests || !trust.GuestRange.Contains(a) {
@@ -378,7 +378,9 @@ func (f Firewall) Ruleset() string {
 	// conntrack doesn't pair with the multicast request.
 	b.WriteString("\t\tip6 saddr fe80::/10 udp dport 546 accept\n\n")
 
-	rules := slices.DeleteFunc(slices.Clone(f.Allow), func(r Rule) bool { return r.For == trust.Guests || r.For == trust.Servers })
+	rules := slices.DeleteFunc(slices.Clone(f.Allow), func(r Rule) bool {
+		return r.For == trust.Guests || r.For == trust.Servers || r.For == trust.Controller
+	})
 	if f.SSHFrom != FromOff {
 		rules = append(rules, Rule{Port: 22, Proto: "tcp", For: trust.Class(f.SSHFrom), Reason: "ssh"})
 	}
@@ -563,6 +565,13 @@ func (f Firewall) servers(b *strings.Builder) {
 	for _, r := range rules {
 		fmt.Fprintf(b, "\t\t# %s\n", r.Reason)
 		fmt.Fprintf(b, "\t\t%s%s dport %d accept\n", from, r.Proto, r.Port)
+	}
+	// What only the controller reaches, such as a live view's Glances.
+	for _, r := range f.Allow {
+		if r.For == trust.Controller && f.Controller != "" {
+			fmt.Fprintf(b, "\t\t# %s\n", r.Reason)
+			fmt.Fprintf(b, "\t\tiifname %q ip saddr %s %s dport %d accept\n", WireGuardInterface, f.Controller, r.Proto, r.Port)
+		}
 	}
 	if f.Controller != "" && f.SSHFrom != FromOff {
 		b.WriteString("\t\t# ssh from the controller\n")

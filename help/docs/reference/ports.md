@@ -31,12 +31,14 @@ over the lab's network they reach nothing else.
 | 8000–8001/tcp | A server's backup store for your other servers (rest-server), on the lab's network |
 | 8472/tcp, 8100 and up | Other labs' access to their backups here: the invite and usage API, then two ports for each lab (its store and its admin access) |
 | Services' local ports | On a server other than the one running the lab, its services' web ports, for the lab's Caddy, on the lab's network |
+| 61208/tcp | A server's [live view](../servers/monitoring.md#a-live-view-with-glances) (Glances), while it's on, on a server other than the one running the lab, and only that one can reach it |
 
 ## Only on the server itself
 
 | Port | For |
 |---|---|
 | 127.0.0.1:8480 | Roostack's web pages (Caddy passes them on as `roost.<your domain>`) |
+| 127.0.0.1:61208 | The [live view](../servers/monitoring.md#a-live-view-with-glances) (Glances) of the server running the lab, while it's on (Caddy passes it on as `glances-<server>.<your domain>`) |
 | 127.0.0.1:8473 | CrowdSec's local API, while anything is [public](../services/public.md), for Caddy's bouncer |
 | 127.0.0.1:20000–29999 | Each service's web port, for Caddy; chosen once per service and kept |
 

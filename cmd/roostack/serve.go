@@ -772,6 +772,7 @@ func (c *controller) wireMonitoring() {
 	srv.Vitals = &vitals.Collector{Servers: c.mgr.VitalsServers, Store: c.st, Log: c.log, Enabled: srv.MonitorOn,
 		KeepDays: srv.HistoryKeepDays}
 	go sleep.Every(c.ctx, node.VitalsEvery, func() { srv.Vitals.Round(c.ctx) })
+	srv.Glances = c.mgr
 	go srv.RunHistoryCull(c.ctx)
 }
 

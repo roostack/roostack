@@ -123,7 +123,7 @@ const (
 
 // Ruled reports whether a firewall rule may name c.
 func (c Class) Ruled() bool {
-	return c == Anyone || c == Home || c == Servers || c == Guests
+	return c == Anyone || c == Home || c == Servers || c == Guests || c == Controller
 }
 
 // Lab is what Classify needs to know about the lab's servers.

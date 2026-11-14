@@ -139,7 +139,7 @@ func addPerson(t *testing.T, st *store.Store, name, role string) int64 {
 func TestSignInOIDC(t *testing.T) {
 	h := newHarness(t, "")
 	h.server.LabName = "Smiths' lab"
-	fs := &fakeSSO{on: map[string]bool{"mealie": true}}
+	fs := &fakeSSO{on: map[string]bool{"mealie": true, "glances": true}}
 	srv, c := withSignIn(t, h, fs)
 	addPerson(t, h.store, "mum", "member")
 
@@ -201,6 +201,15 @@ func TestSignInOIDC(t *testing.T) {
 	}
 	if _, body := call(t, srv, c, "GET", signInHost, "/", nil); strings.Contains(body, "recipes.lab.example.com") {
 		t.Error("home lists a service she can't use")
+	}
+	// A server's live view: Owners and Admins only, so nobody to ask.
+	live := sso.PathStart + "?" + url.Values{"service": {"roostack-glances-n-1"}, "rd": {"https://glances-nuc.lab.example.com/"}}.Encode()
+	if resp, body := call(t, srv, c, "GET", signInHost, live, nil); resp.StatusCode != http.StatusForbidden ||
+		!strings.Contains(body, "Only Owners and Admins can open this") || strings.Contains(body, "Ask them to add you") {
+		t.Errorf("a live view: %d", resp.StatusCode)
+	}
+	if _, body := call(t, srv, c, "GET", signInHost, "/", nil); strings.Contains(body, "glances-nuc") {
+		t.Error("home lists a live view")
 	}
 
 	// Signing out.

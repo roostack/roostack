@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/usererr"
 	"roostack.cloud/roostack/internal/vitals"
 )
 
@@ -57,4 +59,45 @@ func TestServerVitalsPages(t *testing.T) {
 	if code, _ := h.get("/monitoring/servers/n-9"); code != http.StatusNotFound {
 		t.Errorf("an unknown server: %d", code)
 	}
+
+	// The live view: off with no address, then turned on and off.
+	g := &fakeGlances{on: map[string]bool{}}
+	h.server.Glances, h.server.Domain = g, ""
+	if _, body := h.get("/monitoring/servers/n-1"); !strings.Contains(body, `id="live-view"`) || !strings.Contains(body, "give it one") ||
+		strings.Contains(body, "Turn on Glances") {
+		t.Error("the live view without an address")
+	}
+	h.server.Domain = "lab.example"
+	if _, body := h.get("/monitoring/servers/n-1"); !strings.Contains(body, "Turn on Glances") || strings.Contains(body, "Live view (Glances)") {
+		t.Error("the live view, off")
+	}
+	_, body = h.post("/monitoring/servers/n-1/glances", url.Values{"on": {"yes"}}, h.srv.URL)
+	if !g.on["n-1"] || !strings.Contains(body, "Roostack is downloading Glances") || !strings.Contains(body, "Turn off Glances") ||
+		!strings.Contains(body, `href="https://glances-nuc.lab.example"`) || !strings.Contains(body, "<code>glances-nuc.lab.example</code>") {
+		t.Errorf("turned on: %v", g.on)
+	}
+	_, body = h.post("/monitoring/servers/n-1/glances", url.Values{"on": {"no"}}, h.srv.URL)
+	if g.on["n-1"] || !strings.Contains(body, "Roostack is stopping Glances") {
+		t.Errorf("turned off: %v", g.on)
+	}
+	if code, _ := h.post("/monitoring/servers/n-9/glances", url.Values{"on": {"yes"}}, h.srv.URL); code != http.StatusNotFound {
+		t.Errorf("an unknown server's live view: %d", code)
+	}
+}
+
+type fakeGlances struct{ on map[string]bool }
+
+func (g *fakeGlances) GlancesOn(server string) bool { return g.on[server] }
+func (g *fakeGlances) SetGlances(server string, on bool) error {
+	if server != "n-1" {
+		return usererr.New("That server isn't in the lab.")
+	}
+	g.on[server] = on
+	return nil
+}
+func (g *fakeGlances) GlancesURL(server string) string {
+	if !g.on[server] {
+		return ""
+	}
+	return "https://glances-nuc.lab.example"
 }
