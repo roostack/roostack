@@ -65,6 +65,19 @@ over the lab's network they reach nothing else.
     SSH from the server that runs the lab.
     `roostack apply -dry-run` prints the firewall Roostack would apply.
 
+    **Traffic passing through a server** (its `forward` chain): Roostack
+    rules only on what touches its own networks. Nothing passes to or from
+    other labs or Roostack Cloud's relay; on `roostack`, only backups from
+    one server to another's store pass through the server they're sent
+    through; the [VPN's devices](../settings/vpn.md#what-a-device-reaches)
+    pass only where they're allowed; and where Roostack turned forwarding
+    on for the VPN, only answers to those devices pass. Everything else
+    passing through is left alone: if other software on the server, such
+    as Docker or a host for virtual machines, routes traffic between its
+    own networks, Roostack's firewall lets it through so that it keeps
+    working, and that software's own rules protect it. Roostack never turns
+    forwarding on for it.
+
     Caddy runs in its own network namespace (pasta), so it sees visitors'
     real addresses; it reaches the services' local ports through pasta's
     loopback mapping.

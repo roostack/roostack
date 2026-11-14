@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/vitals"
 	"roostack.cloud/roostack/internal/words"
 	"roostack.cloud/roostack/units"
@@ -51,7 +52,7 @@ func VitalsText(p vitals.Problem, titles map[string]string, now time.Time) strin
 			"or the system may stop one to free some.", p.Name, for_)
 		if len(v.Services) > 0 && v.Services[0].Service != "" {
 			s := v.Services[0].Service
-			t += fmt.Sprintf(" %s is using the most (%s).", cmp.Or(titles[s], s), units.Bytes(v.Services[0].Memory))
+			t += fmt.Sprintf(" %s is using the most (%s).", cmp.Or(node.OwnTitle(s), titles[s], s), units.Bytes(v.Services[0].Memory))
 		}
 		return t
 	case vitals.Swapping:

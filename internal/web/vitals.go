@@ -174,17 +174,6 @@ func (s *Server) serverProblems(ctx context.Context, id string) []string {
 	return out
 }
 
-// ownTitle names Roostack's own share by what the server counted in it
-// ("Roostack, Caddy, and Glances").
-func ownTitle(v node.Vitals) string {
-	for _, u := range v.Services {
-		if u.Service == "" && len(u.Parts) > 0 {
-			return words.And(u.Parts)
-		}
-	}
-	return "Roostack"
-}
-
 // serviceShares are each service's memory and processors over the last
 // hour, most memory first: a full bar is the server's whole memory, or all
 // its processors busy.
@@ -216,8 +205,8 @@ func (s *Server) serviceShares(ctx context.Context, id string, v node.Vitals, no
 		sh := serviceShare{Name: name, Title: cmp.Or(titles[name], name), Memory: percent(mem, v.MemTotal),
 			CPU: int(math.Round(cpu / cpus)), MemoryText: units.Bytes(mem), CPUText: fmt.Sprintf("%.1f%%", cpu/cpus)}
 		sh.MemoryText = fmt.Sprintf("%s · %d%%", sh.MemoryText, sh.Memory)
-		if name == "" {
-			sh.Title = ownTitle(v)
+		if t := node.OwnTitle(name); t != "" {
+			sh.Title = t
 		} else {
 			sh.Href = "/services/" + name
 		}

@@ -119,7 +119,9 @@ clash with a café's network using the same addresses as yours.
     it turns forwarding on for the interfaces the answers come back in on;
     where it was off before, only answers are forwarded from there, so the
     server doesn't route anything else for your network, and it goes back
-    off when the VPN no longer needs it. Caddy
+    off when the VPN no longer needs it (other software's forwarding is
+    left alone: [traffic passing through a server](../reference/ports.md)).
+    Caddy
     lets each device through to a private service only if its address is
     listed for it.
 

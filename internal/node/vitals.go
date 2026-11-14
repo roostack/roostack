@@ -50,8 +50,9 @@ type Vitals struct {
 	// Up is how long since the server started.
 	Up time.Duration `json:"up"`
 	// Services are each service's memory and processor time, by the
-	// service's name ("" for Roostack's own: Roostack itself, and Caddy,
-	// CrowdSec, and Glances where they run).
+	// service's name, and each part of Roostack's own by its own name
+	// (OwnTitle): Roostack itself, and Caddy, CrowdSec, and Glances where
+	// they run.
 	Services []ServiceUse `json:"services,omitempty"`
 }
 
@@ -63,34 +64,40 @@ type ServiceUse struct {
 	// processor (100 is one processor busy all the time).
 	Memory int64   `json:"memory"`
 	CPU    float64 `json:"cpu"`
-	// Parts are, for Roostack's own, what it counted: "Roostack", "Caddy",
-	// "CrowdSec", "Glances".
-	Parts []string `json:"parts,omitempty"`
 }
 
-// ownParts name Roostack's own units, by the start of their names; any
-// other is Roostack's.
-var ownParts = []struct{ prefix, name string }{
-	{"roostack-caddy", "Caddy"}, {"roostack-crowdsec", "CrowdSec"}, {"roostack-glances", "Glances"},
+// The parts of Roostack's own, by the start of their units' names, and
+// their names in Services: "_" can't start a service's name. Any other
+// unit of Roostack's own is Roostack's.
+var ownParts = []struct{ prefix, name, title string }{
+	{"roostack-caddy", "_caddy", "Caddy"}, {"roostack-crowdsec", "_crowdsec", "CrowdSec"}, {"roostack-glances", "_glances", "Glances"},
 }
 
-func partRank(name string) int {
-	for i, p := range ownParts {
-		if p.name == name {
-			return i + 1
-		}
-	}
-	return 0
-}
+// OwnRoostack is Roostack itself in Services.
+const OwnRoostack = "_roostack"
 
-// ownPart is what part of Roostack's own a unit is.
+// ownPart is the part of Roostack's own a unit is, by its name in Services.
 func ownPart(unit string) string {
 	for _, p := range ownParts {
 		if unit == p.prefix || strings.HasPrefix(unit, p.prefix+"-") {
 			return p.name
 		}
 	}
-	return "Roostack"
+	return OwnRoostack
+}
+
+// OwnTitle is what a part of Roostack's own in Services is called ("" for
+// a service).
+func OwnTitle(service string) string {
+	if service == OwnRoostack {
+		return "Roostack"
+	}
+	for _, p := range ownParts {
+		if p.name == service {
+			return p.title
+		}
+	}
+	return ""
 }
 
 // DefaultTempHigh is the high mark for a sensor that gives none.
@@ -159,22 +166,20 @@ func (r *vitalsReader) read(now time.Time) Vitals {
 		byService := map[string]*ServiceUse{}
 		for unit := range units {
 			svc := r.serviceOf(unit)
+			if svc == "" {
+				svc = ownPart(unit)
+			}
 			u := byService[svc]
 			if u == nil {
 				u = &ServiceUse{Service: svc}
 				byService[svc] = u
 			}
 			u.Memory += memory[unit]
-			if part := ownPart(unit); svc == "" && !slices.Contains(u.Parts, part) {
-				u.Parts = append(u.Parts, part)
-			}
 			if prev, ok := r.last.usage[unit]; ok && secs > 0 {
 				u.CPU += float64(sub(c.usage[unit], prev)) / 1e6 / secs * 100
 			}
 		}
 		for _, u := range byService {
-			// Roostack first, then the rest as ownParts lists them.
-			slices.SortFunc(u.Parts, func(a, b string) int { return partRank(a) - partRank(b) })
 			v.Services = append(v.Services, *u)
 		}
 		slices.SortFunc(v.Services, func(a, b ServiceUse) int { return int(b.Memory - a.Memory) })
@@ -364,7 +369,8 @@ func (r *vitalsReader) units() map[string]string {
 }
 
 // serviceOf is the service a unit belongs to: the longest service name
-// it starts with (names can have hyphens), or "" for Roostack's own.
+// it starts with (names can have hyphens), or "" for Roostack's own
+// (ownPart).
 func (r *vitalsReader) serviceOf(unit string) string {
 	best := ""
 	var names []string

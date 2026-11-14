@@ -71,8 +71,9 @@ func TestVitals(t *testing.T) {
 	if v.Temp != 52 || v.TempHigh != 100 || v.TempName != "coretemp Package id 0" {
 		t.Errorf("temperature: %v of %v (%s)", v.Temp, v.TempHigh, v.TempName)
 	}
-	if len(v.Services) != 2 || !reflect.DeepEqual(v.Services[0], ServiceUse{Service: "immich", Memory: 2100000000, CPU: 50}) ||
-		!reflect.DeepEqual(v.Services[1], ServiceUse{Service: "", Memory: 150000000, CPU: 1, Parts: []string{"Roostack", "Caddy", "Glances"}}) {
+	want := []ServiceUse{{Service: "immich", Memory: 2100000000, CPU: 50}, {Service: "_caddy", Memory: 80000000, CPU: 1},
+		{Service: OwnRoostack, Memory: 50000000}, {Service: "_glances", Memory: 20000000}}
+	if !reflect.DeepEqual(v.Services, want) || OwnTitle("_glances") != "Glances" || OwnTitle("immich") != "" {
 		t.Errorf("services: %+v", v.Services)
 	}
 	if r.latest().At != v.At || v.MemoryUsed() != 5000000*1024 {
