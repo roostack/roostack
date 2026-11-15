@@ -531,10 +531,25 @@ func TestForwardAuth(t *testing.T) {
 		t.Errorf("asked about another address: %d", w.Code)
 	}
 
+	// The browser the sign-in starts in is marked, on the service's address.
+	started := w.Result().Cookies()
+	if len(started) != 1 || started[0].Name != StartCookie || !started[0].HttpOnly || !started[0].Secure || started[0].Path != "/" ||
+		started[0].Domain != "" {
+		t.Fatalf("start cookie %+v", started)
+	}
 	u, _ := url.Parse(loc)
 	req, ok := f.p.ParseStart(u.Query())
-	if !ok || req.Back != "https://pdf.smiths.example/merge?x=1" {
+	if !ok || req.Back != "https://pdf.smiths.example/merge?x=1" || req.Started != authkit.HashToken(started[0].Value) {
 		t.Fatalf("start %+v %v", req, ok)
+	}
+	// A second tab keeps the same mark.
+	r2 := httptest.NewRequest(http.MethodGet, PathCheck+"?service=stirling-pdf", nil)
+	r2.Header.Set("X-Forwarded-Host", "pdf.smiths.example")
+	r2.AddCookie(started[0])
+	w2 := httptest.NewRecorder()
+	f.p.Check(w2, r2)
+	if len(w2.Result().Cookies()) != 0 || !strings.Contains(w2.Header().Get("Location"), "started="+req.Started) {
+		t.Errorf("a second tab: %v %q", w2.Result().Cookies(), w2.Header().Get("Location"))
 	}
 	// Somewhere else to go back to is replaced by the service's own address.
 	if evil, _ := f.p.ParseStart(url.Values{"service": {"stirling-pdf"}, "rd": {"https://evil.example/"}}); evil.Back != "https://pdf.smiths.example/" {
@@ -554,17 +569,46 @@ func TestForwardAuth(t *testing.T) {
 	if cw.Code != 400 {
 		t.Errorf("callback at another address: %d", cw.Code)
 	}
-	to, _ = f.p.Handoff(req, f.session)
+	// Someone else's hand-off, opened in a browser the sign-in didn't
+	// start in, signs nobody in (and is used up).
+	for _, other := range []*http.Cookie{nil, {Name: StartCookie, Value: "another-browsers"}} {
+		to, _ = f.p.Handoff(req, f.session)
+		cb, _ = url.Parse(to)
+		r = httptest.NewRequest(http.MethodGet, cb.RequestURI(), nil)
+		r.Host = "pdf.smiths.example"
+		if other != nil {
+			r.AddCookie(other)
+		}
+		cw = httptest.NewRecorder()
+		f.p.Callback(cw, r)
+		if cw.Code != 400 || len(cw.Result().Cookies()) != 0 {
+			t.Errorf("a hand-off in another browser (%v): %d %v", other, cw.Code, cw.Result().Cookies())
+		}
+	}
+	// One that didn't start at the service's address starts there now.
+	direct, _ := f.p.ParseStart(url.Values{"service": {"stirling-pdf"}, "rd": {"https://pdf.smiths.example/x"}})
+	to, _ = f.p.Handoff(direct, f.session)
 	cb, _ = url.Parse(to)
 	r = httptest.NewRequest(http.MethodGet, cb.RequestURI(), nil)
 	r.Host = "pdf.smiths.example"
 	cw = httptest.NewRecorder()
 	f.p.Callback(cw, r)
+	if cw.Code != 302 || cw.Header().Get("Location") != "https://pdf.smiths.example/x" || len(cw.Result().Cookies()) != 0 {
+		t.Errorf("a sign-in that didn't start at the service: %d %q %v", cw.Code, cw.Header().Get("Location"), cw.Result().Cookies())
+	}
+	to, _ = f.p.Handoff(req, f.session)
+	cb, _ = url.Parse(to)
+	r = httptest.NewRequest(http.MethodGet, cb.RequestURI(), nil)
+	r.Host = "pdf.smiths.example"
+	r.AddCookie(started[0])
+	cw = httptest.NewRecorder()
+	f.p.Callback(cw, r)
 	if cw.Code != 302 || cw.Header().Get("Location") != "https://pdf.smiths.example/merge?x=1" {
 		t.Fatalf("callback %d %q", cw.Code, cw.Header().Get("Location"))
 	}
-	ck := cw.Result().Cookies()
-	if len(ck) != 1 || ck[0].Name != HostCookie || ck[0].Domain != "" || !ck[0].HttpOnly || !ck[0].Secure || !ck[0].Expires.IsZero() {
+	// The service's cookie, and the mark cleared.
+	ck := slices.DeleteFunc(cw.Result().Cookies(), func(c *http.Cookie) bool { return c.Name == StartCookie && c.MaxAge < 0 })
+	if len(cw.Result().Cookies()) != 2 || len(ck) != 1 || ck[0].Name != HostCookie || ck[0].Domain != "" || !ck[0].HttpOnly || !ck[0].Secure || !ck[0].Expires.IsZero() {
 		t.Fatalf("cookie %+v", ck)
 	}
 	// Used once.

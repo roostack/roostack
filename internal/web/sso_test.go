@@ -212,6 +212,16 @@ func TestSignInOIDC(t *testing.T) {
 		t.Error("home lists a live view")
 	}
 
+	// A link to signing out asks first: any page could link there. An
+	// app's own address to go back to is kept for after.
+	resp, body = call(t, srv, c, "GET", signInHost, sso.PathSignOut+"?client_id=mealie&post_logout_redirect_uri=https%3A%2F%2Frecipes.lab.example.com%2Fbye", nil)
+	if resp.StatusCode != 200 || !strings.Contains(body, "Sign out?") || !strings.Contains(body, `name="client_id" value="mealie"`) ||
+		!strings.Contains(body, `value="https://recipes.lab.example.com/bye"`) {
+		t.Errorf("a link to sign out: %d\n%s", resp.StatusCode, body)
+	}
+	if _, body := call(t, srv, c, "GET", signInHost, "/", nil); !strings.Contains(body, "Hello, mum") {
+		t.Error("a link signed her out")
+	}
 	// Signing out.
 	resp, body = call(t, srv, c, "POST", signInHost, sso.PathSignOut, url.Values{})
 	if resp.StatusCode != 200 || !strings.Contains(body, "You've signed out") {
@@ -219,6 +229,10 @@ func TestSignInOIDC(t *testing.T) {
 	}
 	if resp, _ := call(t, srv, c, "GET", signInHost, authorize, nil); resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("after signing out: %d", resp.StatusCode)
+	}
+	// With nobody signed in, the link just says so.
+	if resp, body := call(t, srv, c, "GET", signInHost, sso.PathSignOut, nil); resp.StatusCode != 200 || !strings.Contains(body, "You've signed out") {
+		t.Errorf("a link to sign out, signed out already: %d", resp.StatusCode)
 	}
 }
 

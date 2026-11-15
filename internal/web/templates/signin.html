@@ -100,6 +100,17 @@
           <button type="submit" class="quiet">Not you? Sign out</button></form>{{end}}
         <p><a class="button secondary" href="/">Your services</a></p>
 
+        {{else if eq .State "sign-out"}}
+        <h1>Sign out?</h1>
+        <p>You're signed in as <strong>{{.User.Username}}</strong>. Signing out will end your sign-in to the services behind this page
+          on this browser.</p>
+        <form method="post" action="/sign-out">
+          {{with .Back}}<input type="hidden" name="post_logout_redirect_uri" value="{{.}}">{{end}}
+          {{with .BackClient}}<input type="hidden" name="client_id" value="{{.}}">{{end}}
+          <button type="submit">Sign out</button>
+          <a class="button secondary" href="/">Stay signed in</a>
+        </form>
+
         {{else if eq .State "out"}}
         <h1>You've signed out</h1>
         <p>Services behind the sign-in page will need you to sign in again straight away. Apps that keep their own sign-in, such as

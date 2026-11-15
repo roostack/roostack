@@ -227,7 +227,7 @@ func (h LinuxHost) mountAt(l Library, spot mountSpot) error {
 	automount := strings.TrimSuffix(unit, ".mount") + ".automount"
 	if err := editFstab(func(tab string) (string, error) {
 		exec.Command("systemctl", "stop", automount, unit).Run() // replacing one, or a stale mount
-		return withBlock(removeBlock(removeBlock(tab, spot.folderTag), spot.shareTag), spot.folderTag, line), nil
+		return withBlock(removeBlock(removeBlock(tab, spot.folderTag, target), spot.shareTag, target), spot.folderTag, line), nil
 	}); err != nil {
 		return err
 	}
@@ -247,20 +247,20 @@ func (h LinuxHost) UnmountLibrary(name string) error {
 	}
 	exec.Command("systemctl", "stop", strings.TrimSuffix(unit, ".mount")+".automount", unit).Run()
 	if err := editFstab(func(tab string) (string, error) {
-		tab = removeBlock(tab, libraryTag(name))
-		tab = removeBlock(tab, shareTag(name))
+		tab = removeBlock(tab, libraryTag(name), target)
+		tab = removeBlock(tab, shareTag(name), target)
 		os.Remove(shareLoginFile(name))
 		// Services' views of it go first.
 		for _, v := range viewEntries(tab) {
 			if v.library == name {
-				tab = removeBlock(tab, viewTag(v.service, v.library))
+				tab = removeBlock(tab, viewTag(v.service, v.library), filepath.Join(LibraryViews, v.service, v.library))
 				stopMount(filepath.Join(LibraryViews, v.service, v.library))
 				os.Remove(filepath.Join(LibraryViews, v.service, v.library))
 			}
 		}
 		for _, v := range atEntries(tab) {
 			if v.library == name {
-				tab = removeBlock(tab, atTag(v.service, v.library, v.name))
+				tab = removeBlock(tab, atTag(v.service, v.library, v.name), filepath.Join(LibraryViews, v.service+".at", v.name))
 				stopMount(filepath.Join(LibraryViews, v.service+".at", v.name))
 				os.Remove(filepath.Join(LibraryViews, v.service+".at", v.name))
 			}
@@ -757,7 +757,7 @@ func mediaDriveDevice(tab, mp string) string {
 func removeMediaDrive(tab, mp string) string {
 	for _, b := range mediaDriveBlocks(tab) {
 		if FstabUnescape(b.fields[1]) == mp {
-			return removeBlock(tab, b.tag)
+			return removeBlock(tab, b.tag, mp)
 		}
 	}
 	return tab
@@ -841,7 +841,7 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[st
 		view := filepath.Join(LibraryViews, service)
 		for _, v := range viewEntries(tab) {
 			if v.service == service && !want[v.library] {
-				tab = removeBlock(tab, viewTag(service, v.library))
+				tab = removeBlock(tab, viewTag(service, v.library), filepath.Join(view, v.library))
 				stopMount(filepath.Join(view, v.library))
 				os.Remove(filepath.Join(view, v.library))
 			}
@@ -875,7 +875,7 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[st
 				delete(at, v.name) // there already
 				continue
 			}
-			tab = removeBlock(tab, atTag(service, v.library, v.name))
+			tab = removeBlock(tab, atTag(service, v.library, v.name), filepath.Join(atView, v.name))
 			stopMount(filepath.Join(atView, v.name))
 			os.Remove(filepath.Join(atView, v.name))
 		}

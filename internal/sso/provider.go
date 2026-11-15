@@ -70,6 +70,16 @@ const (
 // removes it before a request reaches the service (internal/caddy).
 const HostCookie = "roostack_sso"
 
+// StartCookie marks the browser a walled service's sign-in started in, on
+// the service's address, until the hand-off comes back to it: the hand-off
+// only sets HostCookie in that browser, so a link to someone else's
+// hand-off signs nobody in as them. "__Host-" keeps another service on the
+// lab's domain from setting it for this one.
+const StartCookie = "__Host-roostack_sso_start"
+
+// startCookieLife is how long a sign-in may take from the first redirect.
+const startCookieLife = 10 * time.Minute
+
 // Client is an app or walled service the sign-in page knows: each service
 // with single sign-on on.
 type Client struct {
@@ -172,7 +182,10 @@ type rotation struct {
 // handoff takes a walled service's visitor from the sign-in host back to
 // the service's address, where its cookie is set.
 type handoff struct {
-	client, rd  string
+	client, rd string
+	// started is StartCookie's value's hash, from the browser the sign-in
+	// started in ("" if it didn't start at the service's address).
+	started     string
 	userID      int64
 	session     string
 	sessionEnds time.Time

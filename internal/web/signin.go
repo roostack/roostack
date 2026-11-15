@@ -190,6 +190,10 @@ type signInView struct {
 	// the password), and Away that their session there just ended.
 	Trip       string
 	Code, Away bool
+	// After signing out, where an app asked to go back to and which app
+	// (OIDC's post_logout_redirect_uri and client_id), on the step asking
+	// whether to sign out.
+	Back, BackClient string
 }
 
 // signInApp is a service someone can use, on Your account's Services tab.
@@ -531,9 +535,16 @@ func (s *Server) startSignIn(w http.ResponseWriter, r *http.Request, u *store.Us
 // signOut ends the sign-in, and with it every walled service's access and
 // apps' refresh tokens from it. Apps send people here too (OIDC's
 // end_session_endpoint), then back to post_logout_redirect_uri if it's
-// theirs.
+// theirs. A link here (a GET) asks first while someone is signed in: any
+// page can link here, and would otherwise sign its visitors out.
 func (s *Server) signOut(w http.ResponseWriter, r *http.Request) {
-	if sess, ok := s.signInSession(r); ok {
+	sess, ok := s.signInSession(r)
+	if ok && r.Method != http.MethodPost {
+		s.renderSignIn(w, r, http.StatusOK, signInView{State: "sign-out", User: sess.User,
+			Back: r.FormValue("post_logout_redirect_uri"), BackClient: r.FormValue("client_id")})
+		return
+	}
+	if ok {
 		if err := s.Store.DeleteSession(r.Context(), sess.Hash); err != nil {
 			s.serverError(w, err)
 			return

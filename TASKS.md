@@ -363,6 +363,18 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [x] The lab's VPN (SPEC §10.11), with Your account's VPN devices tab and Settings → VPN, devices connecting to the controller (2026-11-11, SPEC §10.11 "As built")
 - [x] The agent's share of the VPN reviewed by a second session, and what it found fixed: link-local and private addresses for Everything, forwarding beside Docker, the pass-on rule, VLAN interfaces, and the smaller points (2026-11-14; SPEC §10.11)
 - [x] What a VPN device reaches as two tick boxes, the home network and the internet, either or both, instead of one choice of three (2026-11-15)
+
+## From the review of the agent, single sign-on, the lab API and config generation (2026-11-15)
+
+- [x] Erasing a disk names what's on it; RAID, cache and cluster members aren't offered
+- [x] Removing an fstab block leaves a line that isn't its own
+- [x] A walled service's hand-off only works in the browser it started in
+- [x] A link to signing out asks first
+- [ ] Reading a library "as its owner": only on drives Roostack mounted for media? (the maintainer to decide)
+- [ ] Joining with an existing server's ID (the maintainer to decide how)
+- [ ] `max_body_size` checked in package files, and Caddy's route check as a list of what's allowed (after the merge of origin/main, which changes both files)
+- [ ] Walled services' and Glances' loopback ports are open to local accounts on the server (the maintainer to decide)
+- [ ] Not reviewed yet: what a server can send back to the controller, storage for other labs (`labnet/guests.go`), the edge's config
 - [ ] Check the VPN through another server on two VMs with the fixes of 2026-11-14 (checked then: one VM, the agent driven directly with pretend devices)
 - [x] The VPN through another server: devices connecting to a cloud server in the lab, which passes their traffic to the controller over Roostack's network keeping their addresses; SSH to every server; the choice on Settings → VPN; Give it new settings (2026-11-12)
 - [ ] The VPN through Roostack Cloud's relay (a question for Cloud's design)

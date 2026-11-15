@@ -56,6 +56,10 @@ type Drive struct {
 	// with a filesystem backups can use, mounted, or in /etc/fstab.
 	Usable   bool `json:"usable"`
 	Erasable bool `json:"erasable"`
+	// Holds are the kinds of filesystem found on a disk that has none
+	// backups can use (hfsplus, BitLocker): it isn't empty, so whoever
+	// erases it is told what's there first (HoldsText).
+	Holds []string `json:"holds,omitempty"`
 	// Backup: one of Roostack's backup drives (in fstab as one), which
 	// can't hold media libraries.
 	Backup bool `json:"backup,omitempty"`
@@ -83,8 +87,47 @@ var networkFS = []string{"nfs", "nfs4", "cifs", "smb3", "fuse.sshfs"}
 var systemMounts = []string{"/", "/boot", "/boot/efi", "/usr", "/var", "[SWAP]"}
 
 // notForBackups are filesystems (or signatures) that belong to something
-// else: the disk isn't offered, nor erased.
-var notForBackups = []string{"LVM2_member", "linux_raid_member", "crypto_LUKS", "zfs_member", "swap"}
+// else, set up by someone who knows (volume managers, RAID of any make,
+// encryption, caches, clusters, hypervisors): the disk isn't offered, nor
+// erased.
+var notForBackups = []string{"LVM2_member", "LVM1_member", "linux_raid_member", "crypto_LUKS", "zfs_member", "swap",
+	"bcache", "ceph_bluestore", "drbd", "VMFS_volume_member", "vdo", "stratis", "mpath_member"}
+
+// partOfSomething reports whether a signature is one of notForBackups, or
+// any maker's RAID member (isw_raid_member, ddf_raid_member, …).
+func partOfSomething(fs string) bool {
+	return slices.Contains(notForBackups, fs) || strings.HasSuffix(fs, "_raid_member")
+}
+
+// holdsWords name the filesystems people meet on drives from other
+// computers, for HoldsText.
+var holdsWords = map[string]string{
+	"hfsplus": "a Mac filesystem", "hfs": "a Mac filesystem", "apfs": "a Mac filesystem",
+	"BitLocker": "a Windows drive encrypted with BitLocker", "ReFS": "a Windows filesystem",
+	"iso9660": "a CD or DVD image", "udf": "a CD or DVD image",
+}
+
+// HoldsText says what's on a disk that isn't empty but has nothing
+// backups can use ("a Mac filesystem (hfsplus)"), or "".
+func (d Drive) HoldsText() string {
+	var parts []string
+	for _, fs := range d.Holds {
+		w := holdsWords[fs]
+		if w == "" {
+			w = "a filesystem Roostack can't use"
+		}
+		if w = w + " (" + fs + ")"; !slices.Contains(parts, w) {
+			parts = append(parts, w)
+		}
+	}
+	switch len(parts) {
+	case 0:
+		return ""
+	case 1:
+		return parts[0]
+	}
+	return strings.Join(parts[:len(parts)-1], ", ") + ", and " + parts[len(parts)-1]
+}
 
 type lsblkDevice struct {
 	Name        string        `json:"name"`
@@ -210,7 +253,7 @@ func parseDrives(data []byte, systemFree int64, fstab string, resolve func(strin
 					system = true
 				}
 			}
-			if slices.Contains(notForBackups, str(d.FSType)) {
+			if partOfSomething(str(d.FSType)) {
 				foreign = true
 			}
 			if slices.Contains(usableFS, str(d.FSType)) {
@@ -268,6 +311,12 @@ func parseDrives(data []byte, systemFree int64, fstab string, resolve func(strin
 			dr := base
 			dr.ID, dr.Name, dr.Device, dr.Size, dr.Free = "disk:"+disk.Path, name(disk), disk.Path, disk.Size, -1
 			dr.Erasable = !hasFS && !mounted && !inFstab(disk.all(), fstab, resolve)
+			// Not empty: what's on it, in lsblk's words without anything odd.
+			for _, d := range disk.all() {
+				if fs := mountName.ReplaceAllString(str(d.FSType), ""); fs != "" && len(fs) <= 32 && !slices.Contains(dr.Holds, fs) {
+					dr.Holds = append(dr.Holds, fs)
+				}
+			}
 			drives = append(drives, dr)
 		}
 	}

@@ -162,7 +162,15 @@ func TestFstabBlocks(t *testing.T) {
 	if got := viewEntries(tab); len(got) != 1 || got[0] != (viewEntry{"plex", "films"}) {
 		t.Errorf("viewEntries = %v", got)
 	}
-	if got := removeBlock(tab, viewTag("plex", "films")); strings.Contains(got, "plex") || !strings.Contains(got, "UUID=2") {
+	if got := removeBlock(tab, viewTag("plex", "films"), "/v/plex/films"); strings.Contains(got, "plex") || !strings.Contains(got, "UUID=2") {
 		t.Errorf("removeBlock left:\n%s", got)
+	}
+	// Its line taken out by hand, the tag left: what follows is someone
+	// else's, or another block's tag, and stays.
+	orphan := "UUID=1 / ext4 defaults 0 1\n" + libraryTag("films").line() + "\n/dev/sdc1 /data ext4 defaults 0 2\n" +
+		libraryTag("films").line() + "\n" + viewTag("plex", "films").line() + "\n/a /v/plex/films none bind 0 0\n"
+	want := "UUID=1 / ext4 defaults 0 1\n/dev/sdc1 /data ext4 defaults 0 2\n" + viewTag("plex", "films").line() + "\n/a /v/plex/films none bind 0 0\n"
+	if got := removeBlock(orphan, libraryTag("films"), LibraryRoot+"/films"); got != want {
+		t.Errorf("a tag without its line:\n%s", got)
 	}
 }

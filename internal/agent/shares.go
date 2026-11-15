@@ -208,7 +208,7 @@ func (h LinuxHost) mountShare(l Library, spot mountSpot) error {
 	automount := strings.TrimSuffix(unit, ".mount") + ".automount"
 	if err := editFstab(func(tab string) (string, error) {
 		exec.Command("systemctl", "stop", automount, unit).Run()
-		tab = removeBlock(removeBlock(tab, spot.folderTag), spot.shareTag)
+		tab = removeBlock(removeBlock(tab, spot.folderTag, target), spot.shareTag, target)
 		return withBlock(tab, spot.shareTag, line), nil
 	}); err != nil {
 		return err

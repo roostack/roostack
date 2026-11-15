@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -269,5 +271,39 @@ func TestUpdateFstab(t *testing.T) {
 	got := updateFstab(fstab, "1725", "UUID=1725 /mnt/roostack-test ext4 new 0 2")
 	if !strings.Contains(got, "ext4 new") || !strings.Contains(got, "/data ext4 defaults") {
 		t.Errorf("only Roostack's own line changes:\n%s", got)
+	}
+}
+
+// A disk with nothing backups can use isn't always empty: what's on it is
+// named for whoever erases it, and a member of anyone's RAID, a cache, or a
+// cluster's disk is never offered.
+func TestDrivesHolds(t *testing.T) {
+	disk := func(fs string) []Drive {
+		js := fmt.Sprintf(`{"blockdevices":[{"name":"sdb","path":"/dev/sdb","type":"disk","size":1000,"fstype":null,
+			"children":[{"name":"sdb1","path":"/dev/sdb1","type":"part","size":900,"fstype":%s,"mountpoints":[null]}]}]}`, fs)
+		d, err := parseDrives([]byte(js), 0, "", func(s string) string { return s })
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d[1:]
+	}
+	if d := disk("null"); len(d) != 1 || !d[0].Erasable || d[0].Holds != nil || d[0].HoldsText() != "" {
+		t.Errorf("an empty disk: %+v", d)
+	}
+	for fs, want := range map[string]string{"hfsplus": "a Mac filesystem (hfsplus)", "BitLocker": "a Windows drive encrypted with BitLocker (BitLocker)",
+		"bcachefs": "a filesystem Roostack can't use (bcachefs)", "a\"b\nc": "a filesystem Roostack can't use (abc)"} {
+		q, _ := json.Marshal(fs)
+		if d := disk(string(q)); len(d) != 1 || !d[0].Erasable || d[0].HoldsText() != want {
+			t.Errorf("%s: %+v %q", fs, d, d[0].HoldsText())
+		}
+	}
+	for _, fs := range []string{"isw_raid_member", "ddf_raid_member", "bcache", "ceph_bluestore", "VMFS_volume_member", "LVM2_member"} {
+		if d := disk(`"` + fs + `"`); len(d) != 0 {
+			t.Errorf("%s was offered: %+v", fs, d)
+		}
+	}
+	two := Drive{Holds: []string{"hfsplus", "apfs", "udf"}}
+	if got := two.HoldsText(); got != "a Mac filesystem (hfsplus), a Mac filesystem (apfs), and a CD or DVD image (udf)" {
+		t.Errorf("several: %q", got)
 	}
 }

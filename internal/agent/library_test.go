@@ -72,10 +72,10 @@ func TestLibraryFstab(t *testing.T) {
 	if v, e, a := viewEntries(tab), libraryEntries(tab), atEntries(tab); len(v) != 1 || len(e) != 1 || len(a) != 1 {
 		t.Errorf("an import read as a view %+v, library %+v or second view %+v", v, e, a)
 	}
-	tab = removeBlock(tab, importTag("immich"))
-	tab = removeBlock(tab, atTag("plex", "films", "movies"))
-	tab = removeBlock(tab, viewTag("plex", "films"))
-	tab = removeBlock(tab, libraryTag("films"))
+	tab = removeBlock(tab, importTag("immich"), "/mnt/roostack-import/immich")
+	tab = removeBlock(tab, atTag("plex", "films", "movies"), "/mnt/roostack-library-views/plex.at/movies")
+	tab = removeBlock(tab, viewTag("plex", "films"), "/mnt/roostack-library-views/plex/films")
+	tab = removeBlock(tab, libraryTag("films"), LibraryRoot+"/films")
 	tab = removeMediaDrive(tab, "/mnt/roostack-media-data")
 	if want := "UUID=abcd / ext4 defaults 0 1\n# Added by Roostack: a backup drive (BACKUP)\nUUID=1111-2222 /mnt/roostack-backup ext4 defaults 0 2\n"; tab != want {
 		t.Errorf("after removing:\n%q\nwant\n%q", tab, want)
@@ -311,7 +311,7 @@ func TestShareFstab(t *testing.T) {
 	if e := libraryEntries(tab); len(e) != 1 || e[0].name != "films" {
 		t.Errorf("a share isn't a drive's library: %+v", e)
 	}
-	if got := removeBlock(tab, shareTag("media")); strings.Contains(got, "nas.local") {
+	if got := removeBlock(tab, shareTag("media"), LibraryRoot+"/media"); strings.Contains(got, "nas.local") {
 		t.Errorf("removing the share left %q", got)
 	}
 	for out, want := range map[string]string{"mount error(13): Permission denied": "refused the login",

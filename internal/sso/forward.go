@@ -71,7 +71,30 @@ func (p *Provider) Check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	back := "https://" + c.Host + r.Header.Get("X-Forwarded-Uri")
-	http.Redirect(w, r, p.Issuer()+PathStart+"?"+url.Values{"service": {c.ID}, "rd": {back}}.Encode(), http.StatusFound)
+	// This browser is where the sign-in starts (StartCookie): one it has
+	// already is kept, so that two tabs opened together both get in.
+	start := ""
+	if ck, err := r.Cookie(StartCookie); err == nil && validStart(ck.Value) {
+		start = ck.Value
+	} else {
+		var err error
+		if start, err = authkit.NewToken(); err != nil {
+			p.serverError(w, err)
+			return
+		}
+		http.SetCookie(w, &http.Cookie{Name: StartCookie, Value: start, Path: "/", MaxAge: int(startCookieLife.Seconds()),
+			HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
+	}
+	q := url.Values{"service": {c.ID}, "rd": {back}, "started": {authkit.HashToken(start)}}
+	http.Redirect(w, r, p.Issuer()+PathStart+"?"+q.Encode(), http.StatusFound)
+}
+
+// validStart reports whether s could be a StartCookie's value or its hash:
+// a token's characters, and not too long.
+func validStart(s string) bool {
+	return s != "" && len(s) <= 128 && !strings.ContainsFunc(s, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '=')
+	})
 }
 
 // headerSafe keeps a value to one line of printable characters.
@@ -90,6 +113,9 @@ type StartRequest struct {
 	Client Client
 	// Back is where on the service to return to: its address only.
 	Back string
+	// Started is the hash of the StartCookie of the browser the sign-in
+	// started in, at the service's address ("" if it didn't start there).
+	Started string
 }
 
 // ParseStart checks PathStart's query: the service, and where to return,
@@ -103,7 +129,11 @@ func (p *Provider) ParseStart(q url.Values) (*StartRequest, bool) {
 	if u, err := url.Parse(q.Get("rd")); err == nil && u.Scheme == "https" && strings.EqualFold(u.Host, c.Host) && u.User == nil {
 		back = u.String()
 	}
-	return &StartRequest{Client: c, Back: back}, true
+	req := &StartRequest{Client: c, Back: back}
+	if s := q.Get("started"); validStart(s) {
+		req.Started = s
+	}
+	return req, true
 }
 
 // Handoff returns where to send someone signed in and allowed: the
@@ -124,7 +154,7 @@ func (p *Provider) Handoff(req *StartRequest, s Session) (string, error) {
 			delete(p.handoffs, k)
 		}
 	}
-	p.handoffs[authkit.HashToken(code)] = &handoff{client: req.Client.ID, rd: req.Back, userID: s.User.ID, session: s.Hash,
+	p.handoffs[authkit.HashToken(code)] = &handoff{client: req.Client.ID, rd: req.Back, started: req.Started, userID: s.User.ID, session: s.Hash,
 		sessionEnds: s.Expires, remember: s.Remember, expires: now.Add(CodeLifetime)}
 	return "https://" + req.Client.Host + PathCallback + "?" + url.Values{"code": {code}}.Encode(), nil
 }
@@ -147,6 +177,23 @@ func (p *Provider) Callback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "That sign-in link is for another address.", http.StatusBadRequest)
 		return
 	}
+	// Only in the browser the sign-in started in. One that didn't start at
+	// the service's address (a link straight to the sign-in page) starts
+	// there now: the page it wanted sends it round once more, signed in
+	// already.
+	w.Header().Set("Cache-Control", "no-store")
+	if h.started == "" {
+		http.Redirect(w, r, h.rd, http.StatusFound)
+		return
+	}
+	sc, err := r.Cookie(StartCookie)
+	if err != nil || authkit.HashToken(sc.Value) != h.started {
+		http.Error(w, "This sign-in didn't start in this browser, so nothing was signed in. Open the service again. "+
+			"If you see this each time, your browser may be refusing cookies.", http.StatusBadRequest)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: StartCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: true,
+		SameSite: http.SameSiteLaxMode})
 	tok, err := p.newToken(r.Context(), store.TokenHost, c.ID, h.userID, h.session, "", h.sessionEnds)
 	if err != nil {
 		p.serverError(w, err)
@@ -158,6 +205,5 @@ func (p *Provider) Callback(w http.ResponseWriter, r *http.Request) {
 		ck.Expires = h.sessionEnds
 	}
 	http.SetCookie(w, ck)
-	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, h.rd, http.StatusFound)
 }

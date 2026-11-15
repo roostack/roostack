@@ -350,13 +350,14 @@
     <span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else if eq .Kind "disk"}}Second disk{{else if eq .Kind "network"}}Network share{{else}}This server{{end}}</span>
       <small>{{if .Size}}{{size .Size}}{{end}}{{if ge .Free 0}}{{if .Size}} · {{end}}{{size .Free}} free{{end}}{{with .Model}}{{if ne . $d.Name}} · {{.}}{{end}}{{end}}{{with .FSType}} · {{.}}{{end}}
         {{- if eq .Kind "system"}}<br>The same disk as your data: it helps with mistakes, not a failed disk or ransomware.
-        {{- else if not .Usable}}<br>Empty, or not something Roostack can use as it is: prepare it to use it.
+        {{- else if .Holds}}<br>It isn't empty: it has {{.HoldsText}} on it, which Roostack can't use for backups. Preparing it will erase that.
+        {{- else if not .Usable}}<br>Empty: prepare it to use it.
         {{- else if not .Mount}}<br>Roostack will set it up so it's there after a restart too.{{end}}</small></span></label>
   {{if .Erasable}}
   <div x-data class="drive-erase">
     <button type="button" class="quiet" x-on:click="$refs.erase.showModal()">Prepare this disk…</button>
     <dialog x-ref="erase" class="dialog">
-      <p><strong>Erase {{.Name}}?</strong> Everything on {{with .Model}}{{.}}, {{end}}{{size .Size}} (<code>{{.Disk}}</code>) will be deleted for good,
+      <p><strong>Erase {{.Name}}?</strong> {{with .HoldsText}}It has {{.}} on it. {{end}}Everything on {{with .Model}}{{.}}, {{end}}{{size .Size}} (<code>{{.Disk}}</code>) will be deleted for good,
         and it will be prepared for Roostack's backups.</p>
       <div class="dialog-actions">
         <button type="button" class="secondary" x-on:click="$refs.erase.close()">Cancel</button>

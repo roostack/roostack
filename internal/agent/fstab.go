@@ -191,13 +191,20 @@ func withBlock(tab string, t tag, line string) string {
 	return tab + t.line() + "\n" + line + "\n"
 }
 
-// removeBlock removes every block with this tag: the tag and its line.
-func removeBlock(tab string, t tag) string {
+// removeBlock removes every block with this tag: the tag, and the line
+// after it if that's the block's own, mounting at target. Someone may have
+// taken that line out by hand and left the tag: what follows it then is
+// theirs, or another block's tag, and stays.
+func removeBlock(tab string, t tag, target string) string {
 	lines := strings.Split(tab, "\n")
 	var out []string
 	for i := 0; i < len(lines); i++ {
 		if lines[i] == t.line() {
-			i++ // and its line
+			if i+1 < len(lines) {
+				if f := strings.Fields(lines[i+1]); len(f) >= 2 && !strings.HasPrefix(f[0], "#") && FstabUnescape(f[1]) == target {
+					i++ // and its line
+				}
+			}
 			continue
 		}
 		out = append(out, lines[i])

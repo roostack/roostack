@@ -70,7 +70,7 @@ func (h LinuxHost) UnmountImport(service string) error {
 func unmountPlace(spot mountSpot) error {
 	stopMount(spot.target)
 	if err := editFstab(func(tab string) (string, error) {
-		return pruneMediaDrives(removeBlock(tab, spot.folderTag)), nil
+		return pruneMediaDrives(removeBlock(tab, spot.folderTag, spot.target)), nil
 	}); err != nil {
 		return err
 	}
