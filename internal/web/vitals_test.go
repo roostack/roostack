@@ -31,7 +31,7 @@ func TestServerVitalsPages(t *testing.T) {
 		Up: 12 * 24 * time.Hour, Services: []node.ServiceUse{{Service: "immich", Memory: 2_000_000_000, CPU: 40}, {Service: "_caddy", Memory: 200_000_000, CPU: 3}, {Service: "_roostack", Memory: 100_000_000, CPU: 1}}}
 	c := &vitals.Collector{Store: h.store, Now: func() time.Time { return at },
 		Servers: func(context.Context) []vitals.Server {
-			return []vitals.Server{{ID: "n-1", Name: "nuc", Read: func(context.Context) (node.Vitals, error) { v.At = at; return v, nil }}}
+			return []vitals.Server{{ID: "n-1", Name: "nuc", Services: []string{"immich"}, Read: func(context.Context) (node.Vitals, error) { v.At = at; return v, nil }}}
 		}}
 	for ; !at.After(now); at = at.Add(time.Minute) {
 		c.Round(context.Background())

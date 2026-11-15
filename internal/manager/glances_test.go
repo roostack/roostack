@@ -1,10 +1,12 @@
 package manager
 
 import (
+	"context"
 	"slices"
 	"testing"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/sso"
 )
 
@@ -53,5 +55,24 @@ func TestGlancesSwitch(t *testing.T) {
 	vps.mu.Unlock()
 	if va.Glances != "" || len(va.Lab.GlancesSites) != 0 || m.GlancesURL("n-0000000003") != "" {
 		t.Errorf("off: %q %+v", va.Glances, va.Lab.GlancesSites)
+	}
+}
+
+// readable is a server that answers for its readings.
+type readable struct{ *movingServer }
+
+func (readable) Vitals(context.Context) (node.Vitals, error) { return node.Vitals{}, nil }
+
+// Each server's readings are kept only for the services placed on it
+// (SPEC.md §6.15.1).
+func TestVitalsServersPlaced(t *testing.T) {
+	m, a, b := setUpMove(t)
+	m.Others = func() []RemoteServer { return []RemoteServer{readable{a}, readable{b}} }
+	got := map[string][]string{}
+	for _, s := range m.VitalsServers(context.Background()) {
+		got[s.ID] = s.Services
+	}
+	if !slices.Equal(got["n-0000000002"], []string{"forgejo"}) || len(got["n-0000000003"]) != 0 {
+		t.Errorf("placed: %v", got)
 	}
 }

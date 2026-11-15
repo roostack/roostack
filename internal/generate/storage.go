@@ -98,10 +98,13 @@ type GuestStorage struct {
 }
 
 // storeUser and storeHash are what a store user's htpasswd line may
-// hold: a plain name, and a bcrypt hash (no ":" or line breaks).
+// hold: a plain name, and a bcrypt hash (no ":" or line breaks) of the
+// cost Roostack makes (bcrypt.DefaultCost, 10) or a little more. A guest
+// lab sets its servers' hashes, and a higher cost would let it tie up
+// this server's processors for hours with each request to its store.
 var (
 	storeUser = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
-	storeHash = regexp.MustCompile(`^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$`)
+	storeHash = regexp.MustCompile(`^\$2[aby]\$1[0-2]\$[./A-Za-z0-9]{53}$`)
 )
 
 // StoreLine is a store user's line in a rest-server password file, or

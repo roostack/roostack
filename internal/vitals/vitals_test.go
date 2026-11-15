@@ -37,7 +37,7 @@ func TestCollector(t *testing.T) {
 	st := &fakeStore{}
 	c := &Collector{Store: st, Now: func() time.Time { return now },
 		Servers: func(context.Context) []Server {
-			return []Server{{ID: "n-1", Name: "nuc", Read: func(context.Context) (node.Vitals, error) { v.At = at; return v, nil }},
+			return []Server{{ID: "n-1", Name: "nuc", Services: []string{"immich"}, Read: func(context.Context) (node.Vitals, error) { v.At = at; return v, nil }},
 				{ID: "n-2", Name: "quiet", Read: func(context.Context) (node.Vitals, error) { return node.Vitals{}, nil }}}
 		}}
 	tick := func(minutes int) {
@@ -56,6 +56,20 @@ func TestCollector(t *testing.T) {
 	if len(st.readings) != 1 {
 		t.Errorf("kept twice: %d", len(st.readings))
 	}
+	// What the controller can't vouch for isn't kept: a time of the
+	// server's own, services it didn't place there, and repeats.
+	v.Services = append(v.Services, node.ServiceUse{Service: "made-up", Memory: 1}, node.ServiceUse{Service: "immich", Memory: 1},
+		node.ServiceUse{Service: node.OwnRoostack, Memory: 20})
+	at = now.AddDate(10, 0, 0)
+	c.Round(context.Background())
+	if r := st.readings[len(st.readings)-1]; !r.At.Equal(now) {
+		t.Errorf("kept the server's time: %v", r.At)
+	}
+	if s := st.services[len(st.services)-2:]; len(st.services) != 3 || s[0].Service != "immich" || s[0].Memory != 300 || s[1].Service != node.OwnRoostack {
+		t.Errorf("services kept: %+v", st.services)
+	}
+	v.Services = v.Services[:1]
+	now = now.Add(time.Minute)
 
 	// Low on memory: a problem only once it's lasted 15 minutes.
 	v.MemAvailable = 50

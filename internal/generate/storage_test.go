@@ -16,9 +16,14 @@ func TestGuestStoreLines(t *testing.T) {
 		"evil":         hash + "\ng3:" + hash, // a second line
 		"a:b":          hash,
 		"n-3":          "plain",
-		"g3":           hash, // the shared user is only ever StoreHash
+		"g3":           hash,                                // the shared user is only ever StoreHash
+		"n-4":          "$2a$31$" + strings.Repeat("a", 53), // hours to check
+		"n-5":          "$2a$04$" + strings.Repeat("a", 53),
 	}}
 	want := []string{"n-0000000001:" + hash, "n-0000000002:" + hash}
+	if _, ok := StoreLine("n-6", "$2a$12$"+strings.Repeat("a", 53)); !ok {
+		t.Error("cost 12 refused")
+	}
 	if got := g.StoreLines(); !slices.Equal(got, want) {
 		t.Errorf("lines = %q", got)
 	}

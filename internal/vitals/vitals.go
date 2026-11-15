@@ -20,6 +20,9 @@ import (
 // Server is one of the lab's servers, and how to read it.
 type Server struct {
 	ID, Name string
+	// Services are the services placed on it: of the services it reports,
+	// only these and Roostack's own parts are kept.
+	Services []string
 	Read     func(ctx context.Context) (node.Vitals, error)
 }
 
@@ -78,12 +81,16 @@ type Collector struct {
 
 // state is what the collector remembers of a server between readings.
 type state struct {
-	name   string
-	last   node.Vitals
-	recent []node.Vitals // the last Sustained's readings, oldest first
-	hot    int           // readings in a row at a sensor's high mark
-	hotAt  time.Time     // when that run began
-	since  map[string]time.Time
+	name string
+	// reported is when the server says it took its last reading, which
+	// tells a new reading from the same one again; what's kept has the
+	// controller's own time instead.
+	reported time.Time
+	last     node.Vitals
+	recent   []node.Vitals // the last Sustained's readings, oldest first
+	hot      int           // readings in a row at a sensor's high mark
+	hotAt    time.Time     // when that run began
+	since    map[string]time.Time
 }
 
 func (c *Collector) now() time.Time {
@@ -120,8 +127,16 @@ func (c *Collector) Round(ctx context.Context) {
 			c.states[srv.ID] = st
 		}
 		st.name = srv.Name
-		fresh := !v.At.Equal(st.last.At)
+		// What a server reports is kept only as far as the controller
+		// can vouch for it: its own clock, and the services it placed
+		// there (a server that's been taken over could otherwise fill
+		// the database with made-up names, or with readings from the
+		// future that would never be pruned).
+		fresh := !v.At.Equal(st.reported)
 		if fresh {
+			st.reported = v.At
+			v.At = c.now()
+			v.Services = placed(v.Services, srv.Services)
 			st.observe(v)
 		}
 		c.mu.Unlock()
@@ -256,6 +271,21 @@ func (c *Collector) Snapshots() []Snapshot {
 		out = append(out, s)
 	}
 	slices.SortFunc(out, func(a, b Snapshot) int { return strings.Compare(a.Name, b.Name) })
+	return out
+}
+
+// placed are the shares of the services placed on a server, and of
+// Roostack's own parts, each once.
+func placed(uses []node.ServiceUse, services []string) []node.ServiceUse {
+	var out []node.ServiceUse
+	seen := map[string]bool{}
+	for _, u := range uses {
+		if seen[u.Service] || (node.OwnTitle(u.Service) == "" && !slices.Contains(services, u.Service)) {
+			continue
+		}
+		seen[u.Service] = true
+		out = append(out, u)
+	}
 	return out
 }
 
