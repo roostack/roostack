@@ -195,14 +195,15 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 				l.add(Item{Level: Problem, Key: "apply:" + mc.ID,
 					Text: "The last change" + on + " didn't finish: " + words.FirstLine(st.LastErr.Error()), Link: "/services", LinkText: "View services"})
 			}
-			// A server that joined has no firewall until the Owner chooses
-			// who can log in over SSH (this server's is a setup step).
+			// A server that joined lets anyone try SSH until the Owner
+			// chooses who can log in over SSH (this server's is a setup
+			// step).
 			if owner && !mc.This {
 				if n := lab.Manager.NodeByID(mc.ID); n != nil {
 					if set := n.Settings(); set != nil {
 						if a, err := set.SSHAccess(ctx, false); err == nil && a.Choice == "" {
-							l.add(Item{Key: "firewall-off:" + mc.ID, Level: Warning,
-								Text: mc.Name + "'s firewall is off until you choose who can log in to it over SSH.",
+							l.add(Item{Key: "ssh-unchosen:" + mc.ID, Level: Warning,
+								Text: "Anyone who can reach " + mc.Name + " can try to log in to it over SSH until you choose who may.",
 								Link: "/settings/servers/" + mc.ID + "/remote-access", LinkText: "Choose"})
 						}
 					}

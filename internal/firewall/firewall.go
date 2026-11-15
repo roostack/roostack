@@ -51,24 +51,27 @@ type Roles struct {
 // Desired returns the firewall for the lab: web traffic (Caddy decides
 // what is private), SSH as the Owner chose, every enabled package port and
 // what the server's roles need, each for its trust class (internal/trust).
-// Until the Owner has chosen SSH access, Roostack leaves the firewall
-// alone, apart from keeping the setup pages to the home network (an
-// Unchosen firewall); ok is false when there's nothing to apply: no
-// choice and no setup pages, on a server that isn't the controller.
+// Until the Owner has chosen SSH access during first-run setup, the
+// controller leaves the firewall alone, apart from keeping the setup pages
+// to the home network (an Unchosen firewall). A server that joined has the
+// whole firewall from the start, with SSH from anywhere until its Remote
+// access is chosen: as open as it was, so nobody is locked out, and
+// nothing else (the maintainer, 2026-11-16, after the two-server checks).
 func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent.Firewall, ok bool) {
-	if lab.Firewall.SSH == "" {
-		// The controller's table goes once setup is done, since an
-		// Unchosen firewall with no setup port deletes it.
-		if lab.IsNode() {
-			return agent.Firewall{}, false
+	ssh := lab.Firewall.SSH
+	if ssh == "" {
+		if !lab.IsNode() {
+			// The controller's table goes once setup is done, since an
+			// Unchosen firewall with no setup port deletes it.
+			return agent.Firewall{Unchosen: true, SetupPort: roles.SetupPort}, true
 		}
-		return agent.Firewall{Unchosen: true, SetupPort: roles.SetupPort}, true
+		ssh = config.SSHFromAny
 	}
 	fw = agent.DefaultFirewall()
 	fw.SetupPort = roles.SetupPort
 	defer func() { fw = WithClosed(fw, lab.Public.Pause.Closed != nil) }()
 	fw.SSHFrom = map[string]string{config.SSHFromLAN: agent.FromLAN, config.SSHFromAny: agent.FromAny,
-		config.SSHOff: agent.FromOff}[lab.Firewall.SSH]
+		config.SSHOff: agent.FromOff}[ssh]
 	people := &agent.People{}
 	for _, s := range services {
 		for _, hp := range s.HostPorts {

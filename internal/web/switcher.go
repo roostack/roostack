@@ -95,7 +95,7 @@ func sshSummary(a node.SSHAccess) (string, string) {
 	case config.SSHOff:
 		return "SSH is off", "ok"
 	default:
-		return "Not chosen yet; the firewall is off", "warn"
+		return "Not chosen yet: SSH from anywhere", "warn"
 	}
 	switch {
 	case a.PasswordsOpen():

@@ -573,9 +573,9 @@ func TestServers(t *testing.T) {
 	if _, body := h.get("/settings"); !strings.Contains(body, "A change on vps didn&#39;t finish") {
 		t.Error("settings overview should flag the server")
 	}
-	// The vps (the same fake here) has no SSH choice yet: its firewall is off.
+	// The vps (the same fake here) has no SSH choice yet: anyone can try SSH.
 	fm.settings = &fakeSetup{}
-	if _, body := h.get("/partials/home"); !strings.Contains(body, "vps&#39;s firewall is off") ||
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Anyone who can reach vps can try to log in to it over SSH until you choose who may.") ||
 		!strings.Contains(body, `href="/settings/servers/n-9876543210/remote-access"`) {
 		t.Errorf("home should ask for vps's SSH choice:\n%s", body)
 	}

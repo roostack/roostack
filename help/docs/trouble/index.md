@@ -38,8 +38,10 @@ Your lab has no address yet
 :   Its services are running but can't be reached on the web until it has
     one: see [Your lab's address](../settings/domain.md).
 
-*Server*'s firewall is off until you choose who can log in to it over SSH
-:   Choose, and the firewall will come on: see
+Anyone who can reach *server* can try to log in to it over SSH until you choose who may
+:   A server that joined your lab has the lab's firewall from the start,
+    but keeps SSH open until you choose, so nobody is locked out. Choose,
+    and Roostack will apply it at once: see
     [First-run setup](../start/first-run.md#4-who-can-log-in-to-this-server).
 
 Roostack removed files it can't read from *server*'s backups

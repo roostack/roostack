@@ -176,8 +176,10 @@ func TestDesiredSetupPort(t *testing.T) {
 	}
 	node := config.Default()
 	node.Role = config.RoleNode
-	if _, ok := Desired(node, nil, Roles{}); ok {
-		t.Error("a node without a choice: no firewall")
+	// A server that joined has the whole firewall from the start, with
+	// SSH from anywhere until its Remote access is chosen.
+	if fw, ok := Desired(node, nil, Roles{}); !ok || fw.Unchosen || fw.SSHFrom != agent.FromAny || fw.Validate() != nil {
+		t.Errorf("a node without a choice: %+v %v", fw, ok)
 	}
 }
 
