@@ -372,7 +372,7 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [x] A link to signing out asks first
 - [ ] Reading a library "as its owner": only on drives Roostack mounted for media? (the maintainer to decide)
 - [ ] Joining with an existing server's ID (the maintainer to decide how)
-- [ ] `max_body_size` checked in package files, and Caddy's route check as a list of what's allowed (after the merge of origin/main, which changes both files)
+- [x] `max_body_size` checked in package files (a whole number of KB, MB, GB, or TB), and Caddy's route check refusing every kind of space and control character
 - [ ] Walled services' and Glances' loopback ports are open to local accounts on the server (the maintainer to decide)
 - [ ] Not reviewed yet: what a server can send back to the controller, storage for other labs (`labnet/guests.go`), the edge's config
 - [ ] Check the VPN through another server on two VMs with the fixes of 2026-11-14 (checked then: one VM, the agent driven directly with pretend devices)

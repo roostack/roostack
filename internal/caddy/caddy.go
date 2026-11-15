@@ -15,6 +15,7 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+	"unicode"
 
 	"roostack.cloud/roostack/internal/trust"
 )
@@ -476,8 +477,18 @@ func pathPatterns(paths []string) string {
 	return strings.Join(ps, " ")
 }
 
+// unsafe reports whether a value could break out of where it's written in
+// the Caddyfile: any white space or control character (Caddy splits words
+// at every kind of space, not only the ones on a keyboard), a brace, a
+// quote of either kind, a backslash, "#", or one of also.
+func unsafe(s, also string) bool {
+	return strings.ContainsFunc(s, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r) || strings.ContainsRune("{}\"#`\\"+also, r)
+	})
+}
+
 func (r Route) validate() error {
-	if strings.ContainsAny(r.PrivateFrom, "\t\n{}\"#") {
+	if unsafe(strings.ReplaceAll(r.PrivateFrom, " ", ""), "") {
 		return fmt.Errorf("caddy route %s: invalid private addresses %q", r.ID, r.PrivateFrom)
 	}
 	if err := checkPrefixes(r.PrivateExcept); err != nil {
@@ -488,18 +499,18 @@ func (r Route) validate() error {
 		{"check upstream", r.CheckUpstream}, {"client IP header", r.ClientIPHeader},
 	} {
 		// Guard against anything that could break out of the Caddyfile syntax.
-		if strings.ContainsAny(f.val, " \t\n{}\"#") {
+		if unsafe(f.val, "") {
 			return fmt.Errorf("caddy route %s: invalid characters in %q", f.name, f.val)
 		}
 	}
 	for _, p := range append(slices.Clone(r.PrivatePaths), r.LoginPaths...) {
-		if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t\n{}\"#*") {
+		if !strings.HasPrefix(p, "/") || unsafe(p, "*") {
 			return fmt.Errorf("caddy route %s: invalid path %q", r.ID, p)
 		}
 	}
 	for _, p := range r.UploadPaths {
 		// A "*" stands for one part of the path (pkgspec.ValidUploadPath).
-		if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t\n{}\"#`") {
+		if !strings.HasPrefix(p, "/") || unsafe(p, "") {
 			return fmt.Errorf("caddy route %s: invalid upload path %q", r.ID, p)
 		}
 	}
@@ -507,11 +518,11 @@ func (r Route) validate() error {
 		return errors.New("caddy route: id, host and upstream are required")
 	}
 	if w := r.Wall; w != nil {
-		if w.Upstream == "" || w.Service == "" || strings.ContainsAny(w.Upstream+w.Service, " \t\n{}\"#&?") {
+		if w.Upstream == "" || w.Service == "" || unsafe(w.Upstream+w.Service, "&?") {
 			return fmt.Errorf("caddy route %s: invalid wall", r.ID)
 		}
 		for _, p := range w.Bypass {
-			if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t\n{}\"#*") {
+			if !strings.HasPrefix(p, "/") || unsafe(p, "*") {
 				return fmt.Errorf("caddy route %s: invalid bypass path %q", r.ID, p)
 			}
 		}
@@ -641,7 +652,7 @@ func Main(c MainConfig) (string, error) {
 	if strings.TrimSpace(c.DNSDirective) == "" {
 		return "", errors.New("caddy: no DNS provider configured")
 	}
-	if c.Domain == "" || strings.ContainsAny(c.Domain+c.Email+c.CrowdSecAPI+c.AppSecURL+c.AccessLog, " \t\n{}\"#") {
+	if c.Domain == "" || unsafe(c.Domain+c.Email+c.CrowdSecAPI+c.AppSecURL+c.AccessLog, "") {
 		return "", fmt.Errorf("caddy: invalid domain, email, CrowdSec address or log file")
 	}
 
@@ -681,10 +692,10 @@ func Main(c MainConfig) (string, error) {
 	if err := checkPrefixes(append(slices.Clone(c.PagesDevices), c.AllDevices...)); err != nil {
 		return "", fmt.Errorf("caddy: the VPN's devices: %w", err)
 	}
-	if d := c.DomainItself; d != nil && strings.ContainsAny(d.Redirect, " \t\n{}\"#") {
+	if d := c.DomainItself; d != nil && unsafe(d.Redirect, "") {
 		return "", fmt.Errorf("caddy: invalid address for the domain itself %q", d.Redirect)
 	}
-	if c.OldDomain != "" && (strings.ContainsAny(c.OldDomain, " \t\n{}\"#") || strings.TrimSpace(c.OldDNSDirective) == "") {
+	if c.OldDomain != "" && (unsafe(c.OldDomain, "") || strings.TrimSpace(c.OldDNSDirective) == "") {
 		return "", fmt.Errorf("caddy: invalid old address %q", c.OldDomain)
 	}
 	// The sites again on the edge listener, if there are edges.
@@ -908,7 +919,7 @@ func Edge(c EdgeConfig) (string, error) {
 		return "", fmt.Errorf("caddy: edge upstream %q: %w", c.Upstream, err)
 	}
 	for _, h := range c.Hosts {
-		if h == "" || strings.ContainsAny(h, " \t\n{}\"#,*/:") {
+		if h == "" || unsafe(h, ",*/:") {
 			return "", fmt.Errorf("caddy: invalid public name %q", h)
 		}
 	}

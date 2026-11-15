@@ -482,6 +482,9 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 	if h := r.ClientIPHeader; h != "" && !ValidClientIPHeader(h) {
 		v.addf("%s.client_ip_header: %q must be an X- header name other than X-Forwarded-* (e.g. X-Real-IP)", at, h)
 	}
+	if m := r.MaxBodySize; m != "" && !ValidBodySize(m) {
+		v.addf("%s.max_body_size: %q must be a whole number of KB, MB, GB, or TB (e.g. 100MB)", at, m)
+	}
 	if m := r.Monitor; m != nil {
 		if m.Path != "" && m.Path != "/" && !ValidPath(m.Path) {
 			v.addf("%s.monitor.path: %q must start with / and have only letters, digits, and - _ . : /", at, m.Path)
@@ -538,6 +541,13 @@ var clientIPHeaderRe = regexp.MustCompile(`^[Xx]-[A-Za-z0-9-]+$`)
 func ValidClientIPHeader(h string) bool {
 	return clientIPHeaderRe.MatchString(h) && !strings.HasPrefix(strings.ToLower(h), "x-forwarded-")
 }
+
+var bodySizeRe = regexp.MustCompile(`^[1-9][0-9]{0,8}(KB|MB|GB|TB)$`)
+
+// ValidBodySize says whether s is a size Caddy takes for the largest
+// request (max_size): it goes into the Caddyfile as it is, and one Caddy
+// refuses would stop every web address from changing.
+func ValidBodySize(s string) bool { return bodySizeRe.MatchString(s) }
 
 var pathRe = regexp.MustCompile(`^(/[A-Za-z0-9._:-]+)+$`)
 

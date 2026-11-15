@@ -231,7 +231,8 @@ routes:
 
 `routes`
 :   Web addresses: which container and port, the default `subdomain`,
-    `exposure` (`private` or `public`), `max_body_size`, and
+    `exposure` (`private` or `public`), `max_body_size` (the largest
+    request, a whole number of KB, MB, GB, or TB, such as `100MB`), and
     `client_ip_header`: Roostack's proxy sends the visitor's address in
     `X-Forwarded-For`; an app that reads another header (Vaultwarden reads
     `X-Real-IP`) names it here, and the proxy will set it too, replacing any

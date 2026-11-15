@@ -739,6 +739,7 @@
     if (!re.subdomain.test(r.subdomain)) add(`${at}.subdomain: ${goQuote(r.subdomain)} is not a valid DNS label`);
     if (r.exposure !== "private" && r.exposure !== "public") add(`${at}.exposure: must be "private" or "public"`);
     if (r.client_ip_header !== "" && !validClientIPHeader(r.client_ip_header)) add(`${at}.client_ip_header: ${goQuote(r.client_ip_header)} must be an X- header name other than X-Forwarded-* (e.g. X-Real-IP)`);
+    if (r.max_body_size !== "" && !/^[1-9][0-9]{0,8}(KB|MB|GB|TB)$/.test(r.max_body_size)) add(`${at}.max_body_size: ${goQuote(r.max_body_size)} must be a whole number of KB, MB, GB, or TB (e.g. 100MB)`);
     const m = r.monitor;
     if (!isNil(m)) {
       if (m.path !== "" && m.path !== "/" && !validPath(m.path)) add(`${at}.monitor.path: ${goQuote(m.path)} must start with / and have only letters, digits, and - _ . : /`);

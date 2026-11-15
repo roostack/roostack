@@ -1845,7 +1845,7 @@
   },
   "routes.*.max_body_size": {
    "label": "Largest upload",
-   "help": "The largest request the app accepts, for apps people upload large files to, such as 100MB.",
+   "help": "The largest request the app accepts, for apps people upload large files to. A whole number of KB, MB, GB, or TB, such as 100MB.",
    "example": "100MB",
    "link": "reference/packages#the-parts"
   },

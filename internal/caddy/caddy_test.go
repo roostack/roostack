@@ -636,3 +636,21 @@ func TestGlancesSite(t *testing.T) {
 		t.Errorf("public:\n%s", main)
 	}
 }
+
+// A value with any kind of space, a control character, a quote of either
+// kind or a backslash is refused: Caddy splits words at every kind of
+// space, so a no-break space would add a word to a line.
+func TestRouteRejectsOddSpaces(t *testing.T) {
+	for _, bad := range []string{"a b", "a b", "a\rb", "a\vb", "a`b", `a\b`, "a\x00b"} {
+		for _, r := range []Route{
+			{ID: "x", Host: bad, Upstream: "a:1"},
+			{ID: "x", Host: "x", Upstream: "a:1", MaxBodySize: bad},
+			{ID: "x", Host: "x", Upstream: "a:1", LoginPaths: []string{"/" + bad}},
+			{ID: "x", Host: "x", Upstream: "a:1", Wall: &Wall{Upstream: "a:1", Service: bad}},
+		} {
+			if _, err := Site("x", []Route{r}); err == nil {
+				t.Errorf("%q was let through: %+v", bad, r)
+			}
+		}
+	}
+}

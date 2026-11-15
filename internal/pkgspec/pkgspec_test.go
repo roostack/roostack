@@ -485,3 +485,14 @@ func TestValidClientIPHeader(t *testing.T) {
 		}
 	}
 }
+
+// The largest request goes into the Caddyfile as written, so only sizes
+// Caddy takes pass.
+func TestValidBodySize(t *testing.T) {
+	for s, want := range map[string]bool{"100MB": true, "2GB": true, "1TB": true, "500KB": true, "": false, "0MB": false, "big": false,
+		"50 GB": false, "1.5GB": false, "50GB\n": false, "50gb": false, "9999999999GB": false} {
+		if ValidBodySize(s) != want {
+			t.Errorf("%q: %v", s, !want)
+		}
+	}
+}
