@@ -155,7 +155,7 @@ func registryIndex(args []string) error {
 	keyPath := fs.String("key", "", "the signing key's file; default: the REGISTRY_SIGNING_KEY environment variable")
 	commit := fs.String("commit", "", "the registry commit being built, recorded in the index")
 	noImages := fs.Bool("skip-image-check", false, "don't ask the image registries for architectures (testing only)")
-	check := fs.Bool("check", false, "only check the packages (a pull request): nothing will be signed or written")
+	check := fs.Bool("check", false, "only check the packages (a pull request): nothing will be signed or written, and only -new's images are looked up")
 	added := fs.String("new", "", "versions a pull request adds, separated by commas (ntfy@2.31.1-roostack.2): a gone image of one of these will fail the check")
 	fs.Parse(args)
 	if *out == "" && !*check {
@@ -192,6 +192,9 @@ func registryIndex(args []string) error {
 	if *noImages {
 		opts.Platforms = nil
 	}
+	// A pull request's check asks the image registries only about the
+	// versions it adds (BuildOptions.OnlyNew).
+	opts.OnlyNew = *check
 	if *added != "" {
 		opts.New = strings.Split(*added, ",")
 	}

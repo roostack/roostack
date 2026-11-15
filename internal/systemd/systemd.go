@@ -64,6 +64,13 @@ func (m *Manager) StartNoBlock(ctx context.Context, units ...string) error {
 	return err
 }
 
+// ResetFailed clears units' failed state, and the count of starts that
+// made systemd give up on one ("Start request repeated too quickly"), so
+// that it can be started again.
+func (m *Manager) ResetFailed(ctx context.Context, units ...string) error {
+	return m.each(ctx, "reset-failed", units)
+}
+
 // Restart restarts units.
 func (m *Manager) Restart(ctx context.Context, units ...string) error {
 	return m.each(ctx, "restart", units)

@@ -126,6 +126,8 @@ type fakeCatalog struct {
 	offs []string
 	// requiresSSO: packages have no sign-in of their own (sso.required).
 	requiresSSO bool
+	// notices are packages' about.notice, by name.
+	notices map[string]string
 	// ownSignIn: packages have a wall in front of their own sign-in.
 	ownSignIn bool
 	// summaries are the install summaries asked for.
@@ -203,6 +205,11 @@ func (f *fakeCatalog) Package(name string) (*pkgspec.Package, error) {
 	}
 	if err == nil && f.ownSignIn && p.SSO != nil {
 		p.SSO.OIDC, p.SSO.ForwardAuth = nil, &pkgspec.SSOForwardAuth{Route: "web", OwnSignIn: true}
+	}
+	if err == nil {
+		if n, ok := f.notices[name]; ok {
+			p.About.Notice = n
+		}
 	}
 	return p, err
 }

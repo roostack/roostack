@@ -62,3 +62,19 @@ func TestSignSignsBodyHeaders(t *testing.T) {
 		t.Errorf("signed headers: %s", auth)
 	}
 }
+
+// Content-Type and Content-MD5 are signed when they're set: AWS's S3
+// refuses an unsigned Content-MD5, as Cloud's archive copy found on its
+// first run against AWS (2026-11-10).
+func TestSignSignsContentTypeAndMD5(t *testing.T) {
+	body := []byte("probe")
+	req, _ := http.NewRequest(http.MethodPut, "https://s3.us-east-1.amazonaws.com/bucket/key", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("Content-MD5", "1B2M2Y8AsgTpgAmY7PhCfg==")
+	req.Header.Set("X-Amz-Content-Sha256", sha256Hex(body))
+	Sign(req, body, testKey, testSecret, "us-east-1", "s3", testTime)
+	if auth := req.Header.Get("Authorization"); !strings.Contains(auth,
+		"SignedHeaders=content-length;content-md5;content-type;host;x-amz-content-sha256;x-amz-date,") {
+		t.Errorf("signed headers: %s", auth)
+	}
+}

@@ -92,8 +92,8 @@ short version.
 
     If the provider doesn't offer Debian 13, Debian publishes its own
     [cloud images](https://cloud.debian.org/images/cloud/) (in the
-    `trixie` folder: `genericcloud` suits most providers that accept
-    uploaded images).
+    `trixie` folder: `generic` suits most providers that accept uploaded
+    images).
 
     !!! note "A cloud server isn't at home"
 

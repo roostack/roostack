@@ -17,22 +17,27 @@ import (
 // Sign signs an AWS API request with Signature Version 4, using only the
 // standard library (so Roostack needn't depend on the AWS SDK just to check
 // credentials). It signs host, content-length (with a body),
-// x-amz-date and any other x-amz-* headers, plus the body hash. Checked
-// against the AWS SDK's signer: identical signatures.
+// content-type and content-md5 when they're set, x-amz-date and any
+// other x-amz-* headers, plus the body hash. Checked against the AWS
+// SDK's signer: identical signatures. AWS's S3 refuses a request whose
+// Content-MD5 isn't signed ("There were headers present in the request
+// which were not signed"), which S3-compatible providers such as Wasabi
+// let pass, so set every header before signing.
 func Sign(req *http.Request, body []byte, accessKey, secretKey, region, service string, now time.Time) {
 	amzDate := now.UTC().Format("20060102T150405Z")
 	day := amzDate[:8]
 	req.Header.Set("X-Amz-Date", amzDate)
 	payloadHash := sha256Hex(body)
 
-	// Canonical headers: host plus x-amz-* (lower-case, sorted).
+	// Canonical headers: host, the body's length, type and MD5, and
+	// x-amz-* (lower-case, sorted).
 	headers := map[string]string{"host": req.URL.Host}
 	if req.ContentLength > 0 {
 		headers["content-length"] = strconv.FormatInt(req.ContentLength, 10)
 	}
 	for k, v := range req.Header {
 		lk := strings.ToLower(k)
-		if strings.HasPrefix(lk, "x-amz-") {
+		if strings.HasPrefix(lk, "x-amz-") || lk == "content-type" || lk == "content-md5" {
 			headers[lk] = strings.TrimSpace(strings.Join(v, ","))
 		}
 	}

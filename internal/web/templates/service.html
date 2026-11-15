@@ -312,6 +312,7 @@
   <section class="card">
     <div class="card-head"><h2>About {{.Title}}</h2></div>
     {{template "project-credit" .}}
+    {{with .About.Notice}}{{notice "warn" .}}{{end}}
   </section>
   {{end}}
   {{with .PhotoCard}}{{template "photos-card" .}}{{end}}

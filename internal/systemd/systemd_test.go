@@ -18,11 +18,13 @@ func TestCommands(t *testing.T) {
 	m.Start(ctx, "a.service", "b.service")
 	m.Stop(ctx) // no units: no call
 	m.Reload(ctx, "roostack-caddy.service")
+	m.ResetFailed(ctx, "c.service")
 
 	want := []string{
 		"systemctl --user daemon-reload",
 		"systemctl --user start a.service b.service",
 		"systemctl --user reload roostack-caddy.service",
+		"systemctl --user reset-failed c.service",
 	}
 	if !reflect.DeepEqual(calls, want) {
 		t.Errorf("calls = %q, want %q", calls, want)

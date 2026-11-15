@@ -510,7 +510,25 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 			v.addf("%s.public.login_paths[%d]: %q must start with / and have only letters, digits, and - _ . : / (no * or trailing /)", at, i, lp)
 		}
 	}
+	seen = map[string]bool{}
+	for i, up := range r.UploadPaths {
+		if !ValidUploadPath(up) {
+			v.addf("%s.upload_paths[%d]: %q must start with / and have only letters, digits, and - _ . : /, where * may stand for a whole part but not the last (no trailing /)", at, i, up)
+		}
+		if seen[up] {
+			v.addf("%s.upload_paths[%d]: %q is listed twice", at, i, up)
+		}
+		seen[up] = true
+	}
 }
+
+var uploadPathRe = regexp.MustCompile(`^(/([A-Za-z0-9._:-]+|\*))*/[A-Za-z0-9._:-]+$`)
+
+// ValidUploadPath says whether p can be an upload path: a plain path, as
+// ValidPath, in which "*" may stand for one whole part, but not the
+// last, which would add nothing (everything under a path is included):
+// Pingvin Share X's /api/shares/*/files.
+func ValidUploadPath(p string) bool { return uploadPathRe.MatchString(p) }
 
 var clientIPHeaderRe = regexp.MustCompile(`^[Xx]-[A-Za-z0-9-]+$`)
 
