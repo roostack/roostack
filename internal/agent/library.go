@@ -144,6 +144,11 @@ func (h LinuxHost) LibraryFolders(l Library) (FolderList, error) {
 		return FolderList{}, err
 	}
 	list, err := listFolders(base, sub, h.UID, h.groups())
+	if err == nil && l.Drive != "" && !h.mountedForMedia(base) {
+		// Reading as an owner isn't offered on a drive the server mounts
+		// itself (mountAt refuses it).
+		list.Check.Owner, list.Check.OwnerFiles = nil, 0
+	}
 	if err == nil && l.Folder != "" {
 		// Roostack's own folders can't be libraries: they aren't offered.
 		list.Folders = slices.DeleteFunc(list.Folders, func(f FolderEntry) bool { return ownFolder(filepath.Join(base, f.Name)) })
@@ -203,6 +208,11 @@ func (h LinuxHost) mountAt(l Library, spot mountSpot) error {
 		}
 		if slices.Contains(foreignFS, d.FSType) {
 			return refuse("this drive's files are Roostack's already: it has no owners to map")
+		}
+		if !h.mountedForMedia(base) {
+			return refuse("files on this drive can't be read as their owner's: the server mounts it itself, at %s, "+
+				"so what's on it may be more than media. Change the files' permissions there so that Roostack can read them "+
+				"(sudo chmod -R o+rX on the folder), or keep media on a drive of its own", base)
 		}
 		idmap = fmt.Sprintf("u:%d:%d:1 g:%d:%d:1", l.AsOwner.UID, h.UID, l.AsOwner.GID, h.GID)
 	}
@@ -383,6 +393,20 @@ func (h LinuxHost) libraryBase(l Library, browse bool) (base, sub string, err er
 		return dir, "", nil
 	}
 	return "", "", refuse("a library is a folder on a drive, or a folder on the server")
+}
+
+// mountedForMedia reports whether a drive's mount point is one Roostack
+// made for media (fstab's media drive block), or just to look at its
+// folders before that: a drive nothing else on the server uses. Only
+// there may files be read as their owner's (an idmapped mount): on a disk
+// the server mounts itself, the roostack user could otherwise ask to read
+// any regular user's private files, wherever they are on it.
+func (h LinuxHost) mountedForMedia(mp string) bool {
+	if strings.HasPrefix(mp, lookPrefix) {
+		return true
+	}
+	tab, err := readFstab()
+	return err == nil && mediaDriveDevice(tab, mp) != ""
 }
 
 // ownFolder says whether a folder on the server is, or is in, one of

@@ -370,10 +370,11 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [x] Removing an fstab block leaves a line that isn't its own
 - [x] A walled service's hand-off only works in the browser it started in
 - [x] A link to signing out asks first
-- [ ] Reading a library "as its owner": only on drives Roostack mounted for media? (the maintainer to decide)
-- [ ] Joining with an existing server's ID (the maintainer to decide how)
+- [x] Reading a library "as its owner" only on drives Roostack mounted for media
+- [x] A join with an existing server's ID is refused, until the Owner removes that server
+- [ ] Check that refusal on two VMs: the message the joining server shows, and joining after removing the old entry
 - [x] `max_body_size` checked in package files (a whole number of KB, MB, GB, or TB), and Caddy's route check refusing every kind of space and control character
-- [ ] Walled services' and Glances' loopback ports are open to local accounts on the server (the maintainer to decide)
+- [x] Walled services' and Glances' loopback ports are open to local accounts on the server: left as it is (the maintainer, 2026-11-15)
 - [ ] Not reviewed yet: what a server can send back to the controller, storage for other labs (`labnet/guests.go`), the edge's config
 - [ ] Check the VPN through another server on two VMs with the fixes of 2026-11-14 (checked then: one VM, the agent driven directly with pretend devices)
 - [x] The VPN through another server: devices connecting to a cloud server in the lab, which passes their traffic to the controller over Roostack's network keeping their addresses; SSH to every server; the choice on Settings → VPN; Give it new settings (2026-11-12)

@@ -321,3 +321,25 @@ func TestShareFstab(t *testing.T) {
 		}
 	}
 }
+
+// Files are read as their owner's only on a drive Roostack mounted for
+// media (or is looking at before it does), never on one the server mounts
+// itself.
+func TestMountedForMedia(t *testing.T) {
+	old := fstab
+	fstab = filepath.Join(t.TempDir(), "fstab")
+	t.Cleanup(func() { fstab = old })
+	tab := "UUID=aaaa / ext4 defaults 0 1\nUUID=bbbb /data ext4 defaults 0 2\n"
+	tab = withBlock(tab, mediaDriveTag("/mnt/roostack-media-films", "FILMS"), "UUID=1111-2222 /mnt/roostack-media-films exfat ro,nofail 0 2")
+	tab = withBlock(tab, backupDriveTag("BACKUP"), "UUID=3333-4444 /mnt/roostack-backup ext4 defaults,nofail 0 2")
+	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := LinuxHost{}
+	for mp, want := range map[string]bool{"/mnt/roostack-media-films": true, lookPrefix + "1a2b3c4d": true, "/data": false, "/": false,
+		"/mnt/roostack-backup": false, "/mnt/elsewhere": false} {
+		if h.mountedForMedia(mp) != want {
+			t.Errorf("%s: %v", mp, !want)
+		}
+	}
+}

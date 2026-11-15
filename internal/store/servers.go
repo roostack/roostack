@@ -40,6 +40,10 @@ type JoinCode struct {
 // ErrJoinCode means a join code is unknown, used or expired.
 var ErrJoinCode = errors.New("the join code is unknown, already used, or expired")
 
+// ErrServerInLab means a server with the joining one's ID is in the lab
+// already: a join can't take its place.
+var ErrServerInLab = errors.New("a server with this ID is already in the lab: remove it on Settings → Servers first, then join again with this code")
+
 // AddJoinCode records a new join code.
 func (s *Store) AddJoinCode(ctx context.Context, c JoinCode) error {
 	_, err := s.db.ExecContext(ctx, `INSERT INTO join_codes (token_hash, addr, public_key, expires_at, dial) VALUES (?, ?, ?, ?, ?)`,
@@ -66,7 +70,12 @@ func scanJoinCode(row scanner) (JoinCode, error) {
 }
 
 // Join uses a join code: it adds the server at the code's address and
-// deletes the code, in one transaction, so a code works once.
+// deletes the code, in one transaction, so a code works once. A server
+// whose ID is in the lab already is refused (ErrServerInLab), and the code
+// kept: a join would otherwise take over that server's place, its
+// assignment and secrets with it, for whoever holds a code and knows its
+// ID. One coming back (it left, or was reinstalled keeping its ID) joins
+// once the Owner has removed its old entry.
 func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.Time) (Server, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -81,17 +90,21 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 	if err != nil {
 		return m, err
 	}
+	var there int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM servers WHERE id = ?`, m.ID).Scan(&there); err != nil {
+		return m, err
+	}
+	if there > 0 {
+		return m, ErrServerInLab
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM join_codes WHERE token_hash = ?`, tokenHash); err != nil {
 		return m, err
 	}
 	m.JoinedAt = now
-	// Joining again (e.g. after reinstalling) replaces the old entry.
 	// Its certificate is recorded once signed (SetServerCert); until then
-	// none is accepted, not even one from an earlier join.
+	// none is accepted.
 	if _, err := tx.ExecContext(ctx, `INSERT INTO servers (id, name, addr, public_key, joined_at, cert_serial, dial)
-		VALUES (?, ?, ?, ?, ?, 'pending', ?)
-		ON CONFLICT(id) DO UPDATE SET name = excluded.name, addr = excluded.addr, public_key = excluded.public_key,
-		joined_at = excluded.joined_at, cert_serial = 'pending', prev_serial = '', cert_expires = 0, dial = excluded.dial`,
+		VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
 		m.ID, m.Name, m.Addr, m.PublicKey, now.Unix(), m.Dial); err != nil {
 		return m, err
 	}

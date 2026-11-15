@@ -66,7 +66,12 @@ removing the library will undo it. Files belonging to other people will stay
 unreadable.
 
 This is only offered for a folder on a drive, and only for an ordinary
-user's files, never the system's.
+user's files, never the system's. The drive must be one Roostack mounted
+for media itself, such as a USB drive nothing else on the server uses. On
+a disk the server already mounts (one you set up in `/etc/fstab`), other
+things may be kept beside the media, so Roostack won't read anyone's
+private files there: give services read access to the folder on the server
+instead, for example with `sudo chmod -R o+rX /data/films`.
 
 ## Choosing what a service reads
 

@@ -387,6 +387,19 @@ func TestJoinCodes(t *testing.T) {
 	if _, err := s.Join(ctx, "h1", Server{ID: "n-0000000009"}, now); !errors.Is(err, ErrJoinCode) {
 		t.Error("a code must work once")
 	}
+	// A server whose ID is in the lab already can't take its place: its
+	// entry stays as it was, and the code is kept for a server that's new.
+	s.AddJoinCode(ctx, JoinCode{TokenHash: "h3", Addr: "100.96.0.4", PublicKey: "k3", Expires: now.Add(time.Hour)})
+	if _, err := s.Join(ctx, "h3", Server{ID: "n-0000000002", Name: "someone else", PublicKey: "theirs"}, now); !errors.Is(err, ErrServerInLab) {
+		t.Errorf("joining as a server that's in the lab: %v", err)
+	}
+	if all, _ := s.Servers(ctx); len(all) != 1 || all[0].Name != "vps" || all[0].PublicKey != "own" || all[0].Addr != "100.96.0.2" {
+		t.Errorf("the server that was there: %+v", all)
+	}
+	if m, err := s.Join(ctx, "h3", Server{ID: "n-0000000005", Name: "new", PublicKey: "new"}, now); err != nil || m.Addr != "100.96.0.4" {
+		t.Errorf("the code after the refusal: %+v %v", m, err)
+	}
+	s.RemoveServer(ctx, "n-0000000005")
 	ms, _ := s.Servers(ctx)
 	if len(ms) != 1 || ms[0].Name != "vps" || ms[0].PublicKey != "own" {
 		t.Errorf("servers = %+v", ms)
