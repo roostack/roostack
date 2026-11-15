@@ -501,7 +501,7 @@ func (s *Server) drivesPartial(w http.ResponseWriter, r *http.Request) {
 func (s *Server) eraseDriveSubmit(w http.ResponseWriter, r *http.Request) {
 	disk := r.FormValue("disk")
 	wizard := s.inWizard(r)
-	err := s.Setup.EraseDrive(r.Context(), disk)
+	a, err := s.Setup.EraseDrive(r.Context(), disk)
 	if msg, ok := usererr.Message(err); ok {
 		s.renderPlanPage(w, r, wizard, msg)
 		return
@@ -510,11 +510,22 @@ func (s *Server) eraseDriveSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "setup", "erased "+disk+" for backups")
 	q := url.Values{"add": {r.FormValue("add")}}
 	if r.FormValue("replace") == "1" {
 		q.Set("replace", "1")
 	}
+	if !a.Erased {
+		// A USB drive with something on it: the drive list says to unplug
+		// it and plug it back in, and the agent erases it then.
+		s.Store.Audit(r.Context(), currentUser(r), "setup", "asked to erase "+disk+" for backups, once it's unplugged and plugged back in")
+		back := "/backups"
+		if wizard {
+			back = "/setup/backup"
+		}
+		redirect(w, r, back+"?"+q.Encode()+"#plan")
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "setup", "erased "+disk+" for backups")
 	// The prepared disk's filesystem is the one chosen now.
 	if drives, err := s.Setup.BackupDrives(r.Context()); err == nil {
 		for _, d := range drives {

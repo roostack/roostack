@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -29,7 +30,10 @@ import (
 // refused if any of its fields could split it (review M17, SPEC.md §6.1).
 // Only a disk with nothing usable on it, not mounted and not in fstab, can
 // be erased: the roostack user asks for it, and an idle backup drive is
-// only automounted, so "not mounted now" isn't enough (review M18).
+// only automounted, so "not mounted now" isn't enough (review M18). One
+// with anything on it at all is erased only once a person confirms it in a
+// way the roostack user can't fake (replug.go): by unplugging a USB drive
+// and plugging it back in, or by running a command as root.
 
 // Drive is a place backups can go.
 type Drive struct {
@@ -63,7 +67,26 @@ type Drive struct {
 	// Backup: one of Roostack's backup drives (in fstab as one), which
 	// can't hold media libraries.
 	Backup bool `json:"backup,omitempty"`
+	// Confirm is how erasing an Erasable disk with something on it (Holds)
+	// is confirmed: ConfirmReplug or ConfirmRoot; "" for a blank disk.
+	Confirm string `json:"confirm,omitempty"`
+	// Erase is where an erase waiting for the drive to be unplugged and
+	// plugged back in has got to (replug.go).
+	Erase *EraseStatus `json:"erase,omitempty"`
+
+	// ident tells the disk apart from others, even under another device
+	// name after it's plugged back in (identity).
+	ident string
 }
+
+// How erasing a disk with something on it is confirmed (Drive.Confirm).
+const (
+	// ConfirmReplug: a USB drive, unplugged and plugged back in within
+	// ReplugWindow of being asked.
+	ConfirmReplug = "replug"
+	// ConfirmRoot: any other disk, with `roostack drive erase` run as root.
+	ConfirmRoot = "root"
+)
 
 // SystemBackupDir is where backups go on the server's own disk: the
 // default config.Paths.BackupStoreDir, which a test keeps it equal to.
@@ -105,6 +128,8 @@ var holdsWords = map[string]string{
 	"hfsplus": "a Mac filesystem", "hfs": "a Mac filesystem", "apfs": "a Mac filesystem",
 	"BitLocker": "a Windows drive encrypted with BitLocker", "ReFS": "a Windows filesystem",
 	"iso9660": "a CD or DVD image", "udf": "a CD or DVD image",
+	// A partition table with nothing lsblk recognises in it.
+	"gpt": "a partition table", "dos": "a partition table",
 }
 
 // HoldsText says what's on a disk that isn't empty but has nothing
@@ -145,7 +170,16 @@ type lsblkDevice struct {
 	Hotplug     bool          `json:"hotplug"`
 	Model       *string       `json:"model"`
 	FSAvail     *int64        `json:"fsavail"`
+	PTType      *string       `json:"pttype"`
+	Serial      *string       `json:"serial"`
+	WWN         *string       `json:"wwn"`
 	Children    []lsblkDevice `json:"children"`
+}
+
+// identity tells a disk apart from others by what it says about itself,
+// which stays the same when it's plugged in again under another name.
+func (d lsblkDevice) identity() string {
+	return strings.Join([]string{str(d.Model), str(d.Serial), str(d.WWN), strconv.FormatInt(d.Size, 10)}, "|")
 }
 
 // str is one of lsblk's values, without control characters (lsblk's
@@ -274,7 +308,7 @@ func parseDrives(data []byte, systemFree int64, fstab string, resolve func(strin
 		if str(disk.Tran) == "usb" || disk.RM || disk.Hotplug {
 			kind = "usb"
 		}
-		base := Drive{Kind: kind, Model: str(disk.Model), Disk: disk.Path}
+		base := Drive{Kind: kind, Model: str(disk.Model), Disk: disk.Path, ident: disk.identity()}
 		name := func(d lsblkDevice) string {
 			if l := str(d.Label); l != "" {
 				return l
@@ -317,6 +351,15 @@ func parseDrives(data []byte, systemFree int64, fstab string, resolve func(strin
 					dr.Holds = append(dr.Holds, fs)
 				}
 			}
+			if pt := mountName.ReplaceAllString(str(disk.PTType), ""); len(dr.Holds) == 0 && pt != "" && len(pt) <= 32 {
+				dr.Holds = append(dr.Holds, pt)
+			}
+			if dr.Erasable && len(dr.Holds) > 0 {
+				dr.Confirm = ConfirmRoot
+				if kind == "usb" {
+					dr.Confirm = ConfirmReplug
+				}
+			}
 			drives = append(drives, dr)
 		}
 	}
@@ -348,10 +391,12 @@ func statfs(path string) (free, size int64) {
 	return int64(st.Bavail) * int64(st.Bsize), int64(st.Blocks) * int64(st.Bsize)
 }
 
+// lsblkColumns are what Drives asks lsblk for.
+const lsblkColumns = "NAME,PATH,TYPE,SIZE,FSTYPE,LABEL,UUID,PARTUUID,PARTLABEL,MOUNTPOINTS,TRAN,RM,HOTPLUG,MODEL,FSAVAIL,PTTYPE,SERIAL,WWN"
+
 // Drives lists the places backups can go.
 func (h LinuxHost) Drives() ([]Drive, error) {
-	out, err := exec.Command("lsblk", "--json", "--bytes", "-o",
-		"NAME,PATH,TYPE,SIZE,FSTYPE,LABEL,UUID,PARTUUID,PARTLABEL,MOUNTPOINTS,TRAN,RM,HOTPLUG,MODEL,FSAVAIL").Output()
+	out, err := exec.Command("lsblk", "--json", "--bytes", "-o", lsblkColumns).Output()
 	if err != nil {
 		return nil, fmt.Errorf("lsblk: %w", err)
 	}
@@ -367,6 +412,7 @@ func (h LinuxHost) Drives() ([]Drive, error) {
 	for i := range drives {
 		drives[i].Backup = drives[i].UUID != "" && backupDrive(string(tab), drives[i].UUID)
 	}
+	drives = replugs.annotate(drives)
 	if mounts, err := os.ReadFile("/proc/mounts"); err == nil {
 		drives = append(drives, networkDrives(string(mounts), statfs)...)
 	}
@@ -531,22 +577,39 @@ func fstabLine(d Drive, mp string, uid, gid int) (string, error) {
 
 // EraseDrive erases a disk and prepares it for backups: one partition with
 // an ext4 filesystem labelled label. Only an Erasable disk: nothing on it
-// backups could use, not mounted, not in fstab.
-func (h LinuxHost) EraseDrive(disk, label string) error {
+// backups could use, not mounted, not in fstab. One with something on it
+// (Drive.Confirm) is erased at once only for root (`roostack drive
+// erase`); for anyone else a USB drive waits to be unplugged and plugged
+// back in (replug.go), and any other disk is refused.
+func (h LinuxHost) EraseDrive(disk, label string, root bool) (EraseDriveAnswer, error) {
 	drives, err := h.Drives()
 	if err != nil {
-		return err
+		return EraseDriveAnswer{}, err
 	}
-	ok := false
-	for _, d := range drives {
-		if d.Disk == disk && d.Erasable {
-			ok = true
+	var d *Drive
+	for i := range drives {
+		if drives[i].Disk == disk && drives[i].Erasable {
+			d = &drives[i]
 		}
 	}
-	if !ok {
-		return refuse("that disk can't be erased: Roostack only prepares a disk with nothing on it it could use, " +
+	if d == nil {
+		return EraseDriveAnswer{}, refuse("that disk can't be erased: Roostack only prepares a disk with nothing on it it could use, " +
 			"that isn't mounted or in /etc/fstab")
 	}
+	switch {
+	case d.Confirm == "" || root:
+		return EraseDriveAnswer{OK: true, Erased: true}, eraseDisk(disk, label)
+	case d.Confirm == ConfirmReplug:
+		until := replugs.ask(h, *d, label, time.Now())
+		return EraseDriveAnswer{OK: true, Confirm: ConfirmReplug, Until: until}, nil
+	}
+	return EraseDriveAnswer{}, refuse("%s isn't empty, so only a command run as root on this server can erase it: sudo roostack drive erase %s",
+		disk, disk)
+}
+
+// eraseDisk erases a disk and makes one partition on it with an ext4
+// filesystem labelled label.
+func eraseDisk(disk, label string) error {
 	label = strings.ToUpper(mountName.ReplaceAllString(label, ""))
 	if label == "" || len(label) > 16 {
 		label = "ROOSTACK"

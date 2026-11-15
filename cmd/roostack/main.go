@@ -29,6 +29,7 @@ Commands:
   public   Pause public access to services, open it again, or see what's paused
   service  Turn a service off for a while, or on again
   registry The service registry's keys and signed index
+  drive    Erase a disk for backups (as root)
 
 Run 'roostack <command> -h' for command flags.
 `
@@ -87,6 +88,8 @@ func run(cmd string, args []string) error {
 		return serviceCmd(args)
 	case "registry":
 		return registryCmd(args)
+	case "drive":
+		return driveCmd(args)
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 		return nil

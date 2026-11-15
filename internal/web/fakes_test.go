@@ -1808,14 +1808,19 @@ func (f *fakeSetup) BackupDrives(context.Context) ([]agent.Drive, error) {
 	return []agent.Drive{{ID: "system", Kind: "system", Name: "This server's own disk", Usable: true, Free: 30 * units.GB}}, nil
 }
 
-func (f *fakeSetup) EraseDrive(_ context.Context, disk string) error {
+func (f *fakeSetup) EraseDrive(_ context.Context, disk string) (agent.EraseDriveAnswer, error) {
 	f.erased = disk
 	for i, d := range f.drives {
+		if d.Disk == disk && d.Confirm == agent.ConfirmReplug {
+			// Waits to be unplugged and plugged back in.
+			f.drives[i].Erase = &agent.EraseStatus{Until: time.Date(2026, 11, 16, 10, 42, 0, 0, time.Local)}
+			return agent.EraseDriveAnswer{OK: true, Confirm: agent.ConfirmReplug, Until: f.drives[i].Erase.Until}, nil
+		}
 		if d.Disk == disk {
 			f.drives[i] = agent.Drive{ID: "uuid:new", Kind: d.Kind, Name: "ROOSTACK", Disk: disk, Usable: true, Erasable: true}
 		}
 	}
-	return nil
+	return agent.EraseDriveAnswer{OK: true, Erased: true}, nil
 }
 
 func (f *fakeSetup) SetLabName(_ context.Context, name string, restart bool) error {

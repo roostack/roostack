@@ -218,7 +218,9 @@ func (f fakeDrives) Drives(context.Context) ([]agent.Drive, error) {
 func (f fakeDrives) UseDrive(_ context.Context, id string) (agent.UsedDrive, error) {
 	return agent.UsedDrive{Dir: f.dir, UUID: "64B1"}, nil
 }
-func (f fakeDrives) EraseDrive(context.Context, string, string) error { return nil }
+func (f fakeDrives) EraseDrive(context.Context, string, string) (agent.EraseDriveAnswer, error) {
+	return agent.EraseDriveAnswer{OK: true, Erased: true}, nil
+}
 func (f fakeDrives) PrepareBackupFolder(_ context.Context, dir string) (string, error) {
 	return dir + "/roostack", nil
 }

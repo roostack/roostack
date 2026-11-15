@@ -63,7 +63,7 @@ func TestParseDrives(t *testing.T) {
 		u.Disk != "/dev/sdb" || u.Mount != "" || u.Free != -1 {
 		t.Errorf("usb = %+v", u)
 	}
-	if n := byID["disk:/dev/nvme1n1"]; n.Kind != "disk" || n.Usable || !n.Erasable || n.Name != "Samsung SSD 980" {
+	if n := byID["disk:/dev/nvme1n1"]; n.Kind != "disk" || n.Usable || !n.Erasable || n.Name != "Samsung SSD 980" || n.Confirm != "" {
 		t.Errorf("blank disk = %+v", n)
 	}
 	if d := byID["uuid:aa11a1b2-0000-4000-8000-000000000002"]; d.Mount != "/data" || d.Free != 400000000000 || d.Name != "photos" || d.Erasable {
@@ -86,7 +86,7 @@ func TestParseDrives(t *testing.T) {
 	if f := byID["disk:/dev/sdf"]; f.Erasable {
 		t.Errorf("a disk in fstab = %+v", f)
 	}
-	if g := byID["disk:/dev/sdg"]; !g.Erasable {
+	if g := byID["disk:/dev/sdg"]; !g.Erasable || g.Confirm != ConfirmReplug {
 		t.Errorf("an unused Mac drive = %+v", g)
 	}
 	if _, ok := byID["uuid:lvm"]; ok {
@@ -301,6 +301,16 @@ func TestDrivesHolds(t *testing.T) {
 		if d := disk(`"` + fs + `"`); len(d) != 0 {
 			t.Errorf("%s was offered: %+v", fs, d)
 		}
+	}
+	// Something on a disk other than a USB drive takes root to erase; a
+	// partition table alone is something.
+	if d := disk(`"hfsplus"`); d[0].Kind != "disk" || d[0].Confirm != ConfirmRoot {
+		t.Errorf("an internal Mac disk: %+v", d[0])
+	}
+	d, _ := parseDrives([]byte(`{"blockdevices":[{"name":"sdb","path":"/dev/sdb","type":"disk","size":1000,"pttype":"gpt","tran":"usb"}]}`),
+		0, "", func(s string) string { return s })
+	if d[1].Confirm != ConfirmReplug || d[1].HoldsText() != "a partition table (gpt)" {
+		t.Errorf("a partition table: %+v", d[1])
 	}
 	two := Drive{Holds: []string{"hfsplus", "apfs", "udf"}}
 	if got := two.HoldsText(); got != "a Mac filesystem (hfsplus), a Mac filesystem (apfs), and a CD or DVD image (udf)" {

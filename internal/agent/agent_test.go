@@ -36,13 +36,15 @@ type fakeHost struct {
 	wg        *WireGuard
 	links     *Links
 	erased    string
-	keysOnly  bool
-	series    string
-	library   *Library
-	unmounted string
-	views     []string
-	share     string
-	useErr    error
+	// erasedRoot: the erase was asked for by root.
+	erasedRoot bool
+	keysOnly   bool
+	series     string
+	library    *Library
+	unmounted  string
+	views      []string
+	share      string
+	useErr     error
 }
 
 func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
@@ -82,7 +84,10 @@ func (f *fakeHost) UseDrive(id string) (UsedDrive, error) {
 	}
 	return UsedDrive{Dir: "/mnt/roostack-x", UUID: "u"}, nil
 }
-func (f *fakeHost) EraseDrive(disk, label string) error { f.erased = disk; return nil }
+func (f *fakeHost) EraseDrive(disk, label string, root bool) (EraseDriveAnswer, error) {
+	f.erased, f.erasedRoot = disk, root
+	return EraseDriveAnswer{OK: true, Erased: true}, nil
+}
 func (f *fakeHost) LibraryFolders(l Library) (FolderList, error) {
 	return FolderList{Path: l.Sub, Folders: []FolderEntry{{Name: "Films", Folders: 2}}}, nil
 }
@@ -354,7 +359,10 @@ func TestChangesAreLogged(t *testing.T) {
 			_, err := c.UseDrive(ctx, "system")
 			return err
 		},
-		"erase disk for backups": func() error { return c.EraseDrive(ctx, "/dev/sdb", "BACKUPS") },
+		"erase disk for backups": func() error {
+			_, err := c.EraseDrive(ctx, "/dev/sdb", "BACKUPS")
+			return err
+		},
 		"prepare backup folder": func() error {
 			_, err := c.PrepareBackupFolder(ctx, "/mnt/backups")
 			return err
@@ -530,5 +538,17 @@ func TestHostUIDMap(t *testing.T) {
 	}
 	if got := fdinfoPid("Pid:\t-1\n"); got != -1 {
 		t.Errorf("exited: %d", got)
+	}
+}
+
+// Only root's own request erases a disk with something on it at once
+// (`roostack drive erase`): the roostack user's isn't root's.
+func TestEraseAsRoot(t *testing.T) {
+	c, host := start(t, []uint32{uint32(os.Getuid())})
+	if _, err := c.EraseDrive(context.Background(), "/dev/sdb", "ROOSTACK"); err != nil {
+		t.Fatal(err)
+	}
+	if host.erased != "/dev/sdb" || host.erasedRoot != (os.Getuid() == 0) {
+		t.Errorf("erased %q, as root %v", host.erased, host.erasedRoot)
 	}
 }

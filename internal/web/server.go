@@ -432,7 +432,7 @@ type LabSetup interface {
 	// BackupDrives lists the drives backups can go on, best first;
 	// EraseDrive erases a disk and prepares it.
 	BackupDrives(ctx context.Context) ([]agent.Drive, error)
-	EraseDrive(ctx context.Context, disk string) error
+	EraseDrive(ctx context.Context, disk string) (agent.EraseDriveAnswer, error)
 	BackupLater(ctx context.Context) error
 	RecoveryKey() (string, error)
 	ConfirmRecoveryKey(ctx context.Context) error

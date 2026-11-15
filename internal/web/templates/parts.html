@@ -342,6 +342,17 @@
 </nav>
 {{end}}
 
+{{/* drive-erase-status: where an erase waiting for its USB drive to be
+     unplugged and plugged back in has got to (agent.EraseStatus). */}}
+{{define "drive-erase-status"}}<br>
+  {{- if .Done}}<strong>Roostack has erased it and prepared it for backups.</strong>
+  {{- else if .Failed}}Roostack couldn't erase it: {{.Failed}}
+  {{- else if .Expired}}It wasn't unplugged and plugged back in within 2 minutes, so Roostack didn't erase it. Choose <em>Prepare this disk…</em> to try again.
+  {{- else if .Erasing}}<strong>Roostack is erasing it and preparing it for backups.</strong>
+  {{- else if .Unplugged}}<strong>It's unplugged: plug it back in by {{.Until.Local.Format "15:04"}}</strong>, and Roostack will erase it.
+  {{- else}}<strong>Unplug it now, then plug it back in by {{.Until.Local.Format "15:04"}}.</strong> Roostack will erase it once it's back, which is how it knows that you're the one asking.{{end}}
+{{- end}}
+
 {{/* backup-drives: this server's drives, best first (setup.BackupDrives). */}}
 {{define "backup-drives"}}
 {{range $d := .Drives}}
@@ -350,19 +361,32 @@
     <span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else if eq .Kind "disk"}}Second disk{{else if eq .Kind "network"}}Network share{{else}}This server{{end}}</span>
       <small>{{if .Size}}{{size .Size}}{{end}}{{if ge .Free 0}}{{if .Size}} · {{end}}{{size .Free}} free{{end}}{{with .Model}}{{if ne . $d.Name}} · {{.}}{{end}}{{end}}{{with .FSType}} · {{.}}{{end}}
         {{- if eq .Kind "system"}}<br>The same disk as your data: it helps with mistakes, not a failed disk or ransomware.
+        {{- else if .Erase}}{{template "drive-erase-status" .Erase}}
         {{- else if .Holds}}<br>It isn't empty: it has {{.HoldsText}} on it, which Roostack can't use for backups. Preparing it will erase that.
         {{- else if not .Usable}}<br>Empty: prepare it to use it.
         {{- else if not .Mount}}<br>Roostack will set it up so it's there after a restart too.{{end}}</small></span></label>
-  {{if .Erasable}}
+  {{if and .Erasable (or (not .Erase) .Erase.Expired .Erase.Failed)}}
   <div x-data class="drive-erase">
     <button type="button" class="quiet" x-on:click="$refs.erase.showModal()">Prepare this disk…</button>
     <dialog x-ref="erase" class="dialog">
       <p><strong>Erase {{.Name}}?</strong> {{with .HoldsText}}It has {{.}} on it. {{end}}Everything on {{with .Model}}{{.}}, {{end}}{{size .Size}} (<code>{{.Disk}}</code>) will be deleted for good,
         and it will be prepared for Roostack's backups.</p>
+      {{if eq .Confirm "root"}}
+      <p>Because it isn't empty, only a command run as root on this server can erase it, so that nothing else that gets into Roostack
+        could. On the server's command line:</p>
+      {{copyBox (printf "sudo roostack drive erase %s" .Disk)}}
+      <p class="hint">Once it's erased, it will appear here ready to use.</p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" x-on:click="$refs.erase.close()">Close</button>
+      </div>
+      {{else}}
+      {{if eq .Confirm "replug"}}<p>Because it isn't empty, Roostack will then ask you to unplug it and plug it back in, so that it knows
+        the request is yours and not from something else that has got into this server.</p>{{end}}
       <div class="dialog-actions">
         <button type="button" class="secondary" x-on:click="$refs.erase.close()">Cancel</button>
         <button type="submit" class="danger" formaction="/setup/backup/erase" formnovalidate name="disk" value="{{.Disk}}">Erase it</button>
       </div>
+      {{end}}
     </dialog>
   </div>
   {{end}}

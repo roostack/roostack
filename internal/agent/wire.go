@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"net/http"
+	"time"
 )
 
 // The agent's API as both sides see it: each call's request and answer,
@@ -117,6 +118,31 @@ type EraseDriveRequest struct {
 }
 
 func (r EraseDriveRequest) logAttrs() []any { return []any{"disk", r.Disk, "label", r.Label} }
+
+// EraseDriveAnswer says whether a disk was erased, or how the erase waits
+// to be confirmed: ConfirmReplug, by Until.
+type EraseDriveAnswer struct {
+	OK      bool      `json:"ok"`
+	Erased  bool      `json:"erased,omitempty"`
+	Confirm string    `json:"confirm,omitempty"`
+	Until   time.Time `json:"until,omitzero"`
+}
+
+func (a EraseDriveAnswer) logAttrs() []any {
+	return []any{"erased", a.Erased, "confirm", a.Confirm}
+}
+
+// EraseStatus is where an erase waiting for its USB drive to be unplugged
+// and plugged back in has got to (Drive.Erase): from asked, until Until,
+// to Done or Failed, or Expired if it wasn't plugged back in in time.
+type EraseStatus struct {
+	Until     time.Time `json:"until"`
+	Unplugged bool      `json:"unplugged,omitempty"`
+	Erasing   bool      `json:"erasing,omitempty"`
+	Done      bool      `json:"done,omitempty"`
+	Failed    string    `json:"failed,omitempty"`
+	Expired   bool      `json:"expired,omitempty"`
+}
 
 // mountLibrary is PUT /v1/libraries/{name}'s request: a Library, named by
 // the URL.

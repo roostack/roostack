@@ -204,8 +204,10 @@ func (c *Client) UseDrive(ctx context.Context, id string) (UsedDrive, error) {
 }
 
 // EraseDrive erases a disk and prepares it for backups.
-func (c *Client) EraseDrive(ctx context.Context, disk, label string) error {
-	return c.call(ctx, http.MethodPost, "/v1/drives/erase", EraseDriveRequest{Disk: disk, Label: label}, nil)
+func (c *Client) EraseDrive(ctx context.Context, disk, label string) (EraseDriveAnswer, error) {
+	var a EraseDriveAnswer
+	err := c.call(ctx, http.MethodPost, "/v1/drives/erase", EraseDriveRequest{Disk: disk, Label: label}, &a)
+	return a, err
 }
 
 // Libraries lists the media libraries mounted on this server.

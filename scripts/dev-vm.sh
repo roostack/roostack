@@ -325,7 +325,9 @@ stop() {
 
 # usb_drive plugs a virtual USB drive into the running VM, or unplugs it,
 # to test Roostack's backup drive picker: usb add NAME [SIZE], usb remove
-# NAME. The drive's disk image stays in the VM's folder, so plugging it in
+# NAME. Each has a serial of its own (RS-NAME), as a real drive has, so it's
+# the same drive when it's plugged in again (erasing one with something on
+# it waits for that). The drive's disk image stays in the VM's folder, so plugging it in
 # again brings back what was written to it.
 usb_drive() {
     local action=$1 name=$2 size=$3
@@ -336,7 +338,7 @@ usb_drive() {
     add)
         [[ -f $img ]] || truncate -s "$size" "$img"
         qmp "{\"execute\": \"blockdev-add\", \"arguments\": {\"driver\": \"raw\", \"node-name\": \"usb-$name\", \"file\": {\"driver\": \"file\", \"filename\": \"$img\"}}}" \
-            "{\"execute\": \"device_add\", \"arguments\": {\"driver\": \"usb-storage\", \"bus\": \"xhci.0\", \"drive\": \"usb-$name\", \"id\": \"usbdev-$name\", \"removable\": true}}"
+            "{\"execute\": \"device_add\", \"arguments\": {\"driver\": \"usb-storage\", \"bus\": \"xhci.0\", \"drive\": \"usb-$name\", \"id\": \"usbdev-$name\", \"removable\": true, \"serial\": \"RS-$name\"}}"
         log "USB drive $name plugged in ($(($(wc -c <"$img") / 1000000000)) GB)" ;;
     remove)
         qmp "{\"execute\": \"device_del\", \"arguments\": {\"id\": \"usbdev-$name\"}}"

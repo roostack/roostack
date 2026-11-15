@@ -96,7 +96,7 @@ type Host interface {
 	// EraseDrive erases a disk and prepares it (drives.go).
 	Drives() ([]Drive, error)
 	UseDrive(id string) (UsedDrive, error)
-	EraseDrive(disk, label string) error
+	EraseDrive(disk, label string, root bool) (EraseDriveAnswer, error)
 	// LibraryFolders lists the folders where a media library could be;
 	// MountLibrary mounts one for good, UnmountLibrary forgets it, and
 	// Libraries lists them (library.go).
@@ -194,10 +194,16 @@ func (s *Server) Handler() http.Handler {
 	// Backups: drives and folders.
 	handle("GET /v1/drives", read(s, h.Drives))
 	handle("POST /v1/drives/use", route(s, "use backup drive", 4<<10, func(r UseDriveRequest) (UsedDrive, error) { return h.UseDrive(r.ID) }))
-	handle("POST /v1/drives/erase", action(s, "erase disk for backups", 4<<10, func(r EraseDriveRequest) error {
-		s.Log.Warn("erasing a disk for backups", "disk", r.Disk)
-		return h.EraseDrive(r.Disk, r.Label)
-	}))
+	// A disk with something on it is erased at once only for root (`roostack
+	// drive erase`): the roostack user's request waits for a person to
+	// confirm it (replug.go).
+	handle("POST /v1/drives/erase", func(w http.ResponseWriter, r *http.Request) {
+		uid, ok := r.Context().Value(ctxKey{}).(uint32)
+		route(s, "erase disk for backups", 4<<10, func(req EraseDriveRequest) (EraseDriveAnswer, error) {
+			s.Log.Warn("erasing a disk for backups", "disk", req.Disk, "uid", uid)
+			return h.EraseDrive(req.Disk, req.Label, ok && uid == 0)
+		})(w, r)
+	})
 	handle("POST /v1/backup-folder", route(s, "prepare backup folder", 4<<10, func(r BackupFolder) (BackupFolder, error) {
 		dir, err := h.PrepareBackupFolder(r.Dir)
 		return BackupFolder{Dir: dir}, err

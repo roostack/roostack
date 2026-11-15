@@ -19,6 +19,12 @@ within a few seconds.
   Roostack never erases a drive it could use as it is (one with files on
   it, say), nor one that's in use. To start such a drive afresh, erase it
   on another computer first.
+- A drive with **something on it that Roostack can't use**, such as a
+  drive from a Mac, needs one more step, so that only a person at the
+  server can have it erased: for a **USB drive**, Roostack will ask you to
+  unplug it and plug it back in within 2 minutes, and it will erase it
+  once it's back. For a **second disk** inside the server, the page will
+  show a command to run as root on the server instead.
 - **This server's own disk** is at the end of the list. It helps if you
   delete something by mistake, but not if the disk fails, so it's never
   enough on its own.
@@ -95,7 +101,14 @@ where each server is.
     an ext4 filesystem labelled `ROOSTACK`. The system disk, and LVM, RAID,
     and encrypted disks, are never offered. Only a disk with no filesystem
     backups could use, nothing mounted, and nothing in `/etc/fstab` can be
-    erased. Instead of a drive you can type a folder under `/mnt`,
+    erased. `roostack-agent` decides itself how erasing a disk with
+    anything on it (even just a partition table) is confirmed, since a
+    request from Roostack's pages could have been made up by something
+    that has got into Roostack: a USB drive is erased once the agent has
+    seen it go from `/sys/block` and the same drive (by model, serial, WWN,
+    and size) come back within 2 minutes; any other disk only with
+    `sudo roostack drive erase <disk>`, which the agent accepts from root
+    alone. Instead of a drive you can type a folder under `/mnt`,
     `/media`, or `/srv` (**A folder instead**) that exists already:
     Roostack makes a `roostack` folder inside it, owned by the `roostack`
     user.

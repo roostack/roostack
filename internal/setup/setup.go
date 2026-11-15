@@ -74,7 +74,7 @@ func (s *Setup) PendingRestart() bool { return s.RestartPending != nil && s.Rest
 type DriveAgent interface {
 	Drives(ctx context.Context) ([]agent.Drive, error)
 	UseDrive(ctx context.Context, id string) (agent.UsedDrive, error)
-	EraseDrive(ctx context.Context, disk, label string) error
+	EraseDrive(ctx context.Context, disk, label string) (agent.EraseDriveAnswer, error)
 	PrepareBackupFolder(ctx context.Context, dir string) (string, error)
 }
 
@@ -591,15 +591,18 @@ func (s *Setup) BackupDrives(ctx context.Context) ([]agent.Drive, error) {
 	return drives, nil
 }
 
-// EraseDrive erases a disk and prepares it for backups.
-func (s *Setup) EraseDrive(ctx context.Context, disk string) error {
+// EraseDrive erases a disk and prepares it for backups, or, for a USB
+// drive with something on it, starts waiting for it to be unplugged and
+// plugged back in (the answer's Confirm), after which the agent erases it.
+func (s *Setup) EraseDrive(ctx context.Context, disk string) (agent.EraseDriveAnswer, error) {
 	if s.Drives == nil {
-		return &usererr.Error{Msg: "Roostack can't see this server's drives."}
+		return agent.EraseDriveAnswer{}, &usererr.Error{Msg: "Roostack can't see this server's drives."}
 	}
-	if err := s.Drives.EraseDrive(ctx, disk, "ROOSTACK"); err != nil {
-		return &usererr.Error{Msg: fmt.Sprintf("Couldn't prepare the disk: %s", words.FirstLine(err.Error()))}
+	a, err := s.Drives.EraseDrive(ctx, disk, "ROOSTACK")
+	if err != nil {
+		return a, &usererr.Error{Msg: fmt.Sprintf("Couldn't prepare the disk: %s", words.FirstLine(err.Error()))}
 	}
-	return nil
+	return a, nil
 }
 
 // EnsureRecoveryKey creates the lab's recovery key (the key every backup

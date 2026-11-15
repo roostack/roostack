@@ -691,3 +691,42 @@ func TestWizardEndsWithOneRestart(t *testing.T) {
 		t.Error("no restart when nothing waits for one")
 	}
 }
+
+// A disk with something on it is erased only once a person confirms it in
+// a way Roostack can't fake (SPEC.md §6.1): a USB drive is unplugged and
+// plugged back in, which the drive list asks for; any other disk shows the
+// command to run as root instead of an Erase button.
+func TestEraseConfirmed(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true}}
+	fs.drives = []agent.Drive{
+		{ID: "disk:/dev/sdg", Kind: "usb", Name: "Old Mac drive", Disk: "/dev/sdg", Size: 32 * units.GB, Free: -1, Erasable: true,
+			Holds: []string{"hfsplus"}, Confirm: agent.ConfirmReplug},
+		{ID: "disk:/dev/sdd", Kind: "disk", Name: "Old disk", Disk: "/dev/sdd", Size: 500 * units.GB, Free: -1, Erasable: true,
+			Holds: []string{"hfsplus"}, Confirm: agent.ConfirmRoot},
+		{ID: "system", Kind: "system", Name: "This server's own disk", Size: 40 * units.GB, Free: 30 * units.GB, Usable: true},
+	}
+	h.setSetup(fs)
+	_, body := h.get("/setup/backup?add=2")
+	for _, want := range []string{"Roostack will then ask you to unplug it and plug it back in", "sudo roostack drive erase /dev/sdd",
+		`value="/dev/sdg">Erase it</button>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("picker missing %q", want)
+		}
+	}
+	if strings.Contains(body, `value="/dev/sdd">Erase it</button>`) {
+		t.Error("an internal disk with something on it has an Erase button")
+	}
+	_, body = h.post("/setup/backup/erase", url.Values{"add": {"2"}, "disk": {"/dev/sdg"}}, h.srv.URL)
+	if fs.erased != "/dev/sdg" || !strings.Contains(body, "Unplug it now, then plug it back in by 10:42.") || strings.Contains(body, `value="/dev/sdg">Erase it</button>`) {
+		t.Errorf("asked to replug:\n%s", body)
+	}
+	fs.drives[0].Erase.Unplugged = true
+	if _, part := h.get("/setup/backup/drives"); !strings.Contains(part, "unplugged: plug it back in by 10:42") {
+		t.Errorf("unplugged:\n%s", part)
+	}
+	fs.drives[0].Erase = &agent.EraseStatus{Expired: true}
+	if _, part := h.get("/setup/backup/drives"); !strings.Contains(part, "within 2 minutes, so Roostack didn") || !strings.Contains(part, "Prepare this disk…</button>") {
+		t.Errorf("expired:\n%s", part)
+	}
+}
