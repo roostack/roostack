@@ -35,6 +35,11 @@ over the lab's network they reach nothing else.
 
 ## Only on the server itself
 
+Anyone with a login on the server itself can reach these ports, and a
+service's web port lets them in without the sign-in page. So Roostack
+assumes that everyone with a login on the server is someone you trust as
+you would an Owner. Don't give other people a login on it.
+
 | Port | For |
 |---|---|
 | 127.0.0.1:8480 | Roostack's web pages (Caddy passes them on as `roost.<your domain>`) |

@@ -56,7 +56,10 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 			// podman's output in the apply's log (SPEC.md §6.3.3).
 			Pull: func(ctx context.Context, image string, w io.Writer) error {
 				return podman.Pull(ctx, userLaunch, image, w)
-			}},
+			},
+			// Caddy checks a new configuration before it replaces the one
+			// it has.
+			CheckCaddy: reconcile.CaddyValidate(podman.RunSplit)},
 		Log: log,
 		// Package hooks (e.g. creating Forgejo's admin) run with podman exec.
 		State: st, Events: st, Secrets: podman.NewSecrets(),

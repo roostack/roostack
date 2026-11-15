@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -211,6 +212,61 @@ func TestFailedApplyReloadsCaddy(t *testing.T) {
 	}
 	if len(order) != 1 || !strings.HasPrefix(order[0], "after write (site written: true, calls 0)") {
 		t.Errorf("AfterWrite: %v (calls %v)", order, e.systemd.calls)
+	}
+}
+
+// Caddy checks a new configuration, staged as the plan leaves its files,
+// before any file is replaced: one it refuses changes nothing and the
+// apply says why; when Caddy can't be asked (not running), the apply goes
+// on without the check.
+func TestCaddyChecksFirst(t *testing.T) {
+	e := newEnv(t)
+	e.apply(t, e.desired(t))
+	ctx := context.Background()
+	var staged []string
+	var answer error
+	e.r.CheckCaddy = func(_ context.Context, rel string) error {
+		stage := filepath.Join(e.lab.Paths.CaddyDir(), filepath.Dir(rel))
+		filepath.WalkDir(stage, func(path string, d fs.DirEntry, err error) error {
+			if err == nil && !d.IsDir() {
+				r, _ := filepath.Rel(stage, path)
+				staged = append(staged, r)
+			}
+			return nil
+		})
+		return answer
+	}
+	site := filepath.Join(e.lab.Paths.CaddySitesDir(), "vaultwarden.caddy")
+
+	answer = &CaddyRefused{Reason: "unrecognized directive: nonsense"}
+	plan, err := e.r.Plan(ctx, e.desired(t, "vaultwarden"))
+	if err != nil || !plan.ReloadCaddy {
+		t.Fatalf("plan: %v", err)
+	}
+	e.systemd.calls = nil
+	err = e.r.Apply(ctx, plan)
+	if err == nil || err.Error() != "Caddy refused the new configuration for web addresses, so Roostack kept the one it has: unrecognized directive: nonsense" {
+		t.Fatalf("refused: %v", err)
+	}
+	if !slices.Contains(staged, "Caddyfile") || !slices.Contains(staged, filepath.Join("sites", "vaultwarden.caddy")) {
+		t.Errorf("staged: %v", staged)
+	}
+	if _, err := os.Stat(site); err == nil || len(e.systemd.calls) != 0 {
+		t.Errorf("changed after a refusal: site %v, calls %v", err, e.systemd.calls)
+	}
+	if left, _ := filepath.Glob(filepath.Join(e.lab.Paths.CaddyDir(), ".check-*")); len(left) != 0 {
+		t.Errorf("the staged files were left: %v", left)
+	}
+	if _, err := e.r.ApplyCaddy(ctx, plan); err == nil {
+		t.Error("ApplyCaddy without the check")
+	}
+
+	answer = errors.New("podman exec: exit status 125")
+	if err := e.r.Apply(ctx, plan); err != nil {
+		t.Fatalf("couldn't check: %v", err)
+	}
+	if _, err := os.Stat(site); err != nil {
+		t.Error("not applied when Caddy couldn't be asked")
 	}
 }
 

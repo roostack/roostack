@@ -93,7 +93,25 @@ type Reconciler struct {
 	// public access was applied to them since this plan was made, so an
 	// older plan can't undo it (SPEC.md §6.16).
 	AfterWrite func(ctx context.Context) error
+	// CheckCaddy has the running Caddy check a configuration staged in its
+	// folder (rel is the Caddyfile's path in it), before any of Caddy's
+	// files are replaced. It returns a *CaddyRefused when Caddy refuses
+	// it, and any other error when Caddy couldn't be asked. Optional.
+	CheckCaddy func(ctx context.Context, rel string) error
 }
+
+// CaddyRefused is Caddy refusing a new configuration (CheckCaddy), with
+// its reason.
+type CaddyRefused struct{ Reason string }
+
+func (e *CaddyRefused) Error() string {
+	return "Caddy refused the new configuration for web addresses, so Roostack kept the one it has: " + e.Reason
+}
+
+// caddyCheckDir starts the name of the folder where a new configuration
+// is staged in Caddy's folder for CheckCaddy, one for each check (an
+// apply and ApplyCaddy can check at once).
+const caddyCheckDir = ".check-"
 
 // UnitStatuser reads units' states; a Systemd that implements it lets a
 // failed start be retried by systemd (Reconciler.start).
@@ -554,6 +572,15 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) (err error) {
 			log.Printf("Reloading Caddy didn't work either: %v", rerr)
 		}
 	}()
+	// A configuration Caddy refuses would stop later changes to web
+	// addresses applying, and Caddy starting after a reboot: nothing is
+	// changed, and the old one stays.
+	if p.ReloadCaddy && !newCaddy {
+		log.Step("Checking Caddy's new configuration")
+		if err := r.checkCaddy(ctx, p, log.Printf); err != nil {
+			return err
+		}
+	}
 	if len(p.Dirs) > 0 {
 		log.Step("Creating folders")
 	}
@@ -713,6 +740,11 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) (err error) {
 func (r *Reconciler) ApplyCaddy(ctx context.Context, p *Plan) (bool, error) {
 	dir := r.Paths.CaddyDir() + string(filepath.Separator)
 	changed := false
+	if _, isNew := p.StartNotes[generate.CaddyUnit+".service"]; p.ReloadCaddy && !isNew {
+		if err := r.checkCaddy(ctx, p, func(string, ...any) {}); err != nil {
+			return false, err
+		}
+	}
 	for _, f := range p.Write {
 		if strings.HasPrefix(f.Path, dir) {
 			if err := writeAtomic(f.Path, f.Content); err != nil {
@@ -734,6 +766,68 @@ func (r *Reconciler) ApplyCaddy(ctx context.Context, p *Plan) (bool, error) {
 		return changed, nil
 	}
 	return true, r.Systemd.ReloadOrRestart(ctx, caddy)
+}
+
+// checkCaddy stages Caddy's files as the plan leaves them and has Caddy
+// check them. Only Caddy refusing them is an error: when it can't be
+// asked, the apply goes on as before and says so.
+func (r *Reconciler) checkCaddy(ctx context.Context, p *Plan, logf func(string, ...any)) error {
+	if r.CheckCaddy == nil {
+		return nil
+	}
+	dir := r.Paths.CaddyDir()
+	sites := r.Paths.CaddySitesDir()
+	files, err := readOwned(sites, func(n string) bool { return strings.HasSuffix(n, ".caddy") })
+	if err != nil {
+		return err
+	}
+	staged := map[string]string{}
+	for name, content := range files {
+		staged[filepath.Join("sites", name)] = content
+	}
+	if old, err := os.ReadFile(filepath.Join(dir, "Caddyfile")); err == nil {
+		staged["Caddyfile"] = string(old)
+	}
+	for _, f := range p.Write {
+		if rel, ok := under(dir, f.Path); ok && (rel == "Caddyfile" || filepath.Dir(rel) == "sites") {
+			staged[rel] = f.Content
+		}
+	}
+	for _, f := range p.Remove {
+		if rel, ok := under(dir, f.Path); ok {
+			delete(staged, rel)
+		}
+	}
+	if _, ok := staged["Caddyfile"]; !ok {
+		return nil
+	}
+	stage, err := os.MkdirTemp(dir, caddyCheckDir)
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(stage)
+	os.Chmod(stage, 0o750) // Caddy reads it as the roostack user's
+	for rel, content := range staged {
+		if err := writeAtomic(filepath.Join(stage, rel), content); err != nil {
+			return err
+		}
+	}
+	err = r.CheckCaddy(ctx, filepath.Join(filepath.Base(stage), "Caddyfile"))
+	if refused := (*CaddyRefused)(nil); errors.As(err, &refused) {
+		return err
+	} else if err != nil {
+		logf("Caddy couldn't check it (%v), so Roostack will apply it without the check", err)
+	}
+	return nil
+}
+
+// under is path relative to dir, if it's inside it.
+func under(dir, path string) (string, bool) {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+		return "", false
+	}
+	return rel, true
 }
 
 func (r *Reconciler) hasUserSecret(name string) bool {
