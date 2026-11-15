@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -41,8 +42,18 @@ type JoinCode struct {
 var ErrJoinCode = errors.New("the join code is unknown, already used, or expired")
 
 // ErrServerInLab means a server with the joining one's ID is in the lab
-// already: a join can't take its place.
-var ErrServerInLab = errors.New("a server with this ID is already in the lab: remove it on Settings → Servers first, then join again with this code")
+// already: a join can't take its place (ServerInLabError says which).
+var ErrServerInLab = errors.New("a server with this ID is already in the lab")
+
+// ServerInLabError is ErrServerInLab, naming the server in the lab.
+type ServerInLabError struct{ ID, Name string }
+
+func (e *ServerInLabError) Error() string {
+	return fmt.Sprintf("%s (%s) is already in the lab with this server's ID. Remove %s on Settings → Servers, then join again with this code.",
+		e.Name, e.ID, e.Name)
+}
+
+func (e *ServerInLabError) Is(target error) bool { return target == ErrServerInLab }
 
 // AddJoinCode records a new join code.
 func (s *Store) AddJoinCode(ctx context.Context, c JoinCode) error {
@@ -90,12 +101,12 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 	if err != nil {
 		return m, err
 	}
-	var there int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM servers WHERE id = ?`, m.ID).Scan(&there); err != nil {
+	var there string
+	switch err := tx.QueryRowContext(ctx, `SELECT name FROM servers WHERE id = ?`, m.ID).Scan(&there); {
+	case err == nil:
+		return m, &ServerInLabError{ID: m.ID, Name: there}
+	case !errors.Is(err, sql.ErrNoRows):
 		return m, err
-	}
-	if there > 0 {
-		return m, ErrServerInLab
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM join_codes WHERE token_hash = ?`, tokenHash); err != nil {
 		return m, err

@@ -216,6 +216,12 @@ func TestVPNElsewhere(t *testing.T) {
 	if n := syncs(); n != 2 || m.VPNElsewhere() != "" {
 		t.Errorf("back: synced %d", n)
 	}
+	// Turning it off works whatever the server it was on has become
+	// (here one the internet can't reach).
+	if err := m.SetVPN(config.VPN{Server: "n-0000000002"}); err != nil {
+		t.Errorf("turning it off: %v", err)
+	}
+	m.Wait()
 }
 
 // Moving the VPN off the controller, Roostack's network is updated as

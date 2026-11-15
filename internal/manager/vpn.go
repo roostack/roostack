@@ -49,7 +49,10 @@ func (m *Manager) SetVPN(v config.VPN) error {
 	if v.Server == m.Lab.NodeID {
 		v.Server = ""
 	}
-	if v.Server != "" {
+	// Only turning it on needs a server devices can reach: turning it off
+	// works whatever has changed since (a cloud server that lost its
+	// public address, a controller now on the internet).
+	if v.On && v.Server != "" {
 		if m.Lab.OnInternet() {
 			return usererr.New("Your lab's controller is on the internet, so devices connect to it.")
 		}

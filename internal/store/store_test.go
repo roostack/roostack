@@ -390,7 +390,8 @@ func TestJoinCodes(t *testing.T) {
 	// A server whose ID is in the lab already can't take its place: its
 	// entry stays as it was, and the code is kept for a server that's new.
 	s.AddJoinCode(ctx, JoinCode{TokenHash: "h3", Addr: "100.96.0.4", PublicKey: "k3", Expires: now.Add(time.Hour)})
-	if _, err := s.Join(ctx, "h3", Server{ID: "n-0000000002", Name: "someone else", PublicKey: "theirs"}, now); !errors.Is(err, ErrServerInLab) {
+	if _, err := s.Join(ctx, "h3", Server{ID: "n-0000000002", Name: "someone else", PublicKey: "theirs"}, now); !errors.Is(err, ErrServerInLab) ||
+		err.Error() != "vps (n-0000000002) is already in the lab with this server's ID. Remove vps on Settings → Servers, then join again with this code." {
 		t.Errorf("joining as a server that's in the lab: %v", err)
 	}
 	if all, _ := s.Servers(ctx); len(all) != 1 || all[0].Name != "vps" || all[0].PublicKey != "own" || all[0].Addr != "100.96.0.2" {
