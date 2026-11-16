@@ -163,12 +163,14 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [ ] **Forgejo 19 (the next LTS, April 2027):** the package stays on the 15 LTS line (v17.0.0 had an upstream "don't upgrade" warning on 2026-10-18, and 16 ends 2026-10-29)
 - [x] **Extra environment variables per service** (the Settings page's Environment variables card, Owner only): plain or secret, in rows or as text with a check before saving; the package's own variables refused; kept in the instance; a link to the app's list (`about.env_docs`) (2026-11-16, SPEC §8.1)
 - [ ] `about.env_docs` in the registry's packages configured by environment variables (Forgejo, HedgeDoc, Immich, Outline, Vaultwarden, …), so their Environment variables card links to the app's list
-- [ ] A package's commands (`Exec=`) go through systemd's expansion as environment values did: `${NAME}` inside one would be replaced by systemd's own (found 2026-11-16; `Environment=` now escapes `$`). The registry's packages use only `$NAME` inside quoted scripts, which systemd leaves alone; escape `$` in `Exec=` too, after checking every package's commands still work
+- [x] A package's commands (`Exec=`) escape `$` as environment values do (2026-11-16; no registry package writes `$$`, so none changes; SPEC §8.1 "`$` in commands")
 - **Config files a package declares** (`config_files:`, SPEC §8.1)
   - [ ] Editing in the browser, with Frigate and Home Assistant: the Owner's version kept in the instance, a syntax check, the app's own check, the previous version kept, restart on save; a code editor library only if chosen with the Owner
   - [ ] More block formats when an app needs one (shell-style env files, where a later line wins too)
-- [ ] **Frigate** (a session): devices beyond Intel graphics (Coral and other USB accelerators), shared memory, cameras over RTSP
-- [ ] **Pi-hole** (a session): DNS on port 53, beside any resolver the server runs
+- [ ] **Frigate**: its package (2026-11-17: Intel graphics, shared memory, its own login on 8971 through `self_signed`, a revealed admin password) is in `roostack/services` branch `claude/new-packages`; still to come, devices beyond Intel graphics (Coral and other USB accelerators), and single sign-on passing who signed in to Frigate (its `proxy.header_map`, which needs its config file)
+- [x] **Pi-hole** (2026-11-17): port 53 through `outside_port`, for the home network and VPN devices, never public; each device's own address through `client_addresses` (SPEC §8.1); its package is in `roostack/services` branch `claude/new-packages`
+  - [ ] A DNS line in VPN devices' files while Pi-hole runs on the server they connect through, if the maintainer wants it
+- [ ] **RustDesk from outside the home** (the maintainer, 2026-11-17: "we need to go ahead with this"): raw TCP and UDP ports through the lab's own edge, and through Roostack Cloud's relay (Cloud's DESIGN); design waits for the maintainer's choices
 - [ ] **Home Assistant** (a session): finding devices on the home network (host networking, or what's needed instead), within the package policy
 - [ ] **Monitoring** (design locked 2026-10-19, built the same day, SPEC §6.15): Roostack's own checks every minute from the controller, history in SQLite, alerts through "needs attention" and the notifier, a public status page Roostack writes. Gatus was tried on VM3 and set aside (SPEC)
   - [ ] Wording: the Owner doesn't like it yet (the status page's subtitle, the uptime card); revisit with them before or while building the pages

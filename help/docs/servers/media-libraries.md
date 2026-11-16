@@ -84,6 +84,16 @@ Inside the service, each library is a folder of its name in the service's
 media folder (for most, `/media`): add them there as the service's own
 libraries, e.g. Plex's *Films* library from `/media/films`.
 
+## Another service's folder
+
+Some services make files that others play: Deluge's downloads, say, for
+Jellyfin. Their folder is a library too, named after the service and the
+folder (`deluge-downloads`), on the same server: tick it like any other
+library, and the service reading it will see it read-only, while the
+service it belongs to writes to it. It will stay a library for as long as
+that service is installed, and it's backed up, or not, with that service.
+Services on other servers can't read it yet.
+
 ## Unplugging a drive
 
 Services will see an empty folder while a library's drive is unplugged, and

@@ -120,7 +120,14 @@ A few services use connections other than the web, such as git over SSH in
 Forgejo. These are off until you turn them on under **Extra connections**:
 tick it, choose the port on the server, and **Save**. The page will then
 show the address to connect to. Extra connections are open to your home
-network only.
+network only, and to the [lab's VPN](../settings/vpn.md) devices you let
+reach the service.
+
+A few use a well-known port that a service can't listen on by itself, such
+as port 53 for DNS in Pi-hole. The service listens on another port (5053),
+and this server's firewall will send connections to port 53 there, so
+devices can use the usual port. Such a port can't be opened to the
+internet: a DNS server anyone can ask gets used in attacks on others.
 
 ## Turning it off for a while
 

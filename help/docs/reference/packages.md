@@ -198,6 +198,13 @@ routes:
     settings chosen. It isn't a limit. `quadlet` passes extra Quadlet keys
     straight through: only the ones
     [the package policy allows](#what-a-package-may-not-do).
+    A `command` reaches the container as written, `$NAME` and `${NAME}`
+    included: Roostack will escape them for systemd.
+    `client_addresses: true` runs the container on a network of its own,
+    so it sees each device's own address rather than Podman's, such as for
+    a DNS server's per-device limits and logs. Only a package with one
+    container and no database server can have it, since nothing else
+    could reach the container by name.
 
 `storage`
 :   Folders the service owns. `title` says what one holds, in a few words
@@ -205,7 +212,10 @@ routes:
     installing. `class` is `critical` (backed up) or `replaceable` (not,
     such as caches and thumbnails); `location` is `service` (under
     `/srv/roostack/services`) or `media` (under `/srv/roostack/media`, for
-    large data).
+    large data). `shared: true` offers the folder, read-only, to the
+    services on the same server that read
+    [media libraries](../servers/media-libraries.md), as the library
+    `<service>-<storage>`: a download client's downloads, for Jellyfin.
 
 `databases`
 :   Databases Roostack runs and backs up consistently: `sqlite` (a file in
@@ -241,6 +251,10 @@ routes:
     `X-Forwarded-For`; an app that reads another header (Vaultwarden reads
     `X-Real-IP`) names it here, and the proxy will set it too, replacing any
     the visitor sent. It must be an `X-` header other than `X-Forwarded-*`.
+    `self_signed: true` is for an app that answers only HTTPS on the port,
+    with a certificate it made itself (Frigate on 8971): the proxy will
+    connect with HTTPS and won't check that certificate, since the
+    connection stays on the server or on Roostack's own network.
     `public` says what's safe once the Owner makes the address public:
     `unsafe` (why the whole address shouldn't be), `private_paths` (paths,
     and everything under them, that will stay home-only, each with its
@@ -269,7 +283,11 @@ routes:
 `ports`
 :   [Extra connections](../services/settings.md#extra-connections) that
     aren't web: a container's port published on the server, off unless
-    `enabled`.
+    `enabled`. A `host_port` must be 1024 or above, and outside 20000–29999,
+    which Roostack keeps for web addresses. `outside_port: 53` is for DNS,
+    which devices expect on port 53: the server's firewall will send it to
+    the host port, for the home network and the lab's VPN devices, and the
+    port can't be made public.
 
 `hooks`
 :   Commands run inside a container: `on: install` once after the first
@@ -296,6 +314,13 @@ routes:
 
 `links`
 :   Links to the app's own settings pages, shown on the service page.
+
+`shown`
+:   Small text files the app makes in its storage that people copy into
+    their apps, such as RustDesk's public key: each with a `title`, a
+    `description`, its `storage`, and its `path` inside it. The service
+    page will show each, up to 4 KB, with a copy button. Never a secret,
+    since Admins see the page.
 
 `sso`
 :   How the app takes [single sign-on](../services/single-sign-on.md),
