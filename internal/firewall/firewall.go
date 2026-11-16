@@ -85,7 +85,7 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 			// use the service (SPEC.md §10.11).
 			if devices := lab.Devices.Services[s.Service]; to == trust.Home && len(devices) > 0 {
 				people.Rules = append(people.Rules, agent.DeviceRule{Port: hp.Port, Proto: hp.Protocol, Devices: devices,
-					Reason: s.Service + " " + hp.Name})
+					Reason: s.Service + " " + hp.Name, From: hp.Outside})
 			}
 		}
 	}

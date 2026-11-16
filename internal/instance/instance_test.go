@@ -118,3 +118,17 @@ func TestNames(t *testing.T) {
 		}
 	}
 }
+
+// A port on a well-known one (DNS's 53) can't be made public.
+func TestOutsidePortStaysHome(t *testing.T) {
+	p := &pkgspec.Package{Name: "pihole", Version: "1", Containers: map[string]*pkgspec.Container{"app": {}},
+		Ports: map[string]*pkgspec.Port{"dns": {Title: "DNS", Container: "app", Port: 53, Protocol: "udp", HostPort: 5053, OutsidePort: 53}}}
+	in := &Instance{Package: "pihole", Version: "1", Updates: UpdatesNotify, Ports: map[string]PortOverride{"dns": {Exposure: pkgspec.ExposurePublic}}}
+	if err := in.Validate(p); err == nil || !strings.Contains(err.Error(), "stays on the home network") {
+		t.Errorf("public DNS: %v", err)
+	}
+	in.Ports["dns"] = PortOverride{Exposure: pkgspec.ExposurePrivate}
+	if err := in.Validate(p); err != nil {
+		t.Error(err)
+	}
+}

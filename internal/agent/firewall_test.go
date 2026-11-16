@@ -426,11 +426,16 @@ func TestOutsidePort(t *testing.T) {
 	fw := DefaultFirewall()
 	fw.Allow = append(fw.Allow, Rule{Port: 20053, Proto: "udp", For: trust.Home, Reason: "pihole dns", From: 53},
 		Rule{Port: 20053, Proto: "tcp", For: trust.Home, Reason: "pihole dns-tcp", From: 53})
+	fw.People = &People{Port: PeoplePort, Rules: []DeviceRule{{Port: 20053, Proto: "udp", Devices: []string{"100.96.128.2"},
+		Reason: "pihole dns", From: 53}}}
 	if err := fw.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	rs := fw.Ruleset()
 	pre := rs[strings.Index(rs, "chain prerouting"):strings.Index(rs, "chain input")]
+	if !strings.Contains(pre, `iifname { "roostack-people", "roostack" } ip saddr { 100.96.128.2 } udp dport 53 redirect to :20053`) {
+		t.Errorf("devices' redirect missing:\n%s", pre)
+	}
 	for _, want := range []string{"ip saddr @lan4 udp dport 53 redirect to :20053\n", "ip6 saddr @lan6 tcp dport 53 redirect to :20053\n"} {
 		if !strings.Contains(pre, want) {
 			t.Errorf("prerouting missing %q:\n%s", want, pre)

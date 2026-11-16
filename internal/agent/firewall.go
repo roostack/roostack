@@ -107,6 +107,9 @@ type DeviceRule struct {
 	Proto   string   `json:"proto"`
 	Devices []string `json:"devices"`
 	Reason  string   `json:"reason"`
+	// From is a well-known port sent on to Port for these devices too,
+	// as Rule.From does for the home network: Pi-hole's 53.
+	From int `json:"from,omitempty"`
 }
 
 // EdgePort is Caddy's listener for visitors through the lab's edges, whose
@@ -254,6 +257,9 @@ func (p People) validate() []error {
 		if strings.ContainsFunc(r.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
 			errs = append(errs, fmt.Errorf("people: rules[%d]: invalid characters in reason", i))
 		}
+		if r.From != 0 && (!slices.Contains(OutsidePorts, r.From) || r.Port < 1024) {
+			errs = append(errs, fmt.Errorf("people: rules[%d]: from must be one of %v, sent to a port from 1024", i, OutsidePorts))
+		}
 		devices(fmt.Sprintf("rules[%d]", i), r.Devices)
 	}
 	switch {
@@ -355,6 +361,14 @@ func (f Firewall) Ruleset() string {
 			fmt.Fprintf(&b, "\t\tip6 saddr @lan6 %s dport %d redirect to :%d\n", r.Proto, r.From, r.Port)
 		default:
 			fmt.Fprintf(&b, "\t\t%s dport %d redirect to :%d\n", r.Proto, r.From, r.Port)
+		}
+	}
+	if p := f.People; p != nil {
+		for _, r := range p.Rules {
+			if r.From != 0 {
+				fmt.Fprintf(&b, "\t\t# %s: %d to %d, for the lab's VPN devices that may\n", r.Reason, r.From, r.Port)
+				fmt.Fprintf(&b, "\t\t%sip saddr { %s } %s dport %d redirect to :%d\n", devicesFrom, strings.Join(r.Devices, ", "), r.Proto, r.From, r.Port)
+			}
 		}
 	}
 	b.WriteString("\t}\n\n")

@@ -381,6 +381,11 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 		if o.Exposure != "" && o.Exposure != pkgspec.ExposurePrivate && o.Exposure != pkgspec.ExposurePublic {
 			add("ports.%s.exposure: must be private or public", name)
 		}
+		// A port on a well-known one such as DNS's 53 stays at home: a DNS
+		// server anyone on the internet can ask is used against others.
+		if pp := p.Ports[name]; pp != nil && pp.OutsidePort != 0 && o.Exposure == pkgspec.ExposurePublic {
+			add("ports.%s.exposure: %s (port %d) stays on the home network and the lab's VPN", name, pkgspec.OutsidePorts[pp.OutsidePort], pp.OutsidePort)
+		}
 	}
 	for _, key := range slices.Sorted(maps.Keys(in.Settings)) {
 		s := p.Setting(key)
