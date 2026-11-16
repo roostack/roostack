@@ -49,6 +49,10 @@ type About struct {
 	// install page and on the service's page (SPEC.md §8.3.6, "What to
 	// know before installing").
 	Notice string `yaml:"notice"`
+	// EnvDocs is the project's list of the environment variables its
+	// app reads: https, optional. A service's Environment variables card
+	// links to it (SPEC.md §8.1, "Extra environment variables").
+	EnvDocs string `yaml:"env_docs"`
 }
 
 // ReleasesPlaceholder is where the app's version goes in About.Releases.
@@ -325,7 +329,7 @@ func (p *Package) validateAbout(v *validator) {
 		v.addf("about.notice: at most 400 characters; say what someone should know before installing in a sentence or two")
 	}
 	for _, f := range []struct{ at, val string }{
-		{"about.website", a.Website}, {"about.source", a.Source}, {"about.support", a.Support},
+		{"about.website", a.Website}, {"about.source", a.Source}, {"about.support", a.Support}, {"about.env_docs", a.EnvDocs},
 	} {
 		if f.val != "" && !validHTTPS(f.val) {
 			v.addf("%s: %q must be an https:// address", f.at, f.val)

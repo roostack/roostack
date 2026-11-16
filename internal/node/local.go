@@ -706,6 +706,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		delete(n.userSecrets, name)
 		n.mu.Unlock()
 	}
+	n.removeOldEnvSecrets(ctx, act, a.Services, desired)
 
 	// The firewall follows the services, e.g. a package port just turned on.
 	roles := firewall.Roles{Store: a.Storage != nil, ProxyPorts: a.ProxyPorts, GuestAddr: a.GuestAddr, Guests: a.Guests,

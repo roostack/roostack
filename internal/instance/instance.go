@@ -115,6 +115,69 @@ type Instance struct {
 	// it installs a package whose install hooks will run, and cleared when
 	// the service's server says they've succeeded.
 	SettingUp bool `yaml:"setting_up,omitempty"`
+	// Env are the Owner's extra environment variables (SPEC.md §8.1,
+	// "Extra environment variables"), for options the package doesn't
+	// make settings: given to their containers after the package's own,
+	// which they can't be.
+	Env []EnvVar `yaml:"env,omitempty"`
+}
+
+// EnvVar is an extra environment variable (Instance.Env).
+type EnvVar struct {
+	Container string `yaml:"container"`
+	Name      string `yaml:"name"`
+	// Value is a plain variable's value. A secret's is a Podman secret
+	// instead (EnvSecretRef), never in the instance file.
+	Value  string `yaml:"value,omitempty"`
+	Secret bool   `yaml:"secret,omitempty"`
+	// Rev counts a secret's values: each new one is a Podman secret of
+	// its own, so its container file changes and the container restarts
+	// with it, and the one before is deleted.
+	Rev int `yaml:"rev,omitempty"`
+}
+
+// The limits on a service's extra environment variables.
+const (
+	MaxEnv      = 100
+	MaxEnvValue = 4096
+)
+
+// envNameRe is an environment variable's name, as apps document them.
+var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,199}$`)
+
+// ValidEnvName says whether name can be an environment variable's name.
+func ValidEnvName(name string) bool { return envNameRe.MatchString(name) }
+
+// EnvSecretRef is the secret reference (generate's secretName) of an extra
+// variable that's a secret: env-<container>-<name>-<rev>.
+func (e EnvVar) EnvSecretRef() string {
+	return fmt.Sprintf("env-%s-%s-%d", e.Container, e.Name, e.Rev)
+}
+
+// EnvSecretPrefix starts the secret references of a service's extra
+// variables, for finding the ones no longer used.
+const EnvSecretPrefix = "env-"
+
+// CheckEnvVar is why an extra variable can't be given to the package's
+// container, or nil.
+func CheckEnvVar(p *pkgspec.Package, e EnvVar) error {
+	switch {
+	case p.Containers[e.Container] == nil:
+		return fmt.Errorf("%s has no container %q", p.Title, e.Container)
+	case !ValidEnvName(e.Name):
+		return fmt.Errorf("%q isn't a name an environment variable can have: letters, digits, and underscores, not starting with a digit", e.Name)
+	case slices.Contains(p.ManagedEnv(e.Container), e.Name):
+		return fmt.Errorf("%s's package sets %s itself, so it can't be added here", p.Title, e.Name)
+	case e.Secret && e.Value != "":
+		return fmt.Errorf("%s: a secret's value is a Podman secret, not in the instance file", e.Name)
+	case strings.ContainsAny(e.Value, "\n\r\x00"):
+		return fmt.Errorf("%s: a value can't have a line break in it", e.Name)
+	case len(e.Value) > MaxEnvValue:
+		return fmt.Errorf("%s: a value can be at most 4 KB", e.Name)
+	case e.Rev < 0:
+		return fmt.Errorf("%s: rev can't be below 0", e.Name)
+	}
+	return nil
 }
 
 // Hold is why a service is held stopped (Instance.Held).
@@ -329,6 +392,19 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 		case !typeMatches(s.Type, in.Settings[key]):
 			add("settings.%s: expected a %s", key, s.Type)
 		}
+	}
+	if len(in.Env) > MaxEnv {
+		add("env: at most %d variables", MaxEnv)
+	}
+	seenEnv := map[string]bool{}
+	for i, e := range in.Env {
+		if err := CheckEnvVar(p, e); err != nil {
+			add("env[%d]: %v", i, err)
+		}
+		if seenEnv[e.Container+"/"+e.Name] {
+			add("env[%d]: %s is in %s twice", i, e.Name, e.Container)
+		}
+		seenEnv[e.Container+"/"+e.Name] = true
 	}
 	return errors.Join(errs...)
 }

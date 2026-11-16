@@ -74,6 +74,10 @@
      {
       "name": "notice",
       "type": "string"
+     },
+     {
+      "name": "env_docs",
+      "type": "string"
      }
     ]
    },
@@ -1332,6 +1336,12 @@
    "label": "Categories",
    "help": "One to three, for the catalog's filters.",
    "link": "reference/packages#the-parts"
+  },
+  "about.env_docs": {
+   "label": "Environment variables list",
+   "help": "The project's page listing the environment variables its app reads. The service's Environment variables card will link to it, for the Owner adding options the package doesn't make settings.",
+   "example": "https://forgejo.org/docs/latest/admin/config-cheat-sheet/",
+   "link": "packages/write#the-project"
   },
   "about.icon": {
    "label": "Logo",

@@ -83,6 +83,7 @@ about:
   licence: AGPL-3.0-only
   support: https://opencollective.com/myapp
   releases: https://github.com/example/myapp/releases/tag/v{version}
+  env_docs: https://myapp.example/docs/configuration
   icon: icon.png
   categories: [documents]
   keywords: [notes, wiki, markdown]
@@ -98,6 +99,9 @@ as a square PNG beside the package file, at least 256×256 pixels and at
 most 100 KB. `releases` is where the project describes each version, with
 `{version}` where the app's version goes (here, `2.4.1`): when a service
 updates, Roostack links to what's new in the version it updates to.
+`env_docs`, if the app reads options from environment variables, is where
+the project lists them: the Owner can add ones your package doesn't make
+settings, and the service's settings will link there.
 `requires.roostack` is the oldest Roostack release your package works
 with: the one you tried it on, unless you know better.
 `built_with` says what the app is built on: its language, its own web

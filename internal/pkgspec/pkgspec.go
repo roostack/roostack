@@ -541,3 +541,31 @@ func (p *Package) Setting(key string) *Setting {
 	}
 	return nil
 }
+
+// ManagedEnv are the environment variables the package sets in a
+// container itself: its env and secrets, and single sign-on's, whether
+// single sign-on is on or not. A service's extra variables can't be any
+// of them (SPEC.md §8.1, "Extra environment variables").
+func (p *Package) ManagedEnv(container string) []string {
+	seen := map[string]bool{}
+	if c := p.Containers[container]; c != nil {
+		for k := range c.Env {
+			seen[k] = true
+		}
+		for k := range c.Secrets {
+			seen[k] = true
+		}
+	}
+	if p.SSO != nil {
+		for k := range p.SSO.Env[container] {
+			seen[k] = true
+		}
+		for k := range p.SSO.Secrets[container] {
+			seen[k] = true
+		}
+		for k := range p.SSO.SecretEnv[container] {
+			seen[k] = true
+		}
+	}
+	return slices.Sorted(maps.Keys(seen))
+}

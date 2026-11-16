@@ -466,6 +466,18 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 		cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", secretName(svc, c.Secrets[k]), k))
 	}
 	g.ssoContainer(name, func(k, v string) { cs.Add(k, v) })
+	// The Owner's extra variables, after the package's own (SPEC.md §8.1,
+	// "Extra environment variables"); Add escapes systemd's %.
+	for _, e := range g.inst.Env {
+		if e.Container != name {
+			continue
+		}
+		if e.Secret {
+			cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", secretName(svc, e.EnvSecretRef()), e.Name))
+			continue
+		}
+		cs.Env(e.Name, e.Value)
+	}
 
 	mounts := slices.Clone(c.Mounts)
 	ownUser := keepIDUser(g.pkg, c)
@@ -861,6 +873,16 @@ func (g *gen) secrets() {
 		g.out.Secrets = append(g.out.Secrets, Secret{Name: secretName(g.name, ref), DBURL: &DBURL{
 			PasswordSecret: secretName(g.name, "databases."+name+".password"), Scheme: "postgresql",
 			User: db.User, Host: db.Host, Port: db.Port, Name: db.Name}})
+	}
+	// The Owner's extra variables that are secrets: given on the Settings
+	// page, and handed to this server with the assignment. One that
+	// isn't there yet (it can't be made here) keeps its container waiting
+	// rather than holding up the rest.
+	for _, e := range g.inst.Env {
+		if e.Secret {
+			g.out.Secrets = append(g.out.Secrets, Secret{Name: secretName(g.name, e.EnvSecretRef()),
+				Holds: containerUnitName(g.name, e.Container) + ".container"})
+		}
 	}
 	slices.SortFunc(g.out.Secrets, func(a, b Secret) int { return strings.Compare(a.Name, b.Name) })
 }

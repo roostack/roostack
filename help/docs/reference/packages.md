@@ -116,6 +116,10 @@ routes:
       `https://` address with `{version}` where the app's version goes
       (the version without `-roostack.N`), or one page for every version.
       A service's update links to it as **What's new in** *version*.
+    - `env_docs`: the project's page listing the environment variables its
+      app reads, an `https://` address. A service's **Environment
+      variables** card links to it, for the Owner adding options the
+      package doesn't make settings ([Change a service](../services/settings.md#environment-variables)).
     - `icon`: the project's logo, a PNG file beside the package file
       (`icon.png` in the registry): square, at least 256×256 pixels and at most 100 KB.
     - `categories`: one to three of `photos` (Photos and videos), `media`

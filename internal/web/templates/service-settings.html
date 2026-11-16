@@ -87,8 +87,116 @@
       <p class="hint">This will change what it's called on your pages. Its name, <code>{{.Service.Name}}</code>, is used for its folders,
         containers, and backups, so it will stay.</p>
     </section>
+    {{with .Env}}{{template "env-card" .}}{{end}}
   </div>
 </div>
+{{end}}
+
+{{/* Its extra environment variables, for the Owner (SPEC.md §8.1, "Extra
+     environment variables"; mock-ups: docs/mockups/extra-env). Each is
+     edited in its row, or a container's all as text, checked before it's
+     saved. */}}
+{{define "env-card"}}
+<section class="card" id="advanced" x-data="{ asText: {{if .AsText}}true{{else}}false{{end}} }">
+  <div class="card-head"><h2>Environment variables</h2><span class="pill pill-info">Advanced</span></div>
+  <p>{{.Title}} reads many of its options from environment variables. Ones you add here will go to {{.Title}} just as you type them,
+    and Roostack will keep them through updates.{{with .Docs}} <a href="{{.}}" target="_blank" rel="noopener">{{$.Title}}'s list of options{{template "new-window"}}</a>{{end}}</p>
+  <p class="hint">Roostack can't check them: a wrong value can stop {{.Title}} starting, and if it does, removing the variable here
+    will start it as it was. Saving a change will restart {{.Title}}, and it will be unavailable for a moment.</p>
+  {{if .Check}}{{template "env-check" .}}{{else}}
+  <div class="env-view"><label class="view-switch"><input type="checkbox" x-model="asText"><span>Rows</span><span>As text</span><span class="sr-only"> view</span></label></div>
+  <div x-show="!asText"{{if .AsText}} x-cloak{{end}}>
+    {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+    <div class="table-wrap"><table class="list stack-phone env-table">
+      <thead><tr><th>Variable</th>{{if .Multi}}<th>Container</th>{{end}}<th>Value</th><th><span class="sr-only">Change</span></th></tr></thead>
+      <tbody>
+        {{range .Rows}}<tr x-data="{ edit: false }" x-bind:class="edit && 'row-editing'">
+          <td><code>{{.Name}}</code>{{if .Secret}} <span class="pill">Secret</span>{{end}}</td>
+          {{if $.Multi}}<td>{{.Container}}</td>{{end}}
+          <td class="wrap">
+            <span x-show="!edit">{{if .Shown}}<code>{{.Shown}}</code><small class="hint">Shown just now, and noted in the audit log.</small>
+              {{- else if .Secret}}<span class="hint">Hidden</span>{{else}}<code>{{.Value}}</code>{{end}}</span>
+            <form x-show="edit" x-cloak method="post" action="/services/{{$.Service}}/env" class="env-edit">
+              <input type="hidden" name="do" value="set"><input type="hidden" name="container" value="{{.Container}}"><input type="hidden" name="var" value="{{.Name}}">
+              <label class="sr-only" for="env-{{.Container}}-{{.Name}}">{{if .Secret}}New value for {{.Name}}{{else}}{{.Name}}{{end}}</label>
+              <input id="env-{{.Container}}-{{.Name}}" name="value" class="inline mono"{{if .Secret}} placeholder="New value"{{else}} value="{{.Value}}"{{end}} autocapitalize="off" spellcheck="false" autocomplete="off">
+              <button type="submit" class="small">Save</button> <button type="button" class="quiet" x-on:click="edit = false">Cancel</button>
+            </form>
+          </td>
+          <td class="row-end"><span x-show="!edit">
+            {{- if .Secret}}{{if .Shown}}<a href="/services/{{$.Service}}/settings#advanced">Hide</a>{{else}}<form method="post" action="/services/{{$.Service}}/env/show" class="inline-action">
+              <input type="hidden" name="container" value="{{.Container}}"><input type="hidden" name="var" value="{{.Name}}"><button type="submit" class="quiet">Show</button></form>{{end}}
+              · <button type="button" class="quiet" x-on:click="edit = true">Replace</button>
+            {{- else}}<button type="button" class="quiet" x-on:click="edit = true">Edit</button>{{end}}
+            · <form method="post" action="/services/{{$.Service}}/env" class="inline-action"><input type="hidden" name="do" value="remove">
+              <input type="hidden" name="container" value="{{.Container}}"><input type="hidden" name="var" value="{{.Name}}"><button type="submit" class="quiet danger">Remove</button></form>
+          </span></td>
+        </tr>{{end}}
+        <tr class="row-add">
+          <td><label class="sr-only" for="env-new-name">Name</label>
+            <input id="env-new-name" form="env-add" name="var" class="inline mono" placeholder="NEW_VARIABLE" value="{{.AddName}}" required
+              pattern="[A-Za-z_][A-Za-z0-9_]*" autocapitalize="off" spellcheck="false" autocomplete="off"></td>
+          {{if .Multi}}<td><label class="sr-only" for="env-new-container">Container</label>
+            <select id="env-new-container" form="env-add" name="container" class="inline">{{range .Containers}}<option value="{{.}}"{{if eq . $.AddContainer}} selected{{end}}>{{.}}</option>{{end}}</select></td>{{end}}
+          <td><label class="sr-only" for="env-new-value">Value</label>
+            <input id="env-new-value" form="env-add" name="value" class="inline mono" placeholder="value" autocapitalize="off" spellcheck="false" autocomplete="off">
+            <label class="check small-check"><input type="checkbox" form="env-add" name="secret"{{if .AddSecret}} checked{{end}}><span>Secret</span></label></td>
+          <td class="row-end"><button type="submit" form="env-add" class="small">Add</button></td>
+        </tr>
+      </tbody>
+    </table></div>
+    <form id="env-add" method="post" action="/services/{{.Service}}/env"><input type="hidden" name="do" value="add"></form>
+  </div>
+  <div x-show="asText"{{if not .AsText}} x-cloak{{end}}>
+    <form method="post" action="/services/{{.Service}}/env/check" class="env-text-form">
+      {{range .Texts}}{{if $.Multi}}<label class="field-label" for="env-text-{{.Container}}">{{.Container}}</label>{{else}}<label class="sr-only" for="env-text-{{.Container}}">Environment variables as text</label>{{end}}
+      <textarea id="env-text-{{.Container}}" name="text.{{.Container}}" class="mono" rows="10" spellcheck="false" autocapitalize="off" autocomplete="off">{{.Text}}</textarea>{{end}}
+      <p class="hint">One <code>NAME=value</code> a line, as in a <code>.env</code> file: paste one as it is. Quotes around a value and
+        <code>export</code> in front are fine, and blank lines and <code># comments</code> are left out. A secret shows as
+        <code>‹hidden›</code>: leave it to keep its value, type over it to replace it, or delete the line to remove it.</p>
+      <div class="actions-row"><button type="submit">Continue</button><span class="hint">You'll check the changes before anything is saved.</span></div>
+    </form>
+  </div>
+  {{end}}
+  <details class="form-more"><summary>Variables {{.Title}}'s package sets</summary>
+    <p class="hint">Roostack sets these from {{.Title}}'s settings, its database, its address, and single sign-on, so they can't be added
+      here: change them through the settings above.</p>
+    {{range .Managed}}<p>{{if $.Multi}}{{.Container}}: {{end}}{{range .Names}}<code>{{.}}</code> {{else}}<span class="hint">None</span>{{end}}</p>{{end}}</details>
+  <details class="form-more"><summary>Technical details</summary>
+    <p class="hint">They're kept in {{.Title}}'s instance file (<code>{{.File}}</code>), so backups and moving {{.Title}} to another server
+      keep them; a secret's value is a Podman secret, <code>roostack-{{.Service}}-env-&lt;container&gt;-&lt;name&gt;-&lt;n&gt;</code>, with a new
+      one for each new value, given to the container as that variable. The container's file on {{.Title}}'s technical side shows them
+      after the package's own (<code>Environment=</code>, and <code>Secret=</code> for a secret). Up to 100 a service, each value up to 4 KB.</p></details>
+</section>
+{{end}}
+
+{{/* The check before saving the text: what will change, which new values
+     are secrets (Roostack's guesses ticked), and what's wrong. */}}
+{{define "env-check"}}
+<h3 class="sub-heading">Check before saving</h3>
+{{range .Check.Problems}}<p class="error" role="alert">{{.}}</p>{{end}}
+<form method="post" action="/services/{{.Service}}/env/text">
+  {{range .Check.Texts}}<input type="hidden" name="text.{{.Container}}" value="{{.Text}}">{{end}}
+  {{if .Check.Changes}}<div class="table-wrap"><table class="list stack-phone">
+    <thead><tr><th>Change</th><th>Variable</th>{{if .Check.Multi}}<th>Container</th>{{end}}<th>Value</th><th>Secret?</th></tr></thead>
+    <tbody>{{range .Check.Changes}}<tr x-data="{ secret: {{if .Secret}}true{{else}}false{{end}} }">
+      <td><span class="pill {{if eq .Kind "Added"}}pill-ok{{else if eq .Kind "Changed"}}pill-warn{{else}}pill-bad{{end}}">{{.Kind}}</span></td>
+      <td><code>{{.Name}}</code></td>
+      {{if $.Check.Multi}}<td>{{.Container}}</td>{{end}}
+      <td class="wrap">{{if eq .Kind "Removed"}}{{if .Secret}}<span class="hint">Hidden</span>{{else}}<code>{{.Value}}</code>{{end}}
+        {{- else}}<span x-show="secret"{{if not .Secret}} x-cloak{{end}} class="hint">Hidden</span><code x-show="!secret"{{if .Secret}} x-cloak{{end}}>{{.Value}}</code>
+        {{- with .Was}}<small class="hint">was <code>{{.}}</code></small>{{end}}{{end}}</td>
+      <td>{{if ne .Kind "Removed"}}<label class="check small-check"><input type="checkbox" name="secret" value="{{.Container}}/{{.Name}}" x-model="secret"{{if .Secret}} checked{{end}}>
+        <span>Secret{{if .Guessed}}<small>guessed from its name</small>{{end}}</span></label>{{end}}</td>
+    </tr>{{end}}</tbody>
+  </table></div>
+  {{else}}<p>Nothing will change.</p>{{end}}
+  <p class="hint">{{with .Check.Unchanged}}Unchanged: {{.}}{{with $.Check.KeptSecrets}}, including the secret{{if gt (len .) 1}}s{{end}}
+    {{range $i, $n := .}}{{if $i}}, {{end}}<code>{{$n}}</code>{{end}}, which {{if gt (len .) 1}}keep their values{{else}}keeps its value{{end}}{{end}}. {{end -}}
+    Roostack ticks Secret for names with PASSWORD, PASSWD, SECRET, TOKEN, or KEY in them: change any it got wrong.</p>
+  <div class="actions-row"><button type="submit"{{if or .Check.Problems (not .Check.Changes)}} disabled{{end}}>Save and restart {{.Title}}</button>
+    <button type="submit" name="back" value="1" class="secondary">Back to the text</button></div>
+</form>
 {{end}}
 
 {{define "page-help"}}{{help "services/settings" "Change a service"}}{{end}}

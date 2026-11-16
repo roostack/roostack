@@ -78,6 +78,11 @@ about.releases:
   help: Where the project says what's new in each version, with {version} where the app's version goes (without -roostack.N), or one page for every version. A service's update will link to it.
   example: https://github.com/example/myapp/releases/tag/v{version}
   link: packages/write#the-project
+about.env_docs:
+  label: Environment variables list
+  help: The project's page listing the environment variables its app reads. The service's Environment variables card will link to it, for the Owner adding options the package doesn't make settings.
+  example: https://forgejo.org/docs/latest/admin/config-cheat-sheet/
+  link: packages/write#the-project
 about.icon:
   label: Logo
   help: The project's logo, a PNG file beside the package file (icon.png in the registry), square, at least 256×256 pixels and at most 100 KB.

@@ -39,6 +39,49 @@ Below is its **Name**: what it's called
 on your pages. Renaming it won't change its name in folders, containers,
 and backups.
 
+## Environment variables
+
+Many apps read options from environment variables, far more than a package
+makes settings (Forgejo's email, HedgeDoc's hundred or so options). The
+Owner can give a service more of them under **Environment variables**, at
+the bottom of its settings. Each one goes to the service just as you type
+it, and Roostack will keep it through updates, backups, and moving the
+service to another server. Where the package says where the app lists its
+options, the card links there.
+
+- **Add one** in the row at the end: its name, its value, and **Secret**
+  for a password or a token. With more than one container, choose which
+  will read it.
+- **Change or remove one** in its row. A secret shows as **Hidden**:
+  **Show** will show its value to you (and record that in the audit log),
+  and **Replace** gives it a new one.
+- **As text**, the same variables are one `NAME=value` a line, as in a
+  `.env` file, so you can paste one as it is: quotes around a value and
+  `export` in front are fine, and blank lines and `#` comments are left
+  out. A secret shows as `‹hidden›`: leave it to keep its value, type over
+  it to replace it, or delete the line to remove it. **Continue** will show
+  what's going to change before anything is saved, with **Secret** ticked
+  for names that look like passwords or tokens: change any it got wrong.
+
+The variables the package sets itself, such as its database's password or
+its own address, can't be given here, as changing them would break the
+service: the card lists them. Saving a change will restart the service.
+Roostack can't check what a value means, so a wrong one can stop the
+service starting; removing the variable will start it as it was.
+
+??? note "For technical users"
+
+    The variables are kept in the service's instance file
+    (`/var/lib/roostack/services/<service>.yaml`, under `env:`), which is
+    backed up and moves with it. A secret's value isn't there: it's a
+    Podman secret on the server running the service,
+    `roostack-<service>-env-<container>-<name>-<n>`, given to the container
+    as that variable (`Secret=…,type=env`), with a new one for each new
+    value so that the container restarts with it, and the old one deleted
+    once nothing uses it. The container's file on the service's technical
+    side shows them after the package's own (`Environment=`). Up to 100 a
+    service, each value up to 4 KB, and no line breaks.
+
 ## Tokens and passwords Roostack made
 
 Some services need a password or token that Roostack creates for you, such

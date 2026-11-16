@@ -46,8 +46,13 @@ func (s *Section) Add(key, value string) *Section {
 }
 
 // Env adds an Environment= entry, quoting it when needed.
+//
+// Quadlet passes it to podman in ExecStart, where systemd would replace
+// ${NAME} with its own variables, so $ becomes $$, which systemd turns back
+// into $ (checked on a VM, 2026-11-16: a value with ${USER} reached the
+// container as "roostack").
 func (s *Section) Env(name, value string) *Section {
-	return s.Add("Environment", Quote(name+"="+value))
+	return s.Add("Environment", Quote(name+"="+strings.ReplaceAll(value, "$", "$$")))
 }
 
 // Exec adds an Exec= entry from an argument list.

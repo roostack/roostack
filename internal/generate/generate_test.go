@@ -1324,3 +1324,50 @@ func TestGlances(t *testing.T) {
 		t.Error("a bad address was let through")
 	}
 }
+
+// The Owner's extra environment variables (SPEC.md §8.1): after the
+// package's own in their container, % escaped for systemd, and a secret as
+// a Podman secret of its revision, listed so the server makes it and
+// keeping only its container waiting until it's there.
+func TestExtraEnv(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("forgejo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "forgejo-sso.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.Env = []instance.EnvVar{{Container: "app", Name: "FORGEJO__ui__DEFAULT_THEME", Value: "forgejo-dark"},
+		{Container: "app", Name: "FORGEJO__mailer__FROM", Value: `Smiths' 100% "Forgejo"`},
+		{Container: "app", Name: "FORGEJO__mailer__PASSWD", Secret: true, Rev: 2}}
+	if err := in.Validate(p); err != nil {
+		t.Fatal(err)
+	}
+	out, err := Service(testLab(), p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unit := Dump(&Output{Quadlets: out.Quadlets})
+	for _, want := range []string{"Environment=FORGEJO__ui__DEFAULT_THEME=forgejo-dark\n",
+		`Environment="FORGEJO__mailer__FROM=Smiths' 100%% \"Forgejo\""` + "\n",
+		"Secret=roostack-forgejo-env-app-FORGEJO__mailer__PASSWD-2,type=env,target=FORGEJO__mailer__PASSWD\n"} {
+		if !strings.Contains(unit, want) {
+			t.Errorf("unit missing %q:\n%s", want, unit)
+		}
+	}
+	if i, j := strings.Index(unit, "Environment=FORGEJO__ui"), strings.Index(unit, "Environment=GITEA_APP_INI"); j < 0 || i < j {
+		t.Errorf("not after the package's own:\n%s", unit)
+	}
+	i := slices.IndexFunc(out.Secrets, func(s Secret) bool { return s.Name == "roostack-forgejo-env-app-FORGEJO__mailer__PASSWD-2" })
+	if i < 0 || out.Secrets[i].Generate || out.Secrets[i].Holds != "roostack-forgejo-app.container" {
+		t.Errorf("secrets: %+v", out.Secrets)
+	}
+	// The package's own can't be given, nor odd names or values.
+	for _, e := range []instance.EnvVar{{Container: "app", Name: "GITEA_APP_INI", Value: "/tmp/x"}, {Container: "app", Name: "1BAD"},
+		{Container: "app", Name: "OK", Value: "two\nlines"}, {Container: "nope", Name: "OK"}, {Container: "app", Name: "S", Secret: true, Value: "x"}} {
+		if err := instance.CheckEnvVar(p, e); err == nil {
+			t.Errorf("%+v let through", e)
+		}
+	}
+}

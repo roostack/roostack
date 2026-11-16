@@ -122,6 +122,10 @@ func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns 
 
 // fakeCatalog is the catalog and the installed services (ServiceCatalog).
 type fakeCatalog struct {
+	// env are services' extra environment variables, and envValues the
+	// secret values last given (SetEnv).
+	env       map[string][]instance.EnvVar
+	envValues map[string]string
 	// offs are the services turned off or on (SetOff).
 	offs []string
 	// requiresSSO: packages have no sign-in of their own (sso.required).
@@ -359,6 +363,32 @@ func (f *fakeCatalog) UpdateSettings(_ context.Context, name string, req manager
 		return &usererr.Error{Msg: "That web address is already used by another service."}
 	}
 	f.updated = append(f.updated, req)
+	return nil
+}
+
+// ServiceEnv is a service with one container, app, whose package sets
+// GITEA_APP_INI.
+func (f *fakeCatalog) ServiceEnv(name string) (manager.ServiceEnv, error) {
+	return manager.ServiceEnv{Title: "Forgejo", Containers: []string{"app"}, Vars: f.env[name],
+		Managed: map[string][]string{"app": {"GITEA_APP_INI"}}, Docs: "https://forgejo.org/docs/env",
+		File: "/var/lib/roostack/services/" + name + ".yaml"}, nil
+}
+
+func (f *fakeCatalog) SetEnv(_ context.Context, name string, vars []instance.EnvVar, values map[string]string) error {
+	for i, v := range vars {
+		if v.Name == "GITEA_APP_INI" {
+			return &usererr.Error{Msg: "Forgejo's package sets GITEA_APP_INI itself, so it can't be added here."}
+		}
+		if v.Secret {
+			if _, ok := values[manager.EnvKey(v.Container, v.Name)]; ok {
+				vars[i].Rev++
+			}
+		}
+	}
+	if f.env == nil {
+		f.env = map[string][]instance.EnvVar{}
+	}
+	f.env[name], f.envValues = vars, values
 	return nil
 }
 
@@ -1393,10 +1423,13 @@ func (f *fakeNode) InstallStatus(_ context.Context, name string) manager.HookSta
 }
 
 func (f *fakeNode) RevealSecret(_ context.Context, name, key string) (string, error) {
-	if key != "admin_token" {
-		return "", manager.ErrNotFound
+	switch key {
+	case "admin_token":
+		return "s3cret-token", nil
+	case node.EnvRevealKey("app", "FORGEJO__mailer__PASSWD"):
+		return "app-pass-7Kq2", nil
 	}
-	return "s3cret-token", nil
+	return "", manager.ErrNotFound
 }
 
 func (f *fakeNode) RetryInstall(_ context.Context, name string) error {

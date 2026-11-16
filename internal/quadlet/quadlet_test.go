@@ -1,6 +1,9 @@
 package quadlet
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRender(t *testing.T) {
 	var u Unit
@@ -72,5 +75,15 @@ func TestQuote(t *testing.T) {
 		if got := Quote(in); got != want {
 			t.Errorf("Quote(%q) = %s, want %s", in, got, want)
 		}
+	}
+}
+
+// An environment value keeps $ and % from systemd, which would expand
+// ${NAME} and %x in the ExecStart Quadlet makes.
+func TestEnvEscapes(t *testing.T) {
+	var u Unit
+	u.Section("Container").Env("A", "100% ${USER} $HOME")
+	if got := u.String(); !strings.Contains(got, `Environment="A=100%% $${USER} $$HOME"`) {
+		t.Errorf("got:\n%s", got)
 	}
 }

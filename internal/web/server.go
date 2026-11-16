@@ -306,6 +306,9 @@ type ServiceCatalog interface {
 	SetPort(ctx context.Context, name, port string, enabled bool, hostPort int) error
 	CurrentSettings(name string) (map[string]any, string, error)
 	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
+	// A service's extra environment variables (SPEC.md §8.1).
+	ServiceEnv(name string) (manager.ServiceEnv, error)
+	SetEnv(ctx context.Context, name string, vars []instance.EnvVar, values map[string]string) error
 	RetryInstallWith(ctx context.Context, name string, settings, secrets map[string]string) error
 	Status() manager.ApplyStatus
 	// NodeFor is the server a service runs on (nil if none).
@@ -583,6 +586,11 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /updates", s.require(auth.ManageServices, s.serviceUpdatesSubmit))
 	mux.Handle("POST /updates/cancel", s.require(auth.ManageServices, s.serviceUpdatesCancelSubmit))
 	mux.Handle("GET /services/{name}/settings", s.require(auth.ManageServices, s.serviceSettingsPage))
+	// Its extra environment variables: the Owner's (SPEC.md §8.1).
+	mux.Handle("POST /services/{name}/env", s.requireOwner(s.envSubmit))
+	mux.Handle("POST /services/{name}/env/show", s.requireOwner(s.envShowSubmit))
+	mux.Handle("POST /services/{name}/env/check", s.requireOwner(s.envCheckSubmit))
+	mux.Handle("POST /services/{name}/env/text", s.requireOwner(s.envTextSubmit))
 	// Bringing a service's data in (SPEC.md §8.4): the Owner only.
 	// Migrating photos into Immich (SPEC.md §8.5): the steps on Immich's
 	// page for Owners and Admins, and in a page of their own for everyone

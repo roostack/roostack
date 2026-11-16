@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/usererr"
@@ -502,11 +503,25 @@ func (n *Local) RunAction(ctx context.Context, name, action string, inputs map[s
 
 // RevealSecret returns a secret setting's value for people who need it
 // (e.g. Vaultwarden's admin token, to open its admin page). Only settings
-// the package marks reveal: true.
+// the package marks reveal: true, and the service's extra variables that
+// are secrets (EnvRevealKey), for the Owner who gave them.
 func (n *Local) RevealSecret(ctx context.Context, name, key string) (string, error) {
 	sv, ok := n.service(name)
 	if !ok {
 		return "", ErrNotFound
+	}
+	if c, v, ok := strings.Cut(strings.TrimPrefix(key, envRevealPrefix), "."); ok && strings.HasPrefix(key, envRevealPrefix) {
+		i := slices.IndexFunc(sv.Instance.Env, func(e instance.EnvVar) bool { return e.Secret && e.Container == c && e.Name == v })
+		if i < 0 || n.Secrets == nil {
+			return "", ErrNotFound
+		}
+		secret := SecretName(name, sv.Instance.Env[i].EnvSecretRef())
+		// A new value is a new secret, made by the apply it started.
+		if have, err := n.Secrets.List(ctx); err == nil && !have[secret] {
+			return "", usererr.New("Its new value is still being applied, so it can't be shown yet: try again in a moment.")
+		}
+		b, err := n.Secrets.Read(ctx, secret)
+		return string(b), err
 	}
 	s := sv.Package.Setting(key)
 	if s == nil || s.Type != pkgspec.SettingSecret || !s.Reveal || n.Secrets == nil {
@@ -515,6 +530,13 @@ func (n *Local) RevealSecret(ctx context.Context, name, key string) (string, err
 	v, err := n.Secrets.Read(ctx, SecretName(name, key))
 	return string(v), err
 }
+
+// envRevealPrefix starts RevealSecret's key for an extra variable.
+const envRevealPrefix = "env."
+
+// EnvRevealKey is RevealSecret's key for an extra variable that's a
+// secret: env.<container>.<name>.
+func EnvRevealKey(container, name string) string { return envRevealPrefix + container + "." + name }
 
 // SecretName is the Podman secret holding a service's secret setting.
 func SecretName(svc, key string) string { return "roostack-" + svc + "-" + key }
