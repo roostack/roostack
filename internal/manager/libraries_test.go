@@ -116,8 +116,12 @@ func TestSharedLibraryListed(t *testing.T) {
 	services := []state.Service{{Package: writer, Instance: &instance.Instance{Package: "getter", Host: "n-0000000001"}},
 		{Package: writer, Instance: &instance.Instance{Package: "getter", Name: "getter-two", Host: "n-0000000002"}}}
 	got := m.sharedLibraries(services, "n-0000000001")
-	if len(got) != 1 || got[0].Name != "getter-downloads" || got[0].Title != "Getter's downloads" || got[0].FromService != "getter" ||
+	if len(got) != 1 || got[0].Name != "getter-downloads" || got[0].Title != "Getter's downloads" || got[0].FromService != "getter" || got[0].FromBackedUp ||
 		libraryWhere(got[0]) != "A folder of Getter's, "+filepath.Join(m.Lab.Paths.MediaDir, "getter", "downloads") {
 		t.Errorf("listed: %+v", got)
+	}
+	writer.Storage["downloads"].Class = pkgspec.ClassCritical
+	if got := m.sharedLibraries(services, "n-0000000001"); len(got) != 1 || !got[0].FromBackedUp {
+		t.Errorf("a critical folder isn't backed up: %+v", got)
 	}
 }

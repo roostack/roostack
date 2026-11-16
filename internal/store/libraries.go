@@ -30,8 +30,10 @@ type MediaLibrary struct {
 	// FromService is the service whose shared folder it is (SPEC.md §8.1,
 	// "A service's folder as a library"), FromTitle its title, and Folder
 	// its path: not kept here, but worked out from the services by the
-	// manager.
+	// manager. FromBackedUp: the service backs the folder up (a critical
+	// storage entry).
 	FromService, FromTitle string
+	FromBackedUp           bool
 }
 
 // MediaLibraries lists every server's media libraries, by server and name.

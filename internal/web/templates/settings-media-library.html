@@ -4,7 +4,7 @@
 {{define "content"}}
 {{with .Library}}
 <div class="page-head"><div><h1>{{.Title}}</h1>
-  <p class="lede">A media library on {{$.Server.ServerName}}: read-only for services, and not backed up.</p></div></div>
+  <p class="lede">A media library on {{$.Server.ServerName}}: read-only for services, and {{if .FromBackedUp}}backed up with {{.FromTitle}}{{else}}not backed up{{end}}.</p></div></div>
 <section class="card section">
   <dl class="facts">
     <dt>Where</dt><dd>{{.Where}}</dd>

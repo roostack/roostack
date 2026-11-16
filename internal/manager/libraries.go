@@ -160,7 +160,8 @@ func (m *Manager) sharedLibraries(services []state.Service, serverID string) []s
 				continue
 			}
 			out = append(out, store.MediaLibrary{ServerID: host, Name: name, FromService: s.Name(), FromTitle: s.Title(), Folder: dirs[name],
-				Title: s.Title() + "'s " + words.LowerFirstWord(s.Package.Storage[st].Title)})
+				Title:        s.Title() + "'s " + words.LowerFirstWord(s.Package.Storage[st].Title),
+				FromBackedUp: s.Package.Storage[st].Class == pkgspec.ClassCritical})
 		}
 	}
 	return out
