@@ -87,3 +87,12 @@ func TestEnvEscapes(t *testing.T) {
 		t.Errorf("got:\n%s", got)
 	}
 }
+
+// A command keeps its shell's $ from systemd too.
+func TestExecEscapes(t *testing.T) {
+	var u Unit
+	u.Section("Container").Exec([]string{"sh", "-c", `echo "${HOME} $1" $$`})
+	if got := u.String(); !strings.Contains(got, `Exec=sh -c "echo \"$${HOME} $$1\" $$$$"`) {
+		t.Errorf("got:\n%s", got)
+	}
+}

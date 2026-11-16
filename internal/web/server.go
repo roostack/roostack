@@ -397,6 +397,7 @@ type ServiceNode interface {
 	RunAction(ctx context.Context, name, action string, inputs map[string]string) (string, error)
 	RunScheduled(ctx context.Context, name, hook string) error
 	RevealSecret(ctx context.Context, name, key string) (string, error)
+	ShownFiles(ctx context.Context, name string) ([]string, error)
 	LatestActivity(kind string) (activity.Snapshot, bool)
 	Backups() node.Backups
 	Restores() node.Restores

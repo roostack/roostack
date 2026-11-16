@@ -299,6 +299,12 @@
         {{- with .Private}}<br><small class="hint">{{.}}{{if $.IsOwner}} · <a href="/services/{{$.Service.Name}}/public/{{$link.Route}}">Change who can reach it…</a>{{end}}</small>{{end}}</li>{{end}}
     </ul>
     {{end}}
+    {{range .Shown}}
+    <div class="secret-row">
+      <span>{{.Title}}{{with .Description}}<br><small class="hint">{{.}}</small>{{end}}</span>
+      {{if .Value}}{{copyBox .Value}}{{else}}<span class="hint">Not made yet: {{$.Service.Title}} will make it when it first starts.</span>{{end}}
+    </div>
+    {{end}}
     {{range .Secrets}}
     <div class="secret-row">
       <span>{{.Title}}{{with .Description}}<br><small class="hint">{{.}}</small>{{end}}</span>
@@ -425,7 +431,8 @@
       <div x-show="on" {{if not .Enabled}}x-cloak{{end}}>
         <label>Port on this server
           <input name="host_port" type="number" min="1024" max="65535" value="{{.HostPort}}" inputmode="numeric">
-          {{if and .Enabled $.Host}}<small>Connect to <code>{{$.Host}}:{{.HostPort}}</code>.</small>{{end}}
+          {{if and .Enabled $.Host}}<small>Connect to <code>{{$.Host}}:{{.HostPort}}</code>{{with .Outside}}, or port {{.}}, which this server's firewall sends there{{end}}.</small>
+          {{- else if .Outside}}<small>Devices will use port {{.Outside}}, which this server's firewall will send there.</small>{{end}}
         </label>
       </div>
       {{if and $.PortError (eq (index $.PortError "port") .Name)}}<p class="error" role="alert">{{index $.PortError "msg"}}</p>{{end}}

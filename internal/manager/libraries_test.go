@@ -8,7 +8,10 @@ import (
 	"slices"
 	"testing"
 
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
+	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
 )
@@ -100,5 +103,21 @@ func TestServiceLibraryPaths(t *testing.T) {
 	m.Wait()
 	if c, _ := m.ServiceLibraries(ctx, "player"); len(c.Paths) != 0 {
 		t.Errorf("a library it doesn't read keeps its path: %+v", c)
+	}
+}
+
+// A service's shared folder is a library of its server, titled after the
+// service, and only of that server (SPEC.md §8.1).
+func TestSharedLibraryListed(t *testing.T) {
+	m, _ := newManager(t)
+	m.Lab.NodeID = "n-0000000001"
+	writer := &pkgspec.Package{Name: "getter", Title: "Getter", Storage: map[string]*pkgspec.Storage{
+		"downloads": {Class: pkgspec.ClassReplaceable, Location: pkgspec.LocationMedia, Title: "Downloads", Shared: true}}}
+	services := []state.Service{{Package: writer, Instance: &instance.Instance{Package: "getter", Host: "n-0000000001"}},
+		{Package: writer, Instance: &instance.Instance{Package: "getter", Name: "getter-two", Host: "n-0000000002"}}}
+	got := m.sharedLibraries(services, "n-0000000001")
+	if len(got) != 1 || got[0].Name != "getter-downloads" || got[0].Title != "Getter's downloads" || got[0].FromService != "getter" ||
+		libraryWhere(got[0]) != "A folder of Getter's, "+filepath.Join(m.Lab.Paths.MediaDir, "getter", "downloads") {
+		t.Errorf("listed: %+v", got)
 	}
 }

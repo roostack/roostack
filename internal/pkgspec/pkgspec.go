@@ -46,6 +46,10 @@ type Package struct {
 	Ports        map[string]*Port      `yaml:"ports"`
 	Hooks        []*Hook               `yaml:"hooks"`
 	Links        []Link                `yaml:"links"`
+	// Shown are small files the app makes in its storage, shown on the
+	// service's page: a key or an ID people copy into their apps (RustDesk
+	// server's public key). SPEC.md §8.1, "Shown on its page".
+	Shown []Shown `yaml:"shown"`
 	// ConfigFiles are files Roostack writes for the app to read its
 	// settings from (configfile.go, SPEC.md §8.1).
 	ConfigFiles map[string]*ConfigFile `yaml:"config_files"`
@@ -338,6 +342,36 @@ type Storage struct {
 	Title    string `yaml:"title"`
 	Class    string `yaml:"class"`
 	Location string `yaml:"location"`
+	// Shared offers its folder to the services on the same server that
+	// read media libraries, as a library they read, read-only (Deluge's
+	// downloads, for Jellyfin): SharedLibrary names it (SPEC.md §8.1,
+	// "A service's folder as a library").
+	Shared bool `yaml:"shared"`
+}
+
+// SharedLibrary is the media library a service's shared storage is
+// offered as: <service>-<storage>, or "" when that's too long to be a
+// library's name.
+func SharedLibrary(service, storage string) string {
+	name := service + "-" + storage
+	if len(name) > maxLibraryName {
+		return ""
+	}
+	return name
+}
+
+// maxLibraryName is the longest a media library's name can be.
+const maxLibraryName = 32
+
+// SharedStorage are the package's shared storage entries, by name.
+func (p *Package) SharedStorage() []string {
+	var out []string
+	for _, name := range slices.Sorted(maps.Keys(p.Storage)) {
+		if p.Storage[name].Shared {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // Database types (SPEC.md §6.8).
@@ -465,7 +499,17 @@ type Port struct {
 	Enabled  bool `yaml:"enabled"` // on by default
 	// Exposure is private (home network only, the default) or public.
 	Exposure string `yaml:"exposure"`
+	// OutsidePort is the port people's devices use when it's one only the
+	// system may listen on, such as DNS's 53 (one of OutsidePorts): the
+	// server's firewall sends it to HostPort, for whoever may reach the
+	// port (SPEC.md §8.1, "Well-known ports").
+	OutsidePort int `yaml:"outside_port"`
 }
+
+// OutsidePorts are the ports below MinHostPort a package's port may be
+// reached on, and what each is for: nothing Roostack or the server uses
+// itself.
+var OutsidePorts = map[int]string{53: "DNS"}
 
 // Proto returns the port's protocol, defaulting to tcp.
 func (p *Port) Proto() string {
@@ -486,6 +530,14 @@ func (p *Port) DefaultExposure() string {
 // MinHostPort is the lowest host port a package port may use: lower ports
 // are system services (and 80/443 belong to Caddy).
 const MinHostPort = 1024
+
+// routePortMin and routePortMax are the ports Roostack keeps for its web
+// services' loopback ports (config.DefaultRoutePortMin and Max, which a
+// test keeps them equal to): a package port can't be one.
+const (
+	routePortMin = 20000
+	routePortMax = 29999
+)
 
 // Quadlet is a raw passthrough: section -> key -> scalar or list of scalars.
 type Quadlet map[string]map[string]any
@@ -569,3 +621,16 @@ func (p *Package) ManagedEnv(container string) []string {
 	}
 	return slices.Sorted(maps.Keys(seen))
 }
+
+// Shown is a small text file in a storage entry, shown on the service's
+// page (Package.Shown): never a secret, as Admins see it.
+type Shown struct {
+	Title       string `yaml:"title"`
+	Description string `yaml:"description"`
+	Storage     string `yaml:"storage"`
+	// Path is the file's path inside the storage: plain names, no "..".
+	Path string `yaml:"path"`
+}
+
+// MaxShown is the most of a shown file that's read and shown.
+const MaxShown = 4096

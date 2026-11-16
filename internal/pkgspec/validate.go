@@ -84,6 +84,21 @@ func (p *Package) Validate() error {
 	for _, name := range slices.Sorted(maps.Keys(p.Routes)) {
 		p.validateRoute(v, name, p.Routes[name])
 	}
+	for i, sh := range p.Shown {
+		at := fmt.Sprintf("shown[%d]", i)
+		if sh.Title == "" {
+			v.addf("%s.title: required (shown on the service's page)", at)
+		}
+		if p.Storage[sh.Storage] == nil {
+			v.addf("%s.storage: unknown storage %q", at, sh.Storage)
+		}
+		if !configPathRe.MatchString(sh.Path) {
+			v.addf("%s.path: a path inside the storage, of plain names", at)
+		}
+	}
+	if len(p.Shown) > 8 {
+		v.addf("shown: at most 8")
+	}
 	for _, name := range slices.Sorted(maps.Keys(p.Ports)) {
 		p.validatePort(v, name, p.Ports[name])
 	}
@@ -318,6 +333,9 @@ func (p *Package) validateStorage(v *validator, name string, s *Storage) {
 	}
 	if len([]rune(s.Title)) > maxStorageTitle || strings.ContainsAny(s.Title, "\n\r") {
 		v.addf("%s.title: must be one line of at most %d characters", at, maxStorageTitle)
+	}
+	if s.Shared && s.Title == "" {
+		v.addf("%s.title: a shared storage needs a title, as other services' pages show it as a media library", at)
 	}
 }
 
@@ -578,11 +596,17 @@ func (p *Package) validatePort(v *validator, name string, r *Port) {
 	if r.HostPort < MinHostPort || r.HostPort > 65535 {
 		v.addf("%s.host_port: must be %d-65535", at, MinHostPort)
 	}
+	if r.HostPort >= routePortMin && r.HostPort <= routePortMax {
+		v.addf("%s.host_port: %d is one of the ports Roostack keeps for web services (%d-%d): choose another", at, r.HostPort, routePortMin, routePortMax)
+	}
 	if r.Proto() != "tcp" && r.Proto() != "udp" {
 		v.addf("%s.protocol: must be tcp or udp", at)
 	}
 	if e := r.DefaultExposure(); e != ExposurePrivate && e != ExposurePublic {
 		v.addf("%s.exposure: must be %q or %q", at, ExposurePrivate, ExposurePublic)
+	}
+	if r.OutsidePort != 0 && OutsidePorts[r.OutsidePort] == "" {
+		v.addf("%s.outside_port: must be one Roostack forwards (53, for DNS), or left out", at)
 	}
 }
 

@@ -263,10 +263,11 @@ func (c *Client) UnmountLibrary(ctx context.Context, name string) error {
 }
 
 // SetLibraryViews sets the media libraries a service may read, and those
-// in its second view folder (name → library, SPEC.md §8.4).
-func (c *Client) SetLibraryViews(ctx context.Context, service string, libraries []string, at map[string]string) error {
+// in its second view folder (name → library, SPEC.md §8.4), and the places
+// for other services' folders it reads (ViewsRequest.Folders).
+func (c *Client) SetLibraryViews(ctx context.Context, service string, libraries []string, at map[string]string, folders []string) error {
 	return c.call(ctx, http.MethodPut, "/v1/library-views/"+url.PathEscape(service),
-		ViewsRequest{Service: service, Libraries: libraries, At: at}, nil)
+		ViewsRequest{Service: service, Libraries: libraries, At: at, Folders: folders}, nil)
 }
 
 // RemoveLibraryViews removes a service's library views.

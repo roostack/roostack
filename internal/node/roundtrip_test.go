@@ -156,6 +156,11 @@ func (f rtNode) RevealSecret(_ context.Context, s, k string) (string, error) {
 	f.rec("RevealSecret", s, k)
 	return "s3cret", nil
 }
+
+func (f rtNode) ShownFiles(_ context.Context, s string) ([]string, error) {
+	f.rec("ShownFiles", s)
+	return []string{"PUBKEY="}, nil
+}
 func (f rtNode) LatestActivity(kind string) (activity.Snapshot, bool) {
 	f.rec("LatestActivity", kind)
 	return rtActivity, true
@@ -623,6 +628,8 @@ func TestRoundTrip(t *testing.T) {
 			[]rtCall{call("RunScheduled", "seafile", "free space")}, nil},
 		{"RevealSecret", func() (any, error) { return r.RevealSecret(ctx, "immich", "admin/token") },
 			[]rtCall{call("RevealSecret", "immich", "admin/token")}, "s3cret"},
+		{"ShownFiles", func() (any, error) { return r.ShownFiles(ctx, "rustdesk") },
+			[]rtCall{call("ShownFiles", "rustdesk")}, []string{"PUBKEY="}},
 
 		{"Backups.Status", func() (any, error) { return backups.Status(ctx) }, []rtCall{call("Backups.Status")}, rtBackupStatus},
 		{"Backups.RunNow", func() (any, error) { return nil, backups.RunNow(ctx) }, []rtCall{call("Backups.RunNow")}, nil},

@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -529,6 +531,36 @@ func (n *Local) RevealSecret(ctx context.Context, name, key string) (string, err
 	}
 	v, err := n.Secrets.Read(ctx, SecretName(name, key))
 	return string(v), err
+}
+
+// ShownFiles reads the small files a service's package shows on its page
+// (pkgspec.Package.Shown), in its order: "" for one not made yet. Each is
+// read through an os.Root at its storage, so a link the app made can't
+// lead out of it, and at most pkgspec.MaxShown of it.
+func (n *Local) ShownFiles(ctx context.Context, name string) ([]string, error) {
+	sv, ok := n.service(name)
+	if !ok {
+		return nil, ErrNotFound
+	}
+	n.mu.Lock()
+	a := n.assignment
+	n.mu.Unlock()
+	lab := n.lab(a) // which takes mu itself
+	out := make([]string, len(sv.Package.Shown))
+	for i, sh := range sv.Package.Shown {
+		root, err := os.OpenRoot(generate.StoragePath(lab, sv.Package, sv.Instance, sh.Storage))
+		if err != nil {
+			continue // not made yet
+		}
+		f, err := root.Open(sh.Path)
+		if err == nil {
+			b, _ := io.ReadAll(io.LimitReader(f, pkgspec.MaxShown))
+			f.Close()
+			out[i] = strings.TrimSpace(string(b))
+		}
+		root.Close()
+	}
+	return out, nil
 }
 
 // envRevealPrefix starts RevealSecret's key for an extra variable.

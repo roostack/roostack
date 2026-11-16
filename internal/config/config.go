@@ -564,9 +564,13 @@ type Lab struct {
 	// at GlancesBind; GlancesSites are every server's live views, which
 	// the controller's Caddy serves (SPEC.md §6.15.1). From the
 	// assignment, never in lab.yaml.
-	GlancesHere  bool          `yaml:"-"`
-	GlancesBind  string        `yaml:"-"`
-	GlancesSites []GlancesSite `yaml:"-"`
+	GlancesHere bool `yaml:"-"`
+	// SharedLibraries are the folders services on this server offer as
+	// media libraries (pkgspec.Storage.Shared): the library's name → its
+	// folder. Worked out for each apply from the services here (state).
+	SharedLibraries map[string]string `yaml:"-"`
+	GlancesBind     string            `yaml:"-"`
+	GlancesSites    []GlancesSite     `yaml:"-"`
 }
 
 // Cloud is the lab's use of Roostack Cloud.

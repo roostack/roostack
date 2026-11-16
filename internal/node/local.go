@@ -65,6 +65,8 @@ type Node interface {
 	// maintenance allows (scheduled.go).
 	RunScheduled(ctx context.Context, service, hook string) error
 	RevealSecret(ctx context.Context, service, key string) (string, error)
+	// ShownFiles are the small files its package shows on its page.
+	ShownFiles(ctx context.Context, service string) ([]string, error)
 	// LatestActivity is the node's latest log of a kind (activity.Apply, ...).
 	LatestActivity(kind string) (activity.Snapshot, bool)
 	// Maintenance jobs (maintenance.go); nil when not available.

@@ -205,11 +205,15 @@ func checkService(service string) error {
 
 // ViewsRequest sets the media libraries a service may read (PUT
 // /v1/library-views/{service}), and those in its second view folder (At:
-// an old folder's name → a library it reads, SPEC.md §8.4).
+// an old folder's name → a library it reads, SPEC.md §8.4). Folders are
+// other services' folders it reads (SPEC.md §8.1, "A service's folder as
+// a library"): its containers bind them themselves, so the view folder
+// holds only an empty folder for each, to bind them at.
 type ViewsRequest struct {
 	Service   string            `json:"-"`
 	Libraries []string          `json:"libraries"`
 	At        map[string]string `json:"at,omitempty"`
+	Folders   []string          `json:"folders,omitempty"`
 }
 
 func (r *ViewsRequest) fromURL(req *http.Request) { r.Service = req.PathValue("service") }
@@ -233,11 +237,19 @@ func (r ViewsRequest) Validate() error {
 			return fmt.Errorf("%s doesn't read the library %q", r.Service, printable(l))
 		}
 	}
+	for _, f := range r.Folders {
+		if !ValidLibraryName(f) {
+			return fmt.Errorf("%q isn't a library's name", printable(f))
+		}
+		if reads[f] {
+			return fmt.Errorf("%q is a library and a service's folder", printable(f))
+		}
+	}
 	return nil
 }
 
 func (r ViewsRequest) logAttrs() []any {
-	return []any{"service", r.Service, "libraries", r.Libraries, "at", r.At}
+	return []any{"service", r.Service, "libraries", r.Libraries, "at", r.At, "folders", r.Folders}
 }
 
 // ShareLoginRequest keeps an SMB share's login for the library the URL

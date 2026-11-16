@@ -14,6 +14,7 @@ import (
 	"maps"
 	"net"
 	"net/url"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -113,9 +114,14 @@ type Output struct {
 	// libraries bound one by one at their paths, whose server restarts
 	// LibraryUnits (the containers binding them) when their drive comes
 	// back (SPEC.md §8.4).
-	LibraryAt    map[string]string
-	LibraryBinds []string
-	LibraryUnits []string
+	LibraryAt map[string]string
+	// LibraryFolders are the libraries it reads that are other services'
+	// folders here (Lab.SharedLibraries), bound straight into its
+	// containers: their places in its view folder, which the server
+	// makes, are empty.
+	LibraryFolders []string
+	LibraryBinds   []string
+	LibraryUnits   []string
 	// Quadlets go in config.Paths.QuadletDir().
 	Quadlets []File
 	// CaddySite goes in <CaddyDir>/sites/. Nil when the service has no routes.
@@ -192,6 +198,9 @@ type HostPort struct {
 	Port     int // on the host
 	Protocol string
 	Exposure string
+	// Outside is the well-known port the firewall sends to Port
+	// (pkgspec.Port.OutsidePort), or 0.
+	Outside int
 }
 
 // BackupPlan says what to back up for a service (SPEC.md §6.9).
@@ -449,7 +458,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 			exposure = pkgspec.ExposurePrivate
 		}
 		g.out.HostPorts = append(g.out.HostPorts, HostPort{Name: pn, Title: pp.Title, Port: pc.HostPort,
-			Protocol: pc.Protocol, Exposure: exposure})
+			Protocol: pc.Protocol, Exposure: exposure, Outside: pp.OutsidePort})
 	}
 	env, err := g.ssoEnv(name, c.Env)
 	if err != nil {
@@ -507,6 +516,19 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 			}
 			if len(pl.Binds) > 0 {
 				g.out.LibraryUnits = append(g.out.LibraryUnits, containerUnitName(svc, name)+".service")
+			}
+			// Other services' folders it reads (SPEC.md §8.1, "A service's
+			// folder as a library"): bound straight in, read-only, at their
+			// place in the view folder. The service's own aren't.
+			for _, l := range g.inst.Libraries {
+				dir, ok := g.lab.SharedLibraries[l]
+				if !ok || g.ownsLibrary(l) {
+					continue
+				}
+				cs.Add("Volume", dir+":"+path.Join(m.Path, l)+":ro")
+				if !slices.Contains(g.out.LibraryFolders, l) {
+					g.out.LibraryFolders = append(g.out.LibraryFolders, l)
+				}
 			}
 			continue
 		}
@@ -917,6 +939,17 @@ func (g *gen) serviceDir() string {
 }
 
 func (g *gen) dumpDir() string { return filepath.Join(g.serviceDir(), "db-dump") }
+
+// ownsLibrary says whether a library is one of the service's own shared
+// folders.
+func (g *gen) ownsLibrary(l string) bool {
+	for _, s := range g.pkg.SharedStorage() {
+		if pkgspec.SharedLibrary(g.name, s) == l {
+			return true
+		}
+	}
+	return false
+}
 
 // storagePath is the host directory for a storage entry (SPEC.md §6.7).
 func (g *gen) storagePath(name string) string {

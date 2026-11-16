@@ -55,11 +55,14 @@ func (s *Section) Env(name, value string) *Section {
 	return s.Add("Environment", Quote(name+"="+strings.ReplaceAll(value, "$", "$$")))
 }
 
-// Exec adds an Exec= entry from an argument list.
+// Exec adds an Exec= entry from an argument list. Quadlet passes it to
+// podman in ExecStart, so $ becomes $$ as in Env: a package's command
+// reaches the container as it wrote it, its shell's $NAME and ${NAME}
+// with it.
 func (s *Section) Exec(args []string) *Section {
 	quoted := make([]string, len(args))
 	for i, a := range args {
-		quoted[i] = Quote(a)
+		quoted[i] = Quote(strings.ReplaceAll(a, "$", "$$"))
 	}
 	return s.Add("Exec", strings.Join(quoted, " "))
 }

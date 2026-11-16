@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Media libraries (SPEC.md §8.1, "Media libraries"): the controller keeps
@@ -115,11 +116,14 @@ func (m *Manager) MediaLibraries(ctx context.Context) ([]ServerLibraries, error)
 				}
 			}
 		}
-		for _, l := range stored {
+		for _, l := range append(m.sharedLibraries(services, srv.ID), stored...) {
 			if l.ServerID != srv.ID {
 				continue
 			}
 			v := LibraryView{MediaLibrary: l, Where: libraryWhere(l)}
+			if l.FromService != "" {
+				v.Mounted, v.Connected = true, true // a folder of the server's own
+			}
 			if st, ok := status[l.Name]; ok {
 				v.Mounted, v.Connected, v.Size = st.Mounted, st.Connected, st.Size
 			}
@@ -136,8 +140,37 @@ func (m *Manager) MediaLibraries(ctx context.Context) ([]ServerLibraries, error)
 	return out, nil
 }
 
+// sharedLibraries are the folders services on a server offer as media
+// libraries (SPEC.md §8.1, "A service's folder as a library"), titled
+// after the service: "Deluge's downloads".
+func (m *Manager) sharedLibraries(services []state.Service, serverID string) []store.MediaLibrary {
+	host := cmp.Or(serverID, m.Lab.NodeID)
+	var on []state.Service
+	for _, s := range services {
+		if s.Instance.HostOr(m.Lab.NodeID) == host {
+			on = append(on, s)
+		}
+	}
+	dirs := state.SharedLibraries(m.Lab, on)
+	var out []store.MediaLibrary
+	for _, s := range on {
+		for _, st := range s.Package.SharedStorage() {
+			name := pkgspec.SharedLibrary(s.Name(), st)
+			if dirs[name] == "" {
+				continue
+			}
+			out = append(out, store.MediaLibrary{ServerID: host, Name: name, FromService: s.Name(), FromTitle: s.Title(), Folder: dirs[name],
+				Title: s.Title() + "'s " + words.LowerFirstWord(s.Package.Storage[st].Title)})
+		}
+	}
+	return out
+}
+
 // libraryWhere says where a library is, in words.
 func libraryWhere(l store.MediaLibrary) string {
+	if l.FromService != "" {
+		return "A folder of " + l.FromTitle + "'s, " + l.Folder
+	}
 	switch l.ShareType {
 	case "smb":
 		return "The SMB share " + l.SharePath + " on " + l.ShareServer
@@ -251,8 +284,12 @@ func (m *Manager) AddLibrary(ctx context.Context, req LibraryRequest) error {
 	if err != nil {
 		return err
 	}
-	for _, l := range stored {
-		if l.ServerID == req.Server && l.Name == name {
+	services, err := state.LoadServices(m.Lab)
+	if err != nil {
+		return err
+	}
+	for _, l := range append(stored, m.sharedLibraries(services, req.Server)...) {
+		if l.ServerID == cmp.Or(req.Server, m.Lab.NodeID) && l.Name == name {
 			return usererr.New("%s already has a library called %s: choose another name.", m.nameOf(req.Server), l.Title)
 		}
 	}
@@ -391,6 +428,23 @@ func (m *Manager) setReadersLocked(serverID, name string, readers []string) erro
 	return nil
 }
 
+// addReaderLibraryLocked adds a library to every service on a server that
+// reads libraries. Callers hold mu.
+func (m *Manager) addReaderLibraryLocked(services []state.Service, host, library string) error {
+	for _, s := range services {
+		in := s.Instance
+		if in.HostOr(m.Lab.NodeID) != cmp.Or(host, m.Lab.NodeID) || !s.Package.ReadsLibraries() || slices.Contains(in.Libraries, library) {
+			continue
+		}
+		in.Libraries = append(in.Libraries, library)
+		slices.Sort(in.Libraries)
+		if err := in.Save(state.InstanceFile(m.Lab, s.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // SetServiceLibraries sets which of its server's libraries a service may
 // read (its settings), and where any of them is inside it, if not in its
 // libraries folder (SPEC.md §8.4: library → a container path; nil keeps
@@ -446,6 +500,10 @@ func (m *Manager) ServerLibraryChoices(ctx context.Context, serverID string) []s
 		if l.ServerID == cmp.Or(serverID, m.Lab.NodeID) && l.PhotosFor == "" {
 			out = append(out, l)
 		}
+	}
+	// Services' shared folders there are libraries too.
+	if services, err := state.LoadServices(m.Lab); err == nil {
+		out = append(out, m.sharedLibraries(services, serverID)...)
 	}
 	return out
 }

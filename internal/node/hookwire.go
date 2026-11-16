@@ -53,6 +53,12 @@ func (r *Remote) RunScheduled(ctx context.Context, service, hook string) error {
 	return r.call(ctx, http.MethodPost, servicePath(service, "/scheduled/"+url.PathEscape(hook)+"/run"), struct{}{}, nil)
 }
 
+func (r *Remote) ShownFiles(ctx context.Context, service string) ([]string, error) {
+	var out []string
+	err := r.call(ctx, http.MethodGet, servicePath(service, "/shown"), nil, &out)
+	return out, err
+}
+
 func (r *Remote) RevealSecret(ctx context.Context, service, key string) (string, error) {
 	var out secretReply
 	err := r.call(ctx, http.MethodPost, servicePath(service, "/secrets/"+url.PathEscape(key)), struct{}{}, &out)
@@ -78,6 +84,9 @@ func (s *Server) hookRoutes(handle handleFunc) {
 	})
 	handle("POST /v1/services/{service}/scheduled/{hook}/run", func(r *http.Request) (any, error) {
 		return nil, n.RunScheduled(r.Context(), svcOf(r), r.PathValue("hook"))
+	})
+	handle("GET /v1/services/{service}/shown", func(r *http.Request) (any, error) {
+		return n.ShownFiles(r.Context(), svcOf(r))
 	})
 	handle("POST /v1/services/{service}/secrets/{key}", func(r *http.Request) (any, error) {
 		v, err := n.RevealSecret(r.Context(), svcOf(r), r.PathValue("key"))

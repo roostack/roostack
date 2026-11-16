@@ -214,7 +214,7 @@ func TestLibraryAPI(t *testing.T) {
 	if libs, err := c.Libraries(t.Context()); err != nil || len(libs) != 1 || !libs[0].Mounted {
 		t.Errorf("libraries %+v %v", libs, err)
 	}
-	if err := c.SetLibraryViews(t.Context(), "plex", []string{"films", "music"}, map[string]string{"movies": "films"}); err != nil ||
+	if err := c.SetLibraryViews(t.Context(), "plex", []string{"films", "music"}, map[string]string{"movies": "films"}, nil); err != nil ||
 		strings.Join(host.views, " ") != "plex films music movies=films" {
 		t.Errorf("views %q %v", host.views, err)
 	}

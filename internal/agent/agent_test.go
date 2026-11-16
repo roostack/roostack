@@ -93,7 +93,7 @@ func (f *fakeHost) LibraryFolders(l Library) (FolderList, error) {
 }
 func (f *fakeHost) MountLibrary(l Library) error     { f.library = &l; return nil }
 func (f *fakeHost) UnmountLibrary(name string) error { f.unmounted = name; return nil }
-func (f *fakeHost) SetLibraryViews(service string, libs []string, at map[string]string) error {
+func (f *fakeHost) SetLibraryViews(service string, libs []string, at map[string]string, folders []string) error {
 	f.views = append([]string{service}, libs...)
 	for _, name := range slices.Sorted(maps.Keys(at)) {
 		f.views = append(f.views, name+"="+at[name])
@@ -280,13 +280,19 @@ func TestBadNamesRefused(t *testing.T) {
 	for what, call := range map[string]func() error{
 		"a library's name":   func() error { return c.MountLibrary(ctx, Library{Name: "Films", Drive: "1111-2222"}) },
 		"removing a library": func() error { return c.UnmountLibrary(ctx, "a.b") },
-		"a service's views":  func() error { return c.SetLibraryViews(ctx, "Jellyfin", nil, nil) },
-		"a library in views": func() error { return c.SetLibraryViews(ctx, "jellyfin", []string{"a b"}, nil) },
+		"a service's views":  func() error { return c.SetLibraryViews(ctx, "Jellyfin", nil, nil, nil) },
+		"a library in views": func() error { return c.SetLibraryViews(ctx, "jellyfin", []string{"a b"}, nil, nil) },
 		"a folder of libraries": func() error {
-			return c.SetLibraryViews(ctx, "jellyfin", []string{"films"}, map[string]string{".x": "films"})
+			return c.SetLibraryViews(ctx, "jellyfin", []string{"films"}, map[string]string{".x": "films"}, nil)
 		},
 		"a library it doesn't read": func() error {
-			return c.SetLibraryViews(ctx, "jellyfin", []string{"films"}, map[string]string{"Films": "music"})
+			return c.SetLibraryViews(ctx, "jellyfin", []string{"films"}, map[string]string{"Films": "music"}, nil)
+		},
+		"a folder that's a bad name": func() error {
+			return c.SetLibraryViews(ctx, "jellyfin", nil, nil, []string{"A B"})
+		},
+		"a library as a folder too": func() error {
+			return c.SetLibraryViews(ctx, "jellyfin", []string{"films"}, nil, []string{"films"})
 		},
 		"removing a service's views": func() error { return c.RemoveLibraryViews(ctx, "a.b") },
 		"a share's library":          func() error { return c.SaveShareLogin(ctx, "a b", Share{Type: "smb", Server: "nas", Path: "m"}) },
@@ -369,7 +375,7 @@ func TestChangesAreLogged(t *testing.T) {
 		},
 		"mount media library":  func() error { return c.MountLibrary(ctx, Library{Name: "films", Drive: "1111-2222"}) },
 		"remove media library": func() error { return c.UnmountLibrary(ctx, "films") },
-		"set library views":    func() error { return c.SetLibraryViews(ctx, "jellyfin", []string{"films"}, nil) },
+		"set library views":    func() error { return c.SetLibraryViews(ctx, "jellyfin", []string{"films"}, nil, nil) },
 		"remove library views": func() error { return c.RemoveLibraryViews(ctx, "jellyfin") },
 		"save share login":     func() error { return c.SaveShareLogin(ctx, "media", *l.Share) },
 		"mount place to bring data in from": func() error {

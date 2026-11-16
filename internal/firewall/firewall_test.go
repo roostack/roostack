@@ -242,3 +242,16 @@ func TestDesiredPeople(t *testing.T) {
 		t.Errorf("SSH for nobody: %+v", fw.People.Rules)
 	}
 }
+
+// A package port with a well-known outside port (DNS's 53) asks the agent
+// to send it on, for those who may reach the port.
+func TestOutsidePortRule(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	fw, _ := Desired(lab, []*generate.Output{{Service: "pihole", HostPorts: []generate.HostPort{
+		{Name: "dns", Port: 20053, Protocol: "udp", Exposure: "private", Outside: 53}}}}, Roles{})
+	i := slices.IndexFunc(fw.Allow, func(r agent.Rule) bool { return r.Reason == "pihole dns" })
+	if i < 0 || fw.Allow[i].From != 53 || fw.Allow[i].For != trust.Home || fw.Validate() != nil {
+		t.Errorf("rules: %+v %v", fw.Allow, fw.Validate())
+	}
+}

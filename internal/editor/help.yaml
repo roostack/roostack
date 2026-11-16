@@ -296,6 +296,10 @@ storage.*.location:
   label: Where
   help: service (Roostack's service folder) or media (the large data disk, if there is one), for large data such as photos and documents.
   link: reference/packages#the-parts
+storage.*.shared:
+  label: A library for other services
+  help: The media players on the same server will be able to read it as a media library, read-only, such as a download client's downloads for Jellyfin. It needs a title, which their pages show.
+  link: reference/packages#the-parts
 
 databases:
   label: Databases
@@ -449,7 +453,31 @@ ports.*.exposure:
   label: Exposure
   help: Always private in a package (home only); only the Owner can open a connection to the internet.
   link: reference/packages#the-parts
+ports.*.outside_port:
+  label: Well-known port
+  help: The port devices will use when it's one a container can't listen on, such as 53 for DNS. The server's firewall will send it to the host port, for whoever may reach that.
+  link: reference/packages#the-parts
 
+shown:
+  label: Shown on its page
+  help: Small text files the app makes in its storage that people copy into their apps, such as a server's public key. The service's page will show each with a copy button. Never a secret, as Admins see the page.
+  link: reference/packages#the-parts
+shown[].title:
+  label: Title
+  help: What it is, as the page names it.
+  link: reference/packages#the-parts
+shown[].description:
+  label: Description
+  help: What to do with it, in a few words.
+  link: reference/packages#the-parts
+shown[].storage:
+  label: Storage
+  help: The storage entry the file is in.
+  link: reference/packages#the-parts
+shown[].path:
+  label: Path
+  help: The file's path inside that storage, such as id_ed25519.pub. Roostack will show at most 4 KB of it.
+  link: reference/packages#the-parts
 hooks:
   label: Setup, actions, and scheduled tasks
   help: Commands run inside a container, once after the first start (install), as a button on the service's page (action), when single sign-on is turned on, changed, or off (sso), or every day, week, or month (schedule). Values people type will reach them only as environment variables.

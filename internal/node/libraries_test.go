@@ -52,7 +52,7 @@ func (f *fakeLibraries) UnmountLibrary(_ context.Context, name string) error {
 	f.calls = append(f.calls, "unmount "+name)
 	return nil
 }
-func (f *fakeLibraries) SetLibraryViews(_ context.Context, svc string, libs []string, at map[string]string) error {
+func (f *fakeLibraries) SetLibraryViews(_ context.Context, svc string, libs []string, at map[string]string, _ []string) error {
 	f.calls = append(f.calls, "view "+svc+" "+strings.Join(libs, ","))
 	for _, name := range slices.Sorted(maps.Keys(at)) {
 		f.calls = append(f.calls, "at "+svc+" "+name+"="+at[name])

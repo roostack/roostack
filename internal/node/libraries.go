@@ -24,7 +24,7 @@ type LibraryAgent interface {
 	Libraries(ctx context.Context) ([]agent.LibraryStatus, error)
 	MountLibrary(ctx context.Context, l agent.Library) error
 	UnmountLibrary(ctx context.Context, name string) error
-	SetLibraryViews(ctx context.Context, service string, libraries []string, at map[string]string) error
+	SetLibraryViews(ctx context.Context, service string, libraries []string, at map[string]string, folders []string) error
 	RemoveLibraryViews(ctx context.Context, service string) error
 	CheckShare(ctx context.Context, s agent.Share) (agent.FolderList, error)
 	SaveShareLogin(ctx context.Context, name string, s agent.Share) error
@@ -44,11 +44,13 @@ const (
 func (n *Local) applyLibraries(ctx context.Context, act *activity.Log, a Assignment, desired reconcile.Desired) {
 	readers := map[string][]string{} // service → libraries it may read
 	at := map[string]map[string]string{}
+	folders := map[string][]string{} // service → other services' folders it reads
 	for _, out := range desired.Services {
 		if !out.ReadsLibraries {
 			continue
 		}
 		at[out.Service] = out.LibraryAt
+		folders[out.Service] = out.LibraryFolders
 		var mine []string
 		for _, s := range a.Services {
 			if s.Name() == out.Service {
@@ -110,7 +112,7 @@ func (n *Local) applyLibraries(ctx context.Context, act *activity.Log, a Assignm
 				libs = append(libs, l)
 			}
 		}
-		if err := n.Libraries.SetLibraryViews(ctx, svc, libs, at[svc]); err != nil {
+		if err := n.Libraries.SetLibraryViews(ctx, svc, libs, at[svc], folders[svc]); err != nil {
 			act.Printf("Setting the media libraries %s reads: %v", svc, err)
 			n.Log.Error("setting a service's media libraries", "service", svc, "err", err)
 			continue

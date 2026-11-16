@@ -126,6 +126,9 @@ type fakeCatalog struct {
 	// secret values last given (SetEnv).
 	env       map[string][]instance.EnvVar
 	envValues map[string]string
+	// shown are files added to packages' shown, by name (fakeNode's
+	// ShownFiles reads "PUBKEY=" for vaultwarden's first).
+	shown map[string][]pkgspec.Shown
 	// offs are the services turned off or on (SetOff).
 	offs []string
 	// requiresSSO: packages have no sign-in of their own (sso.required).
@@ -214,6 +217,7 @@ func (f *fakeCatalog) Package(name string) (*pkgspec.Package, error) {
 		if n, ok := f.notices[name]; ok {
 			p.About.Notice = n
 		}
+		p.Shown = append(p.Shown, f.shown[name]...)
 	}
 	return p, err
 }
@@ -1420,6 +1424,13 @@ func (f *fakeNode) LatestActivity(kind string) (activity.Snapshot, bool) {
 
 func (f *fakeNode) InstallStatus(_ context.Context, name string) manager.HookStatus {
 	return f.setup[name]
+}
+
+func (f *fakeNode) ShownFiles(_ context.Context, name string) ([]string, error) {
+	if name == "vaultwarden" {
+		return []string{"PUBKEY=", ""}, nil
+	}
+	return nil, nil
 }
 
 func (f *fakeNode) RevealSecret(_ context.Context, name, key string) (string, error) {

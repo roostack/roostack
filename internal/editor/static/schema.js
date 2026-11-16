@@ -312,6 +312,10 @@
       {
        "name": "location",
        "type": "string"
+      },
+      {
+       "name": "shared",
+       "type": "bool"
       }
      ]
     }
@@ -489,6 +493,10 @@
       {
        "name": "exposure",
        "type": "string"
+      },
+      {
+       "name": "outside_port",
+       "type": "int"
       }
      ]
     }
@@ -629,6 +637,31 @@
       },
       {
        "name": "route",
+       "type": "string"
+      },
+      {
+       "name": "path",
+       "type": "string"
+      }
+     ]
+    }
+   },
+   {
+    "name": "shown",
+    "type": "list",
+    "item": {
+     "type": "object",
+     "fields": [
+      {
+       "name": "title",
+       "type": "string"
+      },
+      {
+       "name": "description",
+       "type": "string"
+      },
+      {
+       "name": "storage",
        "type": "string"
       },
       {
@@ -1805,6 +1838,11 @@
    "example": "2222",
    "link": "reference/packages#the-parts"
   },
+  "ports.*.outside_port": {
+   "label": "Well-known port",
+   "help": "The port devices will use when it's one a container can't listen on, such as 53 for DNS. The server's firewall will send it to the host port, for whoever may reach that.",
+   "link": "reference/packages#the-parts"
+  },
   "ports.*.port": {
    "label": "Port inside",
    "help": "The port inside the container.",
@@ -2001,6 +2039,31 @@
    "help": "bool (on or off), string, int (a whole number), or secret (a password or key: a Podman secret, never in a file).",
    "link": "reference/packages#the-parts"
   },
+  "shown": {
+   "label": "Shown on its page",
+   "help": "Small text files the app makes in its storage that people copy into their apps, such as a server's public key. The service's page will show each with a copy button. Never a secret, as Admins see the page.",
+   "link": "reference/packages#the-parts"
+  },
+  "shown[].description": {
+   "label": "Description",
+   "help": "What to do with it, in a few words.",
+   "link": "reference/packages#the-parts"
+  },
+  "shown[].path": {
+   "label": "Path",
+   "help": "The file's path inside that storage, such as id_ed25519.pub. Roostack will show at most 4 KB of it.",
+   "link": "reference/packages#the-parts"
+  },
+  "shown[].storage": {
+   "label": "Storage",
+   "help": "The storage entry the file is in.",
+   "link": "reference/packages#the-parts"
+  },
+  "shown[].title": {
+   "label": "Title",
+   "help": "What it is, as the page names it.",
+   "link": "reference/packages#the-parts"
+  },
   "sso": {
    "label": "Single sign-on",
    "help": "How the app takes single sign-on, which the Owner turns on per service. Either oidc (the app will sign people in through OIDC itself) or forward_auth (everyone will sign in on the lab's sign-in page before a request reaches it), not both.",
@@ -2125,6 +2188,11 @@
   "storage.*.location": {
    "label": "Where",
    "help": "service (Roostack's service folder) or media (the large data disk, if there is one), for large data such as photos and documents.",
+   "link": "reference/packages#the-parts"
+  },
+  "storage.*.shared": {
+   "label": "A library for other services",
+   "help": "The media players on the same server will be able to read it as a media library, read-only, such as a download client's downloads for Jellyfin. It needs a title, which their pages show.",
    "link": "reference/packages#the-parts"
   },
   "storage.*.title": {

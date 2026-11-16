@@ -2,13 +2,17 @@ package state
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
 )
 
@@ -328,5 +332,110 @@ func TestStatusHostnameReserved(t *testing.T) {
 	}
 	if _, err := Desired(lab, services); err == nil || !strings.Contains(err.Error(), "status page") {
 		t.Errorf("error = %v, want a status page conflict", err)
+	}
+}
+
+// A service's shared folder (SPEC.md §8.1, "A service's folder as a
+// library"): offered on its server as <service>-<storage>, and bound
+// read-only into the containers of a service there that reads it, at its
+// place among its libraries; not into the service's own, and not when it
+// isn't chosen.
+func TestSharedLibraries(t *testing.T) {
+	writer, err := pkgspec.Parse([]byte(`
+schema: roostack/v1alpha1
+name: getter
+title: Getter
+version: "1"
+storage:
+  config: { class: critical }
+  downloads: { class: replaceable, location: media, title: Downloads, shared: true }
+containers:
+  app:
+    image: example/getter:1
+    mounts:
+      - { storage: config, path: /config }
+      - { storage: downloads, path: /downloads }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := pkgspec.Parse([]byte(`
+schema: roostack/v1alpha1
+name: player
+title: Player
+version: "1"
+storage:
+  config: { class: critical }
+containers:
+  app:
+    image: example/player:1
+    mounts:
+      - { storage: config, path: /config }
+      - { libraries: true, path: /media }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := config.Default()
+	lab.Domain = "lab.example.com"
+	lab.DNS.Provider = "cloudflare"
+	services := []Service{
+		{Package: writer, Instance: &instance.Instance{Package: "getter", Version: "1", Updates: "notify",
+			Routes: map[string]instance.RouteOverride{}}},
+		{Package: reader, Instance: &instance.Instance{Package: "player", Version: "1", Updates: "notify", Libraries: []string{"getter-downloads", "films"}}},
+	}
+	if got := SharedLibraries(lab, services); got["getter-downloads"] != "/srv/roostack/media/getter/downloads" || len(got) != 1 {
+		t.Fatalf("shared: %v", got)
+	}
+	d, err := Desired(lab, services)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var player *generate.Output
+	for _, out := range d.Services {
+		if out.Service == "player" {
+			player = out
+		}
+	}
+	unit := generate.Dump(&generate.Output{Quadlets: player.Quadlets})
+	if !strings.Contains(unit, "Volume=/srv/roostack/media/getter/downloads:/media/getter-downloads:ro\n") ||
+		!slices.Equal(player.LibraryFolders, []string{"getter-downloads"}) {
+		t.Errorf("player: %v\n%s", player.LibraryFolders, unit)
+	}
+	// Not chosen: not bound.
+	services[1].Instance.Libraries = []string{"films"}
+	d, _ = Desired(lab, services)
+	for _, out := range d.Services {
+		if out.Service == "player" && len(out.LibraryFolders) != 0 {
+			t.Errorf("bound while not chosen: %v", out.LibraryFolders)
+		}
+	}
+	if pkgspec.SharedLibrary("a-very-long-service-name-here", "downloads") != "" {
+		t.Error("a name too long for a library")
+	}
+}
+
+// The package format's idea of the ports kept for web services is the
+// lab's.
+func TestRoutePortsAgree(t *testing.T) {
+	p := &pkgspec.Package{}
+	_ = p
+	for _, port := range []int{config.DefaultRoutePortMin, config.DefaultRoutePortMax} {
+		pkg, err := pkgspec.Parse([]byte(fmt.Sprintf(`
+schema: roostack/v1alpha1
+name: x
+title: X
+version: "1"
+containers:
+  app: { image: "example/x:1@sha256:0000000000000000000000000000000000000000000000000000000000000000" }
+ports:
+  p: { title: P, container: app, port: 1, host_port: %d }
+`, port)))
+		if err == nil {
+			err = pkg.Validate()
+		}
+		if err == nil || !strings.Contains(err.Error(), "keeps for web services") {
+			t.Errorf("port %d: %v", port, err)
+		}
 	}
 }

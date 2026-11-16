@@ -127,7 +127,16 @@ type Rule struct {
 	Source string `json:"source,omitempty"`
 	// Reason is shown in the generated file, e.g. "caddy https".
 	Reason string `json:"reason"`
+	// From is a well-known port (one of OutsidePorts) sent on to Port, for
+	// the same people: DNS's 53 for a service's container, which can't
+	// listen below 1024 (SPEC.md §8.1, "Well-known ports"). 0: none.
+	From int `json:"from,omitempty"`
 }
+
+// OutsidePorts are the ports a rule may send on to a service's port
+// (Rule.From): kept to this list here, the privilege boundary, whatever
+// roostack asks for (pkgspec.OutsidePorts).
+var OutsidePorts = []int{53}
 
 // SSHFrom values.
 const (
@@ -190,6 +199,9 @@ func (f Firewall) Validate() error {
 		}
 		if strings.ContainsFunc(r.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
 			errs = append(errs, fmt.Errorf("allow[%d]: invalid characters in reason", i))
+		}
+		if r.From != 0 && (!slices.Contains(OutsidePorts, r.From) || r.Port < 1024 || (r.For != trust.Home && r.For != trust.Anyone)) {
+			errs = append(errs, fmt.Errorf("allow[%d]: from must be one of %v, sent to a port from 1024 for anyone or the home network", i, OutsidePorts))
 		}
 	}
 	for i, e := range f.Edges {
@@ -329,6 +341,21 @@ func (f Firewall) Ruleset() string {
 	if len(f.Edges) > 0 {
 		fmt.Fprintf(&b, "\t\tiifname %q ip saddr { %s } tcp dport 443 redirect to :%d\n", WireGuardInterface,
 			strings.Join(f.Edges, ", "), EdgePort)
+	}
+	// Well-known ports sent on to a service's (Rule.From), for those who
+	// may reach that port: the input chain then sees the service's port.
+	for _, r := range f.Allow {
+		if r.From == 0 {
+			continue
+		}
+		fmt.Fprintf(&b, "\t\t# %s: %d to %d\n", r.Reason, r.From, r.Port)
+		switch r.For {
+		case trust.Home:
+			fmt.Fprintf(&b, "\t\tip saddr @lan4 %s dport %d redirect to :%d\n", r.Proto, r.From, r.Port)
+			fmt.Fprintf(&b, "\t\tip6 saddr @lan6 %s dport %d redirect to :%d\n", r.Proto, r.From, r.Port)
+		default:
+			fmt.Fprintf(&b, "\t\t%s dport %d redirect to :%d\n", r.Proto, r.From, r.Port)
+		}
 	}
 	b.WriteString("\t}\n\n")
 	b.WriteString("\tchain input {\n")

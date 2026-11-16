@@ -417,3 +417,35 @@ func TestRulesetForwardOwned(t *testing.T) {
 		t.Error("without the VPN")
 	}
 }
+
+// A well-known port sent on to a service's (SPEC.md §8.1, "Well-known
+// ports"): DNS's 53 redirected to the service's port for the home network
+// only, in prerouting, and the service's port open to the same; only the
+// listed ports, to a high port, for home or anyone.
+func TestOutsidePort(t *testing.T) {
+	fw := DefaultFirewall()
+	fw.Allow = append(fw.Allow, Rule{Port: 20053, Proto: "udp", For: trust.Home, Reason: "pihole dns", From: 53},
+		Rule{Port: 20053, Proto: "tcp", For: trust.Home, Reason: "pihole dns-tcp", From: 53})
+	if err := fw.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	rs := fw.Ruleset()
+	pre := rs[strings.Index(rs, "chain prerouting"):strings.Index(rs, "chain input")]
+	for _, want := range []string{"ip saddr @lan4 udp dport 53 redirect to :20053\n", "ip6 saddr @lan6 tcp dport 53 redirect to :20053\n"} {
+		if !strings.Contains(pre, want) {
+			t.Errorf("prerouting missing %q:\n%s", want, pre)
+		}
+	}
+	if !strings.Contains(rs, "ip saddr @lan4 udp dport 20053 accept") || strings.Contains(pre, "\t\tudp dport 53 redirect") {
+		t.Errorf("ruleset:\n%s", rs)
+	}
+	for _, bad := range []Rule{{Port: 20025, Proto: "tcp", For: trust.Home, Reason: "x", From: 25},
+		{Port: 80, Proto: "udp", For: trust.Home, Reason: "x", From: 53},
+		{Port: 20053, Proto: "udp", For: trust.Servers, Reason: "x", From: 53}} {
+		f := DefaultFirewall()
+		f.Allow = append(f.Allow, bad)
+		if f.Validate() == nil {
+			t.Errorf("%+v let through", bad)
+		}
+	}
+}

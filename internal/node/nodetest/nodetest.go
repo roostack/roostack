@@ -36,6 +36,7 @@ func (Base) RunAction(context.Context, string, string, map[string]string) (strin
 }
 func (Base) RunScheduled(context.Context, string, string) error           { return nil }
 func (Base) RevealSecret(context.Context, string, string) (string, error) { return "", nil }
+func (Base) ShownFiles(context.Context, string) ([]string, error)         { return nil, nil }
 func (Base) LatestActivity(string) (activity.Snapshot, bool)              { return activity.Snapshot{}, false }
 
 func (Base) Backups() node.Backups     { return nil }

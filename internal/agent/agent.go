@@ -106,8 +106,10 @@ type Host interface {
 	Libraries() ([]LibraryStatus, error)
 	// SetLibraryViews sets the libraries a service may read (its view
 	// folder), and those at their old paths' shared parent (its second
-	// view folder: name → library); RemoveLibraryViews removes its folders.
-	SetLibraryViews(service string, libraries []string, at map[string]string) error
+	// view folder: name → library), and the empty places in its view folder
+	// for other services' folders it reads (folders); RemoveLibraryViews
+	// removes its folders.
+	SetLibraryViews(service string, libraries []string, at map[string]string, folders []string) error
 	RemoveLibraryViews(service string) error
 	// CheckShare mounts a share for a moment to list it; SaveShareLogin
 	// keeps an SMB login for a library, root's only (shares.go).
@@ -215,7 +217,7 @@ func (s *Server) Handler() http.Handler {
 	handle("PUT /v1/libraries/{name}", action(s, "mount media library", 8<<10, func(r mountLibrary) error { return h.MountLibrary(r.Library) }))
 	handle("DELETE /v1/libraries/{name}", action(s, "remove media library", 0, func(r LibraryRequest) error { return h.UnmountLibrary(r.Name) }))
 	handle("PUT /v1/library-views/{service}", action(s, "set library views", 8<<10, func(r ViewsRequest) error {
-		return h.SetLibraryViews(r.Service, r.Libraries, r.At)
+		return h.SetLibraryViews(r.Service, r.Libraries, r.At, r.Folders)
 	}))
 	handle("DELETE /v1/library-views/{service}", action(s, "remove library views", 0, func(r ServiceRequest) error { return h.RemoveLibraryViews(r.Service) }))
 	handle("POST /v1/shares/check", route(s, "", 8<<10, h.CheckShare))

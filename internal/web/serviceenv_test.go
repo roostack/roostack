@@ -9,6 +9,7 @@ import (
 
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // A service's Environment variables card (SPEC.md §8.1): the Owner's only;
@@ -117,4 +118,21 @@ func (h *harness) audited(t *testing.T, action, detail string) bool {
 		}
 	}
 	return false
+}
+
+// A package's shown files (SPEC.md §8.1, "Shown on its page"): on the
+// service's page with a copy button, or said not to be made yet.
+func TestShownOnPage(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", URLs: []string{"https://vault.lab.example.com"}}}, nil
+	}
+	fm.shown = map[string][]pkgspec.Shown{"vaultwarden": {{Title: "Server key", Description: "For each client", Storage: "data", Path: "key.pub"},
+		{Title: "Later", Storage: "data", Path: "later"}}}
+	_, body := h.get("/services/vaultwarden")
+	for _, want := range []string{"Server key<br><small class=\"hint\">For each client</small>", "PUBKEY=", "Not made yet: Vaultwarden will make it when it first starts."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page missing %q", want)
+		}
+	}
 }

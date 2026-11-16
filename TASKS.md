@@ -390,7 +390,7 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [ ] Containers can reach the server's SSH port whatever the firewall says, since they connect from the server itself (docs/ASSUMPTIONS.md; a login is still needed): not taken up for now
 - [x] The VPN through another server: devices connecting to a cloud server in the lab, which passes their traffic to the controller over Roostack's network keeping their addresses; SSH to every server; the choice on Settings → VPN; Give it new settings (2026-11-12)
 - [ ] The VPN through Roostack Cloud's relay (a question for Cloud's design)
-- [ ] Check Your account through Caddy on a VM with an address: `my.` with no service using single sign-on, Roostack's pages signing in there, a Member sent there, and where you're signed in after a sign-in on a phone
+- [x] Check Your account through Caddy on a VM with an address (done in use on the maintainer's lab, 2026-11-16): `my.` with no service using single sign-on, Roostack's pages signing in there, a Member sent there, and where you're signed in after a sign-in on a phone
 
 ## How each server is doing (SPEC §6.15.1; decided 2026-11-12)
 

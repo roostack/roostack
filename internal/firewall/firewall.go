@@ -80,7 +80,7 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 				to = trust.Anyone
 			}
 			fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, For: to,
-				Reason: s.Service + " " + hp.Name})
+				Reason: s.Service + " " + hp.Name, From: hp.Outside})
 			// A home-only port is for the VPN's devices whose person may
 			// use the service (SPEC.md §10.11).
 			if devices := lab.Devices.Services[s.Service]; to == trust.Home && len(devices) > 0 {

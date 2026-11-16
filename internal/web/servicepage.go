@@ -104,6 +104,7 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		// prompt links to it.
 		data["OpenAction"] = r.URL.Query().Get("action")
 		s.addSettingsData(data, name, p, nil)
+		data["Shown"] = s.shownFiles(r, name, p)
 		// Its extra environment variables, for the Owner (SPEC.md §8.1).
 		if extra["EditSettings"] == true && extra["Env"] == nil {
 			if c := s.envCardFor(r, name); c != nil {

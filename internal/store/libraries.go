@@ -27,6 +27,11 @@ type MediaLibrary struct {
 	// photos from (SPEC.md §8.5): no service reads it.
 	PhotosFor string
 	Created   time.Time
+	// FromService is the service whose shared folder it is (SPEC.md §8.1,
+	// "A service's folder as a library"), FromTitle its title, and Folder
+	// its path: not kept here, but worked out from the services by the
+	// manager.
+	FromService, FromTitle string
 }
 
 // MediaLibraries lists every server's media libraries, by server and name.

@@ -22,10 +22,18 @@
   </form>
   {{else}}<p class="hint">No service on {{$.Server.ServerName}} reads media libraries.</p>{{end}}
 </section>
+{{if .FromService}}
+<section class="card section">
+  <h2>Where it comes from</h2>
+  <p>It's a folder of <a href="/services/{{.FromService}}">{{.FromTitle}}</a>'s, which {{.FromTitle}} writes to and the services
+    above read, read-only. It will stay a library for as long as {{.FromTitle}} is installed.</p>
+</section>
+{{else}}
 <section class="card section">
   <h2>Remove it</h2>
   <p>Services will stop seeing it. Nothing on the drive or in the folder will change.</p>
   {{confirm (printf "/settings/media/%s/%s/remove" .ServerID .Name) (printf "Remove the media library %s? Services will stop seeing it, and its files will stay where they are." .Title) "Remove library" "quiet danger"}}
 </section>
+{{end}}
 {{end}}
 {{end}}

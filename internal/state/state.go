@@ -156,6 +156,7 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	// Each service's first address, where the domain itself may go
 	// (SPEC.md §5.3).
 	first := map[string]string{}
+	lab.SharedLibraries = SharedLibraries(lab, services)
 	for _, s := range services {
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
@@ -269,6 +270,14 @@ func checkHostPort(hp generate.HostPort, service string, ports map[int]string, h
 		return &PortInUseError{Service: service, Port: hp.Port, UsedBy: other}
 	}
 	hostPorts[key] = service
+	// A well-known port the firewall sends on is one service's too.
+	if hp.Outside != 0 {
+		key := fmt.Sprintf("outside %d/%s", hp.Outside, hp.Protocol)
+		if other, dup := hostPorts[key]; dup {
+			return &PortInUseError{Service: service, Port: hp.Outside, UsedBy: other}
+		}
+		hostPorts[key] = service
+	}
 	return nil
 }
 
@@ -346,4 +355,24 @@ func AllocatePorts(services []Service) ([]Service, error) {
 // InstanceFile is where a service's instance is stored.
 func InstanceFile(lab config.Lab, name string) string {
 	return filepath.Join(lab.Paths.InstancesDir(), name+".yaml")
+}
+
+// SharedLibraries are the folders the services offer as media libraries
+// (pkgspec.Storage.Shared), by library name: those of the server the
+// services run on, for the services there that read libraries (SPEC.md
+// §8.1, "A service's folder as a library"). A service waiting to be
+// restored has none.
+func SharedLibraries(lab config.Lab, services []Service) map[string]string {
+	out := map[string]string{}
+	for _, s := range services {
+		if s.Instance.Waiting {
+			continue
+		}
+		for _, st := range s.Package.SharedStorage() {
+			if l := pkgspec.SharedLibrary(s.Name(), st); l != "" {
+				out[l] = generate.StoragePath(lab, s.Package, s.Instance, st)
+			}
+		}
+	}
+	return out
 }

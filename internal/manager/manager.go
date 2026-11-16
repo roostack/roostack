@@ -493,6 +493,16 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err := in.Save(state.InstanceFile(m.Lab, id)); err != nil {
 		return err
 	}
+	// Its shared folders are libraries the services there read, as every
+	// library is by default (SPEC.md §8.1, "A service's folder as a
+	// library").
+	for _, st := range p.SharedStorage() {
+		if l := pkgspec.SharedLibrary(id, st); l != "" {
+			if err := m.addReaderLibraryLocked(services, in.Host, l); err != nil {
+				return err
+			}
+		}
+	}
 	if in.SSO {
 		m.ssoMu.Lock()
 		m.ssoClients = nil // read again: the sign-in page has a new app
@@ -740,6 +750,9 @@ type PortStatus struct {
 	Name        string
 	Title       string
 	Description string
+	// Outside is the well-known port devices use, which the server's
+	// firewall sends to its port (pkgspec.Port.OutsidePort), or 0.
+	Outside int
 	generate.PortContext
 }
 
@@ -753,7 +766,7 @@ func (m *Manager) Ports(name string) ([]PortStatus, error) {
 	var ports []PortStatus
 	for _, pn := range slices.Sorted(maps.Keys(p.Ports)) {
 		pp := p.Ports[pn]
-		ports = append(ports, PortStatus{Name: pn, Title: pp.Title, Description: pp.Description, PortContext: resolved[pn]})
+		ports = append(ports, PortStatus{Name: pn, Title: pp.Title, Description: pp.Description, Outside: pp.OutsidePort, PortContext: resolved[pn]})
 	}
 	return ports, nil
 }

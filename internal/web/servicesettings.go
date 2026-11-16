@@ -23,6 +23,31 @@ type serviceLink struct {
 	Private, Route string
 }
 
+// shownFile is a small file the app made, shown on its page
+// (pkgspec.Package.Shown): Value is "" until the app has made it.
+type shownFile struct {
+	Title, Description, Value string
+}
+
+// shownFiles reads a service's shown files from its server, if its
+// package has some (none when the server can't be asked).
+func (s *Server) shownFiles(r *http.Request, name string, p *pkgspec.Package) []shownFile {
+	if len(p.Shown) == 0 {
+		return nil
+	}
+	values := make([]string, len(p.Shown))
+	if n := s.serverOf(r); n != nil {
+		if v, err := n.ShownFiles(r.Context(), name); err == nil && len(v) == len(p.Shown) {
+			values = v
+		}
+	}
+	var out []shownFile
+	for i, sh := range p.Shown {
+		out = append(out, shownFile{Title: sh.Title, Description: sh.Description, Value: values[i]})
+	}
+	return out
+}
+
 // revealable is a secret the page can show on request.
 type revealable struct {
 	Key, Title, Description string

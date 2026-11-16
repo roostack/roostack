@@ -846,7 +846,7 @@ func mountUnit(path string) (string, error) {
 // it), automounted after its library. at fills its second view folder, for
 // libraries at their old paths' shared parent (SPEC.md §8.4): the old
 // folder's name → a library it may read.
-func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[string]string) error {
+func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[string]string, folders []string) error {
 	var start []string
 	err := editFstab(func(tab string) (string, error) {
 		var err error
@@ -887,6 +887,30 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[st
 				return "", err
 			}
 			start = append(start, target)
+		}
+		// Other services' folders it reads: an empty folder each, which its
+		// containers bind them at; one no longer read goes (only an empty
+		// folder that's no library's view: Remove refuses anything else).
+		views := map[string]bool{}
+		for _, v := range viewEntries(tab) {
+			if v.service == service {
+				views[v.library] = true
+			}
+		}
+		for _, f := range folders {
+			if known[f] {
+				return "", refuse("%q is a library on this server, not a service's folder", f)
+			}
+			if err := os.Mkdir(filepath.Join(view, f), 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				return "", err
+			}
+		}
+		if entries, err := os.ReadDir(view); err == nil {
+			for _, e := range entries {
+				if e.IsDir() && !views[e.Name()] && !slices.Contains(folders, e.Name()) {
+					os.Remove(filepath.Join(view, e.Name()))
+				}
+			}
 		}
 		// The second view folder: what's there and not wanted goes, then what's
 		// missing comes.
@@ -952,7 +976,7 @@ func withView(tab string, t tag, l, target string) (string, error) {
 // RemoveLibraryViews removes a service's view folders and their mounts
 // (the service was removed, or reads no libraries any more).
 func (h LinuxHost) RemoveLibraryViews(service string) error {
-	if err := h.SetLibraryViews(service, nil, nil); err != nil {
+	if err := h.SetLibraryViews(service, nil, nil, nil); err != nil {
 		return err
 	}
 	for _, dir := range []string{filepath.Join(LibraryViews, service), filepath.Join(LibraryViews, service+".at")} {
