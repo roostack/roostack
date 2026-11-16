@@ -825,6 +825,7 @@ func (g *gen) caddySite() error {
 			PrivateExcept:  g.lab.EdgeAddrs,
 			MaxBodySize:    r.MaxBodySize,
 			ClientIPHeader: r.ClientIPHeader,
+			SelfSigned:     r.SelfSigned,
 			UploadPaths:    r.UploadPaths,
 			Wall:           g.ssoWall(name),
 			Off:            g.inst.Off != nil,

@@ -100,6 +100,9 @@ type Route struct {
 	// address from (e.g. X-Real-IP): set to {remote_host}, as the rate
 	// limits use, replacing any the visitor sent.
 	ClientIPHeader string
+	// SelfSigned: the service answers HTTPS with a certificate it made
+	// itself, which Caddy won't check (pkgspec.Route.SelfSigned).
+	SelfSigned bool
 	// On a public route (SPEC.md §6.11): PrivatePaths (and everything
 	// under them) stay home-only, and LoginPaths get a strict rate limit.
 	PrivatePaths []string
@@ -434,11 +437,16 @@ func (r Route) proxyTo(indent, matcher, extra string) string {
 		// and Roostack: the service never sees it (SPEC.md §5.2).
 		ups = append(ups, fmt.Sprintf(`header_up Cookie "%s=[^;]*;?[ ]*" ""`, WallCookie))
 	}
+	upstream := r.Upstream
+	if r.SelfSigned {
+		upstream = "https://" + upstream
+		ups = append(ups, "transport http {", "\ttls_insecure_skip_verify", "}")
+	}
 	if len(ups) == 0 && extra == "" {
-		return fmt.Sprintf("%sreverse_proxy %s%s\n", indent, matcher, r.Upstream)
+		return fmt.Sprintf("%sreverse_proxy %s%s\n", indent, matcher, upstream)
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%sreverse_proxy %s%s {\n", indent, matcher, r.Upstream)
+	fmt.Fprintf(&b, "%sreverse_proxy %s%s {\n", indent, matcher, upstream)
 	for _, u := range ups {
 		fmt.Fprintf(&b, "%s\t%s\n", indent, u)
 	}

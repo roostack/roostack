@@ -443,6 +443,12 @@ type Route struct {
 	// X-Real-IP): Roostack's proxy sets it to the visitor's address,
 	// replacing any the visitor sent (SPEC.md §8.1).
 	ClientIPHeader string `yaml:"client_ip_header"`
+	// SelfSigned says the app answers HTTPS on Port, with a certificate
+	// it made itself, as Frigate does on the port with its login:
+	// Roostack's proxy will connect with HTTPS and won't check the
+	// certificate, since the connection stays on the server or goes
+	// over Roostack's own network (SPEC.md §8.1).
+	SelfSigned bool `yaml:"self_signed"`
 	// UploadPaths are where the app serves files people uploaded (e.g.
 	// Memos' /file/attachments), each with everything under it; "*"
 	// stands for one part of a path. Roostack's proxy will make anything

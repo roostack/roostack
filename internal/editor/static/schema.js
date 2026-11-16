@@ -398,6 +398,10 @@
        "type": "string"
       },
       {
+       "name": "self_signed",
+       "type": "bool"
+      },
+      {
        "name": "upload_paths",
        "type": "list",
        "item": {
@@ -1961,6 +1965,11 @@
    "label": "Not safe to make public",
    "help": "Why the whole address shouldn't be public, such as an API with no login. The Owner will see it as a warning and can still go ahead.",
    "link": "packages/write#its-web-address"
+  },
+  "routes.*.self_signed": {
+   "label": "App's own HTTPS",
+   "help": "For an app that answers only HTTPS on this port, with a certificate it made itself. Roostack's proxy will connect with HTTPS and won't check that certificate, since the connection stays on the server or on Roostack's own network.",
+   "link": "reference/packages#the-parts"
   },
   "routes.*.subdomain": {
    "label": "Subdomain",

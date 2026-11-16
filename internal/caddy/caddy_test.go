@@ -248,6 +248,7 @@ func TestCaddyAdapt(t *testing.T) {
 		{ID: "svc-paused", Host: "paused.lab.example.com", Upstream: "roostack-svc-api:8080", WAF: true, Blocked: true},
 		{ID: "svc-files", Host: "files.lab.example.com", Upstream: "roostack-svc-api:8080", Private: true,
 			UploadPaths: []string{"/file", "/api/shares/*/files"}},
+		{ID: "svc-tls", Host: "tls.lab.example.com", Upstream: "169.254.1.3:20003", Private: true, SelfSigned: true},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -264,7 +265,7 @@ func TestCaddyAdapt(t *testing.T) {
 		t.Fatalf("caddy adapt failed: %v\n%s", err, out)
 	}
 	for _, want := range []string{`"web.lab.example.com"`, `"api.lab.example.com"`, `"*.lab.example.com"`, `"cloudflare"`,
-		`"handler":"crowdsec"`, `"handler":"rate_limit"`, `"/-/admin/*"`, `"crowdsec":{`, `"filename":"/var/log/caddy/access.log"`, `"path_regexp"`,
+		`"handler":"crowdsec"`, `"handler":"rate_limit"`, `"insecure_skip_verify":true`, `"/-/admin/*"`, `"crowdsec":{`, `"filename":"/var/log/caddy/access.log"`, `"path_regexp"`,
 		`"handler":"appsec"`, `"appsec_url":"http://169.254.1.3:8475/"`, `"appsec_fail_open":true`, `"appsec_max_body_bytes":1048576`,
 		`"enable_caddy_error":true`, `"roostack_waf":"yes"`, `"roostack_blocked":"yes"`, `"status_code":503`,
 		`"lab.example.com"`, `"root":"/etc/caddy/domain"`, `script-src 'none'`,
@@ -410,6 +411,18 @@ func lastAddr(p netip.Prefix) netip.Addr {
 
 // A route naming the header its service reads the visitor's address from
 // sets it from the connection, private or public.
+func TestSelfSigned(t *testing.T) {
+	site, err := Site("frigate", []Route{{ID: "frigate-web", Host: "frigate.example.com", Upstream: "169.254.1.3:20003",
+		Private: true, SelfSigned: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "reverse_proxy https://169.254.1.3:20003 {\n\t\ttransport http {\n\t\t\ttls_insecure_skip_verify\n\t\t}\n"
+	if !strings.Contains(site, want) {
+		t.Errorf("no HTTPS upstream:\n%s", site)
+	}
+}
+
 func TestClientIPHeader(t *testing.T) {
 	for _, private := range []bool{true, false} {
 		site, err := Site("vw", []Route{{ID: "vw-web", Host: "vault.example.com", Upstream: "169.254.1.3:20001",

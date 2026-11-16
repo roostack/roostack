@@ -371,6 +371,10 @@ routes.*.client_ip_header:
   help: For an app that reads the visitor's address from a header other than X-Forwarded-For, such as X-Real-IP. Roostack will set it, replacing any the visitor sent.
   example: X-Real-IP
   link: reference/packages#the-parts
+routes.*.self_signed:
+  label: App's own HTTPS
+  help: For an app that answers only HTTPS on this port, with a certificate it made itself. Roostack's proxy will connect with HTTPS and won't check that certificate, since the connection stays on the server or on Roostack's own network.
+  link: reference/packages#the-parts
 routes.*.upload_paths:
   label: Where uploaded files are
   help: The addresses where the app serves files people uploaded, each with everything under it; a * may stand for one part of an address. Roostack will show only plain images, audio, video, and text from there, and anything else, such as HTML, SVG, or a PDF, will come as a download.
