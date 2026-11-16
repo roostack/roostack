@@ -824,6 +824,12 @@ func TestSignInWideLogoSize(t *testing.T) {
 	if _, body := h.get("/settings/look"); !strings.Contains(body, `alt="The wide logo now" width="480" height="80"`) {
 		t.Error("Name and look's preview has no size")
 	}
+	// Your account's header has both, the page's light or dark choosing,
+	// which can be the person's own rather than their device's.
+	if _, body := h.get("/account"); !strings.Contains(body, `<span class="signin-wide logo-pair"><img class="for-light" src="/brand/wide?v=1"`) ||
+		!strings.Contains(body, `<img class="for-dark" src="/brand/dark?v=1" alt="" width="400" height="80">`) {
+		t.Errorf("Your account's header:\n%s", body)
+	}
 	// A new upload is read again; one without a size has none.
 	os.WriteFile(h.server.lookPath("wide", "svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`), 0o600)
 	h.store.SetSetting(ctx, settingSignInFiles, "wide=svg;2")

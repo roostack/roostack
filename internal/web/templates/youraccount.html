@@ -19,7 +19,11 @@
   <div class="bare">
     <header class="acct-header">
       <a class="acct-brand" href="{{(index .Tabs 0).Href}}">
-        {{if eq .Look.Logo "wide"}}<span class="signin-wide{{if not (.Look.Has "dark")}} on-light{{end}}"><img src="{{.LookBase}}/wide?v={{.Look.Version}}" alt="{{.LabName}}"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}></span>
+        {{- /* With a dark version, both: which shows follows the page's
+             light or dark (logo-pair), which someone can choose apart
+             from their device's. */}}
+        {{if and (eq .Look.Logo "wide") (.Look.Has "dark")}}<span class="signin-wide logo-pair"><img class="for-light" src="{{.LookBase}}/wide?v={{.Look.Version}}" alt="{{.LabName}}"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}><img class="for-dark" src="{{.LookBase}}/dark?v={{.Look.Version}}" alt="{{.LabName}}"{{with .Look.Width "dark"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}></span>
+        {{else if eq .Look.Logo "wide"}}<span class="signin-wide on-light"><img src="{{.LookBase}}/wide?v={{.Look.Version}}" alt="{{.LabName}}"{{with .Look.Width "wide"}} width="{{.}}" height="{{$.Look.Height}}"{{end}}></span>
         {{else}}{{if eq .Look.Logo "mark"}}<img class="signin-mark" src="{{.LookBase}}/mark?v={{.Look.Version}}" alt="" width="36" height="36">{{else}}{{brandMark}}{{end}}<strong>{{.LabName}}</strong>{{end}}
       </a>
       <div class="acct-who">
