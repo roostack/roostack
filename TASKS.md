@@ -372,11 +372,17 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [x] A link to signing out asks first
 - [x] Reading a library "as its owner" only on drives Roostack mounted for media
 - [x] A join with an existing server's ID is refused, until the Owner removes that server
-- [ ] Check that refusal on two VMs: the message the joining server shows, and joining after removing the old entry
+- [x] Check that refusal on two VMs: the message the joining server shows, and joining after removing the old entry (2026-11-16; the message now names the server)
 - [x] `max_body_size` checked in package files (a whole number of KB, MB, GB, or TB), and Caddy's route check refusing every kind of space and control character
 - [x] Walled services' and Glances' loopback ports are open to local accounts on the server: left as it is (the maintainer, 2026-11-15)
-- [ ] Not reviewed yet: what a server can send back to the controller, storage for other labs (`labnet/guests.go`), the edge's config
-- [ ] Check the VPN through another server on two VMs with the fixes of 2026-11-14 (checked then: one VM, the agent driven directly with pretend devices)
+- [x] Reviewed: what a server can send back to the controller, storage for other labs (`labnet/guests.go`), the edge's config (2026-11-15)
+- [x] Check the VPN through another server on two VMs with the fixes of 2026-11-14 (2026-11-16: passes)
+- [x] A guest lab's store hashes only of bcrypt cost 10 to 12; the controller keeps servers' readings at its own time and only for the services it placed (2026-11-16)
+- [x] Caddy checks a new configuration before Roostack replaces its files (2026-11-16)
+- [x] Erasing a disk with something on it: a USB drive unplugged and plugged back in, any other disk with `roostack drive erase` as root (2026-11-16, the maintainer's choice)
+- [x] A server that joins has the lab's firewall at once, SSH open until its Remote access is chosen (2026-11-16, the maintainer's choice)
+- [x] The VPN turns off whatever its server has become (2026-11-16)
+- [ ] Containers can reach the server's SSH port whatever the firewall says, since they connect from the server itself (docs/ASSUMPTIONS.md; a login is still needed): not taken up for now
 - [x] The VPN through another server: devices connecting to a cloud server in the lab, which passes their traffic to the controller over Roostack's network keeping their addresses; SSH to every server; the choice on Settings → VPN; Give it new settings (2026-11-12)
 - [ ] The VPN through Roostack Cloud's relay (a question for Cloud's design)
 - [ ] Check Your account through Caddy on a VM with an address: `my.` with no service using single sign-on, Roostack's pages signing in there, a Member sent there, and where you're signed in after a sign-in on a phone

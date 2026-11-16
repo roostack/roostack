@@ -130,6 +130,17 @@ sudo roostack node join <code> [-name <name>]
 Joins this server to a lab, with a join code from the lab's **Settings →
 Servers**. See [Add a server](../servers/add.md).
 
+## Drives
+
+```bash
+sudo roostack drive erase <disk>   # such as /dev/sdb
+```
+
+Erases a disk and prepares it for backups. It says what's on the disk
+first, and erases it only once you type the disk's name. Roostack's pages
+show this command for a disk with something on it that isn't a USB drive,
+which only root can erase. See [A drive](../backups/places.md#a-drive).
+
 ## Running Roostack
 
 ```bash
