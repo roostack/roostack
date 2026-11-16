@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	stdlog "log"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
 	"strconv"
+	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/agent"
@@ -44,7 +46,8 @@ func Serve(ctx context.Context, stateDir string, handler http.Handler, log *slog
 		ln.Close()
 		return
 	}
-	srv := &http.Server{Handler: handler, TLSConfig: tlsConf, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: handler, TLSConfig: tlsConf, ReadHeaderTimeout: 10 * time.Second,
+		ErrorLog: stdlog.New(serverErrors{log}, "", 0)}
 	go func() {
 		<-ctx.Done()
 		srv.Close()
@@ -233,4 +236,18 @@ func DecodeResponse(resp *http.Response, out any) error {
 		return nil
 	}
 	return json.Unmarshal(data, out)
+}
+
+// serverErrors passes the lab API server's errors on to the log, except a
+// connection closed before its TLS handshake ("TLS handshake error from
+// …: EOF"): the controller's check that each server answers opens one and
+// closes it every minute.
+type serverErrors struct{ log *slog.Logger }
+
+func (e serverErrors) Write(p []byte) (int, error) {
+	line := strings.TrimSpace(string(p))
+	if !(strings.HasPrefix(line, "http: TLS handshake error from ") && strings.HasSuffix(line, ": EOF")) {
+		e.log.Warn("lab API", "err", line)
+	}
+	return len(p), nil
 }
