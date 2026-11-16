@@ -25,7 +25,15 @@ then <http://127.0.0.1:8791/docs/mockups/extra-env/forgejo.html#advanced>. The b
 - **Saving** restarts the containers that read the change, as a setting does; nothing else changes.
 - **After a wrong value:** the service's page says it isn't starting as usual; removing the variable starts it as it was.
 
-## For the maintainer to decide
+## Decided (2026-11-16), the maintainer
+
+1. **Where:** a card on the service's Settings page, as mocked.
+2. **Editing:** in the row itself: Edit turns the row's value into a text box with Save and Cancel (Replace, for a secret).
+3. **A secret's value:** hidden after saving, and shown to the Owner on request (Show), each time audited.
+4. **Names the package sets:** refused, as mocked.
+5. and 6. Not answered yet: the recommendations below until the maintainer says otherwise.
+
+## The questions as asked
 
 1. **Where:** a card on Settings, as mocked (recommended: it's where people change a service), or a page of its own under the service (Settings → Advanced), which keeps Settings short.
 2. **Editing:** Edit puts the row's value back in the form above (recommended: one form), or edits in the row itself.
