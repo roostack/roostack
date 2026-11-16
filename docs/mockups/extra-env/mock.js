@@ -1,7 +1,8 @@
-// The mock-ups' switch: the three pages, and light or dark. Opens on the
+// The mock-ups' switch: the six pages, and light or dark. Opens on the
 // Environment variables card.
 (() => {
-  const pages = [["forgejo.html", "One container"], ["refused.html", "Refused"], ["immich.html", "Two containers"]];
+  const pages = [["forgejo.html", "Editing a row"], ["shown.html", "A secret shown"], ["refused.html", "Refused"],
+    ["text.html", "As text"], ["check.html", "Check"], ["immich.html", "Two containers"]];
   const here = location.pathname.split("/").pop() || "forgejo.html";
   const bar = document.createElement("nav");
   bar.className = "mock-bar";

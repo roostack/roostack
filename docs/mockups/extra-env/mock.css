@@ -1,12 +1,20 @@
 /* Environment variables mock-ups (2026-11-16): only what the real stylesheet lacks. */
 .row-end { text-align: right; white-space: nowrap; }
-.extra-env-form { display: grid; gap: var(--space-3); max-width: 32rem; }
-.extra-env-form label { margin: 0; }
-.extra-env-form input:not([type="checkbox"]), .extra-env-form select { display: block; width: 100%; margin-top: var(--space-1); }
-.extra-env-form button { justify-self: start; }
+.mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--text-sm); }
+.env-table input.inline { width: 100%; min-width: 9rem; }
+.env-table td { vertical-align: middle; }
+.row-add td { padding-top: var(--space-3); }
+.small-check { display: inline-flex; gap: 6px; margin: var(--space-1) 0 0; font-size: var(--text-sm); }
+.small-check small { display: block; color: var(--muted); }
+.row-editing { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.row-error p.error { margin: 0; }
+.env-view { margin: 0 0 var(--space-3); }
+.actions-row .hint { margin: 0; align-self: center; }
+.env-text-form textarea { display: block; width: 100%; line-height: 1.5; margin-bottom: var(--space-2); }
 #advanced .table-wrap { margin-bottom: var(--space-4); }
 /* The mock-ups' own switch, bottom right. */
 .mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 6px; flex-wrap: wrap; padding: 6px;
   border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 13px; }
 .mock-bar a, .mock-bar button { color: inherit; background: none; border: 0; padding: 2px 6px; font: inherit; cursor: pointer; text-decoration: none; }
 .mock-bar [aria-current] { text-decoration: underline; }
+.env-text-form { margin-bottom: var(--space-4); }

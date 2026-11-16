@@ -81,7 +81,7 @@
   x-data="{ device: Intl.DateTimeFormat().resolvedOptions().timeZone, offset: -new Date().getTimezoneOffset() }"
   x-show="offset !== 660">
   <strong>Times in Roostack are this server's time, not yours.</strong>
-  This server is set to Australia/Melbourne, where it's 21:14 now. The device you're using is in <span x-text="device"></span>.
+  This server is set to Australia/Melbourne, where it's 21:23 now. The device you're using is in <span x-text="device"></span>.
   <a href="/setup/timezone">Change the server's time zone</a> if it's wrong.
 </div>
 
@@ -156,23 +156,9 @@
       <p>Forgejo reads many of its options from environment variables. Ones you add here will go to Forgejo just as you type them,
         and Roostack will keep them through updates. <a href="https://forgejo.org/docs/latest/admin/config-cheat-sheet/" target="_blank" rel="noopener">Forgejo's list of options</a></p>
       <p class="hint">Roostack can't check them: a wrong value can stop Forgejo starting, and if it does, removing the variable here
-        will start it as it was.</p>
-      <div class="table-wrap"><table class="list stack-phone">
-        <thead><tr><th>Variable</th><th>Value</th><th><span class="sr-only">Change</span></th></tr></thead>
-        <tbody><tr><td><code>FORGEJO__mailer__ENABLED</code></td><td class="wrap"><code>true</code></td><td class="row-end"><button type="button" class="quiet">Edit</button> · <button type="button" class="quiet danger">Remove</button></td></tr><tr><td><code>FORGEJO__mailer__SMTP_ADDR</code></td><td class="wrap"><code>smtp.fastmail.com</code></td><td class="row-end"><button type="button" class="quiet">Edit</button> · <button type="button" class="quiet danger">Remove</button></td></tr><tr><td><code>FORGEJO__mailer__USER</code></td><td class="wrap"><code>git@smith.family</code></td><td class="row-end"><button type="button" class="quiet">Edit</button> · <button type="button" class="quiet danger">Remove</button></td></tr><tr><td><code>FORGEJO__mailer__PASSWD</code> <span class="pill">Secret</span></td><td class="wrap"><span class="hint">Hidden</span></td><td class="row-end"><button type="button" class="quiet">Replace</button> · <button type="button" class="quiet danger">Remove</button></td></tr></tbody>
-      </table></div>
-      <h3 class="sub-heading">Add a variable</h3>
-      <p class="error" role="alert">Forgejo's package sets FORGEJO__database__PASSWD itself, from its database's password, so it can't be added here.</p>
-      <form method="post" action="#" class="extra-env-form">
-        <label>Name <input name="name" value="FORGEJO__database__PASSWD" required pattern="[A-Za-z_][A-Za-z0-9_]*" autocapitalize="off" spellcheck="false"
-          placeholder="SOME_OPTION"><small>Letters, digits, and underscores, as Forgejo's list gives it.</small></label>
-        <label>Value <input name="value" value="" autocapitalize="off" spellcheck="false"></label>
-        
-        <label class="check"><input type="checkbox" name="secret"><span>It's a secret, such as a password
-          <small>Roostack will keep it as a Podman secret, and won't show it again.</small></span></label>
-        <button type="submit">Add</button>
-        <p class="hint">Adding, changing, or removing one will restart Forgejo, and it will be unavailable for a moment.</p>
-      </form>
+        will start it as it was. Saving a change will restart Forgejo, and it will be unavailable for a moment.</p>
+      <div class="env-view"><label class="view-switch"><input type="checkbox" onchange="location.href='text.html#advanced'"><span>Rows</span><span>As text</span><span class="sr-only"> view</span></label></div>
+      <div class="table-wrap"><table class="list stack-phone env-table"><thead><tr><th>Variable</th><th>Value</th><th><span class="sr-only">Change</span></th></tr></thead><tbody><tr><td><code>FORGEJO__mailer__ENABLED</code></td><td class="wrap"><code>true</code></td><td class="row-end"><button type="button" class="quiet">Edit</button> · <button type="button" class="quiet danger">Remove</button></td></tr><tr><td><code>FORGEJO__mailer__SMTP_ADDR</code></td><td class="wrap"><code>smtp.fastmail.com</code></td><td class="row-end"><button type="button" class="quiet">Edit</button> · <button type="button" class="quiet danger">Remove</button></td></tr><tr><td><code>FORGEJO__mailer__USER</code></td><td class="wrap"><code>git@smith.family</code></td><td class="row-end"><button type="button" class="quiet">Edit</button> · <button type="button" class="quiet danger">Remove</button></td></tr><tr><td><code>FORGEJO__mailer__PASSWD</code> <span class="pill">Secret</span></td><td class="wrap"><span class="hint">Hidden</span></td><td class="row-end"><button type="button" class="quiet">Show</button> · <button type="button" class="quiet">Replace</button> · <button type="button" class="quiet danger">Remove</button></td></tr><tr class="row-error"><td colspan="3"><p class="error" role="alert">Forgejo's package sets FORGEJO__database__PASSWD itself, from its database's password, so it can't be added here.</p></td></tr><tr class="row-add"><td><label class="sr-only" for="new-name">Name</label><input id="new-name" class="inline mono" placeholder="NEW_VARIABLE" value="FORGEJO__database__PASSWD" pattern="[A-Za-z_][A-Za-z0-9_]*" autocapitalize="off" spellcheck="false"></td><td><label class="sr-only" for="new-value">Value</label><input id="new-value" class="inline mono" placeholder="value" autocapitalize="off" spellcheck="false"><label class="check small-check"><input type="checkbox"><span>Secret</span></label></td><td class="row-end"><button type="button" class="small">Add</button></td></tr></tbody></table></div>
       <details class="form-more"><summary>Variables Forgejo's package sets</summary>
         <p class="hint">Roostack sets these from Forgejo's settings, its database, its address, and single sign-on, so they can't be added
           here: change them through the settings above.</p>
@@ -181,7 +167,8 @@
         <p class="hint">They're kept in Forgejo's instance file (<code>/var/lib/roostack/services/forgejo.yaml</code>), so backups
           and moving Forgejo to another server keep them; a secret's value is a Podman secret,
           <code>roostack-forgejo-env-&lt;name&gt;</code>, given to the container as that variable. Forgejo's container file on its
-          technical side shows them, after the package's own (<code>Environment=</code>, and <code>Secret=</code> for a secret).</p></details>
+          technical side shows them after the package's own (<code>Environment=</code>, and <code>Secret=</code> for a secret).
+          Up to 100 per service, each value up to 4 KB.</p></details>
     </section>
   </div>
 </div>
