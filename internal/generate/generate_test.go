@@ -1371,3 +1371,25 @@ func TestExtraEnv(t *testing.T) {
 		}
 	}
 }
+
+func TestClientAddresses(t *testing.T) {
+	p, err := pkgspec.Parse([]byte(`
+schema: roostack/v1alpha1
+name: dns
+title: DNS
+version: "1"
+containers:
+  app: { image: "x@sha256:0000000000000000000000000000000000000000000000000000000000000000", client_addresses: true }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Service(testLab(), p, &instance.Instance{Package: "dns", Version: "1", Name: "dns", Updates: "patch"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unit := Dump(&Output{Quadlets: out.Quadlets})
+	if !strings.Contains(unit, "Network=pasta\n") || strings.Contains(unit, "Network=roostack-dns.network") {
+		t.Errorf("not on a pasta network of its own:\n%s", unit)
+	}
+}

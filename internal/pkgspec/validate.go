@@ -464,6 +464,16 @@ func (p *Package) validateContainer(v *validator, name string, c *Container) {
 		}
 	}
 	validateMemory(v, at+".memory", c.Memory)
+	if c.ClientAddresses {
+		if len(p.Containers) > 1 {
+			v.addf("%s.client_addresses: only a package with one container can have it", at)
+		}
+		for _, db := range slices.Sorted(maps.Keys(p.Databases)) {
+			if p.Databases[db].Type != DBSQLite {
+				v.addf("%s.client_addresses: the container couldn't reach databases.%s", at, db)
+			}
+		}
+	}
 	validateQuadlet(v, at+".quadlet", c.Quadlet)
 }
 

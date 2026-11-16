@@ -66,6 +66,23 @@ title: App
 version: "1"
 containers:
   web: { image: x, imagee: y }`, "field imagee not found"},
+		{"client addresses with a database", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  main: { type: postgres }
+containers:
+  web: { image: x, client_addresses: true }`, "containers.web.client_addresses: the container couldn't reach databases.main"},
+		{"client addresses with two containers", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+containers:
+  web: { image: x, client_addresses: true }
+  worker: { image: x }`, "containers.web.client_addresses: only a package with one container can have it"},
 		{"url for a mysql database", `
 schema: roostack/v1alpha1
 name: app

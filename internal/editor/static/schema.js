@@ -288,6 +288,10 @@
        "type": "string"
       },
       {
+       "name": "client_addresses",
+       "type": "bool"
+      },
+      {
        "name": "quadlet",
        "type": "quadlet"
       }
@@ -1479,6 +1483,11 @@
    "label": "Containers",
    "help": "The app's containers, each from an image the project publishes itself. Databases aren't containers here: declare them under databases, and Roostack will run them.",
    "link": "packages/write#containers-and-images"
+  },
+  "containers.*.client_addresses": {
+   "label": "Sees clients' addresses",
+   "help": "Run the container on a network of its own so that it sees each device's real address rather than Podman's, such as for a DNS server's per-device limits and logs. Only for a package with one container and no database server.",
+   "link": "reference/packages#the-parts"
   },
   "containers.*.command": {
    "label": "Command",

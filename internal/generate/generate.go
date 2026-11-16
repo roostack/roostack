@@ -426,7 +426,14 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 		}
 		cs.Exec(args)
 	}
-	cs.Add("Network", "roostack-"+svc+".network")
+	if c.ClientAddresses {
+		// A pasta network of its own keeps clients' addresses, which
+		// the service network's port forwarding replaces with its own
+		// (SPEC.md §6.5, docs/ASSUMPTIONS.md C4).
+		cs.Add("Network", "pasta")
+	} else {
+		cs.Add("Network", "roostack-"+svc+".network")
+	}
 	// Routed containers are published on the host's loopback only; Caddy
 	// reaches them through pasta's loopback mapping (SPEC.md §6.5). A node
 	// publishes them on its address on Roostack's network instead, for the

@@ -274,6 +274,10 @@ containers.*.memory:
   help: What it typically uses, such as 300 MB or 1.5 GB (1 GB is 1000 MB), for the summary shown before installing. It's an estimate, not a limit, so measure it once it's running.
   example: 300 MB
   link: packages/try#measure-its-memory
+containers.*.client_addresses:
+  label: Sees clients' addresses
+  help: Run the container on a network of its own so that it sees each device's real address rather than Podman's, such as for a DNS server's per-device limits and logs. Only for a package with one container and no database server.
+  link: reference/packages#the-parts
 containers.*.quadlet:
   label: Quadlet lines
   help: Extra lines for the container's Quadlet file, by section, for what the format doesn't cover. Only the keys the package policy allows, such as UserNS=keep-id:uid=1000,gid=1000 for an app whose files need that owner.
