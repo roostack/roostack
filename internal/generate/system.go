@@ -195,6 +195,7 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 		Domain:        lab.Domain,
 		Email:         lab.Email,
 		DNSDirective:  directive,
+		LocalCA:       lab.TestAddress(),
 		AdminUpstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, lab.UIPort),
 		AdminPublic:   lab.PublicUI(),
 		StatusPage:    lab.Monitoring.StatusPage,
@@ -470,6 +471,13 @@ func dnsConfig(lab config.Lab) (string, []string, error) {
 	p := dns.Get(lab.DNS.Provider)
 	if p == nil {
 		return "", nil, fmt.Errorf("unknown DNS provider %q", lab.DNS.Provider)
+	}
+	// Caddy's own certificates only ever for a name under .localhost
+	// (SPEC.md §6.6), whatever lab.yaml says: config.Lab.Validate refuses
+	// it too.
+	if lab.TestAddress() != config.LocalhostName(lab.Domain) {
+		return "", nil, fmt.Errorf("a test address must be a name under %s, and such a name a test address: got %q with DNS provider %q",
+			config.TestAddressSuffix, lab.Domain, lab.DNS.Provider)
 	}
 	fields := lab.DNS.Fields
 	if len(fields) == 0 {

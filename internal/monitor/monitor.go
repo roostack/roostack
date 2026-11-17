@@ -12,6 +12,7 @@ package monitor
 
 import (
 	"context"
+	"crypto/x509"
 	"log/slog"
 	"slices"
 	"strconv"
@@ -59,6 +60,9 @@ type Check struct {
 	// SkipVerify doesn't check the certificate (a device's self-signed
 	// one); the check still records its expiry.
 	SkipVerify bool
+	// Roots, if set, are the certificate authorities trusted instead of
+	// Roots: a test address's, Caddy's own (SPEC.md §6.6).
+	Roots *x509.CertPool
 	// TCP is a host:port that must accept a connection.
 	TCP string
 	// Ping is a host that must answer a ping.

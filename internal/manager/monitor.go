@@ -2,7 +2,9 @@ package manager
 
 import (
 	"context"
+	"crypto/x509"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
@@ -52,6 +54,7 @@ func (m *Manager) MonitorChecks(ctx context.Context) []monitor.Check {
 	}
 	states := m.ServiceStates(ctx)
 	lab := m.labNow()
+	roots := localRoots(lab)
 	for _, s := range services {
 		name := s.Name()
 		gen, err := state.Output(lab, s)
@@ -65,12 +68,28 @@ func (m *Manager) MonitorChecks(ctx context.Context) []monitor.Check {
 				Key: "service:" + name + ":" + rm.Route, Kind: monitor.KindService, Name: s.Title(), Address: rm.Host,
 				Service: name, Server: st.Server,
 				URL: "https://" + rm.Host + rm.Path, Dial: CaddyLocal, Statuses: rm.Statuses,
-				Paused: paused, Alert: true, Public: rm.Public,
+				Paused: paused, Alert: true, Public: rm.Public, Roots: roots,
 				PublicPaused: rm.Public && generate.Paused(lab, s.Package, s.Instance),
 			})
 		}
 	}
 	return out
+}
+
+// localRoots, on a test address (SPEC.md §6.6), is Caddy's own certificate
+// authority, which signs its certificates, so that the checks still verify
+// each one's name and dates; nil otherwise, for the system's. Read each
+// time, as Caddy makes it when it first starts: until then, nothing is
+// trusted, and the checks say the certificate isn't valid.
+func localRoots(lab config.Lab) *x509.CertPool {
+	if !lab.TestAddress() {
+		return nil
+	}
+	pool := x509.NewCertPool()
+	if pem, err := os.ReadFile(lab.Paths.CaddyLocalRoot()); err == nil {
+		pool.AppendCertsFromPEM(pem)
+	}
+	return pool
 }
 
 // monitorPaused says why a service isn't checked now, or "".

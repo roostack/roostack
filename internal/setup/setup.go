@@ -147,7 +147,9 @@ func (s *Setup) Progress(ctx context.Context) (Progress, error) {
 	}
 	p.TimezoneDone = tz == "done"
 	p.SSHDone = ssh == "done"
-	p.DomainDone, p.DomainLater = d == "done", d == "later"
+	// A test address is set from the command line (SPEC.md §6.6), so
+	// there's nothing for the wizard to ask.
+	p.DomainDone, p.DomainLater = d == "done" || s.Lab.TestAddress(), d == "later"
 	p.BackupDone, p.BackupLater = b == "done", b == "later"
 	p.RecoverySaved = r == "confirmed"
 	return p, nil
@@ -173,11 +175,16 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 	if !domainRe.MatchString(domain) {
 		return &usererr.Error{Msg: "Enter a domain like lab.example.com."}
 	}
+	// A test address is only ever set from the command line (SPEC.md
+	// §6.6).
+	if config.LocalhostName(domain) {
+		return &usererr.Error{Msg: "Names ending in .localhost only ever reach the computer they're opened on, so they can't be your lab's address. Enter a domain like lab.example.com."}
+	}
 	if _, err := mail.ParseAddress(email); err != nil || strings.ContainsAny(email, " <>") {
 		return &usererr.Error{Msg: "Enter an email address. Let's Encrypt will use it to warn about certificate problems."}
 	}
 	p := dns.Get(providerID)
-	if p == nil {
+	if p == nil || p.Hidden {
 		return &usererr.Error{Msg: "Choose who manages your domain's DNS."}
 	}
 	clean := map[string]string{}
@@ -253,6 +260,10 @@ func (s *Setup) keepOldAddress(ctx context.Context, domain string) (*config.OldA
 	}
 	if step, err := s.Store.Setting(ctx, keyDomain); err != nil || step != "done" || cur.Domain == "" || cur.Domain == domain {
 		return nil, err
+	}
+	// A test address reaches nothing worth keeping (SPEC.md §6.6).
+	if cur.TestAddress() {
+		return nil, nil
 	}
 	// An earlier old address stops now: its records go first, with its
 	// login, which the one being left replaces. Any it can't delete are

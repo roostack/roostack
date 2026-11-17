@@ -2,6 +2,12 @@ package manager
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -91,5 +97,34 @@ func TestStatusPageProgress(t *testing.T) {
 	m.Wait()
 	if p := m.StatusPageProgress(); p.Applying || p.Applied.Before(before) {
 		t.Errorf("applied: %+v", p)
+	}
+}
+
+// TestLocalRoots: on a test address, the checks trust Caddy's own
+// certificate authority, once Caddy has made it, and nothing else; on a
+// real address, the system's (SPEC.md §6.6).
+func TestLocalRoots(t *testing.T) {
+	t.Parallel()
+	lab := config.Default()
+	lab.Paths.StateDir = t.TempDir()
+	lab.Domain, lab.DNS = "lab.example.com", config.DNS{Provider: "cloudflare"}
+	if localRoots(lab) != nil {
+		t.Error("a real address doesn't use the system's roots")
+	}
+	lab.Domain, lab.DNS = "lab.localhost", config.DNS{Provider: config.ProviderTestAddress}
+	srv := httptest.NewTLSServer(http.NotFoundHandler())
+	defer srv.Close()
+	leaf := srv.Certificate()
+	verifies := func() bool {
+		_, err := leaf.Verify(x509.VerifyOptions{Roots: localRoots(lab), DNSName: "example.com"})
+		return err == nil
+	}
+	if verifies() {
+		t.Error("trusted before Caddy made its authority")
+	}
+	os.MkdirAll(filepath.Dir(lab.Paths.CaddyLocalRoot()), 0o700)
+	os.WriteFile(lab.Paths.CaddyLocalRoot(), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leaf.Raw}), 0o644)
+	if !verifies() {
+		t.Error("Caddy's root isn't trusted")
 	}
 }

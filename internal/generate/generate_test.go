@@ -499,6 +499,39 @@ func systemGolden(t *testing.T, public, internet bool, name string) {
 	}
 }
 
+// TestSystemTestAddress: Caddy for a test address (SPEC.md §6.6), with its
+// own certificates, no DNS credentials, and Roostack's pages, the sign-in
+// page, and the services under .localhost; and only for a .localhost name.
+func TestSystemTestAddress(t *testing.T) {
+	lab := testLab()
+	lab.Domain, lab.DNS = "lab.localhost", config.DNS{Provider: config.ProviderTestAddress}
+	out, err := SystemWith(lab, SystemOptions{SignIn: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Caddyfile.Content == "" || len(out.Secrets) != 0 || strings.Contains(out.Quadlets[0].Content, "Secret=") {
+		t.Errorf("Caddy for a test address: %v\n%s", out.Secrets, out.Quadlets[0].Content)
+	}
+	for _, want := range []string{"\tskip_install_trust\n", "*.lab.localhost {\n\ttls {\n\t\tissuer internal\n\t}\n",
+		"roost.lab.localhost", "my.lab.localhost"} {
+		if !strings.Contains(out.Caddyfile.Content, want) {
+			t.Errorf("Caddyfile is missing %q:\n%s", want, out.Caddyfile.Content)
+		}
+	}
+	// Whatever lab.yaml says, Caddy's own certificates are only for names
+	// under .localhost, and those names only get them.
+	for _, l := range []config.Lab{
+		{Domain: "lab.example.com", DNS: config.DNS{Provider: config.ProviderTestAddress}},
+		{Domain: "lab.localhost", DNS: config.DNS{Provider: "cloudflare"}},
+	} {
+		bad := testLab()
+		bad.Domain, bad.DNS = l.Domain, l.DNS
+		if _, err := System(bad, false); err == nil {
+			t.Errorf("%s with %s was generated", l.Domain, l.DNS.Provider)
+		}
+	}
+}
+
 func TestSystemRoute53(t *testing.T) {
 	lab := testLab()
 	lab.DNS.Provider = "route53"
@@ -541,6 +574,9 @@ func TestCaddyAdaptAllProviders(t *testing.T) {
 		t.Run(p.ID, func(t *testing.T) {
 			lab := testLab()
 			lab.DNS.Provider = p.ID
+			if p.ID == config.ProviderTestAddress {
+				lab.Domain = "lab.localhost"
+			}
 			var env []string
 			for _, f := range p.Fields {
 				lab.DNS.Fields = append(lab.DNS.Fields, f.Key)
@@ -576,7 +612,11 @@ func TestCaddyAdaptAllProviders(t *testing.T) {
 			if vout, err := v.CombinedOutput(); err != nil {
 				t.Errorf("caddy validate: %v\n%s", err, lastLines(string(vout), 3))
 			}
-			if !strings.Contains(string(got), `"name":"`+p.ID+`"`) {
+			if want := `"name":"` + p.ID + `"`; p.ID == config.ProviderTestAddress {
+				if !strings.Contains(string(got), `"module":"internal"`) {
+					t.Errorf("a test address's adapted config doesn't use Caddy's own certificate authority:\n%s", got)
+				}
+			} else if !strings.Contains(string(got), want) {
 				t.Errorf("adapted config doesn't use the %s provider:\n%s", p.ID, got)
 			}
 		})

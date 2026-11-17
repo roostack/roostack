@@ -99,6 +99,11 @@ func TestDomainStep(t *testing.T) {
 		{"home.example.com", "me@example.com", "", nil, "Choose who manages"},
 		{"home.example.com", "me@example.com", "route53", map[string]string{"access_key_id": "good"}, "Enter the secret access key"},
 		{"home.example.com", "me@example.com", "cloudflare", map[string]string{"api_token": "bad"}, "Cloudflare said: 403 Forbidden"},
+		// A test address is only ever set from the command line (SPEC.md
+		// §6.6): neither its names nor its provider are taken here.
+		{"lab.localhost", "me@example.com", "cloudflare", map[string]string{"api_token": "good"}, ".localhost only ever reach"},
+		{"home.example.com", "me@example.com", config.ProviderTestAddress, nil, "Choose who manages"},
+		{"smiths.roost.ac", "me@example.com", config.ProviderCloud, nil, "Choose who manages"},
 	} {
 		err := s.SaveDomain(ctx, tc.domain, tc.email, tc.provider, tc.values, DomainOptions{})
 		var ce *usererr.Error
@@ -137,6 +142,32 @@ func TestDomainStep(t *testing.T) {
 	}
 	if p, _ := s.Progress(ctx); p.Next() != "/setup/backup" {
 		t.Errorf("next = %q, want the backup step", p.Next())
+	}
+}
+
+// TestTestAddressStep: on a test address, set from the command line,
+// the wizard's address step is done, and switching from it to a real
+// address doesn't keep it as the old one (SPEC.md §6.6).
+func TestTestAddressStep(t *testing.T) {
+	s, _, _ := newSetup(t)
+	ctx := context.Background()
+	s.Lab.Domain, s.Lab.DNS = "lab.localhost", config.DNS{Provider: config.ProviderTestAddress}
+	if err := s.Lab.Save(s.LabPath); err != nil {
+		t.Fatal(err)
+	}
+	s.Done(ctx, StepTimezone)
+	s.Done(ctx, StepSSH)
+	if p, _ := s.Progress(ctx); !p.DomainDone || p.Next() != "/setup/backup" {
+		t.Errorf("a test address: next = %q", p.Next())
+	}
+	// As the wizard's "Change the address" does, from Settings.
+	s.Store.SetSetting(ctx, keyDomain, "done")
+	if err := s.SaveDomain(ctx, "home.example.com", "me@example.com", "cloudflare", map[string]string{"api_token": "good"}, DomainOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	lab, err := config.Load(s.LabPath)
+	if err != nil || lab.Domain != "home.example.com" || lab.TestAddress() || lab.OldAddress != nil {
+		t.Errorf("after switching: %+v, %v", lab, err)
 	}
 }
 

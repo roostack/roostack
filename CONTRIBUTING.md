@@ -86,6 +86,7 @@ scripts/dev-vm.sh ui        # tunnel Roostack's UI to http://127.0.0.1:18481
 scripts/dev-vm.sh ssh [cmd] # a shell, or a command, as the user "dev"
 scripts/dev-vm.sh test [flags]
 scripts/dev-vm.sh usb add|remove NAME [SIZE]   # plug a virtual USB drive in or out
+scripts/dev-vm.sh test-address [name|-off]     # give the lab an address under .localhost
 scripts/dev-vm.sh down | destroy | status
 ```
 
@@ -102,6 +103,7 @@ Things worth knowing:
 - **Networking:** QEMU puts every connection through NAT, so inside a VM all clients seem to come from 10.0.2.2. Another VM reaches VM n's WireGuard at `10.0.2.2:<its UDP port>`.
 - **Commands as the roostack user** need its systemd session: run them from its home with `XDG_RUNTIME_DIR=/run/user/<its uid>` and `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<its uid>/bus`.
 - **The service registry** can't be fetched until the release keys exist ([docs/REGISTRY-KEYS.md](docs/REGISTRY-KEYS.md)). To test fetching, make test keys with `roostack registry keygen`, build an index from a checkout of [roostack/services](https://github.com/roostack/services) with `roostack registry index`, serve it in the VM (`python3 -m http.server`), build with `REGISTRY_DEV_KEY=<the test root public key>` (`sync` and `install` pass it through), and set `registry.url` in the VM's `lab.yaml`.
+- **An address without a domain:** `scripts/dev-vm.sh test-address` gives the VM's lab a test address, `lab.localhost` (SPEC.md §6.6), so that Caddy runs, services get their addresses, and packages that need the lab's own sign-in can be installed, with certificates from Caddy's own certificate authority. It copies Caddy's root certificate to the VM's folder here, and prints where. Inside the VM, `curl --cacert <root> https://roost.lab.localhost/` reaches Caddy (curl sends every `.localhost` name to the computer it runs on); from your machine, add `--connect-to ::127.0.0.1:18443`. A browser on your machine needs its port 443 forwarded to the VM's, which a Mac allows an ordinary user only on every network interface, so that's left for later (TASKS). An app signing people in through the lab's sign-in page also needs to trust Caddy's root (§5.2's checks did it by hand).
 - **Test on a VM, not by reasoning,** anything about Podman, systemd, networking, drives, or the sandbox, and use the unit's full sandbox options when you do: a partial test once missed that `ProtectHome=yes` hides `/run/user`.
 - **Never restore a backup of a lab with a real domain onto another VM:** it would change that domain's real DNS records and certificates.
 

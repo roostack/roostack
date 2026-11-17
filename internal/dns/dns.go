@@ -182,6 +182,7 @@ var providers = []*Provider{
 		records:   spaceshipRecords,
 	},
 	cloudProvider,
+	testAddressProvider,
 }
 
 // Providers lists the providers people choose from, in display order.
@@ -195,7 +196,8 @@ func Providers() []*Provider {
 	return out
 }
 
-// All is every provider, hidden ones too (for the Caddy image's plugins).
+// All is every provider, hidden ones too (for the Caddy image's plugins:
+// a test address's has none).
 func All() []*Provider { return providers }
 
 // Get returns a provider by ID, or nil.

@@ -74,7 +74,11 @@ func probeHTTP(ctx context.Context, c Check) store.MonitorResult {
 			for _, ic := range cs.PeerCertificates[1:] {
 				inter.AddCert(ic)
 			}
-			_, certErr = leaf.Verify(x509.VerifyOptions{DNSName: host, Intermediates: inter, Roots: Roots})
+			roots := Roots
+			if c.Roots != nil {
+				roots = c.Roots
+			}
+			_, certErr = leaf.Verify(x509.VerifyOptions{DNSName: host, Intermediates: inter, Roots: roots})
 			return nil
 		},
 	}

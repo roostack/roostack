@@ -326,6 +326,7 @@ func (s *Server) domainAreaData(r *http.Request) map[string]any {
 	data["UIHost"] = s.uiHost()
 	data["DomainSet"] = s.Domain != "" && s.domainDone(r)
 	data["RoostAc"] = s.DNSProvider == config.ProviderCloud
+	data["TestAddress"] = s.DNSProvider == config.ProviderTestAddress
 	data["CloudSuffix"] = s.cloudSuffix(r.Context())
 	if p := dns.Get(s.DNSProvider); p != nil {
 		data["ProviderTitle"] = p.Title

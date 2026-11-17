@@ -127,3 +127,45 @@ func TestDomainItself(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+// TestTestAddress: a test address is only ever a name under .localhost,
+// and such a name only ever a test address, so Caddy's own certificates
+// can't stand in for real ones on a real address (SPEC.md §6.6).
+func TestTestAddress(t *testing.T) {
+	for name, want := range map[string]bool{"localhost": true, "lab.localhost": true, "Lab.Localhost.": true,
+		"lab.localhost.example.com": false, "notlocalhost": false, "lab.example.com": false, "": false} {
+		if LocalhostName(name) != want {
+			t.Errorf("LocalhostName(%q) = %v", name, !want)
+		}
+	}
+	test := Default()
+	test.Domain, test.DNS = "lab.localhost", DNS{Provider: ProviderTestAddress}
+	if err := test.Validate(); err != nil || !test.TestAddress() || !test.HasAddress() || test.RoostAc() {
+		t.Errorf("a test address: %v", err)
+	}
+	if test.SignInHost() != "my.lab.localhost" || test.UIHost() != "roost.lab.localhost" {
+		t.Errorf("hosts: %s %s", test.SignInHost(), test.UIHost())
+	}
+	bad := map[string]Lab{
+		"the provider on a real domain":          {Domain: "lab.example.com", DNS: DNS{Provider: ProviderTestAddress}},
+		"the provider with no domain":            {DNS: DNS{Provider: ProviderTestAddress}},
+		"a .localhost name with a real provider": {Domain: "lab.localhost", DNS: DNS{Provider: "cloudflare"}},
+		"a .localhost name with Cloud's":         {Domain: "lab.localhost", DNS: DNS{Provider: ProviderCloud}},
+		"a .localhost name with none":            {Domain: "lab.localhost"},
+		"an old test address": {Domain: "lab.example.com", DNS: DNS{Provider: "cloudflare"},
+			OldAddress: &OldAddress{Domain: "lab.localhost", DNS: DNS{Provider: ProviderTestAddress}}},
+	}
+	for what, l := range bad {
+		lab := Default()
+		lab.Domain, lab.DNS, lab.OldAddress = l.Domain, l.DNS, l.OldAddress
+		if lab.Validate() == nil {
+			t.Errorf("%s was accepted", what)
+		}
+	}
+	// Loading refuses one too, so Roostack won't start with it.
+	path := filepath.Join(t.TempDir(), "lab.yaml")
+	os.WriteFile(path, []byte("domain: lab.localhost\ndns:\n  provider: cloudflare\n"), 0o600)
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "roostack test-address") {
+		t.Errorf("loading a .localhost name with a real provider: %v", err)
+	}
+}

@@ -782,14 +782,17 @@ func (c *controller) wireMonitoring() {
 // if the lab has no address now.
 func (c *controller) wireDNS() {
 	lab, mgr, link := c.lab, c.mgr, c.link
-	if lab.DNS.Provider != "" || lab.OldAddress != nil {
+	// A test address has no records: every name under .localhost already
+	// means this server (SPEC.md §6.6).
+	records := lab.DNS.Provider != "" && !lab.TestAddress()
+	if records || lab.OldAddress != nil {
 		// A roost.ac name's records are set through Roostack Cloud: its
 		// request log shows them (SPEC.md §6.6).
 		recordsHTTP := &http.Client{Timeout: 30 * time.Second}
 		if link != nil {
 			recordsHTTP.Transport = link.RecordsTransport(nil)
 		}
-		records := &dnsrecords.Manager{
+		recs := &dnsrecords.Manager{
 			Lab: lab, Secrets: podman.NewSecrets(), Store: c.st, Log: c.log,
 			HTTP:        recordsHTTP,
 			LocalLookup: dnsrecords.SystemLookup, PublicLookup: dnsrecords.PublicLookup,
@@ -853,10 +856,10 @@ func (c *controller) wireDNS() {
 				}
 			},
 		}
-		c.wiz.RemoveOldRecords = records.RemoveOld
-		if lab.DNS.Provider != "" {
-			go records.Run(c.ctx, 30*time.Minute)
-			c.srv.DNS = records
+		c.wiz.RemoveOldRecords = recs.RemoveOld
+		if records {
+			go recs.Run(c.ctx, 30*time.Minute)
+			c.srv.DNS = recs
 		}
 	}
 	go c.wiz.RunOldAddress(c.ctx, c.log)

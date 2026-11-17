@@ -123,43 +123,53 @@ boots Debian's cloud image under QEMU and installs the released Roostack from
 `apt.roostack.cloud`. `drive.py` then goes through Roostack's own pages and
 commands, as a person would:
 
-1. Make an Owner with `roostack user add`, sign in, set up two-factor, and
-   finish the wizard, leaving the domain and backups for later. A lab with no
-   domain can install services, so there are no certificates or DNS to fake.
-2. Install the version labs can install now (`from.sh`: the newest in the
+1. Give the lab a test address, `lab.localhost`, with `sudo roostack
+   test-address` (SPEC.md §6.6, "A test address for throwaway labs"), and
+   wait until Caddy serves Roostack's pages there with its own certificates.
+   Names under `.localhost` always mean the computer itself, so there's no
+   DNS to fake. On a Roostack from before the command, this step is skipped
+   (but see below).
+2. Make an Owner with `roostack user add`, sign in, set up two-factor, and
+   finish the wizard, leaving backups for later (the address step is done on
+   a test address).
+3. Install the version labs can install now (`from.sh`: the newest in the
    published index that isn't withdrawn or `image_gone`), as one of the
    Owner's own packages, with made-up settings, and wait until it's healthy.
-3. For a package with data: `roostack backup init` and `backup run`.
-4. Update it to the pull request's version through the service's page, the
+4. For a package with data: `roostack backup init` and `backup run`.
+5. Update it to the pull request's version through the service's page, the
    path every lab will take, migrations included, wait for the update's job
    to finish (a failed job fails the test), and wait until it's healthy. The
    version in the instance file changes well before the job ends, so it isn't
    enough on its own.
-5. For a package with data: `roostack backup restore <service>` from the
+6. For a package with data: `roostack backup restore <service>` from the
    backup taken before the update, and wait until it's healthy again.
-6. Report each step and its time in the run's summary.
+7. Report each step and its time in the run's summary.
 
 **Healthy** means the service has finished setting up, every container is up
 and passing its health check, each of its ports answers with something other
-than a server error, and all of that lasts 30 seconds. The test has no real
-address, so it doesn't check certificates, and it doesn't check that the app's
-data came through the update or the restore.
+than a server error, each of its addresses does too through Caddy, with a
+certificate that Caddy's own authority signed for that name (since
+2026-11-17, on a lab with a test address), and all of that lasts 30 seconds.
+It doesn't check that the app's data came through the update or the restore.
 
 **When labs can't install any version** (HedgeDoc's image gone, and its only
-version with it), it installs the update itself and skips step 4, so that
+version with it), it installs the update itself and skips step 5, so that
 a rebuild can still fix a package whose image has gone.
 
-**A package that needs the lab's own sign-in isn't tested** (2026-11-17,
-the Owner): one with `sso: required: true`, as Outline, has no sign-in of its
-own, so Roostack installs it only on a lab with an address, which the test's
-lab hasn't got. `needs-address.sh` finds those, and the test passes with a
-notice and a summary saying it wasn't tested, without starting the VM, so a
-person checks the update and it never merges by itself. Considered: failing
-the test (every update of such a package would fail the same way, with
-nothing to fix) and giving the test's lab a real address from Roostack
-Cloud's test environment (an account's credentials in the registry's CI, and
-a Let's Encrypt certificate every run). A test-only address, with Caddy's own
-certificates, is left for later, below.
+**A package that needs the lab's own sign-in** (`sso: required: true`, as
+Outline: it has no sign-in of its own, so Roostack installs it only on a lab
+with an address) **is tested on the test address** (2026-11-17, the Owner),
+like any other. **On a Roostack from before `roostack test-address`,** the
+test's lab has no address: `drive.py` then asks `needs-address.sh` whether
+the package needs one, and if it does, it stops with exit status 3, and the
+test passes with a
+notice and a summary saying it wasn't tested, so a person checks the update
+and it never merges by itself. Considered: failing the test (every update of
+such a package would fail the same way, with nothing to fix) and giving the
+test's lab a real address from Roostack Cloud's test environment (an
+account's credentials in the registry's CI, and a Let's Encrypt certificate
+every run). The test doesn't sign in to the app: that would need the app to
+trust Caddy's root (SPEC.md §6.6, left for later).
 
 **What merges by itself** (the Owner's choice): an update labelled
 `update:patch` or `update:revision` (a rebuild of the same version), of an
@@ -175,8 +185,7 @@ nothing merges.
 
 **Left for later:** ARM (SPEC §8.3.8 leaves this open), checking that an
 app's own data survives the update, rather than only that the app is healthy,
-and a test-only lab address so that packages needing the lab's own sign-in
-can be tested too.
+and signing in to an app through the lab's sign-in page.
 
 ## Not yet
 

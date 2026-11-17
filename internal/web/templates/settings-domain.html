@@ -8,9 +8,14 @@
 <section class="card">
   {{if .DomainSet}}
   <dl class="facts">
-    <dt>Address</dt><dd>{{.LabDomain}} <small class="hint">· {{if .RoostAc}}a free {{.CloudSuffix}} address{{else}}your own domain{{end}}</small></dd>
+    <dt>Address</dt><dd>{{.LabDomain}} <small class="hint">· {{if .RoostAc}}a free {{.CloudSuffix}} address{{else if .TestAddress}}a test address, set with <code>roostack test-address</code>{{else}}your own domain{{end}}</small></dd>
+    {{if .TestAddress}}
+    <dt>DNS provider</dt><dd>None: names ending in <code>.localhost</code> always mean the computer they're opened on, so only this server can reach them</dd>
+    <dt>Services</dt><dd>Addresses like <code>photos.{{.LabDomain}}</code>, with certificates from Caddy's own certificate authority, which browsers don't trust unless you add it</dd>
+    {{else}}
     <dt>DNS provider</dt><dd>{{if .RoostAc}}Roostack Cloud, which runs the name's DNS{{else}}{{.ProviderTitle}}{{end}}</dd>
     <dt>Services</dt><dd>Addresses like <code>photos.{{.LabDomain}}</code>, with a free certificate from Let's Encrypt</dd>
+    {{end}}
     <dt>Your account</dt><dd><code>my.{{.LabDomain}}</code>, where everyone signs in</dd>
     <dt>Roostack</dt><dd><code>{{.UIHost}}</code></dd>
   </dl>

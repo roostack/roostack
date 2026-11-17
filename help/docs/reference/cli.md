@@ -1,7 +1,8 @@
 # Command line
 
 Everything you can do from the command line, you can also do from
-Roostack's pages, apart from getting back in when you're locked out. The
+Roostack's pages, apart from getting back in when you're locked out and
+giving a test lab an address. The
 command line is for technical users, and for when the web page can't help.
 
 Run `roostack <command> -h` on the server for each command's options.
@@ -140,6 +141,22 @@ Erases a disk and prepares it for backups. It says what's on the disk
 first, and erases it only once you type the disk's name. Roostack's pages
 show this command for a disk with something on it that isn't a USB drive,
 which only root can erase. See [A drive](../backups/places.md#a-drive).
+
+## A test lab
+
+```bash
+sudo roostack test-address [name]
+sudo roostack test-address -off
+```
+
+Gives a throwaway lab, such as one on a test VM, an address without a
+domain: `lab.localhost`, or `<name>.localhost`. Names ending in
+`.localhost` always mean the computer they're opened on, so only the
+server itself can reach the lab's services, and their certificates come
+from Caddy's own certificate authority, which browsers don't trust unless
+you add it. It's for testing Roostack and packages, such as one that needs
+the lab's own sign-in. It won't replace a lab's real address, and Roostack's
+pages never offer it. `-off` takes it away again.
 
 ## Running Roostack
 

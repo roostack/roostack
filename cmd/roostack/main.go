@@ -30,6 +30,7 @@ Commands:
   service  Turn a service off for a while, or on again
   registry The service registry's keys and signed index
   drive    Erase a disk for backups (as root)
+  test-address  Give a throwaway lab a test address under .localhost (as root)
 
 Run 'roostack <command> -h' for command flags.
 `
@@ -90,6 +91,8 @@ func run(cmd string, args []string) error {
 		return registryCmd(args)
 	case "drive":
 		return driveCmd(args)
+	case "test-address":
+		return testAddressCmd(args)
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 		return nil

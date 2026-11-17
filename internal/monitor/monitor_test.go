@@ -251,6 +251,29 @@ func TestProbeHTTP(t *testing.T) {
 	}
 }
 
+// A check's own roots (a test address's, Caddy's own certificate
+// authority, SPEC.md §6.6) are trusted instead of the system's, and the
+// name is still checked.
+func TestProbeHTTPOwnRoots(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+	roots := x509.NewCertPool()
+	roots.AddCert(srv.Certificate())
+	check := func(url string, c Check) store.MonitorResult {
+		c.URL, c.Dial = url, srv.Listener.Addr().String()
+		return Probe(context.Background(), c)
+	}
+	if r := check("https://example.com/", Check{}); r.Up || !strings.HasPrefix(r.Err, "its certificate isn't valid") {
+		t.Errorf("the system's roots: %+v", r)
+	}
+	if r := check("https://example.com/", Check{Roots: roots}); !r.Up {
+		t.Errorf("its own roots: %+v", r)
+	}
+	if r := check("https://vault.test/", Check{Roots: roots}); r.Up || r.Err != "its certificate isn't valid: it's for another name" {
+		t.Errorf("another name: %+v", r)
+	}
+}
+
 // TCP: up when something listens; a closed port says so.
 func TestProbeTCP(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

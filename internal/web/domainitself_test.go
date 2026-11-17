@@ -113,3 +113,23 @@ func TestDomainItselfCardNotes(t *testing.T) {
 		t.Errorf("a roost.ac name's default and facts:\n%s", body)
 	}
 }
+
+// TestTestAddressFacts: Settings → Your lab's address says a test address
+// is one, set from the command line, with Caddy's own certificates
+// (SPEC.md §6.6), and still offers a real one.
+func TestTestAddressFacts(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
+	h.server.DomainItself = &fakeDomainItself{}
+	h.server.Domain, h.server.DNSProvider = "lab.localhost", config.ProviderTestAddress
+	_, body := h.get("/settings/domain")
+	for _, want := range []string{"a test address, set with <code>roostack test-address</code>", "Caddy's own certificate authority",
+		"only this server can reach them", `href="/setup/domain"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "Let's Encrypt") || strings.Contains(body, "your own domain") {
+		t.Errorf("a test address described as a real one:\n%s", body)
+	}
+}

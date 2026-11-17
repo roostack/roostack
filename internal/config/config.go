@@ -181,6 +181,13 @@ func (p Paths) StatusPageDir() string { return filepath.Join(p.CaddyDir(), "stat
 // CaddyDataDir holds certificates and the ACME account.
 func (p Paths) CaddyDataDir() string { return filepath.Join(p.StateDir, "caddy-data") }
 
+// CaddyLocalRoot is the root certificate of Caddy's own certificate
+// authority, which signs a test address's certificates (SPEC.md §6.6): in
+// Caddy's data, where the Caddy image keeps it (/data/caddy/pki).
+func (p Paths) CaddyLocalRoot() string {
+	return filepath.Join(p.CaddyDataDir(), "caddy", "pki", "authorities", "local", "root.crt")
+}
+
 // CaddyLogDir holds Caddy's access log while anything is public, which
 // CrowdSec reads (SPEC.md §6.11).
 func (p Paths) CaddyLogDir() string { return filepath.Join(p.StateDir, "caddy-logs") }
@@ -657,6 +664,27 @@ const ProviderCloud = "roostack-cloud"
 // Roostack Cloud.
 func (l Lab) RoostAc() bool { return l.DNS.Provider == ProviderCloud }
 
+// ProviderTestAddress is the DNS provider of a test address (SPEC.md
+// §6.6, "A test address for throwaway labs"): a name under .localhost
+// that only `roostack test-address` sets, served with Caddy's own
+// certificates. It has no credentials and no records.
+const ProviderTestAddress = "test-address"
+
+// TestAddressSuffix ends every test address. Names under .localhost always
+// mean the computer itself (RFC 6761), so no DNS server on the internet
+// answers for them and no public certificate authority signs them: a lab
+// on one can only be reached from its own server.
+const TestAddressSuffix = ".localhost"
+
+// TestAddress reports whether the lab's address is a test address.
+func (l Lab) TestAddress() bool { return l.DNS.Provider == ProviderTestAddress }
+
+// LocalhostName reports whether name is localhost or a name under it.
+func LocalhostName(name string) bool {
+	name = strings.TrimSuffix(strings.ToLower(name), ".")
+	return name == "localhost" || strings.HasSuffix(name, TestAddressSuffix)
+}
+
 // UIHost is where Roostack's own pages are: roost.<domain>, for a
 // roost.ac name too since 2026-11-11 (SPEC.md §5.3).
 func (l Lab) UIHost() string { return "roost." + l.Domain }
@@ -969,6 +997,19 @@ func (l Lab) Validate() error {
 	}
 	if err := l.DomainItself.Validate(); err != nil {
 		errs = append(errs, fmt.Errorf("domain_itself: %w", err))
+	}
+	// A test address is only ever a name under .localhost, and such a
+	// name only ever a test address, so Caddy's own certificates can't
+	// take the place of real ones on a real address (SPEC.md §6.6).
+	switch local := LocalhostName(l.Domain); {
+	case l.TestAddress() && !local:
+		errs = append(errs, fmt.Errorf("dns.provider %q is only for a domain under %s, got %q", ProviderTestAddress, TestAddressSuffix, l.Domain))
+	case local && !l.TestAddress():
+		errs = append(errs, fmt.Errorf("a domain under %s is a test address, set with `roostack test-address`, got %q with dns.provider %q",
+			TestAddressSuffix, l.Domain, l.DNS.Provider))
+	}
+	if o := l.OldAddress; o != nil && (LocalhostName(o.Domain) || o.DNS.Provider == ProviderTestAddress) {
+		errs = append(errs, errors.New("old_address can't be a test address"))
 	}
 	if u := l.Registry.URL; u != "" {
 		if parsed, err := url.Parse(u); err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {

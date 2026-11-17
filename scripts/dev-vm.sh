@@ -12,6 +12,11 @@
 #                               (worktree) gets its own folder in the VM, so
 #                               several can test on one VM at once
 #   scripts/dev-vm.sh ui        tunnel the Roostack UI (loopback-only) to http://127.0.0.1:18481
+#   scripts/dev-vm.sh test-address [name|-off]  give the VM's lab a test
+#                               address, <name>.localhost (SPEC.md §6.6), and
+#                               copy Caddy's root certificate here once Caddy
+#                               has made it: curl --cacert <it> --connect-to
+#                               ::127.0.0.1:18443 https://roost.lab.localhost/
 #   scripts/dev-vm.sh down      shut the VM down
 #   scripts/dev-vm.sh destroy   delete the VM disk (keeps the downloaded image)
 #   scripts/dev-vm.sh status
@@ -364,6 +369,22 @@ ui) log "Roostack UI: http://127.0.0.1:$UI_PORT (Ctrl-C to stop)"
         log "Tunnel closed; reconnecting…"
         sleep 3
     done ;;
+test-address)
+    shift
+    vm_ssh "sudo roostack test-address $*"
+    [[ ${1:-} == -off ]] && exit 0
+    # Caddy makes its certificate authority when it first starts, once its
+    # image has been built.
+    log "Waiting for Caddy's root certificate…"
+    for _ in $(seq 1 240); do
+        if vm_ssh "sudo cat /var/lib/roostack/caddy-data/caddy/pki/authorities/local/root.crt" >"$VM_DIR/caddy-root.crt" 2>/dev/null; then
+            log "Caddy's root certificate: $VM_DIR/caddy-root.crt (Caddy's HTTPS is at 127.0.0.1:$(tcp_port 18443))"
+            exit 0
+        fi
+        sleep 5
+    done
+    rm -f "$VM_DIR/caddy-root.crt"
+    log "Caddy hasn't made its root certificate yet: run this again later"; exit 1 ;;
 down) stop ;;
 destroy) stop; rm -rf "$DISK" "$VM_DIR/arch" "$VM_DIR/seed" "$VM_DIR/console.log"; log "Disk deleted" ;;
 status) if running; then echo "running ($ARCH, pid $(cat "$PIDFILE"))"; else echo "stopped"; fi ;;
