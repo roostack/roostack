@@ -21,10 +21,11 @@ const (
 // ConfigFormats are the formats a config file can have.
 var ConfigFormats = []string{FormatPython, FormatYAML, FormatJSON, FormatText}
 
-// BlockFormats are the formats a block can be written in: those where a
-// later line wins, so Roostack's lines at the end override the app's own.
-// YAML, JSON, and INI refuse a key given twice.
-var BlockFormats = []string{FormatPython}
+// BlockFormats are the formats a block can be written in: Python, where
+// a later line wins, and YAML, whose block is keys Roostack sets in the
+// app's own file (a YAML file refuses a key given twice, so they can't
+// simply follow it).
+var BlockFormats = []string{FormatPython, FormatYAML}
 
 // ConfigFile is a file the app reads its settings from, which Roostack
 // writes from the package's template and the service's settings, inside
@@ -41,7 +42,9 @@ type ConfigFile struct {
 	// Block makes Content Roostack's lines at the end of a file the app
 	// makes itself (Seafile's seahub_settings.py, which holds its own
 	// SECRET_KEY): Roostack adds them once the app has made the file on
-	// its first start, and leaves the rest of the file alone.
+	// its first start, and leaves the rest of the file alone. In YAML,
+	// Content is keys Roostack sets in the app's file instead (Frigate's
+	// config.yml), each marked as Roostack's.
 	Block bool `yaml:"block"`
 	// Content is a template, like env's, which can also use the service's
 	// secrets ({{ .Secrets.<setting> }}, {{ .SSO.ClientSecret }}): Roostack
@@ -88,7 +91,7 @@ func (p *Package) validateConfigFiles(v *validator) {
 		if !slices.Contains(ConfigFormats, f.Format) {
 			v.addf("%s.format: must be one of %s; got %q", where, strings.Join(ConfigFormats, ", "), f.Format)
 		} else if f.Block && !slices.Contains(BlockFormats, f.Format) {
-			v.addf("%s.block: only for %s, where a later line wins (a %s file refuses a key given twice)", where, strings.Join(BlockFormats, ", "), f.Format)
+			v.addf("%s.block: only for %s (a %s file refuses a key given twice)", where, strings.Join(BlockFormats, ", "), f.Format)
 		}
 		if strings.TrimSpace(f.Content) == "" {
 			v.addf("%s.content: required", where)

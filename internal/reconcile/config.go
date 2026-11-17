@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // Config files a package declares (SPEC.md §8.1): written inside the
@@ -55,7 +56,11 @@ func (r *Reconciler) planConfig(ctx context.Context, plan *Plan, f generate.Conf
 			if f.Block {
 				var ok bool
 				if want, ok = f.SetBlock(have, want); !ok {
-					plan.ConfigsLeft = append(plan.ConfigsLeft, f.HostPath()+": Roostack's lines in it have lost their last line, "+generate.BlockEnd)
+					why := "Roostack's lines in it have lost their last line, " + generate.BlockEnd
+					if f.Format == pkgspec.FormatYAML {
+						why = "it isn't a YAML mapping Roostack can set its keys in"
+					}
+					plan.ConfigsLeft = append(plan.ConfigsLeft, f.HostPath()+": "+why)
 					return nil
 				}
 			}
@@ -173,7 +178,9 @@ func HasBlock(f generate.ConfigFile) bool {
 		return false
 	}
 	_, ok := f.SetBlock(have, "")
-	return ok && strings.Contains(have, generate.BlockStart)
+	// A YAML block's keys may be none (single sign-on off): a file
+	// Roostack can set them in is enough.
+	return ok && (f.Format == pkgspec.FormatYAML || strings.Contains(have, generate.BlockStart))
 }
 
 // writeInRoot replaces rel inside dir atomically, through an os.Root so

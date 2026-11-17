@@ -438,8 +438,16 @@ routes:
       the app's file, between `# BEGIN Roostack` and `# END Roostack`, and
       Roostack leaves the rest alone. Roostack will add them once the app
       has made the file on its first start, then restart it, and the
-      service's install hooks wait for that. Only `python` for now, where
-      a later line wins over an earlier one.
+      service's install hooks wait for that. In `python`, a later line
+      wins over an earlier one. In `yaml`, which refuses a key given
+      twice, the template is instead keys Roostack will set in the app's
+      file, each marked `# set by Roostack`, such as Frigate's `auth` and
+      `proxy` while single sign-on is on: a mapping the app has already
+      gets Roostack's keys inside it, and anything else is replaced.
+      Roostack will take out the keys it set before that the template no
+      longer names (with single sign-on off, Frigate's own defaults come
+      back), and leave the rest of the file alone, though the file loses
+      its blank lines when a key changes. Only `python` and `yaml`.
     - `content`: the template. Besides what other templates use, it can
       use the service's secrets: `{{ .Secrets.<key> }}` for a secret
       setting, and `{{ .SSO.ClientSecret }}` while single sign-on is on.

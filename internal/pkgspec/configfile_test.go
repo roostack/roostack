@@ -39,8 +39,8 @@ config_files:
   b: { title: B, storage: data, path: a, format: text, content: x }`, "config_files.b.path: config_files.a is there already"},
 		{"unknown format", `
   a: { title: A, storage: data, path: a, format: toml, content: x }`, `config_files.a.format: must be one of python, yaml, json, text; got "toml"`},
-		{"a YAML block", `
-  a: { title: A, storage: data, path: a, format: yaml, block: true, content: x }`, "config_files.a.block: only for python"},
+		{"a JSON block", `
+  a: { title: A, storage: data, path: a, format: json, block: true, content: x }`, "config_files.a.block: only for python, yaml"},
 		{"no title or content", `
   a: { storage: data, path: a, format: text }`, "config_files.a.title: required"},
 		{"no content", `

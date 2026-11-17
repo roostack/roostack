@@ -35,7 +35,8 @@ type ConfigFile struct {
 	Format    string
 	// Block: Content is Roostack's lines at the end of a file the app
 	// makes itself, between BlockStart and BlockEnd, which Roostack adds
-	// once the file is there and keeps up to date, leaving the rest alone.
+	// once the file is there and keeps up to date, leaving the rest alone;
+	// in YAML, keys it sets in that file (setYAMLKeys).
 	Block bool
 	// Content is the file, or the block with its first and last lines,
 	// with a placeholder (SecretPlaceholder) for each secret.
@@ -130,7 +131,13 @@ func (f ConfigFile) quote(v string) string {
 // at its end after a blank line. ok is false if the old block has lost
 // its last line, which a person editing the file may do: Roostack then
 // leaves the file alone rather than guess where its lines end.
+//
+// A YAML block is keys set in the file instead (setYAMLKeys), and ok is
+// false if the file isn't a YAML mapping.
 func (f ConfigFile) SetBlock(text, block string) (out string, ok bool) {
+	if f.Format == pkgspec.FormatYAML {
+		return setYAMLKeys(text, block)
+	}
 	c := commentSign(f.Format)
 	lines := strings.SplitAfter(text, "\n")
 	for i, l := range lines {
@@ -177,7 +184,9 @@ func (g *gen) configFiles() error {
 			return err
 		}
 		text = strings.TrimRight(text, "\n") + "\n"
-		if c := commentSign(f.Format); f.Block {
+		if c := commentSign(f.Format); f.Block && f.Format == pkgspec.FormatYAML {
+			text = c + " " + yamlBlockHeader + "\n" + text
+		} else if f.Block {
 			text = c + " " + BlockStart + ": " + blockHeader + "\n" + text + c + " " + BlockEnd + "\n"
 		} else if c != "" {
 			text = c + " " + configHeader + "\n" + text

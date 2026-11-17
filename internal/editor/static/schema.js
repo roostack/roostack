@@ -869,7 +869,8 @@
  },
  "lists": {
   "blockFormats": [
-   "python"
+   "python",
+   "yaml"
   ],
   "classes": [
    "critical",
@@ -1450,8 +1451,8 @@
    "link": "reference/packages#the-parts"
   },
   "config_files.*.block": {
-   "label": "Lines at the end of the app's own file",
-   "help": "For an app that makes the file itself and keeps its own values in it (Seafile's SECRET_KEY). Roostack will add its lines at the end once the app has made the file, and leave the rest alone. Python only, where a later line wins.",
+   "label": "Lines in the app's own file",
+   "help": "For an app that makes the file itself and keeps its own values in it (Seafile's SECRET_KEY, Frigate's cameras). Once the app has made the file, Roostack will add its lines at the end of a Python file, where a later line wins, or set the keys they name in a YAML file, each marked \"# set by Roostack\", and take out the ones it set before that they no longer name. It will leave the rest alone. Python or YAML only.",
    "link": "reference/packages#the-parts"
   },
   "config_files.*.content": {
