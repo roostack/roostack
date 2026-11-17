@@ -138,7 +138,8 @@ func (s *Server) addSettingsData(data map[string]any, name string, p *pkgspec.Pa
 		}
 	}
 	data["Links"], data["Secrets"], data["SettingFields"] = links, secrets, fields
-	data["Subdomain"], data["HasRoute"], data["Domain"] = sub, manager.MainRoute(p) != "", s.Domain
+	data["Subdomain"], data["HasRoute"], data["Domain"] = sub, manager.HasAddress(p), s.Domain
+	data["PortsOnly"] = len(p.Routes) == 0
 }
 
 // routeURL is a route's address: the service's first URL for the main

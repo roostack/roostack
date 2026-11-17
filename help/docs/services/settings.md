@@ -140,7 +140,9 @@ connect to from outside, and what that needs:
   has to allow the port.
 
 A service with no web address, such as RustDesk's server, gets a name of
-its own for its connections (`rustdesk.<your address>`), and once a
+its own for its connections, `rustdesk.<your address>` unless you choose
+another when installing it or under **Edit settings** (**Address**), and
+once a
 connection is open to anyone, Roostack will point that name at the way in
 in public DNS, as it does for a public web address.
 

@@ -23,12 +23,13 @@
         {{with .SettingsError}}<p class="error" role="alert">{{.}}</p>{{end}}
         {{if or .HasRoute .SettingFields}}<input type="hidden" name="settings_shown" value="1">{{end}}
         {{if .HasRoute}}
-        <label>Web address
+        <label>{{if .PortsOnly}}Address{{else}}Web address{{end}}
           <span class="with-suffix">
             <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off">
             <span>.{{or .Domain "your lab's address"}}</span>
           </span>
-          <small>Changing it will move {{.Service.Title}} to the new address, and old links will stop working.</small>
+          <small>{{if .PortsOnly}}Changing it will move {{.Service.Title}}'s extra connections to the new name, so apps set up with the old one will need the new one.
+            {{- else}}Changing it will move {{.Service.Title}} to the new address, and old links will stop working.{{end}}</small>
         </label>
         {{end}}
         {{template "setting-fields" .SettingFields}}

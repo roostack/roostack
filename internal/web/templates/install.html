@@ -49,13 +49,14 @@
         <small>What it's called on your pages{{if .Another}}, e.g. "{{.Package.Title}} (work)"{{end}}. You can change it later.</small>
       </label>
       {{if .HasRoute}}
-      <label>Web address
+      <label>{{if .PortsOnly}}Address{{else}}Web address{{end}}
         <span class="with-suffix">
           <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off"
             x-model="sub" x-on:input="ownSub = true">
           <span>.{{or .Domain "your lab's address"}}</span>
         </span>
         {{if not .Domain}}<small>Your lab has no address yet: the service will run and get this address once your lab has one.</small>
+        {{- else if .PortsOnly}}<small>The name apps will connect to for its extra connections. It has no web pages.</small>
         {{- else if not .Internet}}<small>Only reachable from your home network (or VPN).</small>{{end}}
       </label>
       {{end}}

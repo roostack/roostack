@@ -287,7 +287,7 @@
   <section class="card">
     <div class="card-head"><h2 id="settings">Settings</h2>{{if .CanManage}}<a class="button secondary small" href="/services/{{.Service.Name}}/settings">Edit settings</a>{{end}}</div>
     <dl class="facts">
-      {{if .HasRoute}}<dt>Web address</dt><dd>{{if .Domain}}<code>{{.Subdomain}}.{{.Domain}}</code>{{else}}<code>{{.Subdomain}}</code> <span class="hint">· once your lab has an address</span>{{end}}</dd>{{end}}
+      {{if .HasRoute}}<dt>{{if .PortsOnly}}Address{{else}}Web address{{end}}</dt><dd>{{if .Domain}}<code>{{.Subdomain}}.{{.Domain}}</code>{{else}}<code>{{.Subdomain}}</code> <span class="hint">· once your lab has an address</span>{{end}}</dd>{{end}}
       {{with .Libraries}}{{if .Chosen}}<dt>Media libraries</dt>
       <dd>{{range $i, $c := .Choices}}{{if has $.Libraries.Chosen $c.Name}}{{$c.Title}}{{with index $.Libraries.Paths $c.Name}}, at <code>{{.}}</code>{{end}}
         {{- if has $.Libraries.Gone $c.Title}} <span class="pill pill-warn">Drive not connected</span>{{end}}<br>{{end}}{{end}}</dd>{{end}}{{end}}

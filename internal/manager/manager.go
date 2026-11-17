@@ -585,11 +585,17 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 		in.Settings[s.Key] = v
 	}
 	if sub := strings.ToLower(strings.TrimSpace(req.Subdomain)); sub != "" {
-		route := MainRoute(p)
-		if route == "" {
-			return nil, "", usererr.New("%s has no web address to choose.", p.Title)
+		switch route := MainRoute(p); {
+		case route != "":
+			in.Routes = map[string]instance.RouteOverride{route: {Subdomain: sub}}
+		case len(p.Ports) > 0:
+			// The name its connections are at; its ID needs no saying.
+			if sub != in.ID() {
+				in.Subdomain = sub
+			}
+		default:
+			return nil, "", usererr.New("%s has no address to choose.", p.Title)
 		}
-		in.Routes = map[string]instance.RouteOverride{route: {Subdomain: sub}}
 	}
 	if req.Public {
 		for name, r := range p.Routes {
@@ -1034,6 +1040,9 @@ func (m *Manager) CurrentSettings(name string) (map[string]any, string, error) {
 		return nil, "", err
 	}
 	values, routes := generate.Values(m.Lab, p, in)
+	if MainRoute(p) == "" && len(p.Ports) > 0 {
+		return values, cmp.Or(in.Subdomain, in.ID()), nil
+	}
 	return values, routes[MainRoute(p)].Subdomain, nil
 }
 
@@ -1073,6 +1082,11 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 			o := in.Routes[route]
 			o.Subdomain = sub
 			in.Routes[route] = o
+		} else if len(p.Ports) > 0 {
+			in.Subdomain = sub
+			if sub == in.ID() {
+				in.Subdomain = ""
+			}
 		}
 	}
 	if err := in.Validate(p); err != nil {
@@ -1192,14 +1206,29 @@ func MainRoute(p *pkgspec.Package) string {
 	return names[0]
 }
 
+// BaseSubdomain is a package's suggested address: its main route's, or
+// for a package with ports and no web address, its name (the name its
+// connections are at, generate.PortHost). "" for neither.
+func BaseSubdomain(p *pkgspec.Package) string {
+	if route := MainRoute(p); route != "" {
+		return p.Routes[route].Subdomain
+	}
+	if len(p.Ports) > 0 {
+		return p.Name
+	}
+	return ""
+}
+
+// HasAddress says whether a package's services have an address to
+// choose: a web address, or a name for their ports.
+func HasAddress(p *pkgspec.Package) bool { return BaseSubdomain(p) != "" }
+
 // NewServiceNames are what a new service from p is called until someone
 // changes them: its title and main address are the package's, or for
 // another copy of one that's installed, "(2)" and "-2" are added, and
 // suffix "2" to its name (SPEC.md §8.2).
 func NewServiceNames(p *pkgspec.Package, another bool) (subdomain, title, suffix string) {
-	if route := MainRoute(p); route != "" {
-		subdomain = p.Routes[route].Subdomain
-	}
+	subdomain = BaseSubdomain(p)
 	if another {
 		return subdomain + "-2", p.Title + " (2)", "2"
 	}

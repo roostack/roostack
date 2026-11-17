@@ -47,12 +47,16 @@ type Instance struct {
 	// Host is the node the service runs on (SPEC.md §10.4). Always set
 	// explicitly (state.AssignHosts), so moving the controller can never
 	// move services with it by accident.
-	Host     string                   `yaml:"host,omitempty"`
-	Version  string                   `yaml:"version"`
-	Routes   map[string]RouteOverride `yaml:"routes,omitempty"`
-	Ports    map[string]PortOverride  `yaml:"ports,omitempty"`
-	Settings map[string]any           `yaml:"settings,omitempty"`
-	Updates  string                   `yaml:"updates"`
+	Host    string                   `yaml:"host,omitempty"`
+	Version string                   `yaml:"version"`
+	Routes  map[string]RouteOverride `yaml:"routes,omitempty"`
+	// Subdomain, for a service with ports and no web address (RustDesk's
+	// server), is the name its connections are at, under the lab's
+	// address; empty is its ID (generate.PortHost).
+	Subdomain string                  `yaml:"subdomain,omitempty"`
+	Ports     map[string]PortOverride `yaml:"ports,omitempty"`
+	Settings  map[string]any          `yaml:"settings,omitempty"`
+	Updates   string                  `yaml:"updates"`
 	// Waiting: its server (Host) is gone and it waits to be restored from
 	// its backups, onto any server. It runs nowhere until then (SPEC.md
 	// §10.10, "Restoring across the lab").
@@ -317,6 +321,14 @@ var libraryNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 func (in *Instance) Validate(p *pkgspec.Package) error {
 	var errs []error
 	add := func(format string, args ...any) { errs = append(errs, fmt.Errorf(format, args...)) }
+	if in.Subdomain != "" {
+		switch {
+		case len(p.Routes) > 0 || len(p.Ports) == 0:
+			add("subdomain: only for a package with ports and no web address (its routes have their own)")
+		case !subdomainRe.MatchString(in.Subdomain):
+			add("subdomain: %q is not a valid DNS label", in.Subdomain)
+		}
+	}
 
 	if in.Package != p.Name {
 		add("package: instance is for %q but package is %q", in.Package, p.Name)

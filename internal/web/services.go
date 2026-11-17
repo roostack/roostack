@@ -386,10 +386,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 	suffix, _ := get("name_suffix")
 	title, _ := get("title")
 	sub, _ := get("subdomain")
-	base := ""
-	if route := manager.MainRoute(p); route != "" {
-		base = p.Routes[route].Subdomain
-	}
+	base := manager.BaseSubdomain(p)
 	if submitted == nil {
 		sub, title, suffix = manager.NewServiceNames(p, another)
 	}
@@ -493,7 +490,8 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"User":          u,
 		"Package":       p,
 		"Fields":        fields,
-		"HasRoute":      len(p.Routes) > 0,
+		"HasRoute":      manager.HasAddress(p),
+		"PortsOnly":     len(p.Routes) == 0,
 		"Subdomain":     sub,
 		"Domain":        s.Domain,
 		"Error":         errMsg,

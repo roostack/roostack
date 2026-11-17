@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -317,7 +318,7 @@ func PortHost(lab config.Lab, p *pkgspec.Package, in *instance.Instance) string 
 		return ""
 	}
 	if len(p.Routes) == 0 {
-		return in.ID() + "." + lab.Domain
+		return cmp.Or(in.Subdomain, in.ID()) + "." + lab.Domain
 	}
 	_, routes := Values(lab, p, in)
 	if rc, ok := routes["web"]; ok {

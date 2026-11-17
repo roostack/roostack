@@ -1417,6 +1417,16 @@ ports:
 	if h := PortHost(lab, p, &instance.Instance{Name: "relay-work", Package: "relay"}); h != "relay-work.lab.example.com" {
 		t.Errorf("second copy: %q", h)
 	}
+	chosen := &instance.Instance{Package: "relay", Version: "1", Updates: "notify", Subdomain: "desk"}
+	if h := PortHost(lab, p, chosen); h != "desk.lab.example.com" {
+		t.Errorf("chosen: %q", h)
+	}
+	if err := chosen.Validate(p); err != nil {
+		t.Errorf("a chosen name refused: %v", err)
+	}
+	if err := (&instance.Instance{Package: "relay", Version: "1", Updates: "notify", Subdomain: "-x"}).Validate(p); err == nil {
+		t.Error("a bad name accepted")
+	}
 	if PublicPorts(lab, p, &instance.Instance{Package: "relay"}) {
 		t.Error("public by default")
 	}

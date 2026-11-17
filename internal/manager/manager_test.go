@@ -21,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/s3api"
@@ -769,5 +770,42 @@ func TestFirewallTakesTheNetwork(t *testing.T) {
 	m.Wait()
 	if !wg() {
 		t.Error("WireGuard's port isn't open once the network is set up")
+	}
+}
+
+// TestPortOnlyAddress: a package with ports and no web address offers a
+// name for them, its own by default, chosen at install like a web
+// address (SPEC.md §8.1, "Public ports").
+func TestPortOnlyAddress(t *testing.T) {
+	m, _ := newManager(t)
+	p, err := pkgspec.Parse([]byte(`schema: roostack/v1alpha1
+name: relay
+title: Relay
+version: "1"
+containers:
+  app: { image: x }
+ports:
+  id: { title: ID, container: app, port: 21116, host_port: 31116, enabled: true }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if BaseSubdomain(p) != "relay" || !HasAddress(p) {
+		t.Errorf("base %q", BaseSubdomain(p))
+	}
+	if sub, _, _ := NewServiceNames(p, true); sub != "relay-2" {
+		t.Errorf("another copy's: %q", sub)
+	}
+	in, _, err := m.draft(p, InstallRequest{Subdomain: "desk"}, true, false)
+	if err != nil || in.Subdomain != "desk" {
+		t.Fatalf("chosen: %+v %v", in, err)
+	}
+	in, _, err = m.draft(p, InstallRequest{Subdomain: "relay"}, true, false)
+	if err != nil || in.Subdomain != "" {
+		t.Errorf("its own needs no saying: %+v %v", in, err)
+	}
+	none, _ := pkgspec.Parse([]byte("schema: roostack/v1alpha1\nname: plain\ntitle: Plain\nversion: \"1\"\ncontainers:\n  app: { image: x }\n"))
+	if _, _, err := m.draft(none, InstallRequest{Subdomain: "x"}, true, false); err == nil {
+		t.Error("an address for a package with none")
 	}
 }
