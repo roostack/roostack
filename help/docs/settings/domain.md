@@ -204,12 +204,14 @@ will leave it alone and offer **Take over this record…**.
 ## DNS for your devices
 
 A DNS server finds the address of each name a device looks up, and one
-such as [Pi-hole](https://pi-hole.net) can leave out ads and trackers while
-it does. Under **DNS for your devices** on **Settings → Where it is and
+such as [Pi-hole](https://pi-hole.net) or [AdGuard
+Home](https://adguard.com/adguard-home/overview.html), both in the
+catalog, can leave out ads and trackers while it does. Under **DNS for your devices** on **Settings → Where it is and
 DNS**, choose which one the lab uses:
 
 - **A DNS server among your services** (the default): once you install
-  one, such as Pi-hole, Roostack will use it by itself. The card says which
+  one, such as Pi-hole or AdGuard Home, Roostack will use it by itself (the
+  first by name, if you install both on different servers). The card says which
   one, and its address.
 - **Each device's own**: usually your internet provider's, through your
   router. Roostack will leave them alone.
@@ -222,8 +224,9 @@ device that sends the home network through the VPN. A device whose file
 doesn't name a DNS server keeps using its own.
 
 For the other devices at home, set it in your router as the DNS server it
-gives out (Roostack can't change the router). Pi-hole also answers your
-lab's own names with your server's home address, so devices that use it
+gives out (Roostack can't change the router). Pi-hole and AdGuard Home
+also answer your lab's own names with your server's home address, so
+devices that use them
 reach your services directly, public ones too, even while the internet is
 down.
 
@@ -240,7 +243,10 @@ for when that one doesn't answer.
     `roostack-agent` writes and removes, restarting systemd-resolved. A
     server without systemd-resolved is left alone, and the apply's log says
     so. The choice is `resolver:` in `lab.yaml`. Pi-hole's names come from
-    `FTLCONF_misc_dnsmasq_lines` (`address=/<domain>/<home address>`).
+    `FTLCONF_misc_dnsmasq_lines` (`address=/<domain>/<home address>`), and
+    AdGuard Home's from a block list Roostack writes,
+    `work/userfilters/roostack.txt` in its data (`$dnsrewrite` rules),
+    which its install hook adds, and which it reads again at each start.
 
 ## Changing the address
 
