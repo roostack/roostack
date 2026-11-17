@@ -30,7 +30,7 @@ RuntimeDirectoryPreserve=yes
 # Mounts are made by systemd from fstab, so they don't stay in this unit's
 # namespace.
 ProtectSystem=strict
-ReadWritePaths=/etc/sysctl.d /etc/wireguard -/etc/roostack -/etc/ssh/sshd_config.d /mnt -/media /srv
+ReadWritePaths=/etc/sysctl.d /etc/wireguard -/etc/roostack -/etc/ssh/sshd_config.d -/etc/systemd/resolved.conf.d /mnt -/media /srv
 # /run too, apart from its own folder above: on Debian 13 (systemd 257),
 # ProtectSystem=strict with ProtectControlGroups=yes leaves it writable,
 # which nothing documents (docs/ASSUMPTIONS.md S7).

@@ -305,6 +305,9 @@ type ServiceCatalog interface {
 	Ports(name string) ([]manager.PortStatus, error)
 	SetPort(ctx context.Context, name, port string, enabled bool, hostPort int) error
 	SetPortExposure(ctx context.Context, name, port string, public bool) error
+	// Resolver and SetResolver are the lab's DNS server (SPEC.md §6.5.2).
+	Resolver(ctx context.Context) manager.Resolver
+	SetResolver(ctx context.Context, choice config.Resolver) error
 	PortHost(name string) string
 	CurrentSettings(name string) (map[string]any, string, error)
 	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
@@ -622,6 +625,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /settings/vpn/devices/{id}/remove", s.requireOwner(s.settingsVPNRemove))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
 	mux.Handle("POST /settings/network", s.requireOwner(s.networkSubmit))
+	mux.Handle("POST /settings/resolver", s.requireOwner(s.resolverSubmit))
 	// Servers is a main area (docs/DESIGN.md "Layout"); its list was under
 	// Settings, and each server's own pages still are.
 	mux.Handle("GET /servers", s.requireOwner(s.serversPage))

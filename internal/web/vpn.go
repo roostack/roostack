@@ -38,6 +38,9 @@ type VPNManager interface {
 	// VPNChanged applies a change to the devices, or to who may use what.
 	VPNChanged(reason string)
 	VPNWay(ctx context.Context) manager.VPNWay
+	// DeviceDNS is the DNS server a device's file names, "" for none
+	// (SPEC.md §6.5.2).
+	DeviceDNS(ctx context.Context, userID int64, allowed []string) string
 }
 
 // vpnOn reports whether the lab's VPN is on.
@@ -438,7 +441,12 @@ func (s *Server) deviceConfig(ctx context.Context, d store.VPNDevice, private st
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s on %s's VPN, made by Roostack\n", d.Name, s.labName())
-	fmt.Fprintf(&b, "[Interface]\nPrivateKey = %s\nAddress = %s/32\n\n", private, d.Address)
+	fmt.Fprintf(&b, "[Interface]\nPrivateKey = %s\nAddress = %s/32\n", private, d.Address)
+	if dns := s.VPN.DeviceDNS(ctx, d.UserID, allowed); dns != "" {
+		// The lab's DNS server, such as Pi-hole, wherever the device is.
+		fmt.Fprintf(&b, "DNS = %s\n", dns)
+	}
+	b.WriteString("\n")
 	fmt.Fprintf(&b, "[Peer]\nPublicKey = %s\nEndpoint = %s\nAllowedIPs = %s\nPersistentKeepalive = 25\n",
 		way.PublicKey, way.Endpoint, strings.Join(allowed, ", "))
 	return b.String(), nil

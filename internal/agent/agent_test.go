@@ -45,6 +45,7 @@ type fakeHost struct {
 	views      []string
 	share      string
 	useErr     error
+	resolver   []string
 }
 
 func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
@@ -56,6 +57,7 @@ func (f *fakeHost) VPNForwardingOff([]string) error             { return nil }
 func (f *fakeHost) VPNForwardingOn([]string) error              { return nil }
 func (f *fakeHost) AllowWireGuardJoin() error                   { f.joinOpen = true; return nil }
 func (f *fakeHost) SetTimezone(name string) error               { f.tz = name; return nil }
+func (f *fakeHost) SetResolver(r ResolverRequest) error         { f.resolver = r.Servers; return nil }
 func (f *fakeHost) RunUpdates(_ context.Context, series string, w io.Writer) error {
 	f.updated = true
 	f.series = series
@@ -224,6 +226,10 @@ func TestAPI(t *testing.T) {
 		}
 	}
 
+	if err := c.SetResolver(ctx, []string{"192.168.1.10:5053"}); err != nil || !slices.Equal(host.resolver, []string{"192.168.1.10:5053"}) {
+		t.Errorf("resolver: %v, set=%v", err, host.resolver)
+	}
+
 	var out strings.Builder
 	if err := c.RunUpdates(ctx, "", &out); err != nil || !host.updated || host.series != "" ||
 		out.String() != "==> Installing updates\nNo packages found that can be upgraded unattended\n" {
@@ -316,6 +322,9 @@ func TestBadNamesRefused(t *testing.T) {
 		},
 		"removing an interface": func() error { return c.RemoveWireGuard(ctx, "eth0") },
 		"a time zone":           func() error { return c.SetTimezone(ctx, "../etc/passwd") },
+		"a DNS server":          func() error { return c.SetResolver(ctx, []string{"192.168.1.10"}) },
+		"a DNS server's name":   func() error { return c.SetResolver(ctx, []string{"dns.example.com:53"}) },
+		"an IPv6 DNS server":    func() error { return c.SetResolver(ctx, []string{"[fd00::1]:53"}) },
 	} {
 		if err := call(); err == nil || !strings.Contains(err.Error(), "400 Bad Request") {
 			t.Errorf("%s: %v", what, err)
@@ -353,6 +362,7 @@ func TestChangesAreLogged(t *testing.T) {
 		"apply firewall":              func() error { return c.ApplyFirewall(ctx, DefaultFirewall()) },
 		"open wireguard for joining":  func() error { return c.AllowWireGuardJoin(ctx) },
 		"set time zone":               func() error { return c.SetTimezone(ctx, "Europe/Berlin") },
+		"set dns server":              func() error { return c.SetResolver(ctx, nil) },
 		"OS updates":                  func() error { return c.RunUpdates(ctx, "", io.Discard) },
 		"reboot":                      func() error { return c.Reboot(ctx) },
 		"apply wireguard": func() error {

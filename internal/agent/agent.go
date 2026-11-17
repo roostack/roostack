@@ -64,6 +64,9 @@ type Host interface {
 	AllowWireGuardJoin() error
 	// SetTimezone sets the host's time zone (timezone.go).
 	SetTimezone(name string) error
+	// SetResolver sets the DNS servers the host's own lookups use first
+	// (resolver.go).
+	SetResolver(r ResolverRequest) error
 	// RunUpdates refreshes the package lists and installs available
 	// updates with unattended-upgrades, writing its output to w as it runs.
 	// A series first moves Roostack's apt source to that release series
@@ -179,6 +182,7 @@ func (s *Server) Handler() http.Handler {
 	// No arguments: it only ever opens WireGuard's own port.
 	handle("POST /v1/firewall/wireguard-join", do(s, "open wireguard for joining", h.AllowWireGuardJoin))
 	handle("PUT /v1/timezone", action(s, "set time zone", 4<<10, func(r TimezoneRequest) error { return h.SetTimezone(r.Timezone) }))
+	handle("PUT /v1/resolver", action(s, "set dns server", 4<<10, h.SetResolver))
 	handle("POST /v1/updates/run", s.runUpdates)
 	handle("GET /v1/updates/last", read(s, h.UpdatesStatus))
 	handle("POST /v1/reboot", do(s, "reboot", h.Reboot))

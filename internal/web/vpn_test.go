@@ -23,6 +23,7 @@ import (
 
 // fakeVPN is the manager's VPN.
 type fakeVPN struct {
+	dns     string
 	servers []manager.EdgeServer
 	v       config.VPN
 	changes []string
@@ -30,9 +31,10 @@ type fakeVPN struct {
 	seen    map[string]time.Time
 }
 
-func (f *fakeVPN) VPN() config.VPN           { return f.v }
-func (f *fakeVPN) SetVPN(v config.VPN) error { f.v = v; return nil }
-func (f *fakeVPN) VPNChanged(reason string)  { f.changes = append(f.changes, reason) }
+func (f *fakeVPN) VPN() config.VPN                                   { return f.v }
+func (f *fakeVPN) SetVPN(v config.VPN) error                         { f.v = v; return nil }
+func (f *fakeVPN) VPNChanged(reason string)                          { f.changes = append(f.changes, reason) }
+func (f *fakeVPN) DeviceDNS(context.Context, int64, []string) string { return f.dns }
 func (f *fakeVPN) VPNWay(context.Context) manager.VPNWay {
 	return manager.VPNWay{Server: "nuc", Endpoint: "link.lab.example.com:51822", PublicKey: f.key, AtHome: true,
 		LastConnected: f.seen, HomeNetworks: []string{"192.168.1.0/24"}, Servers: f.servers, Chosen: cmp.Or(f.v.Server, "n-1")}
@@ -87,6 +89,9 @@ func TestVPNDevices(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("settings missing %q", want)
 		}
+	}
+	if strings.Contains(body, "DNS = ") {
+		t.Error("a DNS server without one")
 	}
 	u, _ := h.store.UserByUsername(ctx, "u")
 	list, _ := h.store.UserVPNDevices(ctx, u.ID)
@@ -251,4 +256,24 @@ func codeNow(t *testing.T, secret string, steps int) string {
 		t.Fatal(err)
 	}
 	return c
+}
+
+// TestResolverCard: Settings → Where it is and DNS offers the lab's DNS
+// server, saves the Owner's choice, and is the Owner's alone (SPEC.md
+// §6.5.2).
+func TestResolverCard(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.resolver = manager.Resolver{Service: &manager.DNSService{Name: "pihole", Title: "Pi-hole"}, Addr: "192.168.1.20"}
+	_, body := h.get("/settings/home-network")
+	if !strings.Contains(body, "DNS for your devices") || !strings.Contains(body, "Now Pi-hole, at <code>192.168.1.20</code>") {
+		t.Errorf("card:\n%s", body)
+	}
+	h.post("/settings/resolver", url.Values{"use": {"address"}, "address": {"9.9.9.9"}, "server": {"n-1"}}, h.srv.URL)
+	if c := fm.resolver.Choice; c.Use != "address" || c.Address != "9.9.9.9" || len(c.Servers) != 1 {
+		t.Errorf("saved %+v", c)
+	}
+	h, _ = loggedIn(t, auth.RoleAdmin)
+	if code, _ := h.post("/settings/resolver", url.Values{"use": {"provider"}}, h.srv.URL); code == http.StatusOK {
+		t.Error("an Admin chose the lab's DNS server")
+	}
 }

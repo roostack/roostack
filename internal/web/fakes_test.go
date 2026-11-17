@@ -122,6 +122,7 @@ func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns 
 
 // fakeCatalog is the catalog and the installed services (ServiceCatalog).
 type fakeCatalog struct {
+	resolver manager.Resolver
 	portHost string
 	// env are services' extra environment variables, and envValues the
 	// secret values last given (SetEnv).
@@ -403,6 +404,12 @@ func (f *fakeCatalog) SetPortExposure(_ context.Context, name, port string, publ
 }
 
 func (f *fakeCatalog) PortHost(string) string { return f.portHost }
+
+func (f *fakeCatalog) Resolver(context.Context) manager.Resolver { return f.resolver }
+func (f *fakeCatalog) SetResolver(_ context.Context, c config.Resolver) error {
+	f.resolver.Choice = c
+	return nil
+}
 
 func (f *fakeCatalog) SetPort(_ context.Context, name, port string, enabled bool, hostPort int) error {
 	if f.portErr != nil {

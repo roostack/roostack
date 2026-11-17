@@ -61,6 +61,10 @@ type LabContext struct {
 	// It's the name apps most likely accept (hosttime.ForApps): "UTC"
 	// for Debian's "Etc/UTC", and a zone's current name for an old one.
 	TimeZone string
+	// HomeAddress is where the lab's names point for the home network's
+	// devices (config.Lab), for a DNS server such as Pi-hole to answer
+	// them with; "" on a lab on the internet, or before it's known.
+	HomeAddress string
 }
 
 // RouteContext is a resolved route.
@@ -107,7 +111,7 @@ type DatabaseContext struct {
 func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Context {
 	ctx := &Context{
 		Service:    ServiceContext{Name: in.ID()},
-		Lab:        LabContext{Domain: lab.Domain, TimeZone: hosttime.ForApps(lab.Timezone)},
+		Lab:        LabContext{Domain: lab.Domain, TimeZone: hosttime.ForApps(lab.Timezone), HomeAddress: lab.HomeAddress},
 		Settings:   map[string]any{},
 		Routes:     map[string]RouteContext{},
 		Ports:      map[string]PortContext{},

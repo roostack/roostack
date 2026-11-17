@@ -356,6 +356,10 @@ func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {
 	data := s.pageData(r)
 	data["DNS"] = s.dnsView(r)
 	data["NetworkForm"] = s.networkForm(r, false)
+	data["Resolver"] = s.Manager.Resolver(r.Context())
+	if servers, err := s.Manager.Servers(); err == nil {
+		data["ResolverServers"] = servers
+	}
 	if s.DNS != nil {
 		recs, err := s.DNS.Records(r.Context())
 		if err != nil {

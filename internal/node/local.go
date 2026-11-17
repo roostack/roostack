@@ -205,6 +205,12 @@ type Change struct {
 	Early  bool   `json:"early,omitempty"`
 }
 
+// ResolverSetter is roostack-agent's DNS server operation (SPEC.md
+// §6.5.2).
+type ResolverSetter interface {
+	SetResolver(ctx context.Context, servers []string) error
+}
+
 // FirewallApplier is roostack-agent's firewall operation.
 type FirewallApplier interface {
 	ApplyFirewall(ctx context.Context, fw agent.Firewall) error
@@ -223,6 +229,13 @@ type Local struct {
 	// Firewall applies the host firewall through roostack-agent after each
 	// apply. Nil leaves the firewall alone.
 	Firewall FirewallApplier
+	// Resolver sets the DNS server this server's own lookups use, when
+	// the Owner chose the lab's (SPEC.md §6.5.2). Nil leaves it alone.
+	Resolver ResolverSetter
+	// resolverSet is the last one set, "" for its own, and resolverDone
+	// whether it has been since Roostack started.
+	resolverSet  string
+	resolverDone bool
 	// Units reads systemd unit states, for ServiceStates (optional).
 	Units UnitStatuser
 	// Launch runs commands as the roostack user outside Roostack's sandbox, for
@@ -738,6 +751,22 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 			return fmt.Errorf("applying the firewall: %w", err)
 		}
 	}
+	if want := a.Lab.Resolver; n.Resolver != nil && (want != n.resolverSet || !n.resolverDone) {
+		var servers []string
+		if want != "" {
+			act.Printf("This server will look names up with the lab's DNS server, at %s", want)
+			servers = []string{want}
+		} else if n.resolverDone {
+			act.Printf("This server will look names up with its own DNS servers again")
+		}
+		// One it can't take (no systemd-resolved) is said once, in the
+		// log, rather than failing every apply until it's unticked.
+		if err := n.Resolver.SetResolver(ctx, servers); err != nil {
+			act.Printf("This server's DNS server wasn't changed: %v", err)
+			n.Log.Warn("setting this server's DNS server", "err", err)
+		}
+		n.resolverSet, n.resolverDone = want, true
+	}
 	if a.Links != nil && n.Links != nil {
 		act.Step("Updating direct links to other servers")
 		for _, p := range a.Links.Peers {
@@ -827,6 +856,7 @@ func (n *Local) lab(a Assignment) config.Lab {
 		lab.Public.NoSharing = a.Lab.NoSharing
 	}
 	lab.EdgeAddrs = a.Lab.EdgeAddrs
+	lab.HomeAddress = a.Lab.HomeAddress
 	lab.Monitoring.StatusPage = a.Lab.StatusPage
 	lab.Public.Pause = a.Lab.Pause
 	lab.Public.Refused = a.Lab.Refused

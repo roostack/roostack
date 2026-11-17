@@ -306,6 +306,13 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	infos := m.linkInfos(context.Background())
 	// The edge passes public visitors on to the controller's Caddy, which
 	// believes it alone about who they are (SPEC.md §10.5).
+	// The lab's DNS server (SPEC.md §6.5.2): its names point at home for
+	// a DNS server among the services, and servers that chose it look
+	// names up with it.
+	if !m.Lab.OnInternet() {
+		lab.HomeAddress = m.vpnHomeAddress()
+	}
+	resolver := m.resolverOf(m.labNow().Resolver, services, infos)
 	edge, edgeAddrs := m.edgeFor(infos)
 	lab.EdgeAddrs = append(edgeAddrs, m.relayFor(services)...)
 	// It sends services' public ports on too.
@@ -318,6 +325,7 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 			id = m.Lab.NodeID
 		}
 		a := node.Assignment{Services: m.onNode(services, id), Lab: lab, Reason: reason, CaddyFirst: caddyFirst && n == m.Node}
+		a.Lab.Resolver = resolverFor(resolver, id)
 		for _, s := range a.Services {
 			name := s.Name()
 			for k, v := range m.secrets[name] {

@@ -841,6 +841,10 @@
       "type": "string"
      }
     ]
+   },
+   {
+    "name": "dns_server",
+    "type": "string"
    }
   ]
  },
@@ -1653,6 +1657,12 @@
    "help": "What it does, in one line, for the list of services. Say what people get, not how it works.",
    "example": "Keeps your notes and finds them again",
    "link": "packages/write#name-and-version"
+  },
+  "dns_server": {
+   "label": "DNS server",
+   "help": "For an app that answers DNS for the home network, such as Pi-hole, the name of its port that does (a UDP port devices reach on 53, with outside_port 53). The lab will then be able to choose it as the DNS server for its devices and servers, and will find it by itself once it's installed.",
+   "example": "dns",
+   "link": "reference/packages#the-parts"
   },
   "hooks": {
    "label": "Setup, actions, and scheduled tasks",

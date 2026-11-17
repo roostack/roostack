@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"strings"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/setup"
@@ -71,4 +72,31 @@ func (s *Server) networkForm(r *http.Request, suggest bool) networkForm {
 		f.Domain, f.UIHost = s.Domain, s.uiHost()
 	}
 	return f
+}
+
+// resolverSubmit saves which DNS server the lab's devices and chosen
+// servers use (SPEC.md §6.5.2).
+func (s *Server) resolverSubmit(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	choice := config.Resolver{Use: r.FormValue("use"), Address: r.FormValue("address"), Servers: r.Form["server"]}
+	if err := s.Manager.SetResolver(r.Context(), choice); err != nil {
+		if msg, ok := usererr.Message(err); ok {
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+		s.serverError(w, err)
+		return
+	}
+	detail := map[string]string{config.ResolverProvider: "each device's own", config.ResolverAddress: "the one at " + choice.Address}[choice.Use]
+	if detail == "" {
+		detail = "automatic"
+	}
+	if len(choice.Servers) > 0 {
+		detail += ", for " + strings.Join(choice.Servers, ", ") + " too"
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "dns server", detail)
+	redirect(w, r, "/settings/home-network#resolver")
 }

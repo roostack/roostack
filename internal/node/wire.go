@@ -85,6 +85,12 @@ type LabContext struct {
 	// GlancesSites are the servers' live views, for the server running
 	// Caddy (SPEC.md §6.15.1).
 	GlancesSites []config.GlancesSite `json:"glances_sites,omitempty"`
+	// HomeAddress is where the lab's names point at home (config.Lab),
+	// for a DNS server among the services (SPEC.md §6.5.2).
+	HomeAddress string `json:"home_address,omitempty"`
+	// Resolver, on a server whose own lookups use the lab's DNS server,
+	// is that server, as host:port (SPEC.md §6.5.2); "" elsewhere.
+	Resolver string `json:"resolver,omitempty"`
 }
 
 // WireService is a service's instance and package files.

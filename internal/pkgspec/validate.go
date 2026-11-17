@@ -105,6 +105,11 @@ func (p *Package) Validate() error {
 	p.validateHooks(v)
 	p.validateSSO(v)
 	p.validateConfigFiles(v)
+	if d := p.DNSServer; d != "" {
+		if pp := p.Ports[d]; pp == nil || pp.Proto() != "udp" || pp.OutsidePort != 53 {
+			v.addf("dns_server: must be a UDP port of the package's that devices reach on 53 (outside_port: 53)")
+		}
+	}
 	for i, l := range p.Links {
 		at := fmt.Sprintf("links[%d]", i)
 		if l.Title == "" {

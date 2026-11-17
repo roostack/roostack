@@ -201,6 +201,47 @@ will leave it alone and offer **Take over this record…**.
     home network's resolver and through `1.1.1.1` to tell a missing record
     from a router blocking it. Checks run every 30 minutes.
 
+## DNS for your devices
+
+A DNS server finds the address of each name a device looks up, and one
+such as [Pi-hole](https://pi-hole.net) can leave out ads and trackers while
+it does. Under **DNS for your devices** on **Settings → Where it is and
+DNS**, choose which one the lab uses:
+
+- **A DNS server among your services** (the default): once you install
+  one, such as Pi-hole, Roostack will use it by itself. The card says which
+  one, and its address.
+- **Each device's own**: usually your internet provider's, through your
+  router. Roostack will leave them alone.
+- **The one at an address you choose**: a Pi-hole elsewhere on your home
+  network, or a public one such as `9.9.9.9`.
+
+The lab's VPN devices will use it wherever they are, once you download
+their files again, as long as they can reach it: a home address needs a
+device that sends the home network through the VPN. A device whose file
+doesn't name a DNS server keeps using its own.
+
+For the other devices at home, set it in your router as the DNS server it
+gives out (Roostack can't change the router). Pi-hole also answers your
+lab's own names with your server's home address, so devices that use it
+reach your services directly, public ones too, even while the internet is
+down.
+
+Tick a server under **Servers that use it too** to have its own lookups
+use it as well. That's only worth it for a server whose own lookups should
+leave out ads too. It will ask the lab's DNS server first, and keep its own
+for when that one doesn't answer.
+
+??? note "For technical users"
+
+    A VPN device's file gets a `DNS =` line. A server you tick gets a
+    systemd-resolved drop-in, `/etc/systemd/resolved.conf.d/roostack.conf`,
+    with `DNS=<address>:<port>` (Pi-hole's port on its server, 5053), which
+    `roostack-agent` writes and removes, restarting systemd-resolved. A
+    server without systemd-resolved is left alone, and the apply's log says
+    so. The choice is `resolver:` in `lab.yaml`. Pi-hole's names come from
+    `FTLCONF_misc_dnsmasq_lines` (`address=/<domain>/<home address>`).
+
 ## Changing the address
 
 Choose **Change the address…** on **Settings → Your lab's address**. When

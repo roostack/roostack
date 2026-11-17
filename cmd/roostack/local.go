@@ -36,6 +36,7 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		// Live logs of host operations, shown in the UI.
 		Activity: activity.New(),
 		Firewall: agentClient,
+		Resolver: agentClient,
 		Units:    sd,
 		// Moving a service's data runs tar in podman unshare, outside the
 		// sandbox like backups.

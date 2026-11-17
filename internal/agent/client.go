@@ -62,6 +62,12 @@ func (c *Client) AllowWireGuardJoin(ctx context.Context) error {
 	return c.call(ctx, http.MethodPost, "/v1/firewall/wireguard-join", nil, nil)
 }
 
+// SetResolver sets the DNS servers this server's own lookups use first
+// (address:port), or puts its own back with none.
+func (c *Client) SetResolver(ctx context.Context, servers []string) error {
+	return c.call(ctx, http.MethodPut, "/v1/resolver", ResolverRequest{Servers: servers}, nil)
+}
+
 // SetTimezone sets the host's time zone (an IANA name like Europe/Berlin).
 func (c *Client) SetTimezone(ctx context.Context, name string) error {
 	return c.call(ctx, http.MethodPut, "/v1/timezone", TimezoneRequest{Timezone: name}, nil)

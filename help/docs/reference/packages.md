@@ -289,6 +289,15 @@ routes:
     the host port, for the home network and the lab's VPN devices, and the
     port can't be made public.
 
+`dns_server`
+:   For an app that answers DNS for the home network, such as Pi-hole: the
+    name of its port that does, a UDP port with `outside_port: 53`. The lab
+    can then choose it as the [DNS server for its
+    devices](../settings/domain.md#dns-for-your-devices), and will use it
+    by itself once it's installed. Its templates can use
+    `{{ .Lab.HomeAddress }}`, where the lab's names point at home (empty on
+    a lab on the internet), to answer them.
+
 `hooks`
 :   Commands run inside a container: `on: install` once after the first
     start (such as creating an admin account), `on: action`, a button on

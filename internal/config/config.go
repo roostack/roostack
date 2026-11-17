@@ -525,6 +525,9 @@ type Lab struct {
 	VPN VPN `yaml:"vpn,omitempty"`
 	// DomainItself is what the bare domain shows (SPEC.md §5.3).
 	DomainItself DomainItself `yaml:"domain_itself,omitempty"`
+	// Resolver is the DNS server the lab's devices, and the servers that
+	// choose it, look names up with (SPEC.md §6.5.2).
+	Resolver Resolver `yaml:"resolver,omitempty"`
 	// OldAddress is the lab's previous address, still served for a while
 	// after switching so bookmarks and apps can be updated (SPEC.md §6.6).
 	OldAddress *OldAddress `yaml:"old_address,omitempty"`
@@ -557,6 +560,11 @@ type Lab struct {
 	// say who a visitor is (a PROXY header), and they count as outside.
 	// Set at run time from the lab's servers.
 	EdgeAddrs []string `yaml:"-"`
+	// HomeAddress is where the lab's names point for the home network's
+	// devices (the controller's home address), for a DNS server among
+	// the lab's services to answer them with (SPEC.md §6.5.2); "" on a
+	// lab on the internet. Set at run time by the controller.
+	HomeAddress string `yaml:"-"`
 	// Devices are the lab's VPN devices as the controller works them out
 	// for each apply (SPEC.md §10.11): never in lab.yaml.
 	Devices Devices `yaml:"-"`
@@ -747,6 +755,30 @@ type Devices struct {
 	Elsewhere bool     `json:"elsewhere,omitempty"`
 	PassOn    []string `json:"pass_on,omitempty"`
 }
+
+// Resolver is which DNS server the lab's devices use, through its VPN,
+// and the servers that choose it use for their own lookups (SPEC.md
+// §6.5.2).
+type Resolver struct {
+	// Use is one of the Resolver constants; "" is ResolverAuto.
+	Use string `yaml:"use,omitempty"`
+	// Address is the server's address (ResolverAddress).
+	Address string `yaml:"address,omitempty"`
+	// Servers are the lab's servers, by ID, whose own lookups use it too.
+	Servers []string `yaml:"servers,omitempty"`
+}
+
+// Which DNS server the lab uses (Resolver.Use).
+const (
+	// ResolverAuto: a DNS server among the lab's services (Pi-hole), once
+	// there is one, else the provider's.
+	ResolverAuto = "auto"
+	// ResolverProvider: whatever each device and server has already,
+	// usually the internet provider's, through the router.
+	ResolverProvider = "provider"
+	// ResolverAddress: one at an address the Owner typed.
+	ResolverAddress = "address"
+)
 
 // What the bare domain shows (SPEC.md §5.3, DomainItself.Show).
 const (

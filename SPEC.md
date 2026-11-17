@@ -33,6 +33,7 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
   - [6.4 Service Execution: Podman Quadlets](#64-service-execution-podman-quadlets--locked)
   - [6.5 Reverse Proxy & TLS](#65-reverse-proxy--tls--locked)
   - [6.5.1 DNS Records & Local Access](#651-dns-records--local-access--locked-2026-09-26)
+  - [6.5.2 The lab's DNS server](#652-the-labs-dns-server--as-built-2026-11-17-the-maintainers-choices)
   - [6.6 A lab's address (domains)](#66-a-labs-address-domains--locked-changed-2026-10-06)
   - [6.7 Storage Layout](#67-storage-layout--locked)
   - [6.8 Databases](#68-databases--locked)
@@ -1065,7 +1066,7 @@ Roostack manages the DNS records its services need, through the same DNS provide
 
 - **Private services (default):** one **wildcard record** (`*.<domain>`) pointing at the lab's **LAN IP**, in public DNS. Devices at home reach services without local DNS. Anyone can look the record up, but only the home network can reach the address, and service names stay out of public DNS (like the wildcard certificate).
 - **Router DNS rebinding protection:** some routers drop DNS answers containing private IPs. Roostack **detects** this by comparing the home network's resolver with a public resolver, and shows instructions (allow the domain in the router or use local DNS).
-- **Local DNS** (e.g. Pi-hole) is optional, for later. Getting every device to use it means changing the router's DHCP DNS setting (router-specific, sometimes impossible). Roostack running DHCP itself was **rejected**: if the lab dies, the home network stops working.
+- **Local DNS** (e.g. Pi-hole) is optional (§6.5.2, as built 2026-11-17). Getting every device to use it means changing the router's DHCP DNS setting (router-specific, sometimes impossible). Roostack running DHCP itself was **rejected**: if the lab dies, the home network stops working.
 - **Public services (stage 2):** explicit records pointing at the **public IP**; explicit records override the wildcard. Devices at home reach them via the router's NAT loopback (Roostack can test this).
 - **Dynamic public IPs (stage 2):** Roostack updates the records itself (§6.11, 2026-09-30; ddns-updater was the earlier plan).
 - **Cloudflare proxy (stage 3):** offered per public service, **off by default**, with advantages and disadvantages listed in the UI:
@@ -1080,6 +1081,18 @@ Roostack manages the DNS records its services need, through the same DNS provide
 - **Namecheap:** its API can only replace a domain's whole record set, so record management there is **off unless the Owner ticks an opt-in** with a clear warning, and strongly recommends another provider (e.g. Cloudflare).
 - **No usable public IP (CGNAT):** public exposure needs a relay. Future options: Cloudflare Tunnel, or a Roostack Cloud relay (§4).
 - **Stages:** 1) wildcard to LAN IP + rebinding check; 2) public records + dynamic DNS (with public exposure, firewall, CrowdSec); 3) Cloudflare proxy.
+
+### 6.5.2 The lab's DNS server — as built (2026-11-17), the maintainer's choices
+
+§6.5.1 left local DNS (Pi-hole) for later and rejected Roostack running DHCP. Now that Pi-hole is a package (§8.1), the lab has a setting for which DNS server its devices use, with a hook into a DNS server among its services when there is one (the maintainer: "a server and/or lab setting to configure a local DNS server, with a smart hook into Pi-hole when detected").
+
+- **The choice:** Settings → Where it is and DNS, **DNS for your devices** (Owners): a DNS server among the lab's services (the default: the first by name of the services whose package has `dns_server`, not stopped or turned off, else none), each device's own, or one at an IPv4 address the Owner types. Kept in `lab.yaml` as `resolver:` (`use`, `address`, `servers`); applied at once.
+- **Found by itself:** a package says it's a DNS server with `dns_server: <port>`, a UDP port that devices reach on 53 (`outside_port: 53`, §8.1). Its address is its server's home address (the controller's own, or another server's as it reported it); a DNS service on a server with none (a cloud server) isn't used, and the card says why.
+- **The lab's VPN devices** get a `DNS =` line in their WireGuard files, if they can reach it: a public address, or one inside what the device sends through the VPN (a home address needs the home network ticked, unless it's the lab's own address), and, for a DNS service behind single sign-on, if the device's person may use it. Otherwise the file has no line, since a DNS server a device can't reach would leave it with none. Devices pick up a change when their files are downloaded again (each file is shown once, §10.11).
+- **The lab's servers, each by choice** (the maintainer: "an option to set the servers' as well, probably not much value, per server"): a server ticked under **Servers that use it too** gets a systemd-resolved drop-in from `roostack-agent` (`PUT /v1/resolver`, `/etc/systemd/resolved.conf.d/roostack.conf`, `DNS=<address>:<port>`: a DNS service's own host port, 5053 for Pi-hole, so the server's own lookups don't depend on the firewall's 53 redirect, which only acts on arriving traffic), keeping the servers its network gives for when it doesn't answer. Unticked, the file goes. A server without systemd-resolved is left alone, with a line in the apply's log, rather than have its `/etc/resolv.conf` rewritten. The agent's sandbox may write only that folder, which the package makes.
+- **The lab's names in Pi-hole:** templates have `.Lab.HomeAddress`, where the lab's names point for home devices (the controller's home address; empty on a lab on the internet), and Pi-hole's package answers `address=/<domain>/<home address>` (`FTLCONF_misc_dnsmasq_lines`), so devices using it reach every service directly, public ones too (rather than through the router's loopback or the edge, §6.5.1), and while the internet is down. A port-only service on a server other than the controller would want its own server's address there (later).
+- **Not:** changing the router's DHCP DNS (router-specific; the help says to set it there), or DNS over TLS.
+- Checked on VM8: the card found Pi-hole and its address; with the lab at home, Pi-hole answered `rustdesk.gl.test` and `gl.test` with the home address and other names as before (and started with an empty value while the lab was on the internet); ticking the server wrote the drop-in, `resolvectl` showed Pi-hole's `10.0.2.15:5053`, and `getent` found the lab's names through it; unticking removed it. The VPN files' line is covered by unit tests only.
 
 ### 6.6 A lab's address (domains) — Locked, changed 2026-10-06
 

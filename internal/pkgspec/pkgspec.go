@@ -55,6 +55,11 @@ type Package struct {
 	ConfigFiles map[string]*ConfigFile `yaml:"config_files"`
 	// SSO is how the app takes single sign-on (sso.go, SPEC.md §5.2).
 	SSO *SSO `yaml:"sso"`
+	// DNSServer names the port it answers DNS on, for an app that's a DNS
+	// server for the home network (Pi-hole): the lab can then choose it
+	// for its devices and servers (SPEC.md §6.5.2). A UDP port that
+	// devices reach on 53 (outside_port).
+	DNSServer string `yaml:"dns_server"`
 }
 
 // Hook events.

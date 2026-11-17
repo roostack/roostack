@@ -20,6 +20,43 @@
   </form>
   {{end}}
 </section>
+{{with .Resolver}}
+{{/* The lab's DNS server for its devices and servers (SPEC.md §6.5.2). */}}
+<section class="card section" id="resolver">
+  <h2>DNS for your devices</h2>
+  <p class="hint">A DNS server finds the address of each name a device looks up, and one such as Pi-hole can leave out ads and trackers
+    while it does. The lab's VPN devices will use the one chosen here wherever they are, and so will the servers you tick.
+    For the other devices at home, set it in your router as the DNS server it gives out.</p>
+  {{$use := or .Choice.Use "auto"}}
+  <form method="post" action="/settings/resolver" x-data="{ use: '{{$use}}' }">
+    <fieldset>
+      <legend>Which DNS server</legend>
+      <label class="check"><input type="radio" name="use" value="auto" x-model="use"{{if eq $use "auto"}} checked{{end}}>
+        <span>A DNS server among your services, such as Pi-hole
+          <small>{{with .Service}}Now {{.Title}}{{with $.Resolver.Addr}}, at <code>{{.}}</code>{{end}}{{with $.Resolver.Why}}, but it can't be used: {{.}}{{end}}.
+            {{- else}}There isn't one yet, so each device will use its own until you install one.{{end}}</small></span></label>
+      <label class="check"><input type="radio" name="use" value="provider" x-model="use"{{if eq $use "provider"}} checked{{end}}>
+        <span>Each device's own<small>Usually your internet provider's, through your router. Roostack will leave them alone.</small></span></label>
+      <label class="check"><input type="radio" name="use" value="address" x-model="use"{{if eq $use "address"}} checked{{end}}>
+        <span>The one at an address you choose<small>Such as a Pi-hole elsewhere on your home network, or a public one like 9.9.9.9.</small></span></label>
+      <div x-show="use === 'address'"{{if ne $use "address"}} x-cloak{{end}}>
+        <label>Its address<input name="address" value="{{.Choice.Address}}" inputmode="decimal" autocomplete="off" placeholder="192.168.1.2"></label>
+      </div>
+    </fieldset>
+    {{with $.ResolverServers}}
+    <fieldset>
+      <legend>Servers that use it too</legend>
+      {{range .}}<label class="check"><input type="checkbox" name="server" value="{{.ID}}"{{if has $.Resolver.Choice.Servers .ID}} checked{{end}}><span>{{.Name}}</span></label>{{end}}
+      <p class="hint">Only worth it for a server whose own lookups should leave out ads too. It will ask this DNS server first, and keep its own
+        for when it doesn't answer.</p>
+    </fieldset>
+    {{end}}
+    <p class="hint">A device's file names the DNS server only if the device can reach it, so download it again to pick up a change.
+      <small>(Technical: a <code>DNS =</code> line in its WireGuard file, and a systemd-resolved drop-in, <code>/etc/systemd/resolved.conf.d/roostack.conf</code>, on each server you tick.)</small></p>
+    <button type="submit">Save</button>
+  </form>
+</section>
+{{end}}
 {{with .DNS}}
 {{/* While records are being updated and checked, this part refreshes itself
      until the sync ends (not while a confirm dialog is open, or the tab is

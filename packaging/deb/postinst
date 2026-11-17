@@ -45,6 +45,9 @@ if [ ! -e /var/lib/roostack/lab.yaml ] && [ ! -L /var/lib/roostack/lab.yaml ]; t
 fi
 # The agent's own files (its sandbox lets it write here, SPEC.md §6.1).
 install -d -m 0755 /etc/roostack
+# Where the agent sets the lab's DNS server for this server's own
+# lookups, when the Owner chooses (SPEC.md §6.5.2).
+install -d -m 0755 /etc/systemd/resolved.conf.d
 
 # systemd specifiers can't give the UID of User= in a system unit, so the
 # parts that need it go in a drop-in.
