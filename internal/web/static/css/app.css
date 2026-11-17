@@ -595,6 +595,9 @@ table.list a:hover { text-decoration: underline; }
   background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); }
 .meter > span { display: block; height: 100%; background: var(--chart-1); }
 .meter-warning > span { background: var(--warn); } .meter-problem > span { background: var(--bad); }
+/* Memory: what's in memory, then what programs hold in swap, striped. */
+.meter-split { display: flex; } td .meter-split { display: inline-flex; }
+.meter > .meter-swap { background: repeating-linear-gradient(135deg, var(--warn) 0 3px, transparent 3px 6px); }
 /* How a server is doing (SPEC.md §6.15.1): charts drawn as SVG, with the
    scale beside and times below, and lines that don't thicken as the SVG
    stretches. */

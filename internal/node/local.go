@@ -910,6 +910,11 @@ func (n *Local) ServiceStates(ctx context.Context) (map[string]string, error) {
 	n.mu.Unlock()
 	lab := n.lab(a)
 	out := map[string]string{}
+	// Every service's units in one systemctl call: on a small server
+	// whose memory is tight, each call is a program read back from disk
+	// (a page that lists services waited seconds for one per service).
+	unitsOf := map[string][]string{}
+	var all []string
 	for _, s := range a.Services {
 		name := s.Name()
 		out[name] = "unknown"
@@ -918,15 +923,29 @@ func (n *Local) ServiceStates(ctx context.Context) (map[string]string, error) {
 			out[name] = "failed"
 			continue
 		}
-		if n.Units == nil {
-			continue
+		unitsOf[name] = gen.Units
+		all = append(all, gen.Units...)
+	}
+	if n.Units == nil || len(all) == 0 {
+		return out, nil
+	}
+	statuses, err := n.Units.Status(ctx, all...)
+	if err != nil {
+		n.Log.Error("reading service status", "err", err)
+		return out, nil
+	}
+	byUnit := map[string]systemd.UnitStatus{}
+	for _, u := range statuses {
+		byUnit[u.Unit] = u
+	}
+	for name, units := range unitsOf {
+		var mine []systemd.UnitStatus
+		for _, u := range units {
+			if st, ok := byUnit[u]; ok {
+				mine = append(mine, st)
+			}
 		}
-		units, err := n.Units.Status(ctx, gen.Units...)
-		if err != nil {
-			n.Log.Error("reading service status", "service", name, "err", err)
-			continue
-		}
-		out[name] = Summarize(units)
+		out[name] = Summarize(mine)
 	}
 	return out, nil
 }

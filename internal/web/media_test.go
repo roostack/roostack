@@ -230,7 +230,7 @@ func TestLibraryDriveGone(t *testing.T) {
 			t.Errorf("its page lacks %q", want)
 		}
 	}
-	if _, body = h.get("/"); !strings.Contains(html.UnescapeString(body), "Plex can't see Films: its drive isn't connected.") ||
+	if _, body = h.get("/partials/home"); !strings.Contains(html.UnescapeString(body), "Plex can't see Films: its drive isn't connected.") ||
 		!strings.Contains(html.UnescapeString(body), "Plug it back in and Roostack will restart Plex by itself.") {
 		t.Error("Home doesn't say the drive is gone")
 	}

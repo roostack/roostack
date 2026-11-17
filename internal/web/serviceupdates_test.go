@@ -32,7 +32,7 @@ func TestServiceUpdateOffered(t *testing.T) {
 			Policy: "minor", Notes: []pkgspec.UpgradeNote{{Version: "2.0.0-roostack.1", Note: "Faces are rebuilt."}},
 			WhatsNew: "https://github.com/immich-app/immich/releases/tag/v2.1.0"},
 	}
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	if !strings.Contains(body, "Updates are available for Immich (2.1.0) and Vaultwarden (1.36.1).") {
 		t.Error("home lists the updates in one line")
 	}
@@ -104,7 +104,7 @@ func TestServiceUpdateProgressAndFailure(t *testing.T) {
 			t.Errorf("failed update missing %q", want)
 		}
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "Updating Immich to 2.1.0 didn&#39;t work; Roostack went back to 1.9.4.") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Updating Immich to 2.1.0 didn&#39;t work; Roostack went back to 1.9.4.") {
 		t.Error("a failed update is on Home")
 	}
 }
@@ -127,7 +127,7 @@ func TestServiceUpdateWithdrawn(t *testing.T) {
 	if strings.Contains(body, "An update is available") {
 		t.Error("the update is in the withdrawal's notice, not a second one")
 	}
-	if _, body := h.get("/"); strings.Contains(body, "An update is available for Immich") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "An update is available for Immich") {
 		t.Error("Home doesn't list a withdrawn service's update again")
 	}
 }

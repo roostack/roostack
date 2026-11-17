@@ -38,7 +38,7 @@ func TestHeldService(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	h.server.Services = heldServices
 	fm.failedMoves = map[string]manager.FailedMove{"vaultwarden": {To: "n-2", ToName: "vps", FromName: "nuc"}}
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	for _, want := range []string{
 		"Immich is stopped: its files are back from the backup of Tue 20 Oct 03:00, but its database couldn&#39;t be loaded.",
 		`href="/services/immich#held"`, "What to do",

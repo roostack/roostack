@@ -55,6 +55,26 @@ type cpuSampler struct {
 	sleep func(context.Context, time.Duration) error
 }
 
+// cpuKeep is how often WatchCPU takes a reading, well inside
+// cpuMaxWindow, so that a page asking how busy the processors are never
+// waits cpuSample for a fresh measurement.
+const cpuKeep = 10 * time.Second
+
+// WatchCPU keeps a recent reading of the processors until ctx ends, for
+// Home and Servers (a reading is a read of /proc/stat).
+func (n *Local) WatchCPU(ctx context.Context) {
+	t := time.NewTicker(cpuKeep)
+	defer t.Stop()
+	for {
+		n.cpu.measure(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
 // Usage reads this server's memory and how busy its processors are.
 func (n *Local) Usage(ctx context.Context) (Usage, error) {
 	mem, err := n.MemoryInfo(ctx)

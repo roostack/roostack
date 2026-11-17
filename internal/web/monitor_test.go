@@ -67,7 +67,7 @@ func TestMonitoringPage(t *testing.T) {
 	if !strings.Contains(body, "Forgejo isn&#39;t answering at its address: it answered 502 Bad Gateway.") {
 		t.Errorf("no notice of Forgejo down:\n%s", body)
 	}
-	_, body = h.get("/")
+	_, body = h.get("/partials/home")
 	if !strings.Contains(body, "Forgejo isn&#39;t answering at its address") {
 		t.Errorf("Home doesn't say Forgejo is down")
 	}

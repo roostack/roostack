@@ -92,6 +92,8 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 	go local.WatchLibraries(ctx)
 	// How the server is doing, every minute (SPEC.md §6.15.1).
 	go local.RunVitals(ctx)
+	// A recent reading of the processors, so Home doesn't wait for one.
+	go local.WatchCPU(ctx)
 	// Backups and restores cover the services this server runs, as its
 	// assignment says (a node keeps no instance files of its own).
 	assigned := func() (config.Lab, []state.Service, error) {

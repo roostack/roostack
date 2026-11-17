@@ -33,7 +33,7 @@ func TestFirstRunSetup(t *testing.T) {
 	h := newHarness(t, "the-setup-code")
 
 	// Everything redirects to setup until an Owner exists.
-	if _, body := h.get("/"); !strings.Contains(body, "Welcome to Roostack") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Welcome to Roostack") {
 		t.Fatal("expected the setup page")
 	}
 
@@ -75,7 +75,7 @@ func TestFirstRunSetup(t *testing.T) {
 	if code != http.StatusOK || !strings.Contains(body, "need to turn on two-factor") {
 		t.Fatalf("after setup expected 2FA enrollment, got %d", code)
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "need to turn on two-factor") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "need to turn on two-factor") {
 		t.Fatal("the dashboard must be blocked until the Owner enrolls")
 	}
 	if !h.setup {
@@ -87,7 +87,7 @@ func TestFirstRunSetup(t *testing.T) {
 	}
 
 	secret, enrolledAt := h.enrollTOTP(body)
-	if _, body := h.get("/"); !strings.Contains(body, "Vaultwarden") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Vaultwarden") {
 		t.Fatal("after enrolling, the Owner should see the dashboard")
 	}
 
@@ -189,14 +189,15 @@ func TestLoginLogout(t *testing.T) {
 	if code != http.StatusOK || !strings.Contains(body, "<title>Home · Roostack</title>") {
 		t.Fatalf("login failed: %d", code)
 	}
-	if !strings.Contains(body, "Protect your account with two-factor authentication") {
+	// Home's live part loads after its frame (homePage).
+	if _, body = h.get("/partials/home"); !strings.Contains(body, "Protect your account with two-factor authentication") {
 		t.Error("admins without 2FA should see a reminder, not be forced")
 	}
 	if _, body := h.get("/partials/services"); !strings.Contains(body, "status-running") {
 		t.Error("services partial should render")
 	}
 	h.post("/logout", nil, h.srv.URL)
-	if _, body := h.get("/"); !strings.Contains(body, "Log in") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Log in") {
 		t.Error("should be logged out")
 	}
 }
@@ -347,7 +348,7 @@ func TestChangePassword(t *testing.T) {
 	if _, body := h.get("/account"); !strings.Contains(body, "Your account") {
 		t.Error("this device should stay logged in")
 	}
-	if _, body := other.get("/"); !strings.Contains(body, "Log in") {
+	if _, body := other.get("/partials/home"); !strings.Contains(body, "Log in") {
 		t.Error("other devices must be logged out")
 	}
 }
@@ -364,7 +365,7 @@ func TestCrashBecomesErrorPage(t *testing.T) {
 	hash, _ := authkit.HashPassword("a long password")
 	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleAdmin})
 	h.post("/login", url.Values{"username": {"mum"}, "password": {"a long password"}}, h.srv.URL)
-	code, body := h.get("/")
+	code, body := h.get("/partials/home")
 	if code != http.StatusInternalServerError || !strings.Contains(body, "Something went wrong") {
 		t.Errorf("a crash should give an error page, got %d %q", code, body)
 	}

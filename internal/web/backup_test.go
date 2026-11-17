@@ -55,15 +55,15 @@ func TestBackupCard(t *testing.T) {
 	if body := card(); !strings.Contains(body, "couldn&#39;t reach vps&#39;s disk in 2m0s Roostack will try again "+words.When(at)+".") {
 		t.Errorf("retry on the card:\n%s", body)
 	}
-	if _, body := h.get("/"); strings.Contains(body, "The last backup didn") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "The last backup didn") {
 		t.Error("no attention item while a retry is planned")
 	}
 	fb.status.Retry = nil
-	if _, body := h.get("/"); !strings.Contains(body, "The last backup didn") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "The last backup didn") {
 		t.Error("once the retries are over, it needs attention")
 	}
 	fb.status.Retry = &backup.Retry{Drive: true}
-	if _, body := h.get("/"); !strings.Contains(body, "It will back up there as soon as the drive is plugged in.") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "It will back up there as soon as the drive is plugged in.") {
 		t.Error("a missing drive needs someone: flagged at once")
 	}
 
@@ -110,7 +110,7 @@ func TestFencedCopy(t *testing.T) {
 	if !strings.Contains(body, "This lab was restored on another machine (vps)") || !strings.Contains(body, "/backups/keep-this-copy") {
 		t.Error("the card explains, and offers keeping this copy")
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "This lab was restored on another machine (vps)") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "This lab was restored on another machine (vps)") {
 		t.Error("home says so")
 	}
 	h.post("/backups/keep-this-copy", nil, h.srv.URL)

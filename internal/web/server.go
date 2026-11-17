@@ -844,7 +844,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	if gate != nil {
 		routes = gate(routes)
 	}
-	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(routes)))))
+	return s.recoverPanics(s.timePages(compress(securityHeaders(sameOrigin(s.loadSession(routes))))))
 }
 
 // labName is LabName, which first-run setup may change while pages are

@@ -191,7 +191,7 @@ func TestPlanLostMainBackup(t *testing.T) {
 	if _, body = h.get("/backups?add=3"); !strings.Contains(body, "Where should your main backup go?") {
 		t.Error("the chooser is for the main backup")
 	}
-	_, body = h.get("/")
+	_, body = h.get("/partials/home")
 	if !strings.Contains(body, "The main backup was on pi&#39;s disk, and pi has left the lab") {
 		t.Error("needs attention says why")
 	}

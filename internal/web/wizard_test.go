@@ -30,7 +30,7 @@ func TestWizardFlow(t *testing.T) {
 	fs := &fakeSetup{zone: "Etc/UTC"}
 	h.setSetup(fs)
 
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	if !strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 2 of 5</strong>`) || !strings.Contains(body, `data-zone="Etc/UTC"`) ||
 		!strings.Contains(body, `<option value="Australia/Melbourne">`) {
 		t.Fatalf("an Owner with setup unfinished should land on the time zone step:\n%.3000s", body)
@@ -41,7 +41,7 @@ func TestWizardFlow(t *testing.T) {
 	}
 	// Keeping the zone goes straight on to the next step.
 	h.post("/setup/timezone", url.Values{"timezone": {"Etc/UTC"}}, h.srv.URL)
-	if _, body := h.get("/"); fs.restarted || !strings.Contains(body, "Who can log in to this server?") {
+	if _, body := h.get("/partials/home"); fs.restarted || !strings.Contains(body, "Who can log in to this server?") {
 		t.Fatal("after the time zone comes the SSH step, without a restart")
 	}
 	fs.clients = []netip.Addr{netip.MustParseAddr("192.168.86.20")}
@@ -54,7 +54,7 @@ func TestWizardFlow(t *testing.T) {
 		t.Errorf("cutting off a connection must be confirmed: %d", code)
 	}
 	h.post("/setup/ssh", url.Values{"ssh": {"lan"}}, h.srv.URL)
-	if _, body := h.get("/"); fs.ssh != "lan" || !strings.Contains(body, "<h1>Your lab's address</h1>") {
+	if _, body := h.get("/partials/home"); fs.ssh != "lan" || !strings.Contains(body, "<h1>Your lab's address</h1>") {
 		t.Fatal("after the SSH step comes the address step")
 	}
 
@@ -115,7 +115,7 @@ func TestWizardFlow(t *testing.T) {
 		t.Error("saving the domain should go on to the backup step")
 	}
 
-	if _, body := h.get("/"); !strings.Contains(body, "Your backup plan") || !strings.Contains(body, "Set up backups later") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Your backup plan") || !strings.Contains(body, "Set up backups later") {
 		t.Fatal("next comes the backup step")
 	}
 	if code, body := h.post("/setup/backup", nil, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "Add your main backup first") {
@@ -158,7 +158,7 @@ func TestDomainLaterReminder(t *testing.T) {
 	h.setSetup(fs)
 	h.post("/setup/domain/later", nil, h.srv.URL)
 	h.post("/setup/backup/later", nil, h.srv.URL)
-	if _, body := h.get("/"); !strings.Contains(body, `href="/setup/domain">Give it an address`) {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, `href="/setup/domain">Give it an address`) {
 		t.Error("postponed steps must stay visible on the dashboard")
 	}
 }
@@ -430,12 +430,12 @@ func TestUpdatesCard(t *testing.T) {
 			t.Errorf("settings missing %q", want)
 		}
 	}
-	_, home := h.get("/")
+	_, home := h.get("/partials/home")
 	if !strings.Contains(home, "OS updates didn&#39;t finish") || !strings.Contains(home, "will restart around "+at) {
 		t.Error("home: want the failed update and the planned restart")
 	}
 	fs.restartMode = config.RestartNotify
-	if _, home := h.get("/"); !strings.Contains(home, "needs a restart to finish installing updates") {
+	if _, home := h.get("/partials/home"); !strings.Contains(home, "needs a restart to finish installing updates") {
 		t.Error("home: notify-only should ask the Owner to restart")
 	}
 
@@ -459,7 +459,7 @@ func TestUpdatesCard(t *testing.T) {
 	// Admins don't see host updates.
 	ha, _ := loggedIn(t, auth.RoleAdmin)
 	ha.node().updates = fu
-	if _, home := ha.get("/"); strings.Contains(home, "OS updates") {
+	if _, home := ha.get("/partials/home"); strings.Contains(home, "OS updates") {
 		t.Error("admins shouldn't see OS update problems")
 	}
 }
@@ -485,7 +485,7 @@ func TestRoostackSeries(t *testing.T) {
 		}
 	}
 	// Home says so too, as information.
-	if _, home := h.get("/"); !strings.Contains(home, "Roostack 0.5.0 is available.") || !strings.Contains(home, "It starts a new series of releases") ||
+	if _, home := h.get("/partials/home"); !strings.Contains(home, "Roostack 0.5.0 is available.") || !strings.Contains(home, "It starts a new series of releases") ||
 		!strings.Contains(home, `href="/settings/updates#roostack"`) {
 		t.Error("offer: not on Home")
 	}
@@ -503,7 +503,7 @@ func TestRoostackSeries(t *testing.T) {
 		strings.Contains(body, "Update to Roostack") || !strings.Contains(body, "What's new in 0.5") {
 		t.Error("accepted: page wrong")
 	}
-	if _, home := h.get("/"); !strings.Contains(home, "Roostack 0.5 is waiting to install: the last backup didn&#39;t work.") {
+	if _, home := h.get("/partials/home"); !strings.Contains(home, "Roostack 0.5 is waiting to install: the last backup didn&#39;t work.") {
 		t.Error("accepted, waiting: not on Home")
 	}
 	// A development build follows nothing.
@@ -519,7 +519,7 @@ func TestRoostackSeries(t *testing.T) {
 	if code, _ := ha.post("/settings/updates/series", url.Values{"series": {"0.5"}}, ha.srv.URL); code < 400 || fu.accepted != "" {
 		t.Errorf("admin accepted: %d", code)
 	}
-	if _, home := ha.get("/"); strings.Contains(home, "Roostack 0.5.0 is available") {
+	if _, home := ha.get("/partials/home"); strings.Contains(home, "Roostack 0.5.0 is available") {
 		t.Error("admins are told about a series they can't accept")
 	}
 }

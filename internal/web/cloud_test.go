@@ -186,14 +186,14 @@ func TestCloudLinking(t *testing.T) {
 	}
 	f.Unlink(link.Status().LabID)
 	link.Check(context.Background())
-	if _, body := h.get("/"); !strings.Contains(body, "This lab is no longer linked to Roostack Cloud") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "This lab is no longer linked to Roostack Cloud") {
 		t.Error("home: no longer linked")
 	}
 	if _, body := h.get("/settings/cloud"); !strings.Contains(body, "Cloud stopped accepting") {
 		t.Error("settings: no longer linked")
 	}
 	h.post("/settings/cloud/dismiss", nil, h.srv.URL)
-	if _, body := h.get("/"); strings.Contains(body, "no longer linked") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "no longer linked") {
 		t.Error("dismissed")
 	}
 

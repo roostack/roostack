@@ -17,6 +17,11 @@ type MemoryInfo struct {
 	// plus caches the kernel gives back (MemAvailable). It already
 	// counts what's running.
 	Available int64
+	// Swapped is program memory the kernel has moved out to swap, on disk
+	// only (SwapTotal less SwapFree and SwapCached, which is in memory
+	// too): what programs hold beyond what's in memory, which they wait
+	// for when they next use it.
+	Swapped int64
 }
 
 // Memory is a server that can report its memory (Local and Remote), for
@@ -45,10 +50,11 @@ func (n *Local) MemoryInfo(context.Context) (MemoryInfo, error) {
 	return parseMeminfo(f)
 }
 
-// parseMeminfo reads MemTotal and MemAvailable ("MemTotal: 8000000 kB";
-// the kernel's kB are 1024 bytes).
+// parseMeminfo reads MemTotal, MemAvailable, and swap ("MemTotal:
+// 8000000 kB"; the kernel's kB are 1024 bytes).
 func parseMeminfo(f io.Reader) (MemoryInfo, error) {
 	var m MemoryInfo
+	var swapTotal, swapFree, swapCached int64
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		key, rest, ok := strings.Cut(sc.Text(), ":")
@@ -61,6 +67,12 @@ func parseMeminfo(f io.Reader) (MemoryInfo, error) {
 			to = &m.Total
 		case "MemAvailable":
 			to = &m.Available
+		case "SwapTotal":
+			to = &swapTotal
+		case "SwapFree":
+			to = &swapFree
+		case "SwapCached":
+			to = &swapCached
 		default:
 			continue
 		}
@@ -73,6 +85,7 @@ func parseMeminfo(f io.Reader) (MemoryInfo, error) {
 	if err := sc.Err(); err != nil {
 		return MemoryInfo{}, err
 	}
+	m.Swapped = max(0, swapTotal-swapFree-swapCached)
 	if m.Total <= 0 || m.Available <= 0 {
 		return MemoryInfo{}, errors.New("meminfo: no MemTotal or MemAvailable")
 	}

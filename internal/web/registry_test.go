@@ -166,15 +166,15 @@ func TestRegistryAttention(t *testing.T) {
 	reg := &fakeRegistry{on: true, status: fresh()}
 	h.server.Registry = reg
 	const warning = "list of services is from"
-	if _, body := h.get("/"); strings.Contains(body, warning) {
+	if _, body := h.get("/partials/home"); strings.Contains(body, warning) {
 		t.Error("a fresh list needs no attention")
 	}
 	reg.status.Date = time.Now().Add(-20 * 24 * time.Hour)
-	if _, body := h.get("/"); !strings.Contains(body, warning) || !strings.Contains(body, `href="/settings/updates#registry"`) {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, warning) || !strings.Contains(body, `href="/settings/updates#registry"`) {
 		t.Error("an old list should be under Needs attention")
 	}
 	reg.on = false
-	if _, body := h.get("/"); strings.Contains(body, warning) {
+	if _, body := h.get("/partials/home"); strings.Contains(body, warning) {
 		t.Error("turned off on purpose: no warning")
 	}
 }

@@ -299,19 +299,19 @@ func TestServerGoneForGood(t *testing.T) {
 	refused := manager.ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach pi: %w", node.ErrUnreachable)}
 	pi := manager.Server{ID: "n-pi00000001", Name: "pi", Status: refused, UnreachableSince: time.Now().Add(-time.Hour)}
 	fm.servers = []manager.Server{this, pi}
-	if _, body := h.get("/"); !strings.Contains(body, "Roostack can&#39;t reach pi.") || strings.Contains(body, "hasn&#39;t reached pi") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Roostack can&#39;t reach pi.") || strings.Contains(body, "hasn&#39;t reached pi") {
 		t.Error("an hour: the usual words")
 	}
 	pi.UnreachableSince = time.Now().Add(-4 * 24 * time.Hour)
 	fm.servers = []manager.Server{this, pi}
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	if !strings.Contains(body, "Roostack hasn&#39;t reached pi since") || !strings.Contains(body, "remove it from the lab") ||
 		!strings.Contains(body, `href="/servers?remove=n-pi00000001#server-n-pi00000001"`) {
 		t.Errorf("four days, no services: %s", body[strings.Index(body, "Needs attention"):][:600])
 	}
 	pi.Services = []string{"immich"}
 	fm.servers = []manager.Server{this, pi}
-	if _, body := h.get("/"); !strings.Contains(body, "its services can come back from their backups") || !strings.Contains(body, `href="/settings/servers/n-pi00000001/gone"`) {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "its services can come back from their backups") || !strings.Contains(body, `href="/settings/servers/n-pi00000001/gone"`) {
 		t.Error("four days, with services: restore them")
 	}
 	pi.Services = nil
@@ -332,7 +332,7 @@ func TestAttentionFirstErrorLine(t *testing.T) {
 	h, _, fb := notifyHarness(t, auth.RoleOwner)
 	fb.status.Last = &store.BackupRun{OK: false, Finished: time.Now(), Error: "restic backup: exit status 1: Error loading snapshot 1a2b3c: ciphertext verification failed\n" +
 		"github.com/restic/restic/internal/repository.(*Repository).LoadUnpacked\n\t/restic/internal/repository/repository.go:290"}
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	if !strings.Contains(body, "ciphertext verification failed") || strings.Contains(body, "LoadUnpacked") {
 		t.Errorf("home: %s", body[strings.Index(body, "Needs attention"):][:600])
 	}

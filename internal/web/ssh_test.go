@@ -33,7 +33,7 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 			t.Errorf("remote access page missing %q", want)
 		}
 	}
-	_, body = h.get("/")
+	_, body = h.get("/partials/home")
 	if !strings.Contains(body, "SSH on this server still accepts passwords: anyone on your home network can try to guess one.") ||
 		!strings.Contains(body, `href="/settings/remote-access"`) {
 		t.Error("the home page warns while SSH takes passwords")
@@ -59,7 +59,7 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 	if fs.sshLogin != config.SSHLoginKey {
 		t.Errorf("login = %q", fs.sshLogin)
 	}
-	if _, body := h.get("/"); strings.Contains(body, "accepts passwords") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "accepts passwords") {
 		t.Error("no warning once it's keys only")
 	}
 	if _, body := h.get("/settings"); !strings.Contains(body, "SSH from anywhere, keys only") {
@@ -68,12 +68,12 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 
 	// From anywhere with passwords: a problem, not just a warning.
 	fs.sshd.KeysOnly, fs.sshd.Passwords = false, true
-	if _, body := h.get("/"); !strings.Contains(body, "SSH on this server accepts passwords from anywhere") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "SSH on this server accepts passwords from anywhere") {
 		t.Error("anywhere with passwords")
 	}
 	// Nobody can reach SSH: nothing to warn about.
 	fs.ssh = config.SSHOff
-	if _, body := h.get("/"); strings.Contains(body, "accepts passwords") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "accepts passwords") {
 		t.Error("SSH off: no warning")
 	}
 }
@@ -174,13 +174,13 @@ func TestSSHMatchPasswords(t *testing.T) {
 			t.Errorf("remote access page missing %q", want)
 		}
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "SSH on this server still accepts passwords") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "SSH on this server still accepts passwords") {
 		t.Error("Home warns about a Match block for home addresses")
 	}
 	// Only for addresses outside home: nothing to warn about until SSH is
 	// open to them.
 	fs.sshd.Passwords, fs.sshd.PasswordsOutside, fs.sshd.PasswordsMatch = false, true, "Match Address 203.0.113.0/24"
-	if _, body := h.get("/"); strings.Contains(body, "accepts passwords") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "accepts passwords") {
 		t.Error("SSH from home only: a Match block for the internet can't be reached")
 	}
 	_, body = h.get("/settings/remote-access")
@@ -189,7 +189,7 @@ func TestSSHMatchPasswords(t *testing.T) {
 		t.Error("the details still say what SSH does")
 	}
 	fs.ssh = config.SSHFromAny
-	if _, body := h.get("/"); !strings.Contains(body, "SSH on this server accepts passwords from anywhere") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "SSH on this server accepts passwords from anywhere") {
 		t.Error("SSH from anywhere: the Match block is reached")
 	}
 }

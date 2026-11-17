@@ -72,7 +72,7 @@ func TestWaitingService(t *testing.T) {
 		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: StatusWaiting, WasOn: "nas"},
 			{Name: "forgejo", Title: "Forgejo", Status: "running"}}, nil
 	}
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	if !strings.Contains(body, "Vaultwarden is waiting to be restored (it was on nas).") {
 		t.Error("home should say a service waits")
 	}

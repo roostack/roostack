@@ -142,7 +142,7 @@ func TestRelayOwnDomain(t *testing.T) {
 			t.Errorf("missing %q", want)
 		}
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "waiting for the record proving lab.example.com") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "waiting for the record proving lab.example.com") {
 		t.Error("no warning on Home while unproven")
 	}
 	h.post("/settings/public/relay-check", nil, h.srv.URL)
@@ -153,11 +153,11 @@ func TestRelayOwnDomain(t *testing.T) {
 	if _, body := h.get("/settings/public"); !strings.Contains(body, "has checked that lab.example.com is this lab's") {
 		t.Error("not said once proven")
 	}
-	if _, body := h.get("/"); strings.Contains(body, "proving lab.example.com") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "proving lab.example.com") {
 		t.Error("still on Home once proven")
 	}
 	d.Missing = true
-	if _, body := h.get("/"); !strings.Contains(body, "can&#39;t find the record proving lab.example.com") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "can&#39;t find the record proving lab.example.com") {
 		t.Error("no problem on Home when the proof's gone")
 	}
 }

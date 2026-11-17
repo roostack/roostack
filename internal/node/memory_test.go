@@ -74,3 +74,12 @@ func TestCPUSampler(t *testing.T) {
 		t.Errorf("a minute on = %d%%, slept %v; want 100%%, a fresh measurement", busy, slept)
 	}
 }
+
+// TestParseMeminfoSwap: memory in swap is what's on disk only, not what's
+// in memory as well (SwapCached).
+func TestParseMeminfoSwap(t *testing.T) {
+	m, err := parseMeminfo(strings.NewReader("MemTotal: 2021224 kB\nMemAvailable: 893540 kB\nSwapCached: 247308 kB\nSwapTotal: 4702200 kB\nSwapFree: 3429392 kB\n"))
+	if err != nil || m.Swapped != (4702200-3429392-247308)*1024 {
+		t.Errorf("parseMeminfo = %+v, %v", m, err)
+	}
+}

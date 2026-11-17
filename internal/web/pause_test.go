@@ -23,7 +23,7 @@ import (
 func TestPausePublic(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	ctx := context.Background()
-	if _, body := h.get("/"); !strings.Contains(body, `href="/pause"`) || !strings.Contains(body, "Pause public access…") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, `href="/pause"`) || !strings.Contains(body, "Pause public access…") {
 		t.Error("Home doesn't offer to pause public access")
 	}
 	code, body := h.get("/pause")
@@ -41,7 +41,7 @@ func TestPausePublic(t *testing.T) {
 	if len(fm.paused) != 1 || !fm.paused[0].All || fm.pausedBy[0] != "u" {
 		t.Fatalf("paused %+v by %v", fm.paused, fm.pausedBy)
 	}
-	_, body = h.get("/")
+	_, body = h.get("/partials/home")
 	if !strings.Contains(body, "Public access to everything is paused, since") || !strings.Contains(body, "Public access paused</span>") ||
 		!strings.Contains(body, `href="/settings/public#paused"`) {
 		t.Errorf("Home doesn't say it's paused:\n%s", body)
@@ -98,7 +98,7 @@ func TestPauseRoles(t *testing.T) {
 	if code, _ := h.post("/pause", url.Values{"scope": {"all"}}, h.srv.URL); code != http.StatusOK || fm.all == nil {
 		t.Errorf("an Admin pausing: %d", code)
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "Public access to everything is paused") || strings.Contains(body, "Open it again…") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Public access to everything is paused") || strings.Contains(body, "Open it again…") {
 		t.Error("an Admin sees the pause, without the Owner's link to open it again")
 	}
 	if code, _ := h.post("/pause/lift", url.Values{"all": {"yes"}}, h.srv.URL); code != http.StatusForbidden || fm.all == nil {
@@ -118,7 +118,7 @@ func TestApplyWaiting(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
 	fm.status = manager.ApplyStatus{Running: true, Doing: []node.Change{{Reason: "Installing immich"}},
 		Waiting: []node.Change{{Reason: "Pausing public access to everything", Early: true}, {Reason: "Changing Vaultwarden's settings"}}}
-	for _, page := range []string{"/", "/services"} {
+	for _, page := range []string{"/partials/home", "/services"} {
 		_, body := h.get(page)
 		for _, want := range []string{"2 changes are waiting for the one being applied now (Installing immich) to finish.",
 			"<li>Pausing public access to everything <small class=\"hint\">· its web addresses have changed already</small></li>",
@@ -129,7 +129,7 @@ func TestApplyWaiting(t *testing.T) {
 		}
 	}
 	fm.status.Waiting = nil
-	if _, body := h.get("/"); strings.Contains(body, "waiting for the one being applied") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "waiting for the one being applied") {
 		t.Error("nothing waiting says nothing")
 	}
 }
@@ -144,7 +144,7 @@ func TestAdvisoryPages(t *testing.T) {
 	fm.access = []manager.RouteAccess{{Route: "web", Host: "passwords.lab.example.com", Public: true, WAF: true}}
 	fm.advisories = map[string][]*manager.ServiceAdvisory{"vaultwarden": {{Advisory: adv, Version: "1.34.3-roostack.1",
 		Fixed: "1.34.4-roostack.1", Public: true, Paused: true}}}
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	if !strings.Contains(body, "Roostack has paused public access to Vaultwarden because of a security problem that&#39;s being used in attacks") ||
 		!strings.Contains(body, `href="/services/vaultwarden#advisory"`) {
 		t.Errorf("Home:\n%s", body)
@@ -211,7 +211,7 @@ func TestClosePublic(t *testing.T) {
 	if _, body := h.get("/pause"); !strings.Contains(body, `href="/pause/close"`) {
 		t.Error("the pause page doesn't point to closing")
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "security problem in Roostack 0.4.1 itself") || !strings.Contains(body, `href="/pause/close?advisory=2026-0009"`) {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "security problem in Roostack 0.4.1 itself") || !strings.Contains(body, `href="/pause/close?advisory=2026-0009"`) {
 		t.Errorf("Home doesn't ask to close:\n%s", body)
 	}
 	code, body := h.get("/pause/close?advisory=2026-0009")
@@ -243,7 +243,7 @@ func TestClosePublic(t *testing.T) {
 	}
 
 	h.post("/pause/close", nil, h.srv.URL)
-	if _, body := h.get("/"); !strings.Contains(body, "Public access is closed completely, since") || strings.Contains(body, "security problem in Roostack") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Public access is closed completely, since") || strings.Contains(body, "security problem in Roostack") {
 		t.Errorf("Home while closed:\n%s", body)
 	}
 	if _, body := h.get("/settings/public"); !strings.Contains(body, "Closed completely") || !strings.Contains(body, "can't connect at all") ||

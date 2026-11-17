@@ -18,6 +18,14 @@ date. The home page adds up the memory and CPU of every server: memory in
 use is what the server can't free without swapping, and CPU is the share
 of its processors' time they were busy over the last few seconds.
 
+Memory also counts what programs hold in **swap**: memory the server has
+moved out to its disk because it ran short. A program waits for that
+memory when it next uses it, so a server with a lot in swap can be slow
+at first, after a quiet spell, and fast after. When programs hold more
+than the server has, the home page says so in a warning, and the Servers
+page shows the part in swap as a striped stretch of each server's memory
+bar. More memory, or fewer services on that server, is the cure.
+
 - [Add a server](add.md)
 - [Move a service](move.md) to another server
 - [When a server is gone](gone.md): bring its services back elsewhere

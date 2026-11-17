@@ -180,7 +180,7 @@ func TestNavigationByRole(t *testing.T) {
 func TestHomeAllGood(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner) // owners have 2FA in this harness
 	h.server.Node = nil
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	if !strings.Contains(body, "Everything&#39;s working") && !strings.Contains(body, "Everything's working") {
 		t.Error("with nothing to do, home should say everything's working")
 	}
@@ -266,7 +266,7 @@ func TestServiceSetupAndActions(t *testing.T) {
 	if !strings.Contains(body, `id="setup-status"`) || !strings.Contains(body, `hx-select="#setup-status"`) {
 		t.Error("pending setup: want a polling notice that only swaps itself")
 	}
-	if _, home := h.get("/"); !strings.Contains(home, "Finishing setting up Forgejo") {
+	if _, home := h.get("/partials/home"); !strings.Contains(home, "Finishing setting up Forgejo") {
 		t.Error("home: pending setup should be listed")
 	}
 
@@ -275,7 +275,7 @@ func TestServiceSetupAndActions(t *testing.T) {
 	if !strings.Contains(body, "username is invalid") || !strings.Contains(body, `action="/services/forgejo/setup/retry"`) {
 		t.Error("failed setup: want the reason and a retry button")
 	}
-	if _, home := h.get("/"); !strings.Contains(home, "Forgejo didn&#39;t finish setting up.") {
+	if _, home := h.get("/partials/home"); !strings.Contains(home, "Forgejo didn&#39;t finish setting up.") {
 		t.Error("home: failed setup should need attention")
 	}
 	h.post("/services/forgejo/setup/retry", nil, h.srv.URL)
@@ -345,7 +345,7 @@ func TestServiceScheduledTasks(t *testing.T) {
 		!strings.Contains(body, "the database is locked") {
 		t.Error("one failure: want what went wrong and when it will try again")
 	}
-	if _, home := h.get("/"); strings.Contains(home, "scheduled task") {
+	if _, home := h.get("/partials/home"); strings.Contains(home, "scheduled task") {
 		t.Error("home: one failure shouldn't need attention")
 	}
 
@@ -356,7 +356,7 @@ func TestServiceScheduledTasks(t *testing.T) {
 	if !strings.Contains(body, "Didn't work the last 2 times") || !strings.Contains(body, ">Try again<") {
 		t.Error("two failures: want them said, with Try again")
 	}
-	if _, home := h.get("/"); !strings.Contains(home, "Forgejo&#39;s scheduled task “Free up space” didn&#39;t work the last 2 times.") ||
+	if _, home := h.get("/partials/home"); !strings.Contains(home, "Forgejo&#39;s scheduled task “Free up space” didn&#39;t work the last 2 times.") ||
 		!strings.Contains(home, "/services/forgejo#scheduled") {
 		t.Error("home: two failures should need attention")
 	}
@@ -384,7 +384,7 @@ func TestTemporaryPasswordMustBeChanged(t *testing.T) {
 		MustChangePassword: true})
 	h.post("/login", url.Values{"username": {"dad"}, "password": {"temporary password"}}, h.srv.URL)
 
-	if _, body := h.get("/"); !strings.Contains(body, "using a temporary password") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "using a temporary password") {
 		t.Fatal("a temporary password should send the user to choose their own first")
 	}
 	_, body := h.post("/account/password", url.Values{"current": {"temporary password"},
@@ -911,7 +911,7 @@ func TestServiceCardsAndBuiltIns(t *testing.T) {
 				DataSize: 12 * units.MB}}}, nil
 	}
 	// The lists: where each runs, its address, its last backup.
-	for _, path := range []string{"/", "/services"} {
+	for _, path := range []string{"/partials/home", "/services"} {
 		_, body := h.get(path)
 		for _, want := range []string{`<td class="hide-phone">nuc</td>`, `<span class="num">today `,
 			`href="https://vault.lab.example.com" target="_blank" rel="noopener">vault.lab.example.com`} {
@@ -976,7 +976,7 @@ func TestPerServerSettings(t *testing.T) {
 		t.Errorf("unknown server: %d", code)
 	}
 	// Home: the servers, with a link to each server's settings.
-	_, home := h.get("/")
+	_, home := h.get("/partials/home")
 	if body := home; !strings.Contains(body, "<h2>Servers</h2>") || !strings.Contains(body, `href="/settings/servers/n-9876543210"`) ||
 		!strings.Contains(body, `<span class="pill pill-warn">Needs a restart</span>`) {
 		t.Errorf("home should show the servers")
@@ -1018,12 +1018,12 @@ func TestCertificateExpiry(t *testing.T) {
 	if _, body := h.get("/servers"); strings.Count(body, "Certificate</dt>") != 2 || !strings.Contains(body, "<dd>Expires ") {
 		t.Error("Servers should show each certificate")
 	}
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	if !strings.Contains(body, "vps&#39;s certificate on Roostack&#39;s network will expire") || strings.Contains(body, "nuc&#39;s certificate") {
 		t.Errorf("a certificate that isn't renewing should need attention")
 	}
 	fm.servers[1].CertExpires = time.Now().Add(-time.Hour)
-	if _, body := h.get("/"); !strings.Contains(body, "has expired") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "has expired") {
 		t.Error("an expired certificate")
 	}
 }
@@ -1067,7 +1067,7 @@ func TestRemovedGuestLabs(t *testing.T) {
 	}
 	// The guest's side: a host that stopped storing its backups needs attention.
 	fm.ending = []manager.EndingStorage{{HostName: "Mum's lab", DeleteOn: time.Now().Add(29 * 24 * time.Hour)}}
-	if _, body := h.get("/"); !strings.Contains(body, "Mum&#39;s lab has stopped storing your backups") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Mum&#39;s lab has stopped storing your backups") {
 		t.Error("an ending storage needs attention")
 	}
 }
@@ -1104,7 +1104,7 @@ func TestHostChanges(t *testing.T) {
 	up.changes.AptSources = []string{"docker.list: https://download.docker.com/linux/debian"}
 	up.changes.Held = []string{"linux-image-amd64"}
 	fm.updates = up
-	if _, body := h.get("/"); !strings.Contains(body, "Changes Roostack didn&#39;t make: software from outside Debian, packages held back from updates") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Changes Roostack didn&#39;t make: software from outside Debian, packages held back from updates") {
 		t.Error("host changes need attention")
 	}
 	_, body := h.get("/settings/updates")
@@ -1115,7 +1115,7 @@ func TestHostChanges(t *testing.T) {
 	if !up.known {
 		t.Fatal("marking them known")
 	}
-	if _, body := h.get("/"); strings.Contains(body, "Changes Roostack didn") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "Changes Roostack didn") {
 		t.Error("known changes don't need attention")
 	}
 	if _, body := h.get("/settings/updates"); !strings.Contains(body, "You said these were made on purpose") {
@@ -1152,7 +1152,7 @@ func TestHomeShowsWhatAnApplyDoes(t *testing.T) {
 		t.Error("the home page shows what the apply is doing")
 	}
 	log.Finish(nil)
-	if _, body := h.get("/"); strings.Contains(body, "building its image the first time") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "building its image the first time") {
 		t.Error("a finished apply isn't shown")
 	}
 }
@@ -1237,25 +1237,25 @@ func TestServerDiskSpace(t *testing.T) {
 			t.Errorf("servers page missing %q", want)
 		}
 	}
-	if _, body := h.get("/"); strings.Contains(body, "disk space") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "disk space") {
 		t.Error("plenty of space: nothing to say")
 	}
 	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 80 * units.GB, Joined: true}, Used: 5 * units.GB}}
-	if _, body := h.get("/"); !strings.Contains(body, "Other labs could fill this server&#39;s disk: they&#39;ve been promised 75.0 GB more") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Other labs could fill this server&#39;s disk: they&#39;ve been promised 75.0 GB more") {
 		t.Error("promised more than is free")
 	}
 	// 55 GB still to come of 55 GB free reaches into the 10 GB kept free.
 	fm.guests[0].Quota = 60 * units.GB
-	if _, body := h.get("/"); !strings.Contains(body, "Space promised to other labs now takes some of what&#39;s kept free on this server&#39;s disk") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Space promised to other labs now takes some of what&#39;s kept free on this server&#39;s disk") {
 		t.Error("promised space reaching into the headroom")
 	}
 	fm.guests[0].Quota = 45 * units.GB
-	if _, body := h.get("/"); strings.Contains(body, "Space promised") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "Space promised") {
 		t.Error("40 GB to come leaves the 10 GB kept free")
 	}
 	fm.guests = nil
 	fm.disk.Free = 3 * units.GB
-	if _, body := h.get("/"); !strings.Contains(body, "This server is running out of disk space: 3.0 GB free of 100.0 GB") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "This server is running out of disk space: 3.0 GB free of 100.0 GB") {
 		t.Error("low space should need attention")
 	}
 }
@@ -1338,7 +1338,7 @@ func TestInstallingShown(t *testing.T) {
 	if strings.Contains(body, `href="https://passwords.lab.example.com"`) {
 		t.Error("no link to the address while installing")
 	}
-	for _, path := range []string{"/services", "/"} {
+	for _, path := range []string{"/services", "/partials/home"} {
 		_, body := h.get(path)
 		if !strings.Contains(body, "Step 2 of 3: downloading Vaultwarden…") || strings.Contains(body, `href="https://passwords.lab.example.com"`) {
 			t.Errorf("%s: should show the step, not Open", path)
@@ -1413,7 +1413,7 @@ func TestServerDisks(t *testing.T) {
 			t.Errorf("servers page missing %q", want)
 		}
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "This server&#39;s USB drive BACKUP is running out") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "This server&#39;s USB drive BACKUP is running out") {
 		t.Error("the full drive needs attention")
 	}
 }
@@ -1422,12 +1422,12 @@ func TestServerDisks(t *testing.T) {
 // (docs/DESIGN.md "Layout"); a server that can't say is unknown there.
 func TestHomeUsage(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	if strings.Contains(body, `figure-label">Memory`) {
 		t.Error("no figures from a server that can't say")
 	}
 	fm.usage = &node.Usage{Memory: node.MemoryInfo{Total: 8 * units.GB, Available: 5 * units.GB}, CPUs: 4, CPUBusy: 12}
-	_, body = h.get("/")
+	_, body = h.get("/partials/home")
 	for _, want := range []string{`figure-label">Memory`, "3.0 GB <small>of 8.0 GB used", "5.0 GB free",
 		`figure-label">CPU`, "12% <small>busy", "Across 4 processors"} {
 		if !strings.Contains(body, want) {
@@ -1436,10 +1436,18 @@ func TestHomeUsage(t *testing.T) {
 	}
 	// Servers has each server's.
 	_, body = h.get("/servers")
-	for _, want := range []string{`title="37% used"`, "3.0 GB of 8.0 GB</small>", `title="12% busy"`, "12% of 4 processors"} {
+	for _, want := range []string{`title="37% in memory"`, "3.0 GB of 8.0 GB</small>", `title="12% busy"`, "12% of 4 processors"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("servers missing %q", want)
 		}
+	}
+	// Programs holding more than the server has, the rest in swap.
+	fm.usage = &node.Usage{Memory: node.MemoryInfo{Total: 2 * units.GB, Available: units.GB, Swapped: 3 * units.GB / 2}, CPUs: 1, CPUBusy: 5}
+	if _, body = h.get("/partials/home"); !strings.Contains(body, "Programs need more than it has: 1.5 GB is on disk (swap)") {
+		t.Error("home doesn't say programs need more than the server has")
+	}
+	if _, body = h.get("/servers"); !strings.Contains(body, "1.0 GB of 2.0 GB, 1.5 GB in swap</small>") || !strings.Contains(body, `class="meter-swap"`) {
+		t.Error("servers don't show swap")
 	}
 	fm.usage = &node.Usage{Memory: node.MemoryInfo{Total: 8 * units.GB, Available: units.GB / 2}, CPUs: 1, CPUBusy: 95}
 	_, body = h.get("/partials/home")
@@ -1461,7 +1469,7 @@ func TestServicesWithoutAddress(t *testing.T) {
 	h.server.Services = func(context.Context) ([]ServiceView, error) {
 		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", NoAddress: true}}, nil
 	}
-	for _, path := range []string{"/", "/services", "/services/vaultwarden"} {
+	for _, path := range []string{"/partials/home", "/services", "/services/vaultwarden"} {
 		_, body := h.get(path)
 		if !strings.Contains(body, "Waiting for an address") || !strings.Contains(body, `href="/setup/domain">Give your lab an address`) {
 			t.Errorf("%s should say the service waits for an address", path)
@@ -1814,12 +1822,26 @@ func TestTurnServiceOff(t *testing.T) {
 	if !slices.Contains(fm.offs, "vaultwarden on by u") {
 		t.Errorf("turned on: %v", fm.offs)
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "1 turned off") || strings.Contains(body, "not running") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "1 turned off") || strings.Contains(body, "not running") {
 		t.Error("Home counts a service turned off as a problem")
 	}
 	member, _ := loggedIn(t, auth.RoleMember)
 	member.server.Services = h.server.Services
 	if _, body := member.get(acctPagesServices); !strings.Contains(body, "Turned off for now") {
 		t.Error("Members aren't told it's turned off")
+	}
+}
+
+// TestHomeFrameFirst: Home's frame comes at once, its live part loading
+// straight after, so a slow server doesn't leave the page blank.
+func TestHomeFrameFirst(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	_, body := h.get("/")
+	if !strings.Contains(body, `hx-trigger="load, every 10s`) || !strings.Contains(body, "Checking on your services and servers") ||
+		strings.Contains(body, "Everything&#39;s working") {
+		t.Errorf("frame:\n%s", body)
+	}
+	if _, live := h.get("/partials/home"); !strings.Contains(live, `<h2>Services</h2>`) || strings.Contains(live, "Checking on your services") {
+		t.Error("the live part isn't the whole of it")
 	}
 }

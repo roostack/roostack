@@ -47,7 +47,7 @@ func TestNetworkSetting(t *testing.T) {
 	fs := &fakeSetup{p: allDone}
 	h.setSetup(fs)
 	h.server.DetectNetwork = func() string { return config.NetworkInternet }
-	if _, body := h.get("/"); !strings.Contains(body, "looks like a cloud server") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "looks like a cloud server") {
 		t.Error("Home should suggest saying where the lab is")
 	}
 	if _, body := h.get("/settings"); !strings.Contains(body, "Looks like a cloud server") {
@@ -68,7 +68,7 @@ func TestNetworkSetting(t *testing.T) {
 		!strings.Contains(body, "restart") {
 		t.Errorf("saving: %q tunnel %v restarted %v, %d", fs.network, fs.uiTunnelOnly, fs.restarted, code)
 	}
-	if _, body := h.get("/"); strings.Contains(body, "looks like a cloud server") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "looks like a cloud server") {
 		t.Error("no reminder once it's saved")
 	}
 }
@@ -187,7 +187,7 @@ func TestAppLinkPrivate(t *testing.T) {
 // Services and Home have a Manage link to each service's page.
 func TestManageLinks(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleAdmin)
-	for _, path := range []string{"/services", "/"} {
+	for _, path := range []string{"/services", "/partials/home"} {
 		if _, body := h.get(path); !strings.Contains(body, `<a class="table-action" href="/services/vaultwarden">Manage<span class="sr-only"> Vaultwarden</span></a>`) {
 			t.Errorf("%s: no Manage link", path)
 		}

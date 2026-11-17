@@ -67,7 +67,7 @@ func TestCloudStanding(t *testing.T) {
 			t.Errorf("the Cloud page: no %q", want)
 		}
 	}
-	_, home := h.get("/")
+	_, home := h.get("/partials/home")
 	for _, want := range []string{"Roostack Cloud has suspended this lab&#39;s account: Phishing.", "photos.smiths.roost.test is suspended by Roostack Cloud: Phishing.",
 		"paypal.smiths.roost.test wasn&#39;t approved by Roostack Cloud", "nab.smiths.roost.test is waiting for Roostack Cloud&#39;s approval"} {
 		if !strings.Contains(home, want) {
@@ -77,7 +77,7 @@ func TestCloudStanding(t *testing.T) {
 	// Lifted, decided: nothing left on hold.
 	f.SuspendedFor, f.NameStates = "", nil
 	link.Check(ctx)
-	if _, home := h.get("/"); strings.Contains(home, "Roostack Cloud has suspended") || strings.Contains(home, "nab.smiths") {
+	if _, home := h.get("/partials/home"); strings.Contains(home, "Roostack Cloud has suspended") || strings.Contains(home, "nab.smiths") {
 		t.Error("still on hold after Cloud said it isn't")
 	}
 
@@ -97,7 +97,7 @@ func TestCloudStanding(t *testing.T) {
 		!strings.Contains(body, `action="/settings/public/relay-on#way-in"`) {
 		t.Errorf("Public access with the relay off: %s", body)
 	}
-	if _, home := h.get("/"); !strings.Contains(home, "it was turned off in Roostack Cloud") {
+	if _, home := h.get("/partials/home"); !strings.Contains(home, "it was turned off in Roostack Cloud") {
 		t.Error("Needs attention doesn't say the relay is off")
 	}
 	// Turning it on is the Owner's.
@@ -124,7 +124,7 @@ func TestCloudStanding(t *testing.T) {
 		!strings.Contains(body, `action="/settings/public/relay-resume#way-in"`) {
 		t.Errorf("Public access paused at the relay: %s", body)
 	}
-	if _, home := h.get("/"); !strings.Contains(home, "Public access is paused at Roostack Cloud&#39;s relay, since today") {
+	if _, home := h.get("/partials/home"); !strings.Contains(home, "Public access is paused at Roostack Cloud&#39;s relay, since today") {
 		t.Error("Home doesn't say the relay is paused")
 	}
 	if m.toAccount(http.MethodPost, "/settings/public/relay-resume"); f.RelayPaused.IsZero() {
@@ -242,7 +242,7 @@ func TestCloudBackupSpace(t *testing.T) {
 	if _, body := h.get("/backups"); !strings.Contains(body, "Your lab uses 5.0 GB of the 10.0 GB in your plan (50%)") {
 		t.Error("the card doesn't show Cloud backup's space")
 	}
-	if _, home := h.get("/"); strings.Contains(home, "Roostack Cloud backup is") {
+	if _, home := h.get("/partials/home"); strings.Contains(home, "Roostack Cloud backup is") {
 		t.Error("a warning at 50%")
 	}
 	for _, c := range []struct {
@@ -256,7 +256,7 @@ func TestCloudBackupSpace(t *testing.T) {
 		if err := link.Check(ctx); err != nil {
 			t.Fatal(err)
 		}
-		if _, home := h.get("/"); !strings.Contains(home, c.want) {
+		if _, home := h.get("/partials/home"); !strings.Contains(home, c.want) {
 			t.Errorf("Home at %d bytes: no %q", c.used, c.want)
 		}
 		if _, body := h.get("/backups"); !strings.Contains(body, c.want) || !strings.Contains(body, `<span class="space-low">Your lab uses`) {
@@ -282,7 +282,7 @@ func TestCloudBackupSpace(t *testing.T) {
 		if err := link.Check(ctx); err != nil {
 			t.Fatal(err)
 		}
-		_, home := h.get("/")
+		_, home := h.get("/partials/home")
 		_, body := h.get("/backups")
 		if !strings.Contains(body, c.card) {
 			t.Errorf("the card with %d of %d: no %q", c.lab, c.account, c.card)
@@ -298,7 +298,7 @@ func TestCloudBackupSpace(t *testing.T) {
 	if _, err := link.Unlink(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, home := h.get("/"); strings.Contains(home, "Roostack Cloud backup is") {
+	if _, home := h.get("/partials/home"); strings.Contains(home, "Roostack Cloud backup is") {
 		t.Error("a warning after unlinking")
 	}
 }

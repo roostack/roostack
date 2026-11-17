@@ -219,7 +219,10 @@ func (p *pageServices) get() ([]ServiceView, error) {
 // error page.
 func (s *Server) pageDataWithServices(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
 	data := s.pageData(r)
-	if _, err := withServices(data); err != nil {
+	done := timed(r.Context(), "services")
+	_, err := withServices(data)
+	done()
+	if err != nil {
 		s.serverError(w, err)
 		return nil, false
 	}
@@ -291,12 +294,14 @@ func (s *Server) serviceByName(ctx context.Context, name string) (ServiceView, b
 	return ServiceView{}, false, nil
 }
 
+// homePage sends Home's frame at once, and its live part loads straight
+// after (homePartial, as it refreshes every ten seconds): asking every
+// server how it is takes a while on a busy server, and the page shouldn't
+// sit blank meanwhile (the maintainer's lab, 2026-11-18).
 func (s *Server) homePage(w http.ResponseWriter, r *http.Request) {
-	data, ok := s.pageDataWithServices(w, r)
-	if !ok {
-		return
-	}
-	s.homeData(r, data)
+	data := s.pageData(r)
+	data["Loading"] = true
+	data["Greeting"] = greeting(time.Now())
 	// What an apply is doing (downloading, building), or why it failed
 	// lately: nothing should look like magic.
 	if a := s.activityFor(r, activity.Apply); a != nil && a.Recent(24*time.Hour) && (a.Running() || a.Err != "") {
@@ -318,7 +323,9 @@ func (s *Server) homePartial(w http.ResponseWriter, r *http.Request) {
 // attention, and for those who manage services, the servers and the
 // figures across the top (docs/DESIGN.md "Layout").
 func (s *Server) homeData(r *http.Request, data map[string]any) {
+	done := timed(r.Context(), "attention")
 	data["Attention"] = s.AttentionLab().For(r.Context(), currentUser(r))
+	done()
 	// Members see a link to migrate their photos into each Immich they may
 	// (SPEC.md §8.5).
 	if u := currentUser(r); !isAdmin(u) {
@@ -330,15 +337,22 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 	}
 	if data["CanManage"] == true {
 		s.pauseData(data)
+		done := timed(r.Context(), "servers")
 		servers := s.serverViews(r)
+		done()
 		data["Servers"] = servers
 		f := homeFiguresOf(data["Services"].([]ServiceView), servers)
 		nodes := s.serverNodes()
 		// Their memory and CPU while their disks are asked for.
 		var usage map[string]serverUsage
 		var wg sync.WaitGroup
-		wg.Go(func() { usage = s.serverUsages(r, nodes) })
+		wg.Go(func() {
+			defer timed(r.Context(), "memory and CPU")()
+			usage = s.serverUsages(r, nodes)
+		})
+		doneDisks := timed(r.Context(), "disks")
 		disks := s.homeDisks(r, nodes)
+		doneDisks()
 		wg.Wait()
 		f.addDisks(disks)
 		f.addUsage(usage)
@@ -370,7 +384,9 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 		// What Roostack did lately on the servers, for the Owner (as
 		// History shows it; what people did stays there).
 		if data["IsOwner"] == true {
+			done := timed(r.Context(), "history")
 			entries, _ := s.historyEntries(r, nodes, "", time.Time{})
+			done()
 			var recent []historyEntry
 			for _, e := range entries {
 				if e.Kind != "people" && len(recent) < 5 {
@@ -453,7 +469,11 @@ const usageWait = 3 * time.Second
 type serverUsage struct {
 	MemUsed, MemTotal int64
 	MemPercent        int
-	CPUs, CPUBusy     int
+	// MemSwapped is program memory moved out to swap, on disk: with
+	// MemUsed, what programs hold, which can be more than the server has
+	// (node.MemoryInfo.Swapped).
+	MemSwapped    int64
+	CPUs, CPUBusy int
 }
 
 // usageHigh is the share of memory or CPU in use that Home colours as a
@@ -462,9 +482,42 @@ type serverUsage struct {
 // is slow.
 const usageHigh = 90
 
-// MemLevel and CPULevel are the meters' levels: "warning" from usageHigh.
-func (u serverUsage) MemLevel() string { return usageLevel(u.MemPercent) }
+// MemLevel and CPULevel are the meters' levels: "warning" from usageHigh,
+// or for memory, programs holding more than the server has.
+func (u serverUsage) MemLevel() string {
+	return memLevel(u.MemPercent, u.MemUsed+u.MemSwapped, u.MemTotal)
+}
 func (u serverUsage) CPULevel() string { return usageLevel(u.CPUBusy) }
+
+// MemOver says programs hold more memory than the server has, the rest
+// in swap, where they wait for it when they next use it.
+func (u serverUsage) MemOver() bool { return u.MemUsed+u.MemSwapped > u.MemTotal }
+
+// MemShown says whether swap is worth showing beside memory: more than
+// a little in it.
+func (u serverUsage) MemShown() bool { return u.MemSwapped >= swapShown }
+
+// MemBar is the memory meter's two parts, as percents of the larger of
+// the server's memory and what programs hold: in memory, then in swap.
+func (u serverUsage) MemBar() [2]int { return memBar(u.MemUsed, u.MemSwapped, u.MemTotal) }
+
+// swapShown is how much swap the pages mention: less is noise.
+const swapShown = 64 << 20
+
+func memLevel(percent int, held, total int64) string {
+	if held > total {
+		return attention.Warning
+	}
+	return usageLevel(percent)
+}
+
+func memBar(used, swapped, total int64) [2]int {
+	scale := max(total, used+swapped)
+	if scale <= 0 {
+		return [2]int{}
+	}
+	return [2]int{percentOf(used, scale), percentOf(swapped, scale)}
+}
 
 func usageLevel(percent int) string {
 	if percent >= usageHigh {
@@ -493,7 +546,7 @@ func (s *Server) serverUsages(r *http.Request, nodes []serverNode) map[string]se
 				return
 			}
 			used := max(0, u.Memory.Total-u.Memory.Available)
-			got[i] = &serverUsage{MemUsed: used, MemTotal: u.Memory.Total, MemPercent: percentOf(used, u.Memory.Total),
+			got[i] = &serverUsage{MemUsed: used, MemTotal: u.Memory.Total, MemPercent: percentOf(used, u.Memory.Total), MemSwapped: u.Memory.Swapped,
 				CPUs: u.CPUs, CPUBusy: u.CPUBusy}
 		})
 	}
@@ -515,6 +568,7 @@ func (f *homeFigures) addUsage(servers map[string]serverUsage) {
 	for _, u := range servers {
 		f.MemUsed += u.MemUsed
 		f.MemTotal += u.MemTotal
+		f.MemSwapped += u.MemSwapped
 		f.CPUs += u.CPUs
 		busy += u.CPUBusy * u.CPUs
 		f.UsageServers++
@@ -568,14 +622,22 @@ type homeFigures struct {
 	UsageServers      int
 	MemUsed, MemTotal int64
 	MemPercent        int
-	CPUs, CPUBusy     int
+	// MemSwapped is their program memory in swap, on disk.
+	MemSwapped    int64
+	CPUs, CPUBusy int
 }
 
 // MemFree is the memory the servers that answered have free.
 func (f homeFigures) MemFree() int64 { return max(0, f.MemTotal-f.MemUsed) }
 
 // MemLevel and CPULevel are the lab's figures' levels, as a server's.
-func (f homeFigures) MemLevel() string { return usageLevel(f.MemPercent) }
+func (f homeFigures) MemLevel() string {
+	return memLevel(f.MemPercent, f.MemUsed+f.MemSwapped, f.MemTotal)
+}
+
+// MemOver and MemShown are as a server's (serverUsage).
+func (f homeFigures) MemOver() bool    { return f.MemUsed+f.MemSwapped > f.MemTotal }
+func (f homeFigures) MemShown() bool   { return f.MemSwapped >= swapShown }
 func (f homeFigures) CPULevel() string { return usageLevel(f.CPUBusy) }
 
 func homeFiguresOf(services []ServiceView, servers []serverView) homeFigures {

@@ -215,13 +215,13 @@ func TestEdgeDown(t *testing.T) {
 	this := manager.Server{ID: "n-0123456789", Name: "nuc", Controller: true, This: true, Reachable: true}
 	vps := manager.Server{ID: "n-0000000002", Name: "vps-sydney", Reachable: true}
 	fm.servers = []manager.Server{this, vps}
-	if _, body := h.get("/"); strings.Contains(body, "Public services can&#39;t be reached") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "Public services can&#39;t be reached") {
 		t.Error("a connected edge called out")
 	}
 	vps.Reachable = false
 	vps.Status = manager.ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach vps-sydney: %w", node.ErrUnreachable)}
 	fm.servers = []manager.Server{this, vps}
-	if _, body := h.get("/"); !strings.Contains(body, "Public services can&#39;t be reached from the internet: visitors come in through vps-sydney") ||
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Public services can&#39;t be reached from the internet: visitors come in through vps-sydney") ||
 		!strings.Contains(body, `href="/settings/public#way-in"`) {
 		t.Error("an edge that isn't connected isn't called out")
 	}
@@ -466,7 +466,7 @@ func TestCloudKeptPrivate(t *testing.T) {
 	if _, body := h.get("/settings/public"); !strings.Contains(body, "Kept private until your account is approved") {
 		t.Error("Settings → Public access doesn't list it")
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "Vaultwarden is staying private: Roostack Cloud only allows public access for it through roost.ac for approved accounts.") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Vaultwarden is staying private: Roostack Cloud only allows public access for it through roost.ac for approved accounts.") {
 		t.Error("Needs attention doesn't say so")
 	}
 	// One of the Owner's own packages.

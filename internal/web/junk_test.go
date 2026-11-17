@@ -25,7 +25,7 @@ func TestJunkReported(t *testing.T) {
 			Writers: []string{"nuc", "anyone with Wasabi's key"}, Err: "Roostack has no access of its own there to remove them.",
 			Files: []backup.Junk{{Kind: "index", Name: name, Size: -1, Why: "ciphertext verification failed"}}},
 	}
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	for _, want := range []string{"Roostack removed a file it can&#39;t read from vps&#39;s backups on nuc&#39;s disk",
 		"it stopped those backups working.", "Only vps or nuc could have put it there",
 		"The copy of nuc&#39;s backups on Wasabi holds a file Roostack can&#39;t read, which is stopping those backups working, and Roostack couldn&#39;t remove it.", `href="/backups/junk"`} {
@@ -41,7 +41,7 @@ func TestJunkReported(t *testing.T) {
 		}
 	}
 	h.post("/backups/junk/dismiss", nil, h.srv.URL)
-	if _, body := h.get("/"); strings.Contains(body, "/backups/junk") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "/backups/junk") {
 		t.Error("still shown after clearing")
 	}
 	if _, body := h.get("/backups/junk"); !strings.Contains(body, "hasn't found any") {
@@ -51,7 +51,7 @@ func TestJunkReported(t *testing.T) {
 	// Only the Owner sees it.
 	a, afm := loggedIn(t, auth.RoleAdmin)
 	afm.junk = []manager.JunkReport{{Server: "vps", Where: "nuc's disk"}}
-	if _, body := a.get("/"); strings.Contains(body, "/backups/junk") {
+	if _, body := a.get("/partials/home"); strings.Contains(body, "/backups/junk") {
 		t.Error("an Admin is told")
 	}
 	if code, _ := a.get("/backups/junk"); code == http.StatusOK {

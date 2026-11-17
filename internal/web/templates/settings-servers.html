@@ -31,8 +31,8 @@
         <td class="hide-phone wrap">{{range $i, $s := .Services}}{{if $i}}, {{end}}{{$s}}{{else}}<span class="hint">None</span>{{end}}</td>
         <td class="hide-phone">{{with index $.Spaces .ID}}{{with .Summary}}<div class="meter{{with .Level}} meter-{{.}}{{end}}" title="{{.Percent}}% used"><span data-width="{{.Percent}}"></span></div>
           <small class="hint">{{size .Used}} of {{size .Total}}</small>{{end}}{{else}}<span class="hint">Unknown</span>{{end}}</td>
-        {{with index $.Usage .ID}}<td class="hide-phone"><div class="meter{{with .MemLevel}} meter-{{.}}{{end}}" title="{{.MemPercent}}% used"><span data-width="{{.MemPercent}}"></span></div>
-          <small class="hint">{{size .MemUsed}} of {{size .MemTotal}}</small></td>
+        {{with index $.Usage .ID}}<td class="hide-phone"><div class="meter meter-split{{with .MemLevel}} meter-{{.}}{{end}}" title="{{.MemPercent}}% in memory{{if .MemShown}}, and {{size .MemSwapped}} more in swap, on disk{{end}}"><span data-width="{{index .MemBar 0}}"></span>{{if .MemShown}}<span class="meter-swap" data-width="{{index .MemBar 1}}"></span>{{end}}</div>
+          <small class="hint">{{size .MemUsed}} of {{size .MemTotal}}{{if .MemShown}}, {{size .MemSwapped}} in swap{{end}}</small></td>
         <td class="hide-phone"><div class="meter{{with .CPULevel}} meter-{{.}}{{end}}" title="{{.CPUBusy}}% busy"><span data-width="{{.CPUBusy}}"></span></div>
           <small class="hint">{{.CPUBusy}}% of {{.CPUs}} {{if eq .CPUs 1}}processor{{else}}processors{{end}}</small></td>
         {{- else}}<td class="hide-phone"><span class="hint">Unknown</span></td><td class="hide-phone"><span class="hint">Unknown</span></td>{{end}}

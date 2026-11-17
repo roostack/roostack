@@ -31,7 +31,7 @@ func TestRegistryStop(t *testing.T) {
 		"forgejo":     {Withdrawal: registry.Withdrawal{Level: registry.LevelNotice, Reason: "Run a repository check after updating"}, Version: "15.0.9-roostack.1", Shown: registry.LevelNotice},
 		"vaultwarden": {Withdrawal: registry.Withdrawal{Level: registry.LevelWarning, Reason: "Loses uploads"}, Version: "1.34.3-roostack.1", Shown: registry.LevelWarning},
 	}
-	_, body := h.get("/")
+	_, body := h.get("/partials/home")
 	for _, want := range []string{
 		"Roostack stopped Immich: the service registry says the version it has is dangerous.</strong><span>Its data is kept.",
 		"The version of Vaultwarden you have has been withdrawn by the service registry: Loses uploads.",
@@ -69,7 +69,7 @@ func TestRegistryStop(t *testing.T) {
 	if len(fm.startedAnyway) != 1 || fm.startedAnyway[0] != "immich private" {
 		t.Fatalf("started %v", fm.startedAnyway)
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "Immich is running a version the service registry says is dangerous: you started it anyway.") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Immich is running a version the service registry says is dangerous: you started it anyway.") {
 		t.Error("started anyway stays under Needs attention")
 	}
 }
@@ -81,7 +81,7 @@ func TestRegistryStopsOff(t *testing.T) {
 	h.server.Services = withdrawalServices
 	fm.withdrawn = map[string]*manager.Withdrawal{"immich": {Withdrawal: registry.Withdrawal{Level: registry.LevelStop, Reason: "Bad"},
 		Version: "2.1.0-roostack.1", Shown: registry.LevelWarning, NoStops: true}}
-	if _, body := h.get("/"); !strings.Contains(body, "Roostack would stop it, but you&#39;ve turned that off.") {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Roostack would stop it, but you&#39;ve turned that off.") {
 		t.Error("a stop that's off is a warning saying so")
 	}
 	if _, body := h.get("/services/immich"); !strings.Contains(body, "Roostack would stop it, but that's turned off") {
