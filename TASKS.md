@@ -172,7 +172,7 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
   - [ ] A DNS line in VPN devices' files while Pi-hole runs on the server they connect through, if the maintainer wants it
 - [ ] **RustDesk from outside the home** (the maintainer, 2026-11-17: "we need to go ahead with this"): raw TCP and UDP ports through the lab's own edge, and through Roostack Cloud's relay (Cloud's DESIGN)
   - [x] The edge's firewall sends public package ports on over WireGuard, by the controller to a server at home, same numbers (SPEC §10.5; checked in network namespaces, ASSUMPTIONS Q14)
-  - [ ] Making a port public in the UI, and the name outside clients use for a service with no web address (waits for the maintainer)
+  - [x] Making a port public in the UI (the Owner's), and a name of its own for a service with no web address, with a public DNS record (SPEC §8.1, "Public ports")
   - [ ] Roostack Cloud's relay: ports chosen per lab, counted in usage (Cloud's DESIGN, then both sides)
 - [ ] **Home Assistant** (a session): finding devices on the home network (host networking, or what's needed instead), within the package policy
 - [ ] **Monitoring** (design locked 2026-10-19, built the same day, SPEC §6.15): Roostack's own checks every minute from the controller, history in SQLite, alerts through "needs attention" and the notifier, a public status page Roostack writes. Gatus was tried on VM3 and set aside (SPEC)

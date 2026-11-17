@@ -178,6 +178,24 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	data["Ports"] = ports
 	if urls := data["Service"].(ServiceView).URLs; len(urls) > 0 {
 		data["Host"] = strings.TrimPrefix(urls[0], "https://")
+	} else if h := s.Manager.PortHost(name); h != "" {
+		// A service with no web address has a name for its ports.
+		data["Host"] = h
+	}
+	// How a port taken from anywhere is reached: the lab's way in.
+	if slices.ContainsFunc(ports, func(p manager.PortStatus) bool { return p.Exposure == "public" }) || data["IsOwner"] == true {
+		s.addPublicUI(data)
+		switch {
+		case data["Internet"] == true:
+		case s.Manager.RelayOn():
+			data["PortsRelayed"] = true
+		default:
+			if e, ok := s.Manager.Edge(r.Context()); ok {
+				data["Edge"] = e
+			} else if s.DNS != nil {
+				data["LANIP"] = s.DNS.Status().IP
+			}
+		}
 	}
 	for k, v := range extra {
 		data[k] = v

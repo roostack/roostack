@@ -411,6 +411,52 @@ func TestPorts(t *testing.T) {
 	}
 }
 
+// TestPortExposure: a port made public by the Owner gets a public DNS
+// record at the service's name, and back to home only, not; a well-known
+// port can't be public (SPEC.md §8.1, "Public ports").
+func TestPortExposure(t *testing.T) {
+	m, _ := newManager(t)
+	ctx := context.Background()
+	addForgejo(t, m)
+	if err := m.Install(ctx, "forgejo", forgejoRequest()); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo"))
+	in.SettingUp = false
+	in.Save(state.InstanceFile(m.Lab, "forgejo"))
+	host := m.PortHost("forgejo")
+	if host != "git.lab.example.com" { // its web address's
+		t.Fatalf("port host %q", host)
+	}
+	m.SetPort(ctx, "forgejo", "ssh", true, 2222)
+	if slices.Contains(m.PublicHosts(), host) {
+		t.Error("a home-only port has a public record")
+	}
+	if err := m.SetPortExposure(ctx, "forgejo", "ssh", true); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if !slices.Contains(m.PublicHosts(), host) {
+		t.Errorf("public hosts %v lack %s", m.PublicHosts(), host)
+	}
+	in, _ = instance.Load(state.InstanceFile(m.Lab, "forgejo"))
+	if in.Ports["ssh"].Exposure != "public" {
+		t.Errorf("saved %+v", in.Ports["ssh"])
+	}
+	if err := m.SetPortExposure(ctx, "forgejo", "ssh", false); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	in, _ = instance.Load(state.InstanceFile(m.Lab, "forgejo"))
+	if in.Ports["ssh"].Exposure != "" || slices.Contains(m.PublicHosts(), host) {
+		t.Errorf("back home: %+v %v", in.Ports["ssh"], m.PublicHosts())
+	}
+	if err := m.SetPortExposure(ctx, "forgejo", "nope", true); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown port: %v", err)
+	}
+}
+
 // A clash state.Desired finds says what clashed: a port clash isn't
 // reported as a web address's (it once was, by matching "already used").
 func TestClashError(t *testing.T) {

@@ -555,11 +555,20 @@ func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
 	name, port := r.PathValue("name"), r.PathValue("port")
 	enabled := r.FormValue("enabled") == "on"
+	// Who can connect is the Owner's choice, like a web address's.
+	exposure := r.FormValue("exposure")
+	if exposure != "" && !auth.Can(currentUser(r).Role, auth.ManageHost) {
+		http.Error(w, "Only the Owner can choose who connects from where.", http.StatusForbidden)
+		return
+	}
 	hostPort, err := strconv.Atoi(strings.TrimSpace(r.FormValue("host_port")))
 	if err != nil {
 		err = &usererr.Error{Msg: "Enter a port number, such as 2222."}
 	} else {
 		err = s.Manager.SetPort(r.Context(), name, port, enabled, hostPort)
+	}
+	if err == nil && exposure != "" {
+		err = s.Manager.SetPortExposure(r.Context(), name, port, exposure == "public")
 	}
 	msg, isForm := usererr.Message(err)
 	switch {
@@ -576,6 +585,11 @@ func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
 	state := "off"
 	if enabled {
 		state = fmt.Sprintf("on (port %d)", hostPort)
+		if exposure == "public" {
+			state += ", from anywhere"
+		} else if exposure != "" {
+			state += ", from home"
+		}
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "port", fmt.Sprintf("%s %s %s", name, port, state))
 	redirect(w, r, "/services/"+name)

@@ -304,6 +304,8 @@ type ServiceCatalog interface {
 	DataDirs(name string) []string
 	Ports(name string) ([]manager.PortStatus, error)
 	SetPort(ctx context.Context, name, port string, enabled bool, hostPort int) error
+	SetPortExposure(ctx context.Context, name, port string, public bool) error
+	PortHost(name string) string
 	CurrentSettings(name string) (map[string]any, string, error)
 	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
 	// A service's extra environment variables (SPEC.md §8.1).

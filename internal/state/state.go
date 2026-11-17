@@ -174,6 +174,14 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		if len(out.Hosts) > 0 {
 			first[s.Name()] = out.Hosts[0]
 		}
+		// A service with ports and no web address has a name of its own
+		// for them (generate.PortHost), kept for it as an address is.
+		if h := generate.PortHost(lab, s.Package, s.Instance); h != "" && len(s.Package.Routes) == 0 {
+			if other, dup := hosts[h]; dup {
+				errs = append(errs, &HostInUseError{Service: s.Name(), Host: h, UsedBy: other})
+			}
+			hosts[h] = s.Name()
+		}
 		for _, p := range out.Ports {
 			if other, dup := ports[p]; dup {
 				errs = append(errs, &PortInUseError{Service: s.Name(), Port: p, UsedBy: other})

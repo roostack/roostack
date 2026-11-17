@@ -820,6 +820,59 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 	return nil
 }
 
+// SetPortExposure lets a package port take connections from anywhere,
+// or from the home network and the lab's VPN only (the Owner's choice,
+// like a web address's: SPEC.md §8.1, "Public ports"), and applies the
+// change.
+func (m *Manager) SetPortExposure(ctx context.Context, name, port string, public bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, in, err := m.installedService(name)
+	if err != nil {
+		return err
+	}
+	pp := p.Ports[port]
+	if pp == nil {
+		return ErrNotFound
+	}
+	if public && pp.OutsidePort != 0 {
+		return usererr.New("%s can only take connections from your home network and the lab's VPN: an open %s server on the internet would be used to attack others.",
+			pp.Title, pkgspec.OutsidePorts[pp.OutsidePort])
+	}
+	if in.Ports == nil {
+		in.Ports = map[string]instance.PortOverride{}
+	}
+	o := in.Ports[port]
+	o.Exposure = pkgspec.ExposurePrivate
+	if public {
+		o.Exposure = pkgspec.ExposurePublic
+	}
+	if o.Exposure == pp.DefaultExposure() {
+		o.Exposure = "" // keep following the package's default
+	}
+	in.Ports[port] = o
+	if err := in.Validate(p); err != nil {
+		return usererr.New("%s", err)
+	}
+	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
+		return err
+	}
+	m.startApplyLocked("Changing who can reach " + name)
+	return nil
+}
+
+// PortHost is the name people connect to a service's ports at
+// (generate.PortHost; "" if it has none).
+func (m *Manager) PortHost(name string) string {
+	p, in, err := m.installedService(name)
+	if err != nil {
+		return ""
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return generate.PortHost(m.labNow(), p, in)
+}
+
 // checkTitle tidies a title for a service: empty when it's the package's
 // own (so it follows the package's), and short and on one line.
 func checkTitle(title string, p *pkgspec.Package) (string, error) {

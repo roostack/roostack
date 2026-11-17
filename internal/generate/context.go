@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -299,4 +301,38 @@ func (c *Context) enabled(where, when string) (bool, error) {
 		return false, nil
 	}
 	return false, fmt.Errorf("%s: condition must render to true or false, got %q", where, out)
+}
+
+// PortHost is the name people connect to a service's ports at: its main
+// web address's (the "web" route, else the first by name), or for a
+// service with no web address, its ID under the lab's domain
+// (rustdesk.<domain>), kept for it like an address (state.Desired). ""
+// for a service with no ports, or a lab with no address yet.
+func PortHost(lab config.Lab, p *pkgspec.Package, in *instance.Instance) string {
+	if len(p.Ports) == 0 || !lab.HasAddress() {
+		return ""
+	}
+	if len(p.Routes) == 0 {
+		return in.ID() + "." + lab.Domain
+	}
+	_, routes := Values(lab, p, in)
+	if rc, ok := routes["web"]; ok {
+		return rc.Host
+	}
+	return routes[slices.Sorted(maps.Keys(routes))[0]].Host
+}
+
+// PublicPorts says whether any of a service's ports takes connections
+// from anywhere: enabled, public, and not paused (Paused) or still
+// setting up (ResolvePorts).
+func PublicPorts(lab config.Lab, p *pkgspec.Package, in *instance.Instance) bool {
+	if Paused(lab, p, in) {
+		return false
+	}
+	for _, pc := range ResolvePorts(p, in) {
+		if pc.Enabled && pc.Exposure == pkgspec.ExposurePublic {
+			return true
+		}
+	}
+	return false
 }

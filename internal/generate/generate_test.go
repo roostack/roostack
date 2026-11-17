@@ -1393,3 +1393,42 @@ containers:
 		t.Errorf("not on a pasta network of its own:\n%s", unit)
 	}
 }
+
+// TestPortHost: a service with ports and no web address has its own name
+// for them, a second copy its own; one with a web address uses that; a
+// lab with no address has none (SPEC.md §8.1, "Public ports").
+func TestPortHost(t *testing.T) {
+	p, err := pkgspec.Parse([]byte(`schema: roostack/v1alpha1
+name: relay
+title: Relay
+version: "1"
+containers:
+  app: { image: x }
+ports:
+  id: { title: ID, container: app, port: 21116, host_port: 31116, enabled: true }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := testLab()
+	if h := PortHost(lab, p, &instance.Instance{Package: "relay"}); h != "relay.lab.example.com" {
+		t.Errorf("first copy: %q", h)
+	}
+	if h := PortHost(lab, p, &instance.Instance{Name: "relay-work", Package: "relay"}); h != "relay-work.lab.example.com" {
+		t.Errorf("second copy: %q", h)
+	}
+	if PublicPorts(lab, p, &instance.Instance{Package: "relay"}) {
+		t.Error("public by default")
+	}
+	in := &instance.Instance{Package: "relay", Ports: map[string]instance.PortOverride{"id": {Exposure: "public"}}}
+	if !PublicPorts(lab, p, in) {
+		t.Error("a public port isn't")
+	}
+	if in.SettingUp = true; PublicPorts(lab, p, in) {
+		t.Error("public while setting up")
+	}
+	lab.Domain = ""
+	if h := PortHost(lab, p, &instance.Instance{Package: "relay"}); h != "" {
+		t.Errorf("no address: %q", h)
+	}
+}

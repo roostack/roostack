@@ -217,6 +217,37 @@ func TestServicePorts(t *testing.T) {
 	}
 }
 
+// TestServicePortExposure: who can connect to a port is the Owner's
+// choice; once it's from anywhere, the page says how it's reached from
+// outside (SPEC.md §8.1, "Public ports").
+func TestServicePortExposure(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	fm.ports = []manager.PortStatus{{Name: "id", Title: "ID server",
+		PortContext: generate.PortContext{Enabled: true, HostPort: 31116, Protocol: "udp", Exposure: "private"}}}
+	if _, body := h.get("/services/vaultwarden"); strings.Contains(body, `name="exposure"`) {
+		t.Error("an Admin is offered who can connect")
+	}
+	if code, _ := h.post("/services/vaultwarden/ports/id", url.Values{"enabled": {"on"}, "host_port": {"31116"}, "exposure": {"public"}}, h.srv.URL); code != http.StatusForbidden {
+		t.Errorf("an Admin made a port public: %d", code)
+	}
+
+	h, fm = loggedIn(t, auth.RoleOwner)
+	fm.portHost = "rustdesk.lab.example.com"
+	fm.ports = []manager.PortStatus{{Name: "id", Title: "ID server",
+		PortContext: generate.PortContext{Enabled: true, HostPort: 31116, Protocol: "udp", Exposure: "private"}}}
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, `name="exposure" value="public"`) {
+		t.Error("the Owner isn't offered who can connect")
+	}
+	h.post("/services/vaultwarden/ports/id", url.Values{"enabled": {"on"}, "host_port": {"31116"}, "exposure": {"public"}}, h.srv.URL)
+	if got := strings.Join(fm.setPort, "; "); got != "vaultwarden id true 31116; vaultwarden id public true" {
+		t.Errorf("calls: %s", got)
+	}
+	fm.ports[0].Exposure = "public"
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "connect to <code>") || !strings.Contains(body, "UDP port 31116") {
+		t.Error("a public port doesn't say how it's reached from outside")
+	}
+}
+
 func TestServiceSetupAndActions(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
 	h.server.Services = func(context.Context) ([]ServiceView, error) {

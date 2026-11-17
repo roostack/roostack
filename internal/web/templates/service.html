@@ -273,7 +273,9 @@
       {{if not .Service.NoAddress}}{{range .Access}}<dt>Reachable from</dt><dd>{{if .AfterSetup}}{{if $.Internet}}Only through an SSH tunnel{{else}}Home only{{end}} for now:
         <a href="#{{if $.Service.Install}}install{{else}}setup{{end}}-status">it will be public once setup has finished</a>{{else if .Public}}{{if and $.CloudKept (has $.CloudKept.Hosts .Host)}}Home only for now: <a href="/services/{{$.Service.Name}}/public/{{.Route}}">Roostack Cloud allows its public access only for approved accounts</a>{{else if and $.PublicService $.PublicService.Paused}}Home only for now: <a href="{{if $.PublicService.Advisory}}#advisory{{else}}#paused{{end}}">public access is paused</a>{{else}}Anyone on the internet{{end}}{{else}}{{template "private-where" $.Internet}}{{end}}{{if gt (len $.Access) 1}} <small>({{.Host}})</small>{{end}}
         {{- if $.IsOwner}} · <a href="/services/{{$.Service.Name}}/public/{{.Route}}">{{if .Public}}Public access…{{else}}Make public…{{end}}</a>{{end}}</dd>
-      {{else}}<dt>Reachable from</dt><dd>{{template "private-where" $.Internet}}</dd>{{end}}{{end}}
+      {{else}}{{if and $.Ports $.Host (not $.Service.URLs)}}<dt>Address</dt><dd><code>{{$.Host}}</code> <small class="hint">· for its extra connections</small></dd>
+        <dt>Reachable from</dt><dd><a href="#connections">Its extra connections</a>, each from where {{if $.IsOwner}}you choose{{else}}the Owner chooses{{end}}</dd>
+      {{else}}<dt>Reachable from</dt><dd>{{template "private-where" $.Internet}}</dd>{{end}}{{end}}{{end}}
       {{with .Service.Server}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
       {{with .BuiltWith}}<dt>Built with</dt><dd>{{joinAnd .}} <small class="hint">· from its package</small></dd>{{end}}
       {{with .Package}}<dt>Version</dt><dd>{{appVersion .Version}}{{if not $.Update}}, up to date{{end}} · {{with $.UpdatePolicy}}<a href="/services/{{$.Service.Name}}/settings#updates">updates {{if eq . "notify"}}when you approve them{{else}}automatically{{end}}</a>{{end}}</dd>{{end}}
@@ -421,9 +423,9 @@
     </section>
     {{end}}
     {{with .Ports}}
-    <section class="card">
+    <section class="card" id="connections">
     <div class="card-head"><h2>Extra connections</h2></div>
-    <p class="hint">Most things go through the web address above. These connect directly to this server from your home network only.</p>
+    <p class="hint">These connect straight to {{$.Service.Title}} on its server rather than through a web address, from your home network and the lab's VPN unless {{if $.IsOwner}}you choose{{else}}the Owner chooses{{end}} anywhere.</p>
     {{range .}}
     <form method="post" action="/services/{{$.Service.Name}}/ports/{{.Name}}" class="port" x-data="{ on: {{.Enabled}} }">
       <label class="check"><input type="checkbox" name="enabled" x-model="on" {{if .Enabled}}checked{{end}}>
@@ -434,6 +436,22 @@
           {{if and .Enabled $.Host}}<small>Connect to <code>{{$.Host}}:{{.HostPort}}</code>{{with .Outside}}, or port {{.}}, which this server's firewall sends there{{end}}.</small>
           {{- else if .Outside}}<small>Devices will use port {{.Outside}}, which this server's firewall will send there.</small>{{end}}
         </label>
+        {{if and $.IsOwner (not .Outside)}}
+        <fieldset class="port-who">
+          <legend>Who can connect</legend>
+          <label class="check"><input type="radio" name="exposure" value="private" {{if ne .Exposure "public"}}{{if not .AfterSetup}}checked{{end}}{{end}}><span>Your home network and the lab's VPN</span></label>
+          <label class="check"><input type="radio" name="exposure" value="public" {{if or (eq .Exposure "public") .AfterSetup}}checked{{end}}><span>Anyone on the internet<small>For apps with their own key or login, such as RustDesk's server, which refuses clients without its key.</small></span></label>
+        </fieldset>
+        {{end}}
+        {{if and .Enabled (or (eq .Exposure "public") .AfterSetup)}}{{$proto := "TCP"}}{{if eq .Protocol "udp"}}{{$proto = "UDP"}}{{end}}
+        {{/* How it's reached from outside: the lab's way in (SPEC.md §8.1, "Public ports"). */}}
+        <p class="hint port-public">
+          {{if .AfterSetup}}It will take connections from anywhere once {{$.Service.Title}} has finished setting up.
+          {{else if $.PortsRelayed}}Roostack Cloud's relay doesn't carry extra connections yet, so nobody outside your home can reach it until it does, or until you choose another way in on <a href="/settings/public#way-in">Public access</a>.
+          {{else}}From {{if $.Internet}}anywhere{{else}}outside your home{{end}}, connect to <code>{{$.Host}}:{{.HostPort}}</code>{{if $.Internet}}. If this server's provider has a firewall, it has to allow {{$proto}} port {{.HostPort}} from anywhere.
+          {{else if $.Edge}}. There's nothing to change on your router: connections come in through {{or $.Edge.Name $.Edge.ID}}, a cloud server in this lab, and its provider's firewall, if it has one, has to allow {{$proto}} port {{.HostPort}}.
+          {{else}}, once your router forwards {{$proto}} port {{.HostPort}} to <code>{{or $.LANIP "this server"}}</code>.{{end}}{{end}}
+        </p>{{end}}
       </div>
       {{if and $.PortError (eq (index $.PortError "port") .Name)}}<p class="error" role="alert">{{index $.PortError "msg"}}</p>{{end}}
       <button type="submit">Save</button>

@@ -120,8 +120,29 @@ A few services use connections other than the web, such as git over SSH in
 Forgejo. These are off until you turn them on under **Extra connections**:
 tick it, choose the port on the server, and **Save**. The page will then
 show the address to connect to. Extra connections are open to your home
-network only, and to the [lab's VPN](../settings/vpn.md) devices you let
+network, and to the [lab's VPN](../settings/vpn.md) devices you let
 reach the service.
+
+The Owner can let one in from anywhere instead, under **Who can connect**:
+for an app with its own key or login, such as RustDesk's server, which
+refuses clients without its key. The page will then say the address to
+connect to from outside, and what that needs:
+
+- **Port forwarding at home:** forward that port on your router to the
+  server (TCP or UDP, as the page says).
+- **Through a cloud server in the lab:** nothing to change on your router.
+  The cloud server will pass the connections on, though the service will
+  see the cloud server's address rather than each client's (RustDesk then
+  relays every session through its own relay).
+- **Through Roostack Cloud's relay:** it doesn't carry extra connections
+  yet.
+- **A server on the internet:** its provider's firewall, if it has one,
+  has to allow the port.
+
+A service with no web address, such as RustDesk's server, gets a name of
+its own for its connections (`rustdesk.<your address>`), and once a
+connection is open to anyone, Roostack will point that name at the way in
+in public DNS, as it does for a public web address.
 
 A few use a well-known port that a service can't listen on by itself, such
 as port 53 for DNS in Pi-hole. The service listens on another port (5053),
@@ -336,7 +357,12 @@ one: see [Move a service](../servers/move.md).
 
     **Extra connections** are the package's `ports:`. Turning one on
     publishes the container's port on the server's port (1024 or above) and
-    opens it in the firewall for your home network (LAN ranges) only.
+    opens it in the firewall for your home network (LAN ranges), or for
+    anyone once the Owner chooses (`ports.<name>.exposure: public` in the
+    service's file). Through a cloud server in the lab, its firewall sends
+    the port on over WireGuard to the controller, which sends it on to the
+    server that runs the service, each with its own address there (nftables
+    DNAT and masquerade).
 
     **Actions** are package `action` hooks, run with `podman exec` in the
     service's container. Their inputs reach the command only as

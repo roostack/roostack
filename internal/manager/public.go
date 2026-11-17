@@ -157,7 +157,32 @@ func (m *Manager) PublicHosts() []string {
 		m.Log.Error("listing public addresses", "err", err)
 		return nil
 	}
-	return publicHostsOf(m.withStatusPage(), services, false)
+	hosts := append(publicHostsOf(m.withStatusPage(), services, false), m.portHostsOf(services)...)
+	slices.Sort(hosts)
+	return slices.Compact(hosts)
+}
+
+// portHostsOf are the names of services whose ports take connections
+// from anywhere (generate.PortHost), for their DNS records: the way in
+// carries them, except Roostack Cloud's relay, which doesn't carry ports
+// yet (Cloud's DESIGN).
+func (m *Manager) portHostsOf(services []state.Service) []string {
+	m.mu.Lock()
+	lab := m.labNow()
+	m.mu.Unlock()
+	if lab.Public.Relay {
+		return nil
+	}
+	var hosts []string
+	for _, s := range services {
+		if s.Stop != nil || s.Instance.Off != nil || !generate.PublicPorts(lab, s.Package, s.Instance) {
+			continue
+		}
+		if h := generate.PortHost(lab, s.Package, s.Instance); h != "" && !slices.Contains(hosts, h) {
+			hosts = append(hosts, h)
+		}
+	}
+	return hosts
 }
 
 // SignalSharing says whether the Owner has been asked about CrowdSec
