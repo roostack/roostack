@@ -1,7 +1,6 @@
 package generate
 
 import (
-	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +10,7 @@ import (
 	"text/template"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
@@ -56,6 +56,8 @@ type LabContext struct {
 	// TimeZone is the server's time zone (e.g. "Europe/Berlin"), "UTC"
 	// when it isn't known: for apps that keep their own setting rather
 	// than reading the container's (Paperless-ngx's PAPERLESS_TIME_ZONE).
+	// It's the name apps most likely accept (hosttime.ForApps): "UTC"
+	// for Debian's "Etc/UTC", and a zone's current name for an old one.
 	TimeZone string
 }
 
@@ -103,7 +105,7 @@ type DatabaseContext struct {
 func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Context {
 	ctx := &Context{
 		Service:    ServiceContext{Name: in.ID()},
-		Lab:        LabContext{Domain: lab.Domain, TimeZone: cmp.Or(lab.Timezone, "UTC")},
+		Lab:        LabContext{Domain: lab.Domain, TimeZone: hosttime.ForApps(lab.Timezone)},
 		Settings:   map[string]any{},
 		Routes:     map[string]RouteContext{},
 		Ports:      map[string]PortContext{},

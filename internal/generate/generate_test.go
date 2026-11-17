@@ -351,7 +351,8 @@ containers:
 	}
 }
 
-// .Lab.TimeZone is the server's time zone, or UTC when it isn't known.
+// .Lab.TimeZone is the server's time zone, or UTC when it isn't known, and
+// any other name for UTC is "UTC" (hosttime's tests have the rest).
 func TestTemplateTimeZone(t *testing.T) {
 	p, err := pkgspec.Parse([]byte(`
 schema: roostack/v1alpha1
@@ -366,7 +367,7 @@ containers:
 	if err != nil {
 		t.Fatal(err)
 	}
-	for tz, want := range map[string]string{"Australia/Melbourne": "Australia/Melbourne", "": "UTC"} {
+	for tz, want := range map[string]string{"Australia/Melbourne": "Australia/Melbourne", "": "UTC", "Etc/UTC": "UTC"} {
 		lab := testLab()
 		lab.Timezone = tz
 		out, err := Service(lab, p, &instance.Instance{Package: "app", Version: "1", Updates: "notify"})

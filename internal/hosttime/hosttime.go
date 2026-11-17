@@ -16,6 +16,8 @@ import (
 var (
 	LocaltimeFile = "/etc/localtime"
 	TzdataFile    = "/usr/share/zoneinfo/tzdata.zi"
+	// ZoneTabFiles list the zones of each country by their current names.
+	ZoneTabFiles = []string{"/usr/share/zoneinfo/zone1970.tab", "/usr/share/zoneinfo/zone.tab"}
 )
 
 // Zone returns the host's configured time zone name, such as
@@ -58,6 +60,69 @@ func Zones() ([]string, error) {
 	}
 	slices.Sort(zones)
 	return slices.Compact(zones), nil
+}
+
+// utcNames are the other names for UTC, and for GMT, which is the same all
+// year. Apps' own lists of zones may not have them (PHP's has only "UTC"),
+// but every list has "UTC".
+var utcNames = []string{"Etc/UTC", "Etc/UCT", "Etc/Universal", "Etc/Zulu", "UCT", "Universal", "Zulu",
+	"Etc/GMT", "Etc/GMT0", "Etc/GMT+0", "Etc/GMT-0", "Etc/Greenwich", "GMT", "GMT0", "GMT+0", "GMT-0", "Greenwich"}
+
+// ForApps returns the name of a zone that apps are most likely to accept,
+// for passing to an app that checks names against its own list, as PHP's
+// apps do (SPEC.md §8.1, "The time zone apps are given"). Any other name for
+// UTC is "UTC", an old name of a zone is its current one ("Asia/Calcutta" is
+// "Asia/Kolkata"), and anything else, or anything when the host's lists
+// can't be read, is unchanged. An empty name is "UTC".
+//
+// Debian's own default is "Etc/UTC", which IANA counts as the zone's main
+// name but PHP's list of zones leaves out.
+func ForApps(name string) string {
+	if name == "" || name == "UTC" || slices.Contains(utcNames, name) {
+		return "UTC"
+	}
+	current := currentNames()
+	if current[name] {
+		return name
+	}
+	if target := linkTarget(name); target != "" && (current[target] || slices.Contains(utcNames, target)) {
+		return ForApps(target)
+	}
+	return name
+}
+
+// currentNames are the zones in ZoneTabFiles.
+func currentNames() map[string]bool {
+	names := map[string]bool{}
+	for _, file := range ZoneTabFiles {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+		for line := range strings.Lines(string(b)) {
+			// country<TAB>coordinates<TAB>zone[<TAB>comment]
+			if fields := strings.Split(strings.TrimRight(line, "\n"), "\t"); len(fields) >= 3 && !strings.HasPrefix(line, "#") {
+				names[fields[2]] = true
+			}
+		}
+	}
+	return names
+}
+
+// linkTarget returns the zone that tzdata.zi links name to, or "".
+func linkTarget(name string) string {
+	f, err := os.Open(TzdataFile)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		if fields := strings.Fields(sc.Text()); len(fields) == 3 && fields[0] == "L" && fields[2] == name {
+			return fields[1]
+		}
+	}
+	return ""
 }
 
 // Clock is the host's time as the UI shows it.
