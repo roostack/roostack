@@ -40,6 +40,9 @@ type WireAssignment struct {
 	Links *agent.Links `json:"links,omitempty"`
 	// Edge makes it the lab's edge (SPEC.md §10.5).
 	Edge *caddy.EdgeConfig `json:"edge,omitempty"`
+	// PortForwards are the public ports it sends on to another server
+	// (SPEC.md §10.5).
+	PortForwards []agent.PortForward `json:"port_forwards,omitempty"`
 	// Libraries are its media libraries (SPEC.md §8.1).
 	Libraries []agent.Library `json:"libraries,omitempty"`
 	// People is the lab's VPN's interface, on the server devices connect
@@ -104,7 +107,7 @@ type WireProxied struct {
 func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error) {
 	w := WireAssignment{Version: version, Lab: a.Lab,
 		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage, Guests: a.Guests, GuestAddr: a.GuestAddr, Links: a.Links, Edge: a.Edge,
-		Libraries: a.Libraries, People: a.People, Glances: a.Glances, Reason: a.Reason}
+		PortForwards: a.PortForwards, Libraries: a.Libraries, People: a.People, Glances: a.Glances, Reason: a.Reason}
 	enc := func(s state.Service) (WireService, error) {
 		in, err := s.Instance.Marshal()
 		if err != nil {
@@ -136,7 +139,7 @@ func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error)
 // Decode turns a wire assignment back into one, checking every file.
 func Decode(w WireAssignment) (Assignment, error) {
 	a := Assignment{Lab: w.Lab, Secrets: w.Secrets, SetUp: w.SetUp, Storage: w.Storage, Guests: w.Guests, GuestAddr: w.GuestAddr,
-		Links: w.Links, Edge: w.Edge, Libraries: w.Libraries, People: w.People, Glances: w.Glances, Reason: w.Reason}
+		Links: w.Links, Edge: w.Edge, PortForwards: w.PortForwards, Libraries: w.Libraries, People: w.People, Glances: w.Glances, Reason: w.Reason}
 	dec := func(ws WireService) (state.Service, error) {
 		p, err := pkgspec.Parse(ws.Package)
 		if err != nil {

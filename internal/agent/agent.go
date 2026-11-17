@@ -162,10 +162,11 @@ func (s *Server) Handler() http.Handler {
 		// One at a time: the plan, the firewall and forwarding go together.
 		s.firewallMu.Lock()
 		defer s.firewallMu.Unlock()
-		// Forwarding the VPN no longer needs goes off while the firewall
-		// still keeps it to the VPN's answers, and the firewall that keeps
-		// new forwarding to them is in place before that's turned on.
-		want, own := h.VPNForwardingPlan(fw.People.ForwardsTraffic())
+		// Forwarding the VPN and the edge's port forwards no longer need
+		// goes off while the firewall still keeps it to their answers, and
+		// the firewall that keeps new forwarding to them is in place before
+		// that's turned on.
+		want, own := h.VPNForwardingPlan(fw.People.ForwardsTraffic() || fw.forwardsFromOutside())
 		if err := h.VPNForwardingOff(want); err != nil {
 			return err
 		}

@@ -308,6 +308,10 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	// believes it alone about who they are (SPEC.md §10.5).
 	edge, edgeAddrs := m.edgeFor(infos)
 	lab.EdgeAddrs = append(edgeAddrs, m.relayFor(services)...)
+	// It sends services' public ports on too.
+	paused := m.labNow()
+	paused.Public.Pause = pause
+	atEdge, atController := m.edgeForwards(paused, services, infos, edge)
 	for _, n := range nodes {
 		id := n.Identity().ID
 		if n == m.Node {
@@ -347,7 +351,14 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 			a.Links.PassesOn = devices.Elsewhere && id == m.VPNElsewhere()
 		}
 		if id == edge {
-			a.Edge = edgeConfig(m.withStatusPage(), services)
+			a.Edge, a.PortForwards = edgeConfig(m.withStatusPage(), services), atEdge
+			if a.Links != nil && len(atEdge) > 0 {
+				// Roostack's network's interface forwards the answers.
+				a.Links.PassesOn = true
+			}
+		}
+		if n == m.Node {
+			a.PortForwards = atController
 		}
 		if id == vpnServer {
 			a.People = people

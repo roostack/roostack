@@ -255,3 +255,48 @@ func TestOutsidePortRule(t *testing.T) {
 		t.Errorf("rules: %+v %v", fw.Allow, fw.Validate())
 	}
 }
+
+// TestDesiredEdgePorts: a public port the lab's edge sends on is taken
+// from the edge on the controller, and from the controller on another
+// server at home; the edge's own services need nothing more (SPEC.md
+// §10.5).
+func TestDesiredEdgePorts(t *testing.T) {
+	services := []*generate.Output{{Service: "rustdesk", HostPorts: []generate.HostPort{
+		{Name: "id", Port: 31116, Protocol: "tcp", Exposure: "public"},
+		{Name: "web", Port: 31118, Protocol: "tcp", Exposure: "private"}}}}
+	forwards := []agent.PortForward{{Port: 31116, Proto: "tcp", To: "100.96.0.2", FromEdge: true, Reason: "rustdesk id"}}
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.OverlayAddr = "100.96.0.1"
+	lab.EdgeAddrs = []string{"100.96.0.3/32"}
+	for _, c := range []struct {
+		name, role, addr string
+		roles            Roles
+		want             trust.Class
+	}{
+		{"controller", "", "100.96.0.1", Roles{PortForwards: forwards}, trust.Edge},
+		{"server at home", config.RoleNode, "100.96.0.2", Roles{}, trust.Controller},
+		{"the edge", config.RoleNode, "100.96.0.3", Roles{}, ""},
+	} {
+		lab.Role, lab.OverlayAddr = c.role, c.addr
+		fw, _ := Desired(lab, services, c.roles)
+		if err := fw.Validate(); err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		var from []trust.Class
+		for _, r := range fw.Allow {
+			if r.Port == 31116 && r.For != trust.Anyone {
+				from = append(from, r.For)
+			}
+			if r.Port == 31118 && (r.For == trust.Edge || r.For == trust.Controller) {
+				t.Errorf("%s: a home-only port is sent on: %+v", c.name, r)
+			}
+		}
+		if want := []trust.Class{c.want}; c.want == "" && len(from) > 0 || c.want != "" && !slices.Equal(from, want) {
+			t.Errorf("%s: 31116 for %v, want %v", c.name, from, c.want)
+		}
+		if !slices.Equal(fw.PortForwards, c.roles.PortForwards) {
+			t.Errorf("%s: forwards %v", c.name, fw.PortForwards)
+		}
+	}
+}

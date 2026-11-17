@@ -57,10 +57,18 @@ type Firewall struct {
 	Unchosen bool `json:"unchosen,omitempty"`
 	// People is the lab's VPN on this server (SPEC.md §10.11); nil: none.
 	People *People `json:"people,omitempty"`
+	// PortForwards are services' public ports this server sends on to
+	// another of the lab's servers over Roostack's network (SPEC.md
+	// §10.5): on the lab's edge, from the internet to the controller; on
+	// the controller, from the edge on to the server at home that runs
+	// the service. They leave with this server's address there, so the
+	// answers come back through it.
+	PortForwards []PortForward `json:"port_forwards,omitempty"`
 	// ForwardOwned are the interfaces the agent turns forwarding on for,
-	// for the lab's VPN, where it was off (vpnForwardingPlan): only answers
-	// are forwarded from them, and connections other software sends on
-	// (a container's published port). The agent works them out itself; a
+	// for the lab's VPN or PortForwards, where it was off
+	// (vpnForwardingPlan): only answers are forwarded from them, and
+	// connections sent on (PortForwards, or other software's: a
+	// container's published port). The agent works them out itself; a
 	// request can't set them.
 	ForwardOwned []string `json:"-"`
 }
@@ -112,6 +120,26 @@ type DeviceRule struct {
 	From int `json:"from,omitempty"`
 }
 
+// PortForward sends one public port on to another of the lab's servers
+// (Firewall.PortForwards), keeping its number.
+type PortForward struct {
+	Port  int    `json:"port"`
+	Proto string `json:"proto"`
+	// To is the server's address on Roostack's network.
+	To string `json:"to"`
+	// FromEdge: from the lab's edges (Firewall.Edges), on Roostack's
+	// network; otherwise from the internet, on any other interface.
+	FromEdge bool   `json:"from_edge,omitempty"`
+	Reason   string `json:"reason"`
+}
+
+// forwardsFromOutside reports whether connections from the internet are
+// sent on from here, for which the default route's interface must
+// forward (setVPNForwarding).
+func (f Firewall) forwardsFromOutside() bool {
+	return slices.ContainsFunc(f.PortForwards, func(p PortForward) bool { return !p.FromEdge })
+}
+
 // EdgePort is Caddy's listener for visitors through the lab's edges, whose
 // sites count everyone as outside (caddy.EdgePort, the same number): a
 // PROXY header can't claim a home address there (review H4).
@@ -122,8 +150,9 @@ type Rule struct {
 	Port  int    `json:"port"`
 	Proto string `json:"proto"` // tcp or udp
 	// For is who reaches it: trust.Anyone, trust.Home, trust.Servers
-	// (the lab's servers, on Roostack's network) or trust.Guests (other
-	// labs storing backups here).
+	// (the lab's servers, on Roostack's network), trust.Controller,
+	// trust.Edge (the lab's edges, Firewall.Edges, sending on a public
+	// port) or trust.Guests (other labs storing backups here).
 	For trust.Class `json:"for"`
 	// Source limits a guests' rule to one address (a guest lab reaches
 	// only its own store, SPEC.md §10.10).
@@ -140,6 +169,10 @@ type Rule struct {
 // (Rule.From): kept to this list here, the privilege boundary, whatever
 // roostack asks for (pkgspec.OutsidePorts).
 var OutsidePorts = []int{53}
+
+// ownPorts are Roostack's own ports from 1024, which a port forward never
+// takes.
+var ownPorts = []int{EdgePort, WireGuardPort, PeoplePort, GuestsPort, 8471, 8472} // 8471-2: labnet.Port, labnet.GuestAPIPort
 
 // SSHFrom values.
 const (
@@ -192,8 +225,11 @@ func (f Firewall) Validate() error {
 			errs = append(errs, fmt.Errorf("allow[%d]: proto must be tcp or udp", i))
 		}
 		if !r.For.Ruled() {
-			errs = append(errs, fmt.Errorf("allow[%d]: for must be %q, %q, %q, %q or %q", i, trust.Anyone, trust.Home,
-				trust.Servers, trust.Guests, trust.Controller))
+			errs = append(errs, fmt.Errorf("allow[%d]: for must be %q, %q, %q, %q, %q or %q", i, trust.Anyone, trust.Home,
+				trust.Servers, trust.Guests, trust.Controller, trust.Edge))
+		}
+		if r.For == trust.Edge && len(f.Edges) == 0 {
+			errs = append(errs, fmt.Errorf("allow[%d]: for the edges, but there are none", i))
 		}
 		if r.Source != "" {
 			if a, err := netip.ParseAddr(r.Source); err != nil || r.For != trust.Guests || !trust.GuestRange.Contains(a) {
@@ -225,6 +261,22 @@ func (f Firewall) Validate() error {
 	}
 	if p := f.People; p != nil {
 		errs = append(errs, p.validate()...)
+	}
+	for i, p := range f.PortForwards {
+		// A service's port (pkgspec: from 1024), never one of Roostack's
+		// own.
+		if p.Port < 1024 || p.Port > 65535 || slices.Contains(ownPorts, p.Port) || p.Proto != "tcp" && p.Proto != "udp" {
+			errs = append(errs, fmt.Errorf("port_forwards[%d]: a service's port from 1024, tcp or udp", i))
+		}
+		if a, err := netip.ParseAddr(p.To); err != nil || !trust.ServersRange.Contains(a) {
+			errs = append(errs, fmt.Errorf("port_forwards[%d]: to must be a server's address on Roostack's network", i))
+		}
+		if p.FromEdge && len(f.Edges) == 0 {
+			errs = append(errs, fmt.Errorf("port_forwards[%d]: from the edges, but there are none", i))
+		}
+		if strings.ContainsFunc(p.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
+			errs = append(errs, fmt.Errorf("port_forwards[%d]: invalid characters in reason", i))
+		}
 	}
 	for i, r := range f.Forward {
 		if r.Port < 1 || r.Port > 65535 || r.Proto != "tcp" || r.For != trust.Servers || r.Source != "" {
@@ -371,6 +423,17 @@ func (f Firewall) Ruleset() string {
 			}
 		}
 	}
+	// Public ports sent on to another server (PortForwards): from the
+	// internet, connections to this server's own addresses, never those
+	// on Roostack's interfaces.
+	for _, p := range f.PortForwards {
+		from := `iifname != "roostack*" fib daddr type local `
+		if p.FromEdge {
+			from = fmt.Sprintf("iifname %q ip saddr { %s } ", WireGuardInterface, strings.Join(f.Edges, ", "))
+		}
+		fmt.Fprintf(&b, "\t\t# %s: sent on to %s\n", p.Reason, p.To)
+		fmt.Fprintf(&b, "\t\t%s%s dport %d dnat ip to %s\n", from, p.Proto, p.Port, p.To)
+	}
 	b.WriteString("\t}\n\n")
 	b.WriteString("\tchain input {\n")
 	b.WriteString("\t\ttype filter hook input priority filter; policy drop;\n\n")
@@ -418,7 +481,7 @@ func (f Firewall) Ruleset() string {
 	b.WriteString("\t\tip6 saddr fe80::/10 udp dport 546 accept\n\n")
 
 	rules := slices.DeleteFunc(slices.Clone(f.Allow), func(r Rule) bool {
-		return r.For == trust.Guests || r.For == trust.Servers || r.For == trust.Controller
+		return r.For == trust.Guests || r.For == trust.Servers || r.For == trust.Controller || r.For == trust.Edge
 	})
 	if f.SSHFrom != FromOff {
 		rules = append(rules, Rule{Port: 22, Proto: "tcp", For: trust.Class(f.SSHFrom), Reason: "ssh"})
@@ -476,13 +539,19 @@ func (f Firewall) Ruleset() string {
 		fmt.Fprintf(&b, "\t\tiifname %q oifname %q ip saddr %s tcp dport %d accept\n", WireGuardInterface, WireGuardInterface,
 			trust.ServersRange, r.Port)
 	}
+	for _, p := range f.PortForwards {
+		fmt.Fprintf(&b, "\t\t# %s: sent on to %s, and its answers\n", p.Reason, p.To)
+		fmt.Fprintf(&b, "\t\toifname %q ip daddr %s %s dport %d ct status dnat accept\n", WireGuardInterface, p.To, p.Proto, p.Port)
+		fmt.Fprintf(&b, "\t\tiifname %q ip saddr %s %s sport %d ct status dnat accept\n", WireGuardInterface, p.To, p.Proto, p.Port)
+	}
 	fmt.Fprintf(&b, "\t\tiifname %q drop\n", WireGuardInterface)
 	fmt.Fprintf(&b, "\t\toifname %q drop\n", WireGuardInterface)
 	if owned := slices.DeleteFunc(slices.Clone(f.ForwardOwned), func(i string) bool { return !ValidIfaceName(i) }); len(owned) > 0 {
-		// Forwarding is on there only for the lab's VPN's answers: nothing
-		// else is routed through this server.
+		// Forwarding is on there only for the lab's VPN's answers and
+		// PortForwards (accepted above): nothing else is routed through
+		// this server.
 		set := `"` + strings.Join(owned, `", "`) + `"`
-		b.WriteString("\t\t# forwarding is on here for the lab's VPN's answers only\n")
+		b.WriteString("\t\t# forwarding is on here for the lab's VPN's answers and the ports sent on only\n")
 		fmt.Fprintf(&b, "\t\tiifname { %s } ct state established,related accept\n", set)
 		// Other software's own forwarding there, started since (a
 		// container's published port), is left alone: SPEC.md §10.11.
@@ -490,7 +559,7 @@ func (f Firewall) Ruleset() string {
 		fmt.Fprintf(&b, "\t\tiifname { %s } drop\n", set)
 	}
 	b.WriteString("\t}\n")
-	f.peopleNAT(&b)
+	f.postrouting(&b)
 	b.WriteString("}\n")
 	return b.String()
 }
@@ -549,22 +618,28 @@ func (f Firewall) peopleForward(b *strings.Builder) {
 	fmt.Fprintf(b, "\t\toifname %q drop\n", PeopleInterface)
 }
 
-// peopleNAT gives the VPN's devices whose traffic goes on this server's
-// address there, so the home network's devices and the internet answer
-// them through it.
-func (f Firewall) peopleNAT(b *strings.Builder) {
+// postrouting gives what goes on from this server its address: the VPN's
+// devices whose traffic goes on, so the home network's devices and the
+// internet answer them through it, and the public ports it sends on to
+// another server (PortForwards), whose answers come back through it.
+func (f Firewall) postrouting(b *strings.Builder) {
 	p := f.People
-	if !p.ForwardsTraffic() {
+	if !p.ForwardsTraffic() && len(f.PortForwards) == 0 {
 		return
-	}
-	from := PeopleInterface
-	if p.Forwarded {
-		from = WireGuardInterface
 	}
 	b.WriteString("\n\tchain postrouting {\n")
 	b.WriteString("\t\ttype nat hook postrouting priority srcnat; policy accept;\n\n")
-	fmt.Fprintf(b, "\t\tiifname %q oifname != { %q, %q } ip saddr %s masquerade\n", from, PeopleInterface,
-		WireGuardInterface, trust.DevicesRange)
+	if p.ForwardsTraffic() {
+		from := PeopleInterface
+		if p.Forwarded {
+			from = WireGuardInterface
+		}
+		fmt.Fprintf(b, "\t\tiifname %q oifname != { %q, %q } ip saddr %s masquerade\n", from, PeopleInterface,
+			WireGuardInterface, trust.DevicesRange)
+	}
+	for _, pf := range f.PortForwards {
+		fmt.Fprintf(b, "\t\toifname %q ip daddr %s %s dport %d ct status dnat masquerade\n", WireGuardInterface, pf.To, pf.Proto, pf.Port)
+	}
 	b.WriteString("\t}\n")
 }
 
@@ -622,6 +697,13 @@ func (f Firewall) servers(b *strings.Builder) {
 		if r.For == trust.Controller && f.Controller != "" {
 			fmt.Fprintf(b, "\t\t# %s\n", r.Reason)
 			fmt.Fprintf(b, "\t\tiifname %q ip saddr %s %s dport %d accept\n", WireGuardInterface, f.Controller, r.Proto, r.Port)
+		}
+	}
+	// Public ports the lab's edges send on (PortForwards).
+	for _, r := range f.Allow {
+		if r.For == trust.Edge && len(f.Edges) > 0 {
+			fmt.Fprintf(b, "\t\t# %s, sent on by the lab's edge\n", r.Reason)
+			fmt.Fprintf(b, "\t\tiifname %q ip saddr { %s } %s dport %d accept\n", WireGuardInterface, strings.Join(f.Edges, ", "), r.Proto, r.Port)
 		}
 	}
 	if f.Controller != "" && f.SSHFrom != FromOff {

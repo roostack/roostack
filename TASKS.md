@@ -170,7 +170,10 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [ ] **Frigate**: its package (2026-11-17: Intel graphics, shared memory, its own login on 8971 through `self_signed`, a revealed admin password) is in `roostack/services` branch `claude/new-packages`; still to come, devices beyond Intel graphics (Coral and other USB accelerators), and single sign-on passing who signed in to Frigate (its `proxy.header_map`, which needs its config file)
 - [x] **Pi-hole** (2026-11-17): port 53 through `outside_port`, for the home network and VPN devices, never public; each device's own address through `client_addresses` (SPEC §8.1); its package is in `roostack/services` branch `claude/new-packages`
   - [ ] A DNS line in VPN devices' files while Pi-hole runs on the server they connect through, if the maintainer wants it
-- [ ] **RustDesk from outside the home** (the maintainer, 2026-11-17: "we need to go ahead with this"): raw TCP and UDP ports through the lab's own edge, and through Roostack Cloud's relay (Cloud's DESIGN); design waits for the maintainer's choices
+- [ ] **RustDesk from outside the home** (the maintainer, 2026-11-17: "we need to go ahead with this"): raw TCP and UDP ports through the lab's own edge, and through Roostack Cloud's relay (Cloud's DESIGN)
+  - [x] The edge's firewall sends public package ports on over WireGuard, by the controller to a server at home, same numbers (SPEC §10.5; checked in network namespaces, ASSUMPTIONS Q14)
+  - [ ] Making a port public in the UI, and the name outside clients use for a service with no web address (waits for the maintainer)
+  - [ ] Roostack Cloud's relay: ports chosen per lab, counted in usage (Cloud's DESIGN, then both sides)
 - [ ] **Home Assistant** (a session): finding devices on the home network (host networking, or what's needed instead), within the package policy
 - [ ] **Monitoring** (design locked 2026-10-19, built the same day, SPEC §6.15): Roostack's own checks every minute from the controller, history in SQLite, alerts through "needs attention" and the notifier, a public status page Roostack writes. Gatus was tried on VM3 and set aside (SPEC)
   - [ ] Wording: the Owner doesn't like it yet (the status page's subtitle, the uptime card); revisit with them before or while building the pages

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"maps"
 	"net"
 	"net/netip"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
@@ -124,6 +126,64 @@ func (m *Manager) edgeFor(infos map[string]linkInfo) (id string, addrs []string)
 		return "", nil
 	}
 	return id, []string{info.Addr + "/32"}
+}
+
+// edgeForwards are the services' public ports the lab's edge sends on,
+// with the same numbers (SPEC.md §10.5): at the edge, to the controller,
+// and at the controller, on to the server that runs the service when
+// that's another one (the edge has a route to the controller alone).
+// lab carries the lab's pauses, advisories' too: a paused service's
+// ports are home only. A port the edge uses itself, or that another
+// service sends on first (by name), isn't sent on, and the log says so.
+func (m *Manager) edgeForwards(lab config.Lab, services []state.Service, infos map[string]linkInfo, edge string) (atEdge, atController []agent.PortForward) {
+	if edge == "" {
+		return nil, nil
+	}
+	key := func(port int, proto string) string { return strconv.Itoa(port) + "/" + proto }
+	taken := map[string]string{}
+	for _, s := range services {
+		if s.Instance.Host != edge {
+			continue
+		}
+		for _, pc := range generate.ResolvePorts(s.Package, s.Instance) {
+			if pc.Enabled {
+				taken[key(pc.HostPort, pc.Protocol)] = s.Name()
+			}
+		}
+	}
+	for _, s := range services {
+		host := s.Instance.Host
+		if host == edge || s.Stop != nil || s.Instance.Off != nil || generate.Paused(lab, s.Package, s.Instance) {
+			continue
+		}
+		to := labnet.ControllerAddr.String()
+		if host != m.Lab.NodeID {
+			if to = infos[host].Addr; to == "" {
+				continue // a server not in the lab's network yet
+			}
+		}
+		ports := generate.ResolvePorts(s.Package, s.Instance)
+		for _, name := range slices.Sorted(maps.Keys(ports)) {
+			pc := ports[name]
+			if !pc.Enabled || pc.Exposure != pkgspec.ExposurePublic || s.Package.Ports[name].OutsidePort != 0 {
+				continue
+			}
+			reason := s.Name() + " " + name
+			if other, ok := taken[key(pc.HostPort, pc.Protocol)]; ok {
+				m.Log.Warn("a public port isn't sent on through the lab's edge: another service there has it",
+					"port", key(pc.HostPort, pc.Protocol), "service", s.Name(), "other", other)
+				continue
+			}
+			taken[key(pc.HostPort, pc.Protocol)] = s.Name()
+			atEdge = append(atEdge, agent.PortForward{Port: pc.HostPort, Proto: pc.Protocol,
+				To: labnet.ControllerAddr.String(), Reason: reason})
+			if host != m.Lab.NodeID {
+				atController = append(atController, agent.PortForward{Port: pc.HostPort, Proto: pc.Protocol, To: to,
+					FromEdge: true, Reason: reason})
+			}
+		}
+	}
+	return atEdge, atController
 }
 
 // edgeConfig is the edge's Caddy config: the lab's public names (with

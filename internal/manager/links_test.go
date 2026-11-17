@@ -8,9 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/store/storetest"
 	"roostack.cloud/roostack/internal/usererr"
@@ -329,5 +332,60 @@ func TestRelayUpdatesInOrder(t *testing.T) {
 	m.Wait()
 	if got := sends(); len(got) != 3 {
 		t.Errorf("held back, then turned off: sent %+v", got[3:])
+	}
+}
+
+// TestEdgeForwards: the edge sends a public port on to the controller,
+// which sends it on to the server at home that runs the service; a port
+// that's home only, paused, or one the edge uses itself, isn't (SPEC.md
+// §10.5).
+func TestEdgeForwards(t *testing.T) {
+	m, _, _, _ := setUpLinks(t)
+	ctx := context.Background()
+	services, err := state.LoadServices(m.Lab)
+	if err != nil || len(services) != 1 {
+		t.Fatal(services, err)
+	}
+	on := true
+	infos := m.linkInfos(ctx)
+	forwards := func() ([]agent.PortForward, []agent.PortForward) {
+		return m.edgeForwards(m.Lab, services, infos, "n-0000000003")
+	}
+	s := services[0]             // Forgejo, on n-…02
+	s.Instance.SettingUp = false // its install hooks have run
+	s.Instance.Ports = map[string]instance.PortOverride{"ssh": {Enabled: &on}}
+	if e, c := forwards(); len(e)+len(c) != 0 {
+		t.Errorf("home only: %v %v", e, c)
+	}
+	s.Instance.Ports["ssh"] = instance.PortOverride{Enabled: &on, Exposure: "public"}
+	e, c := forwards()
+	if want := []agent.PortForward{{Port: 2222, Proto: "tcp", To: "100.96.0.1", Reason: "forgejo ssh"}}; !slices.Equal(e, want) {
+		t.Errorf("at the edge: %v", e)
+	}
+	if want := []agent.PortForward{{Port: 2222, Proto: "tcp", To: "100.96.0.2", FromEdge: true, Reason: "forgejo ssh"}}; !slices.Equal(c, want) {
+		t.Errorf("at the controller: %v", c)
+	}
+	// On the controller, the edge sends it there and that's all.
+	s.Instance.Host = m.Lab.NodeID
+	if e, c := forwards(); len(e) != 1 || len(c) != 0 {
+		t.Errorf("on the controller: %v %v", e, c)
+	}
+	if e, c := m.edgeForwards(m.Lab, services, infos, ""); e != nil || c != nil {
+		t.Errorf("no edge: %v %v", e, c)
+	}
+	paused := m.Lab
+	paused.Public.Pause.All = &config.Pause{Since: time.Now()}
+	if e, _ := m.edgeForwards(paused, services, infos, "n-0000000003"); len(e) != 0 {
+		t.Errorf("paused: %v", e)
+	}
+	// On the edge itself it's public there already; and another service
+	// can't take the edge's own port.
+	other, inst := s, *s.Instance
+	other.Instance = &inst
+	other.Instance.Host = "n-0000000003"
+	other.Instance.Name = "forgejo-2"
+	services = append(services, other)
+	if e, c := forwards(); len(e)+len(c) != 0 {
+		t.Errorf("taken at the edge: %v %v", e, c)
 	}
 }

@@ -326,10 +326,11 @@ type Links struct {
 	// networks, which devices reach through the controller (SPEC.md
 	// §10.11).
 	ToController []string `json:"to_controller,omitempty"`
-	// PassesOn: this is the server the lab's VPN's devices connect to, and
-	// it passes them on to the controller, so Roostack's network's
-	// interface forwards the controller's answers back to them: now, and
-	// whenever it comes up (a line in its file, marked with passesOnMark).
+	// PassesOn: this server passes connections on to the controller (the
+	// lab's VPN's devices, on the server they connect to, or public ports
+	// on the lab's edge, Firewall.PortForwards), so Roostack's network's
+	// interface forwards the controller's answers back: now, and whenever
+	// it comes up (a line in its file, marked with passesOnMark).
 	PassesOn bool `json:"passes_on,omitempty"`
 }
 

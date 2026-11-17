@@ -146,6 +146,10 @@ type Assignment struct {
 	// Edge, if set, makes this server the lab's edge (SPEC.md §10.5): its
 	// Caddy passes visitors for the public names on to the controller.
 	Edge *caddy.EdgeConfig
+	// PortForwards are services' public ports this server sends on to
+	// another (SPEC.md §10.5): on the edge, to the controller; on the
+	// controller, from the edge to the server that runs the service.
+	PortForwards []agent.PortForward
 	// Libraries are this server's media libraries (SPEC.md §8.1, "Media
 	// libraries"): mounted, and the rest unmounted, by its agent.
 	Libraries []agent.Library
@@ -405,7 +409,8 @@ func (n *Local) Apply(a Assignment) {
 	}
 	old := n.assignment.Services
 	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage, Links: a.Links,
-		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge, Libraries: a.Libraries, People: a.People, Glances: a.Glances}
+		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge, PortForwards: a.PortForwards,
+		Libraries: a.Libraries, People: a.People, Glances: a.Glances}
 	if n.State != nil {
 		// A service taken off this server forgets its setup progress, and
 		// stops any setup still running: its hooks would keep retrying
@@ -712,7 +717,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 
 	// The firewall follows the services, e.g. a package port just turned on.
 	roles := firewall.Roles{Store: a.Storage != nil, ProxyPorts: a.ProxyPorts, GuestAddr: a.GuestAddr, Guests: a.Guests,
-		LinksListen: a.Links != nil && a.Links.Listen, VPN: a.People != nil}
+		LinksListen: a.Links != nil && a.Links.Listen, VPN: a.People != nil, PortForwards: a.PortForwards}
 	if err := n.applyPeople(ctx, act, a.People); err != nil {
 		return fmt.Errorf("setting up the lab's VPN: %w", err)
 	}

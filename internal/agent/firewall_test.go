@@ -454,3 +454,72 @@ func TestOutsidePort(t *testing.T) {
 		}
 	}
 }
+
+// TestPortForwards: the lab's edge sends a public port on to the
+// controller, and the controller on to the server at home that runs the
+// service, each with its own address there so the answers come back
+// through it (SPEC.md §10.5).
+func TestPortForwards(t *testing.T) {
+	edge := DefaultFirewall()
+	edge.PortForwards = []PortForward{{Port: 31116, Proto: "udp", To: "100.96.0.1", Reason: "rustdesk id-udp"}}
+	if err := edge.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if !edge.forwardsFromOutside() {
+		t.Error("the edge's uplink doesn't forward")
+	}
+	rs := edge.Ruleset()
+	for _, want := range []string{
+		`iifname != "roostack*" fib daddr type local udp dport 31116 dnat ip to 100.96.0.1`,
+		`oifname "roostack" ip daddr 100.96.0.1 udp dport 31116 ct status dnat accept`,
+		`iifname "roostack" ip saddr 100.96.0.1 udp sport 31116 ct status dnat accept`,
+		"type nat hook postrouting priority srcnat; policy accept;",
+		`oifname "roostack" ip daddr 100.96.0.1 udp dport 31116 ct status dnat masquerade`,
+	} {
+		if !strings.Contains(rs, want) {
+			t.Errorf("missing %q:\n%s", want, rs)
+		}
+	}
+	// Accepted before Roostack's network's interface drops what isn't
+	// listed.
+	if strings.Index(rs, "udp dport 31116 ct status dnat accept") > strings.Index(rs, "\t\toifname \"roostack\" drop") {
+		t.Errorf("the forward is dropped first:\n%s", rs)
+	}
+
+	controller := DefaultFirewall()
+	controller.Edges = []string{"100.96.0.3"}
+	controller.PortForwards = []PortForward{{Port: 31116, Proto: "tcp", To: "100.96.0.2", FromEdge: true, Reason: "rustdesk id"}}
+	controller.Allow = append(controller.Allow, Rule{Port: 31117, Proto: "tcp", For: trust.Edge, Reason: "rustdesk relay"})
+	if err := controller.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if controller.forwardsFromOutside() {
+		t.Error("the controller forwards from its uplink")
+	}
+	rs = controller.Ruleset()
+	for _, want := range []string{
+		`iifname "roostack" ip saddr { 100.96.0.3 } tcp dport 31116 dnat ip to 100.96.0.2`,
+		`oifname "roostack" ip daddr 100.96.0.2 tcp dport 31116 ct status dnat masquerade`,
+		`iifname "roostack" ip saddr { 100.96.0.3 } tcp dport 31117 accept`,
+	} {
+		if !strings.Contains(rs, want) {
+			t.Errorf("missing %q:\n%s", want, rs)
+		}
+	}
+	if strings.Contains(rs, "fib daddr type local") {
+		t.Errorf("the controller sends on connections from the internet:\n%s", rs)
+	}
+
+	for _, bad := range []Firewall{
+		{SSHFrom: FromLAN, PortForwards: []PortForward{{Port: 22, Proto: "tcp", To: "100.96.0.1"}}},
+		{SSHFrom: FromLAN, PortForwards: []PortForward{{Port: EdgePort, Proto: "tcp", To: "100.96.0.1"}}},
+		{SSHFrom: FromLAN, PortForwards: []PortForward{{Port: 31116, Proto: "tcp", To: "192.168.1.5"}}},
+		{SSHFrom: FromLAN, PortForwards: []PortForward{{Port: 31116, Proto: "tcp", To: "100.96.0.1 accept"}}},
+		{SSHFrom: FromLAN, PortForwards: []PortForward{{Port: 31116, Proto: "tcp", To: "100.96.0.2", FromEdge: true}}},
+		{SSHFrom: FromLAN, Allow: []Rule{{Port: 31116, Proto: "tcp", For: trust.Edge}}},
+	} {
+		if bad.Validate() == nil {
+			t.Errorf("accepted %+v", bad)
+		}
+	}
+}

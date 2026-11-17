@@ -46,6 +46,9 @@ type Roles struct {
 	// VPN: the lab's VPN's devices connect to this server (SPEC.md
 	// §10.11), and their traffic may go on from here.
 	VPN bool
+	// PortForwards are the public ports this server sends on to another,
+	// on the lab's edge and the controller (SPEC.md §10.5).
+	PortForwards []agent.PortForward
 }
 
 // Desired returns the firewall for the lab: web traffic (Caddy decides
@@ -135,6 +138,24 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	for _, e := range lab.EdgeAddrs {
 		if p, err := netip.ParsePrefix(e); err == nil && p.IsSingleIP() && agent.OverlayRange.Contains(p.Addr()) {
 			fw.Edges = append(fw.Edges, p.Addr().String())
+		}
+	}
+	// The lab's edge sends public ports on (SPEC.md §10.5): to the
+	// controller, which takes them from the edge, and sends on those of a
+	// service on another server, which takes them from the controller.
+	fw.PortForwards = roles.PortForwards
+	if edgeHere := slices.Contains(fw.Edges, lab.OverlayAddr); len(fw.Edges) > 0 && !edgeHere {
+		from := trust.Edge
+		if lab.IsNode() {
+			from = trust.Controller
+		}
+		for _, s := range services {
+			for _, hp := range s.HostPorts {
+				if hp.Exposure == pkgspec.ExposurePublic {
+					fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, For: from,
+						Reason: s.Service + " " + hp.Name})
+				}
+			}
 		}
 	}
 	// Over Roostack's network, only the controller reaches SSH (SPEC.md
