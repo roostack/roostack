@@ -149,6 +149,18 @@ data came through the update or the restore.
 version with it), it installs the update itself and skips step 4, so that
 a rebuild can still fix a package whose image has gone.
 
+**A package that needs the lab's own sign-in isn't tested** (2026-11-17,
+the Owner): one with `sso: required: true`, as Outline, has no sign-in of its
+own, so Roostack installs it only on a lab with an address, which the test's
+lab hasn't got. `needs-address.sh` finds those, and the test passes with a
+notice and a summary saying it wasn't tested, without starting the VM, so a
+person checks the update and it never merges by itself. Considered: failing
+the test (every update of such a package would fail the same way, with
+nothing to fix) and giving the test's lab a real address from Roostack
+Cloud's test environment (an account's credentials in the registry's CI, and
+a Let's Encrypt certificate every run). A test-only address, with Caddy's own
+certificates, is left for later, below.
+
 **What merges by itself** (the Owner's choice): an update labelled
 `update:patch` or `update:revision` (a rebuild of the same version), of an
 **official** package, once the update test and Publish's check have passed.
@@ -161,8 +173,10 @@ and community packages, wait for a person. **The repository variable
 `UPDATES_AUTO_MERGE` must be `true`**; without it, the test still runs and
 nothing merges.
 
-**Left for later:** ARM (SPEC §8.3.8 leaves this open), and checking that an
-app's own data survives the update, rather than only that the app is healthy.
+**Left for later:** ARM (SPEC §8.3.8 leaves this open), checking that an
+app's own data survives the update, rather than only that the app is healthy,
+and a test-only lab address so that packages needing the lab's own sign-in
+can be tested too.
 
 ## Not yet
 
