@@ -88,7 +88,7 @@ func parseSSHKey(text string) (ssh.PublicKey, error) {
 	if len(options) > 0 {
 		return nil, errors.New("Paste the key without options in front of it: from ssh-ed25519 or ssh-rsa on.")
 	}
-	if key.Type() == ssh.KeyAlgoDSA {
+	if key.Type() == "ssh-dss" { // ssh.KeyAlgoDSA, deprecated
 		return nil, errors.New("That's a DSA key, which SSH no longer accepts: make an ed25519 key instead.")
 	}
 	return key, nil
