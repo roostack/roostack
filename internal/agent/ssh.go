@@ -80,6 +80,12 @@ type SSHStatus struct {
 	RootLogin string `json:"root_login,omitempty"`
 	// KeyLogins are the latest key login of each account sshd logged.
 	KeyLogins []KeyLogin `json:"key_logins,omitempty"`
+	// Guesses are the failed password logins in the last day, from
+	// GuessAddresses addresses; GuessesCounted says the agent has read the
+	// whole day yet (sshguesses.go).
+	Guesses        int64 `json:"guesses,omitempty"`
+	GuessAddresses int64 `json:"guess_addresses,omitempty"`
+	GuessesCounted bool  `json:"guesses_counted,omitempty"`
 	// Error says why it couldn't all be read (a broken configuration makes
 	// `sshd -T` fail); what was read is still there.
 	Error string `json:"error,omitempty"`
@@ -114,6 +120,8 @@ func (h LinuxHost) SSHStatus() (SSHStatus, error) {
 		return SSHStatus{}, nil
 	}
 	st := SSHStatus{Installed: true}
+	guesses, addrs, counted := sshGuesses.day(time.Now())
+	st.Guesses, st.GuessAddresses, st.GuessesCounted = int64(guesses), int64(addrs), counted
 	if _, err := os.Stat(SSHDropIn); err == nil {
 		st.KeysOnly = true
 	}

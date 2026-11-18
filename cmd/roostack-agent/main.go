@@ -72,6 +72,8 @@ func run(log *slog.Logger, socket, userName, firewallFile string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	// SSH password guesses, counted as sshd logs them.
+	go agent.FollowSSHLog(ctx, log)
 	s := &agent.Server{Host: host, AllowedUIDs: []uint32{0, uint32(uid)}, Version: version, Log: log}
 	log.Info("roostack-agent listening", "socket", socket, "user", userName, "version", version)
 	return s.Serve(ctx, socket, gid)

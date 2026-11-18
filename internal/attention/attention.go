@@ -215,7 +215,7 @@ func (lab *Lab) For(ctx context.Context, u *store.User) []Item {
 				if n := lab.Manager.NodeByID(mc.ID); n != nil {
 					if set := n.Settings(); set != nil {
 						if a, err := set.SSHAccess(ctx, false); err == nil && a.PasswordsOpen() {
-							lab.sshPasswords(&l, mc.This, len(servers) > 1, mc.Name, mc.ID, a.Choice)
+							lab.sshPasswords(&l, mc.This, len(servers) > 1, mc.Name, mc.ID, a)
 						}
 					}
 				}
@@ -627,7 +627,7 @@ func seriesText(ser osupdate.Series, m Server) string {
 
 // sshPasswordsAttention warns that a server's SSH takes passwords: a
 // problem when it's open to anywhere, a warning from the home network.
-func (lab *Lab) sshPasswords(l *List, this, several bool, name, id, choice string) {
+func (lab *Lab) sshPasswords(l *List, this, several bool, name, id string, a node.SSHAccess) {
 	who := "SSH on this server"
 	if several {
 		who = "SSH on " + name
@@ -636,9 +636,15 @@ func (lab *Lab) sshPasswords(l *List, this, several bool, name, id, choice strin
 	if this {
 		link = "/settings/remote-access"
 	}
-	if choice == config.SSHFromAny {
+	// How much guessing there was, once the agent has counted a whole day.
+	guessed := ""
+	if st := a.SSHD; st.GuessesCounted && st.Guesses > 0 {
+		guessed = ", and in the last day there " + words.Plural(int(st.Guesses), "was ", "were ") +
+			words.Count(st.Guesses, "guess", "guesses") + " from " + words.Count(st.GuessAddresses, "address", "addresses")
+	}
+	if a.Choice == config.SSHFromAny {
 		l.add(Item{Key: "ssh-passwords-open:" + id, Level: Problem,
-			Text: who + " accepts passwords from anywhere, so anyone who can reach it can try to guess one.",
+			Text: who + " accepts passwords from anywhere, so anyone who can reach it can try to guess one" + guessed + ".",
 			Link: link, LinkText: "Turn passwords off"})
 		return
 	}
@@ -647,7 +653,7 @@ func (lab *Lab) sshPasswords(l *List, this, several bool, name, id, choice strin
 		where = "its private network"
 	}
 	l.add(Item{Key: "ssh-passwords:" + id, Level: Warning,
-		Text: who + " still accepts passwords: anyone on " + where + " can try to guess one.",
+		Text: who + " still accepts passwords: anyone on " + where + " can try to guess one" + guessed + ".",
 		Link: link, LinkText: "Turn passwords off"})
 }
 

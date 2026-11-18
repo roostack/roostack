@@ -71,6 +71,23 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 	if _, body := h.get("/partials/home"); !strings.Contains(body, "SSH on this server accepts passwords from anywhere") {
 		t.Error("anywhere with passwords")
 	}
+	// Once the agent has counted a whole day, the warning says how much
+	// guessing there was.
+	fs.sshd.Guesses, fs.sshd.GuessAddresses = 27511, 98
+	if _, body := h.get("/partials/home"); strings.Contains(body, "guesses") {
+		t.Error("a count shown before the day was counted")
+	}
+	fs.sshd.GuessesCounted = true
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "can try to guess one, and in the last day there were 27,511 guesses from 98 addresses.") {
+		t.Error("the guesses aren't counted in the warning")
+	}
+	if _, body := h.get("/settings/remote-access"); !strings.Contains(body, "<dt>Password guesses</dt>") || !strings.Contains(body, "27,511 in the last day, from 98 addresses") {
+		t.Error("the remote access page doesn't count the guesses")
+	}
+	fs.sshd.Guesses, fs.sshd.GuessAddresses = 1, 1
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "there was 1 guess from 1 address.") {
+		t.Error("one guess")
+	}
 	// Nobody can reach SSH: nothing to warn about.
 	fs.ssh = config.SSHOff
 	if _, body := h.get("/partials/home"); strings.Contains(body, "accepts passwords") {

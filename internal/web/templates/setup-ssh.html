@@ -85,6 +85,9 @@
     <dd>Keys only needs a key login, as an account in the <code>sudo</code> group, in SSH's log, written by sshd itself
       (<code>journalctl _UID=0 _EXE=/usr/lib/openssh/sshd-session</code>).
       With "Nobody" it's keys only without a check: nobody can reach SSH.</dd>
+    {{if .SSHD.GuessesCounted}}<dt>Password guesses</dt>
+    <dd>{{if .SSHD.Guesses}}{{count .SSHD.Guesses}} in the last day, from {{count .SSHD.GuessAddresses}} {{if eq .SSHD.GuessAddresses 1}}address{{else}}addresses{{end}}{{else}}None in the last day{{end}}
+      (sshd's <code>Failed password</code> lines, which roostack-agent counts as sshd writes them)</dd>{{end}}
   </dl>
 </details>
 {{end}}
