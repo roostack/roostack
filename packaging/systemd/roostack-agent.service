@@ -27,6 +27,9 @@ RuntimeDirectoryPreserve=yes
 # this sandbox: dpkg scripts may touch anything. So does replacing fstab:
 # the agent writes the new file in /etc/roostack, and a short unit renames
 # it over /etc/fstab in one step (SPEC.md §6.1, "Editing /etc/fstab").
+# Adding an SSH key from the Remote access page, and maybe an account for
+# it (useradd, chpasswd, ~/.ssh/authorized_keys), runs in a short unit too
+# (internal/agent/sshkey.go): this one can't write /etc or see /home.
 # Mounts are made by systemd from fstab, so they don't stay in this unit's
 # namespace.
 ProtectSystem=strict

@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"context"
 	"net/http"
+
+	"roostack.cloud/roostack/internal/agent"
 )
 
 // The server's own settings (Settings, settings.go) on the lab API.
@@ -86,6 +88,10 @@ func (x remoteSettings) UnblockSSH(ctx context.Context, address string) error {
 	return x.r.call(ctx, http.MethodPost, "/v1/settings/ssh/unblock", unblockRequest{Address: address}, nil)
 }
 
+func (x remoteSettings) AddSSHKey(ctx context.Context, r agent.SSHKeyRequest) error {
+	return x.r.call(ctx, http.MethodPost, "/v1/settings/ssh/key", r, nil)
+}
+
 func (x remoteSettings) PromoteBackupCopy(ctx context.Context, name string, old BackupCopy) error {
 	return x.r.call(ctx, http.MethodPost, "/v1/settings/backup-copies/promote", promoteRequest{Name: name, Old: old}, nil)
 }
@@ -143,6 +149,13 @@ func (s *Server) settingsRoutes(handle handleFunc) {
 			return nil, err
 		}
 		return nil, x.UnblockSSH(r.Context(), req.Address)
+	})
+	settings("POST /v1/settings/ssh/key", func(x Settings, r *http.Request) (any, error) {
+		req, err := body[agent.SSHKeyRequest](r)
+		if err != nil {
+			return nil, err
+		}
+		return nil, x.AddSSHKey(r.Context(), req)
 	})
 	settings("POST /v1/settings/backup-copies/promote", func(x Settings, r *http.Request) (any, error) {
 		req, err := body[promoteRequest](r)

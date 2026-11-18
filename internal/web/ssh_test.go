@@ -27,7 +27,7 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 
 	_, body := h.get("/settings/remote-access")
 	for _, want := range []string{"How do they log in?", "hasn&#39;t seen anyone log in with an SSH key and an account that can use sudo",
-		"they can't use sudo: root", `href="/help/start/first-run/#set-up-an-ssh-key"`, `<a href="/settings/remote-access">check again</a>`,
+		"they can't use sudo: root", `<a href="#key-guide">Set up a key</a>`, `<h2>Set up an SSH key</h2>`,
 		`value="password" checked`, "Takes passwords", "with a key only (prohibit-password)", "<code>/etc/ssh/sshd_config.d/10-roostack.conf</code> (not there now)"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("remote access page missing %q", want)
@@ -43,7 +43,7 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 	}
 	code, body := h.post("/setup/ssh", url.Values{"ssh": {"lan"}, "login": {"key"}}, h.srv.URL)
 	if code != http.StatusBadRequest || !strings.Contains(body, "hasn&#39;t seen anyone") || !strings.Contains(body, `value="key" checked`) ||
-		!strings.Contains(body, `<a href="/settings/remote-access">check again</a>`) {
+		!strings.Contains(body, `<a href="#key-guide">Set up a key</a>`) {
 		t.Errorf("keys only without a key login: %d", code)
 	}
 
@@ -52,6 +52,9 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 	_, body = h.get("/settings/remote-access")
 	if !strings.Contains(body, "Your SSH key works: tom logged in with one from 192.168.1.20 today") || !strings.Contains(body, `value="key" checked`) {
 		t.Error("a key login seen: keys only is offered, and the default")
+	}
+	if strings.Contains(body, "Set up an SSH key") {
+		t.Error("the key guide is shown once a key works")
 	}
 	if code, _ := h.post("/setup/ssh", url.Values{"ssh": {"any"}, "login": {"key"}}, h.srv.URL); code >= 400 {
 		t.Fatalf("keys only: %d", code)
@@ -115,6 +118,71 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 	fs.ssh = config.SSHOff
 	if _, body := h.get("/partials/home"); strings.Contains(body, "accepts passwords") {
 		t.Error("SSH off: no warning")
+	}
+}
+
+// The key guide: it shows how to make a key, offers a new account named
+// after the Owner or one in the sudo group already, keeps what was typed
+// (never the password) when something's wrong, and once the key is added
+// waits for a login with it, then says it works.
+func TestSSHKeyGuide(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: allDone, ssh: config.SSHFromAny, sshLogin: config.SSHLoginPassword,
+		sshd: agent.SSHStatus{Installed: true, Passwords: true, Sudoers: []string{"debian"}}}
+	h.setSetup(fs)
+	_, body := h.get("/settings/remote-access")
+	for _, want := range []string{"ssh-keygen -t ed25519", `type $env:USERPROFILE\.ssh\id_ed25519.pub`, "pbcopy &lt; ~/.ssh/id_ed25519.pub",
+		`action="/settings/remote-access/key"`, `data-account="new"`, `name="user" value="u"`, "<option selected>debian</option>",
+		"useradd --create-home --groups sudo"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("key guide missing %q", want)
+		}
+	}
+
+	form := url.Values{"key": {"ssh-ed25519 AAAA tom@laptop"}, "account": {"new"}, "user": {"tom"}, "password": {"a long password"}, "confirm": {"another"}}
+	code, body := h.post("/settings/remote-access/key", form, h.srv.URL)
+	if code != http.StatusBadRequest || !strings.Contains(body, "The passwords don&#39;t match.") || !strings.Contains(body, "ssh-ed25519 AAAA tom@laptop</textarea>") ||
+		!strings.Contains(body, `name="user" value="tom"`) || strings.Contains(body, "a long password") || len(fs.sshKeys) != 0 {
+		t.Errorf("passwords that don't match: %d", code)
+	}
+	form.Set("key", "not a key")
+	form.Set("confirm", "a long password")
+	if code, body := h.post("/settings/remote-access/key", form, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "That isn&#39;t an SSH public key.") {
+		t.Errorf("not a key: %d", code)
+	}
+	form.Set("key", "ssh-ed25519 AAAA tom@laptop")
+	if code, loc := h.sent(http.MethodPost, "/settings/remote-access/key", form); loc != "/settings/remote-access?key=tom#key-guide" {
+		t.Errorf("after adding = %d %q", code, loc)
+	}
+	want := agent.SSHKeyRequest{Key: "ssh-ed25519 AAAA tom@laptop", User: "tom", New: true, Password: "a long password"}
+	if len(fs.sshKeys) != 1 || fs.sshKeys[0] != want {
+		t.Errorf("requests = %+v", fs.sshKeys)
+	}
+	// An account it has already: no password.
+	h.post("/settings/remote-access/key", url.Values{"key": {"ssh-ed25519 BBBB"}, "account": {"existing"}, "existing": {"debian"}, "user": {"x"}}, h.srv.URL)
+	if len(fs.sshKeys) != 2 || fs.sshKeys[1] != (agent.SSHKeyRequest{Key: "ssh-ed25519 BBBB", User: "debian"}) {
+		t.Errorf("existing account = %+v", fs.sshKeys)
+	}
+
+	_, body = h.get("/settings/remote-access?key=tom")
+	for _, want := range []string{"Roostack has added your key to tom.", `hx-get="/settings/remote-access?key=tom"`, "ssh tom@127.0.0.1",
+		"Roostack is watching for that login"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("after adding, page missing %q", want)
+		}
+	}
+	fs.sshd.KeyLogins = []agent.KeyLogin{{User: "tom", From: "203.0.113.5", At: time.Now(), Sudo: true}}
+	_, body = h.get("/settings/remote-access?key=tom")
+	if !strings.Contains(body, "Your SSH key works: tom logged in with one from 203.0.113.5 today") || !strings.Contains(body, ". You can now choose “With an SSH key only” above and save.") || strings.Contains(body, "hx-get=\"/settings/remote-access?key") {
+		t.Error("the guide doesn't tick off the login")
+	}
+	if _, body = h.get("/settings/remote-access"); strings.Contains(body, "Set up an SSH key") {
+		t.Error("the guide is still shown once a key works")
+	}
+	// Sent anyway (from a page loaded before): what's wrong is still shown.
+	form.Set("key", "not a key")
+	if code, body := h.post("/settings/remote-access/key", form, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "That isn&#39;t an SSH public key.") {
+		t.Errorf("not a key, once a key works: %d", code)
 	}
 }
 

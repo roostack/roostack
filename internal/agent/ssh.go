@@ -86,6 +86,9 @@ type SSHStatus struct {
 	Guesses        int64 `json:"guesses,omitempty"`
 	GuessAddresses int64 `json:"guess_addresses,omitempty"`
 	GuessesCounted bool  `json:"guesses_counted,omitempty"`
+	// Sudoers are the accounts in the sudo group, apart from root: those
+	// a key can be added to from the page (sshkey.go).
+	Sudoers []string `json:"sudoers,omitempty"`
 	// Blocked are the addresses that can't reach SSH for now, after too
 	// many wrong passwords (sshblocks.go).
 	Blocked []SSHBlock `json:"blocked,omitempty"`
@@ -126,6 +129,7 @@ func (h LinuxHost) SSHStatus() (SSHStatus, error) {
 	guesses, addrs, counted := sshGuesses.day(time.Now())
 	st.Guesses, st.GuessAddresses, st.GuessesCounted = int64(guesses), int64(addrs), counted
 	st.Blocked = sshBlocks.list(time.Now())
+	st.Sudoers = slices.DeleteFunc(groupMembers("sudo"), func(name string) bool { return name == "root" })
 	if _, err := os.Stat(SSHDropIn); err == nil {
 		st.KeysOnly = true
 	}

@@ -619,6 +619,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /settings/people", s.requireOwner(s.usersPage))
 	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
 	mux.Handle("POST /settings/remote-access/unblock", s.requireWizard(s.sshUnblockSubmit))
+	mux.Handle("POST /settings/remote-access/key", s.requireOwner(s.sshKeySubmit))
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("POST /settings/domain/itself", s.requireOwner(s.domainItselfSubmit))
 	mux.Handle("GET /settings/vpn", s.requireOwner(s.settingsVPNPage))

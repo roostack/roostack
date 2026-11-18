@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
@@ -120,7 +121,8 @@ func (f *fakeSettings) UnblockSSH(_ context.Context, address string) error {
 	f.unblocked = append(f.unblocked, address)
 	return nil
 }
-func (f *fakeSettings) SetRestartPolicy(context.Context, string, int) error { return nil }
+func (f *fakeSettings) AddSSHKey(context.Context, agent.SSHKeyRequest) error { return nil }
+func (f *fakeSettings) SetRestartPolicy(context.Context, string, int) error  { return nil }
 func (f *fakeSettings) RestartPolicy(context.Context) (string, int, error) {
 	return "notify", 3, nil
 }

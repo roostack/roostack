@@ -30,7 +30,7 @@ var bundledCredits = []Credit{
 	{Name: "libc, mathutil, memory", By: "The modernc.org Authors", URL: "https://gitlab.com/cznic", License: "BSD-3-Clause",
 		Module: "modernc.org/libc modernc.org/mathutil modernc.org/memory", Note: "Used by SQLite for Go"},
 	{Name: "Go crypto and sys", By: "The Go Authors", URL: "https://go.googlesource.com/crypto", License: "BSD-3-Clause",
-		Module: "golang.org/x/crypto golang.org/x/sys", Note: "Password hashing (argon2id)"},
+		Module: "golang.org/x/crypto golang.org/x/sys", Note: "Password hashing (argon2id), and reading SSH keys"},
 	{Name: "YAML for Go", By: "The go-yaml Authors", URL: "https://github.com/yaml/go-yaml", License: "MIT and Apache 2.0",
 		Module: "go.yaml.in/yaml/v3"},
 	{Name: "qr", By: "The Go Authors (Russ Cox)", URL: "https://pkg.go.dev/rsc.io/qr", License: "BSD-3-Clause",

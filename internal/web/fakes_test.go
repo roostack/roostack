@@ -1800,6 +1800,7 @@ type fakeSetup struct {
 	restarted   bool
 	ssh         string
 	sshLogin    string
+	sshKeys     []agent.SSHKeyRequest
 	sshd        agent.SSHStatus
 	policy      string
 	clients     []netip.Addr
@@ -1840,6 +1841,14 @@ func (f *fakeSetup) SSHAccess(context.Context, bool) (node.SSHAccess, error) {
 
 func (f *fakeSetup) UnblockSSH(_ context.Context, address string) error {
 	f.sshd.Blocked = slices.DeleteFunc(f.sshd.Blocked, func(b agent.SSHBlock) bool { return b.Address == address })
+	return nil
+}
+
+func (f *fakeSetup) AddSSHKey(_ context.Context, r agent.SSHKeyRequest) error {
+	if r.Key == "not a key" {
+		return &usererr.Error{Msg: "That isn't an SSH public key."}
+	}
+	f.sshKeys = append(f.sshKeys, r)
 	return nil
 }
 

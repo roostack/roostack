@@ -261,7 +261,8 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 		"MultiServer": multi, "Error": errMsg, "Internet": internet, "PasswordsOpen": a.PasswordsOpen(),
 		"Login": login, "SSHD": a.SSHD, "SSHDError": a.SSHDError, "KeyWorks": keyWorks, "KeyText": keyText,
 		"NoSudo": strings.Join(noSudo, ", "), "SavedLogin": a.Login,
-		"DropIn": agent.SSHDropIn}), nil
+		"DropIn": agent.SSHDropIn, "KeyForm": defaultSSHKeyForm(currentUser(r), a.SSHD.Sudoers),
+		"SSHHost": sshHost(r, s.serverRefOf(r))}), nil
 }
 
 // sshClientWhere says where an SSH client is from, as the choice of who
@@ -291,6 +292,11 @@ func (s *Server) sshPage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.serverError(w, err)
 		return
+	}
+	// Just added by the key guide (sshKeySubmit): its last step waits for
+	// a login with the key.
+	if u := r.URL.Query().Get("key"); accountNameRe.MatchString(u) {
+		data["KeyAdded"] = u
 	}
 	s.render(w, "setup-ssh", data)
 }

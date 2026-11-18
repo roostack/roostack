@@ -42,8 +42,9 @@
       {{else if not .SSHD.KeysOnly}}{{notice "warn" "Roostack hasn't seen anyone log in with an SSH key and an account that can use sudo, so it can't turn passwords off without the risk of locking you out."}}
       {{with .NoSudo}}<p class="hint">Seen logging in with a key, but they can't use sudo: {{.}}. Root can't log in with keys only, so log in once as an
         account in the <code>sudo</code> group.</p>{{end}}
-      <p><a href="/help/start/first-run/#set-up-an-ssh-key" target="_blank" rel="noopener">How to set up a key{{template "new-window"}}</a>,
-        then <a href="{{if .Wizard}}/setup/ssh{{else}}{{.Server.RemoteAccess}}{{end}}">check again</a>.</p>
+      {{if .Wizard}}<p><a href="/help/start/first-run/#set-up-an-ssh-key" target="_blank" rel="noopener">How to set up a key{{template "new-window"}}</a>,
+        then <a href="/setup/ssh">check again</a>. Once setup has finished, this page will also guide you through it.</p>
+      {{else}}<p><a href="#key-guide">Set up a key</a> with the steps below this form.</p>{{end}}
       {{end}}
       <fieldset>
         <label class="check"><input type="radio" name="login" value="key"{{if eq .Login "key"}} checked{{end}}>
@@ -68,6 +69,7 @@
       log in will change at once.{{end}}</p>{{end}}
     <button type="submit">{{if .Wizard}}Continue{{else}}Save{{end}}</button>
   </form>
+{{template "ssh-key-guide" .}}
 {{with .SSHD.Blocked}}
 <h2>Blocked for now</h2>
 <p>Roostack has blocked {{if eq (len .) 1}}this address from SSH after too many wrong passwords, and will let it in again at the time
@@ -120,3 +122,91 @@
 {{/* Over Roostack's network, only the controller reaches SSH (SPEC.md §10.2). */}}
 {{define "ssh-other-servers"}}{{if .MultiServer}} Not from this lab's other servers{{if not .Server.This}}, except the one that runs
   the lab{{end}}.{{end}}{{end}}
+
+{{/* The key guide (sshkey.go): after setup, until Roostack has seen a key
+     login by an account that can use sudo, and after adding a key, until
+     it sees a login with one (the page checks every few seconds); and to
+     say what was wrong with what was sent. */}}
+{{define "ssh-key-guide"}}{{if and .SSHD.Installed (not .Wizard) (or .KeyAdded .KeyError (and (not .KeyWorks) (not .SSHD.KeysOnly)))}}
+<div id="key-guide" class="key-guide"{{if and .KeyAdded (not .KeyWorks)}} hx-get="{{.Server.RemoteAccess}}?key={{.KeyAdded}}"
+  hx-trigger="every 5s [document.visibilityState === 'visible']" hx-select="#key-guide" hx-swap="outerHTML"{{end}}>
+  <h2>Set up an SSH key</h2>
+  {{if .KeyAdded}}
+  {{if .KeyWorks}}{{notice "ok" (printf "%s You can now choose “With an SSH key only” above and save." .KeyText)}}
+  {{else}}
+  {{notice "ok" (printf "Roostack has added your key to %s." .KeyAdded)}}
+  <h3>Log in with it once</h3>
+  <p>On your computer, run:</p>
+  <pre class="output">ssh {{.KeyAdded}}@{{.SSHHost}}</pre>
+  <p class="hint">The first time, SSH will ask whether you trust the server: type <code>yes</code>. It will then ask for your key's
+    passphrase, if it has one, but not for the account's password.</p>
+  <p role="status"><span class="spinner" aria-hidden="true"></span> Roostack is watching for that login and will tick this off by itself.</p>
+  <p class="hint"><a href="{{.Server.RemoteAccess}}#key-guide">Add another key</a></p>
+  {{end}}
+  {{else}}
+  <p>A key is a pair of files on your computer that lets you log in without typing a password. Unlike a password, it can't be
+    guessed, so once it works Roostack can turn passwords off.</p>
+  <ol class="steps">
+    <li><strong>Make a key on your computer.</strong> Skip this if you already have one.
+      <div class="seg-group">
+        {{segmented "os" "Your computer" "windows" (choice "windows" "Windows") (choice "mac" "macOS") (choice "linux" "Linux") "size=small"}}
+        <div class="seg-panel" data-seg="1"><p>Open PowerShell (from the Start menu) and run:</p>
+          <pre class="output">ssh-keygen -t ed25519</pre>
+          <p>Press Enter to keep the file where it suggests, and choose a passphrase, which protects the key if someone gets your computer. Then show
+            the public key:</p>
+          <pre class="output">type $env:USERPROFILE\.ssh\id_ed25519.pub</pre></div>
+        <div class="seg-panel" data-seg="2"><p>Open Terminal (in Applications, Utilities) and run:</p>
+          <pre class="output">ssh-keygen -t ed25519</pre>
+          <p>Press Enter to keep the file where it suggests, and choose a passphrase, which protects the key if someone gets your Mac. Then copy
+            the public key:</p>
+          <pre class="output">pbcopy &lt; ~/.ssh/id_ed25519.pub</pre></div>
+        <div class="seg-panel" data-seg="3"><p>Open a terminal and run:</p>
+          <pre class="output">ssh-keygen -t ed25519</pre>
+          <p>Press Enter to keep the file where it suggests, and choose a passphrase, which protects the key if someone gets your computer. Then show
+            the public key:</p>
+          <pre class="output">cat ~/.ssh/id_ed25519.pub</pre></div>
+      </div></li>
+    <li><strong>Paste your public key.</strong>
+      {{with .KeyError}}<p class="error" role="alert">{{.}}</p>{{end}}
+      <form method="post" action="{{.Server.RemoteAccessKey}}" data-account="{{.KeyForm.Account}}" x-data="{ account: $el.dataset.account }">
+        <label>Public key
+          <textarea name="key" rows="3" required autocapitalize="off" spellcheck="false" placeholder="ssh-ed25519 AAAA…">{{.KeyForm.Key}}</textarea>
+          <small>The one line from the file ending in <code>.pub</code>, never the other file: that one is your private key, which must
+            never leave your computer.</small></label>
+        {{if .SSHD.Sudoers}}
+        <fieldset>
+          <legend>Which account?</legend>
+          <label class="check"><input type="radio" name="account" value="new" x-model="account"{{if eq .KeyForm.Account "new"}} checked{{end}}>
+            <span>A new account</span></label>
+          <label class="check"><input type="radio" name="account" value="existing" x-model="account"{{if eq .KeyForm.Account "existing"}} checked{{end}}>
+            <span>An account it has already<small>One that can use sudo.</small></span></label>
+        </fieldset>
+        {{else}}<input type="hidden" name="account" value="new">{{end}}
+        <div x-show="account === 'new'"{{if eq .KeyForm.Account "existing"}} x-cloak{{end}}>
+          <label>Account name <input name="user" value="{{.KeyForm.User}}" autocapitalize="off" autocomplete="off" spellcheck="false"
+              pattern="[a-z][\-a-z0-9_]{0,31}" x-bind:required="account === 'new'">
+            <small>Small letters, digits, “-” and “_”. Roostack will add it to the <code>sudo</code> group.</small></label>
+          <div class="field-row">
+            <label>Password <input name="password" type="password" autocomplete="new-password" x-bind:required="account === 'new'"></label>
+            <label>Password again <input name="confirm" type="password" autocomplete="new-password" x-bind:required="account === 'new'"></label>
+          </div>
+          <p class="hint">For <code>sudo</code>, and for logging in at the server's own screen or your provider's web console. SSH won't take
+            it once it's keys only.</p>
+        </div>
+        {{with .SSHD.Sudoers}}<div x-show="account === 'existing'"{{if ne $.KeyForm.Account "existing"}} x-cloak{{end}}>
+          <label>Account <select name="existing">{{range .}}<option{{if eq . $.KeyForm.Existing}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+        </div>{{end}}
+        <button type="submit">Add the key</button>
+      </form></li>
+    <li><strong>Log in with it once.</strong> Roostack will show you how once it has added the key.</li>
+  </ol>
+  {{end}}
+  <details class="technical">
+    <summary>How Roostack adds the key</summary>
+    <p>roostack-agent checks the key, then in a short systemd job of its own (<code>roostack-ssh-key</code>), since its sandbox can't
+      change accounts, makes a new account with <code>useradd --create-home --groups sudo --shell /bin/bash</code>,
+      sets its password with <code>chpasswd</code>, and adds the key to <code>~/.ssh/authorized_keys</code> (the folder 700, the file
+      600, both owned by the account). It never adds a key to root.</p>
+  </details>
+</div>
+{{end}}{{end}}
