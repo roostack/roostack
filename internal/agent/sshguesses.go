@@ -28,6 +28,10 @@ const guessDay = 24 * time.Hour
 // address is the last "from" before the end that sshd itself writes.
 var failedRe = regexp.MustCompile(`^Failed (?:password|keyboard-interactive/pam) for .* from (\S+) port \d+ ssh2$`)
 
+// acceptedFromRe matches sshd's line for any successful login: the
+// account is a real one, so it holds no spaces.
+var acceptedFromRe = regexp.MustCompile(`^Accepted \S+ for \S+ from (\S+) port \d+ ssh2`)
+
 // sshGuesses counts this server's guesses.
 var sshGuesses guessLog
 
@@ -35,7 +39,11 @@ type guessLog struct {
 	mu sync.Mutex
 	// ready: the last day has been read, so the count is whole.
 	ready bool
-	hours map[int64]*guessHour // by hours since 1970
+	// guessed, if set, hears of each guess (sshBlocks.failed), and in of
+	// each successful login (sshBlocks.loggedIn).
+	guessed func(at time.Time, addr netip.Addr, now time.Time)
+	in      func(at time.Time, addr netip.Addr)
+	hours   map[int64]*guessHour // by hours since 1970
 }
 
 type guessHour struct {
@@ -87,14 +95,24 @@ func (g *guessLog) day(now time.Time) (guesses, addrs int, ready bool) {
 	return guesses, len(seen), g.ready
 }
 
-// line counts one of sshd's lines, if it's a failed password.
+// line counts one of sshd's lines, if it's a failed password, and passes
+// on a successful login.
 func (g *guessLog) line(message string, at time.Time) {
+	if m := acceptedFromRe.FindStringSubmatch(message); m != nil {
+		if addr, err := netip.ParseAddr(m[1]); err == nil && g.in != nil {
+			g.in(at, addr)
+		}
+		return
+	}
 	m := failedRe.FindStringSubmatch(message)
 	if m == nil {
 		return
 	}
 	if addr, err := netip.ParseAddr(m[1]); err == nil {
 		g.add(at, addr)
+		if g.guessed != nil {
+			g.guessed(at, addr, time.Now())
+		}
 	}
 }
 
@@ -106,6 +124,11 @@ func FollowSSHLog(ctx context.Context, log *slog.Logger) {
 	if _, err := os.Stat(sshdBin); err != nil {
 		return // no SSH server
 	}
+	sshBlocks.log = log
+	if err := sshBlocks.load(); err != nil {
+		log.Warn("reading which addresses were unblocked from SSH", "err", err)
+	}
+	sshGuesses.guessed, sshGuesses.in = sshBlocks.failed, sshBlocks.loggedIn
 	cursor, read := "", false
 	var readAt time.Time
 	for {
@@ -147,15 +170,16 @@ func FollowSSHLog(ctx context.Context, log *slog.Logger) {
 	}
 }
 
-// journal runs journalctl over sshd's failed passwords, following or not,
-// counts each, and returns the cursor of the last line it read.
+// journal runs journalctl over sshd's failed passwords and successful
+// logins, following or not, passes each to line, and returns the cursor of
+// the last line it read.
 func (g *guessLog) journal(ctx context.Context, cursor string, follow bool, from ...string) (string, error) {
 	args := []string{"_UID=0"}
 	for _, exe := range sshdExes {
 		args = append(args, "_EXE="+exe)
 	}
 	args = append(args, from...)
-	args = append(args, "--grep", "^Failed (password|keyboard-interactive/pam) for ",
+	args = append(args, "--grep", "^(Failed (password|keyboard-interactive/pam)|Accepted [a-z-]+) for ",
 		"--output", "json", "--output-fields", "MESSAGE", "--no-pager", "--quiet")
 	if follow {
 		args = append(args, "--follow")

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/trust"
@@ -390,6 +391,10 @@ func (f Firewall) Ruleset() string {
 	// Each source's rate of new WireGuard handshakes (wireguardLimit).
 	b.WriteString("\tset wg_handshakes4 {\n\t\ttype ipv4_addr\n\t\tflags dynamic, timeout\n\t\ttimeout 1m\n\t\tsize 65536\n\t}\n\n")
 	b.WriteString("\tset wg_handshakes6 {\n\t\ttype ipv6_addr\n\t\tflags dynamic, timeout\n\t\ttimeout 1m\n\t\tsize 65536\n\t}\n\n")
+	// SSH password guessers, blocked for a while (sshblocks.go): the agent
+	// adds them, each with its own timeout, and puts them back after a load.
+	fmt.Fprintf(&b, "\tset %s {\n\t\ttype ipv4_addr\n\t\tflags timeout\n\t}\n\n", blockedSet4)
+	fmt.Fprintf(&b, "\tset %s {\n\t\ttype ipv6_addr\n\t\tflags interval, timeout\n\t}\n\n", blockedSet6)
 	// Edges reach Caddy only on its edge listener: their connections to
 	// 443 are sent there, so whatever a PROXY header says, they're never
 	// private, and the listener for everyone else believes no header.
@@ -480,6 +485,11 @@ func (f Firewall) Ruleset() string {
 	// conntrack doesn't pair with the multicast request.
 	b.WriteString("\t\tip6 saddr fe80::/10 udp dport 546 accept\n\n")
 
+	if f.SSHFrom != FromOff {
+		b.WriteString("\t\t# ssh password guessers, blocked for a while\n")
+		fmt.Fprintf(&b, "\t\tip saddr @%s tcp dport 22 drop\n", blockedSet4)
+		fmt.Fprintf(&b, "\t\tip6 saddr @%s tcp dport 22 drop\n\n", blockedSet6)
+	}
 	rules := slices.DeleteFunc(slices.Clone(f.Allow), func(r Rule) bool {
 		return r.For == trust.Guests || r.For == trust.Servers || r.For == trust.Controller || r.For == trust.Edge
 	})
@@ -793,6 +803,8 @@ func (h LinuxHost) ApplyFirewall(ruleset string) error {
 	if err := os.MkdirAll(filepath.Dir(h.FirewallFile), 0o755); err != nil {
 		return err
 	}
+	// Loading emptied the sets of blocked SSH guessers.
+	sshBlocks.reload(time.Now())
 	return fsutil.WriteFile(h.FirewallFile, []byte(ruleset), 0o644)
 }
 

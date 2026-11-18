@@ -84,6 +84,29 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 	if _, body := h.get("/settings/remote-access"); !strings.Contains(body, "<dt>Password guesses</dt>") || !strings.Contains(body, "27,511 in the last day, from 98 addresses") {
 		t.Error("the remote access page doesn't count the guesses")
 	}
+	// Blocked guessers: counted on Home, listed with Unblock.
+	until := time.Now().Add(time.Hour)
+	fs.sshd.Blocked = []agent.SSHBlock{{Address: "203.0.113.9", Until: until}, {Address: "2001:db8:1:2::/64", Until: until}}
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "from 98 addresses, and Roostack has blocked 2 of them for now.") {
+		t.Error("blocks aren't counted on Home")
+	}
+	_, body = h.get("/settings/remote-access")
+	for _, want := range []string{"<h2>Blocked for now</h2>", "these addresses from SSH after too many wrong passwords",
+		"<code>2001:db8:1:2::/64</code>", `action="/settings/remote-access/unblock"`, `name="address" value="203.0.113.9"`, "<dt>Blocking</dt>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("remote access page missing %q", want)
+		}
+	}
+	if code, _ := h.post("/settings/remote-access/unblock", url.Values{"address": {"203.0.113.9"}}, h.srv.URL); code >= 400 {
+		t.Fatalf("unblock: %d", code)
+	}
+	if len(fs.sshd.Blocked) != 1 || fs.sshd.Blocked[0].Address != "2001:db8:1:2::/64" {
+		t.Errorf("after unblocking = %+v", fs.sshd.Blocked)
+	}
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "Roostack has blocked one of them for now.") {
+		t.Error("one block")
+	}
+	fs.sshd.Blocked = nil
 	fs.sshd.Guesses, fs.sshd.GuessAddresses = 1, 1
 	if _, body := h.get("/partials/home"); !strings.Contains(body, "there was 1 guess from 1 address.") {
 		t.Error("one guess")

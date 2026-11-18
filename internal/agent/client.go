@@ -320,6 +320,11 @@ func (c *Client) SSHStatus(ctx context.Context) (SSHStatus, error) {
 	return st, nil
 }
 
+// UnblockSSH lets a blocked address reach SSH again at once.
+func (c *Client) UnblockSSH(ctx context.Context, address string) error {
+	return c.call(ctx, http.MethodPost, "/v1/ssh/unblock", UnblockRequest{Address: address}, nil)
+}
+
 // SetSSHKeysOnly turns SSH's keys-only settings on or off.
 func (c *Client) SetSSHKeysOnly(ctx context.Context, on bool) error {
 	return c.call(ctx, http.MethodPut, "/v1/ssh", SSHRequest{KeysOnly: on}, nil)

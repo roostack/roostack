@@ -37,6 +37,9 @@ type Settings interface {
 	// unless confirmed, and keys only unless a key is known to work
 	// (SPEC.md §6.10).
 	SetSSH(ctx context.Context, c SSHChange) error
+	// UnblockSSH lets an address that guessed too many passwords reach SSH
+	// again at once (SSHAccess.SSHD.Blocked).
+	UnblockSSH(ctx context.Context, address string) error
 	SetRestartPolicy(ctx context.Context, mode string, hour int) error
 	// RestartPolicy is when the server may restart after updates.
 	RestartPolicy(ctx context.Context) (mode string, hour int, err error)
@@ -129,6 +132,7 @@ type SSHChange struct {
 type SSHServer interface {
 	SSHStatus(ctx context.Context) (agent.SSHStatus, error)
 	SetSSHKeysOnly(ctx context.Context, on bool) error
+	UnblockSSH(ctx context.Context, address string) error
 }
 
 // sshCache is how long a read of the SSH server's state is used for pages
@@ -315,6 +319,18 @@ func (h *HostSettings) SetSSH(ctx context.Context, c SSHChange) error {
 	}
 	h.Restart()
 	return nil
+}
+
+func (h *HostSettings) UnblockSSH(ctx context.Context, address string) error {
+	if h.SSHServer == nil {
+		return usererr.New("This server has no SSH server.")
+	}
+	err := h.SSHServer.UnblockSSH(ctx, address)
+	h.mu.Lock()
+	h.sshAt = time.Time{} // read it again next time
+	h.sshGen++
+	h.mu.Unlock()
+	return err
 }
 
 func (h *HostSettings) RestartPolicy(_ context.Context) (string, int, error) {

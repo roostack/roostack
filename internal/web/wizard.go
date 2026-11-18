@@ -332,6 +332,28 @@ func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 	s.restartingOrNext(w, r)
 }
 
+// sshUnblockSubmit lets an address blocked for guessing SSH passwords
+// reach SSH again at once.
+func (s *Server) sshUnblockSubmit(w http.ResponseWriter, r *http.Request) {
+	set := s.server(r)
+	if set == nil {
+		http.NotFound(w, r)
+		return
+	}
+	m := s.serverRefOf(r)
+	address := r.FormValue("address")
+	if err := set.UnblockSSH(r.Context(), address); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "setup", m.Label()+" SSH: unblocked "+address)
+	if m.This && s.inWizard(r) {
+		redirect(w, r, "/setup/ssh")
+		return
+	}
+	redirect(w, r, m.RemoteAccess())
+}
+
 func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
 	// A provider that isn't offered for an own domain (Roostack Cloud's,
 	// for a roost.ac name) would leave no provider's fields shown, while

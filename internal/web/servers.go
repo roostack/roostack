@@ -117,6 +117,9 @@ func (m serverRef) RemoteAccess() string {
 func (m serverRef) RemoteAccessPost() string {
 	return m.path("/setup/ssh", "/remote-access")
 }
+func (m serverRef) RemoteAccessUnblock() string {
+	return m.path("/settings/remote-access/unblock", "/remote-access/unblock")
+}
 func (m serverRef) Backups() string   { return m.path("/backups", "/backups") }
 func (m serverRef) BackupRun() string { return m.path("/backup/run", "/backups/run") }
 
@@ -124,22 +127,23 @@ func (m serverRef) BackupRun() string { return m.path("/backup/run", "/backups/r
 func (s *Server) serverRoutes(mux *http.ServeMux) {
 	const p = "/settings/servers/{server}"
 	for route, h := range map[string]http.HandlerFunc{
-		"GET " + p + "/updates":               s.updatesPage,
-		"POST " + p + "/updates/run":          s.updateNowSubmit,
-		"POST " + p + "/updates/series":       s.seriesAcceptSubmit,
-		"POST " + p + "/host-changes/known":   s.hostChangesKnownSubmit,
-		"POST " + p + "/restart":              s.restartNowSubmit,
-		"POST " + p + "/restart-policy":       s.restartPolicySubmit,
-		"GET " + p + "/time-zone":             s.timezonePage,
-		"POST " + p + "/time-zone":            s.timezoneSubmit,
-		"GET " + p + "/remote-access":         s.sshPage,
-		"POST " + p + "/remote-access":        s.sshSubmit,
-		"GET " + p + "/backups":               s.backupsPage,
-		"POST " + p + "/backups/run":          s.backupRun,
-		"POST " + p + "/backups/plan":         s.planAddSubmit(false),
-		"POST " + p + "/backups/plan/promote": s.planPromoteSubmit,
-		"POST " + p + "/backups/plan/remove":  s.planRemoveSubmit,
-		"POST " + p + "/backups/plan/key":     s.planKeySubmit,
+		"GET " + p + "/updates":                s.updatesPage,
+		"POST " + p + "/updates/run":           s.updateNowSubmit,
+		"POST " + p + "/updates/series":        s.seriesAcceptSubmit,
+		"POST " + p + "/host-changes/known":    s.hostChangesKnownSubmit,
+		"POST " + p + "/restart":               s.restartNowSubmit,
+		"POST " + p + "/restart-policy":        s.restartPolicySubmit,
+		"GET " + p + "/time-zone":              s.timezonePage,
+		"POST " + p + "/time-zone":             s.timezoneSubmit,
+		"GET " + p + "/remote-access":          s.sshPage,
+		"POST " + p + "/remote-access":         s.sshSubmit,
+		"POST " + p + "/remote-access/unblock": s.sshUnblockSubmit,
+		"GET " + p + "/backups":                s.backupsPage,
+		"POST " + p + "/backups/run":           s.backupRun,
+		"POST " + p + "/backups/plan":          s.planAddSubmit(false),
+		"POST " + p + "/backups/plan/promote":  s.planPromoteSubmit,
+		"POST " + p + "/backups/plan/remove":   s.planRemoveSubmit,
+		"POST " + p + "/backups/plan/key":      s.planKeySubmit,
 		// Rolling a backup back (SPEC.md §10.10).
 		"POST " + p + "/backups/plan/rollback": s.planRollbackSubmit,
 	} {

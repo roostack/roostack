@@ -21,6 +21,9 @@ type wireSettings struct {
 // timezoneRequest is the time zone to change to.
 type timezoneRequest struct{ Timezone string }
 
+// unblockRequest names an address blocked from SSH (agent.SSHBlock).
+type unblockRequest struct{ Address string }
+
 // timezoneReply says whether the time zone changed.
 type timezoneReply struct {
 	Changed bool `json:"changed"`
@@ -79,6 +82,10 @@ func (x remoteSettings) SetSSH(ctx context.Context, c SSHChange) error {
 	return x.r.call(ctx, http.MethodPut, "/v1/settings/ssh", c, nil)
 }
 
+func (x remoteSettings) UnblockSSH(ctx context.Context, address string) error {
+	return x.r.call(ctx, http.MethodPost, "/v1/settings/ssh/unblock", unblockRequest{Address: address}, nil)
+}
+
 func (x remoteSettings) PromoteBackupCopy(ctx context.Context, name string, old BackupCopy) error {
 	return x.r.call(ctx, http.MethodPost, "/v1/settings/backup-copies/promote", promoteRequest{Name: name, Old: old}, nil)
 }
@@ -129,6 +136,13 @@ func (s *Server) settingsRoutes(handle handleFunc) {
 			return nil, err
 		}
 		return nil, x.SetSSH(r.Context(), c)
+	})
+	settings("POST /v1/settings/ssh/unblock", func(x Settings, r *http.Request) (any, error) {
+		req, err := body[unblockRequest](r)
+		if err != nil {
+			return nil, err
+		}
+		return nil, x.UnblockSSH(r.Context(), req.Address)
 	})
 	settings("POST /v1/settings/backup-copies/promote", func(x Settings, r *http.Request) (any, error) {
 		req, err := body[promoteRequest](r)

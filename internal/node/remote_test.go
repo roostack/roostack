@@ -97,7 +97,10 @@ func (f *fakeNode) Media() Media       { return f.media }
 // Capabilities: its settings, media and memory; nothing else (bareNode).
 func (f *fakeNode) Memory() Memory { return f }
 
-type fakeSettings struct{ zone string }
+type fakeSettings struct {
+	zone      string
+	unblocked []string
+}
 
 func (f *fakeSettings) Timezones(context.Context) (string, []string, error) {
 	return f.zone, []string{"Etc/UTC", "Europe/London"}, nil
@@ -112,7 +115,11 @@ func (f *fakeSettings) SetTimezone(_ context.Context, name string) (bool, error)
 func (f *fakeSettings) SSHAccess(context.Context, bool) (SSHAccess, error) {
 	return SSHAccess{Choice: "lan"}, nil
 }
-func (f *fakeSettings) SetSSH(context.Context, SSHChange) error             { return nil }
+func (f *fakeSettings) SetSSH(context.Context, SSHChange) error { return nil }
+func (f *fakeSettings) UnblockSSH(_ context.Context, address string) error {
+	f.unblocked = append(f.unblocked, address)
+	return nil
+}
 func (f *fakeSettings) SetRestartPolicy(context.Context, string, int) error { return nil }
 func (f *fakeSettings) RestartPolicy(context.Context) (string, int, error) {
 	return "notify", 3, nil

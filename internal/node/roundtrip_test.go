@@ -423,6 +423,11 @@ func (f rtSettings) SetSSH(_ context.Context, c SSHChange) error {
 	f.rec("Settings.SetSSH", c)
 	return nil
 }
+
+func (f rtSettings) UnblockSSH(_ context.Context, address string) error {
+	f.rec("Settings.UnblockSSH", address)
+	return nil
+}
 func (f rtSettings) SetRestartPolicy(_ context.Context, mode string, hour int) error {
 	f.rec("Settings.SetRestartPolicy", mode, hour)
 	return nil
@@ -671,6 +676,8 @@ func TestRoundTrip(t *testing.T) {
 			[]rtCall{call("Settings.SetTimezone", "Australia/Sydney")}, true},
 		{"Settings.SetSSH", func() (any, error) { return nil, settings.SetSSH(ctx, change) },
 			[]rtCall{call("Settings.SetSSH", change)}, nil},
+		{"Settings.UnblockSSH", func() (any, error) { return nil, settings.UnblockSSH(ctx, "2001:db8:1:2::/64") },
+			[]rtCall{call("Settings.UnblockSSH", "2001:db8:1:2::/64")}, nil},
 		{"Settings.PromoteBackupCopy", func() (any, error) { return nil, settings.PromoteBackupCopy(ctx, "backup-3", rtCopy) },
 			[]rtCall{call("Settings.PromoteBackupCopy", "backup-3", rtCopy)}, nil},
 		{"Settings.SetBackupCopies", func() (any, error) { return nil, settings.SetBackupCopies(ctx, []BackupCopy{rtCopy}) },
@@ -923,6 +930,7 @@ func TestRoundTripWithout(t *testing.T) {
 		"Settings.SetTimezone":           func() error { _, err := settings.SetTimezone(ctx, "Etc/UTC"); return err },
 		"Settings.SSHAccess":             func() error { _, err := settings.SSHAccess(ctx, true); return err },
 		"Settings.SetSSH":                func() error { return settings.SetSSH(ctx, SSHChange{}) },
+		"Settings.UnblockSSH":            func() error { return settings.UnblockSSH(ctx, "203.0.113.9") },
 		"Settings.PromoteBackupCopy":     func() error { return settings.PromoteBackupCopy(ctx, "b", BackupCopy{}) },
 		"Settings.SetBackupCopies":       func() error { return settings.SetBackupCopies(ctx, nil) },
 		"Settings.SetBackupDestination":  func() error { return settings.SetBackupDestination(ctx, BackupDestination{}) },

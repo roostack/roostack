@@ -39,6 +39,7 @@ type fakeHost struct {
 	// erasedRoot: the erase was asked for by root.
 	erasedRoot bool
 	keysOnly   bool
+	unblocked  []string
 	series     string
 	library    *Library
 	unmounted  string
@@ -140,6 +141,10 @@ func (f *fakeHost) SSHStatus() (SSHStatus, error) {
 	return SSHStatus{Installed: true, KeysOnly: f.keysOnly, Passwords: !f.keysOnly}, nil
 }
 func (f *fakeHost) SetSSHKeysOnly(on bool) error { f.keysOnly = on; return nil }
+func (f *fakeHost) UnblockSSH(address string) error {
+	f.unblocked = append(f.unblocked, address)
+	return nil
+}
 
 // start runs a real server on a Unix socket, so SO_PEERCRED is exercised.
 // Peer credentials are Linux's: elsewhere the server runs on a loopback

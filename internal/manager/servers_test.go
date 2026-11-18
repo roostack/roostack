@@ -126,6 +126,7 @@ func (f *fakeServerSettings) SSHAccess(context.Context, bool) (node.SSHAccess, e
 	return node.SSHAccess{}, nil
 }
 func (f *fakeServerSettings) SetSSH(context.Context, node.SSHChange) error { return nil }
+func (f *fakeServerSettings) UnblockSSH(context.Context, string) error     { return nil }
 func (f *fakeServerSettings) SetRestartPolicy(context.Context, string, int) error {
 	return nil
 }

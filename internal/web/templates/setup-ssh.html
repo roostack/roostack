@@ -68,6 +68,21 @@
       log in will change at once.{{end}}</p>{{end}}
     <button type="submit">{{if .Wizard}}Continue{{else}}Save{{end}}</button>
   </form>
+{{with .SSHD.Blocked}}
+<h2>Blocked for now</h2>
+<p>Roostack has blocked {{if eq (len .) 1}}this address from SSH after too many wrong passwords, and will let it in again at the time
+  shown.{{else}}these addresses from SSH after too many wrong passwords, and will let each in again at the time shown.{{end}}</p>
+<div class="table-wrap"><table class="list">
+  <thead><tr><th>Address</th><th><span class="sr-only">Actions</span></th></tr></thead>
+  <tbody>
+    {{range .}}
+    <tr><td><code>{{.Address}}</code><br><small class="hint">Until {{when .Until}}</small></td>
+      <td><form method="post" action="{{$.Server.RemoteAccessUnblock}}"><input type="hidden" name="address" value="{{.Address}}">
+        <button type="submit" class="table-action">Unblock<span class="sr-only"> {{.Address}}</span></button></form></td></tr>
+    {{end}}
+  </tbody>
+</table></div>
+{{end}}
 {{if .SSHD.Installed}}
 <details class="technical">
   <summary>Details</summary>
@@ -87,7 +102,12 @@
       With "Nobody" it's keys only without a check: nobody can reach SSH.</dd>
     {{if .SSHD.GuessesCounted}}<dt>Password guesses</dt>
     <dd>{{if .SSHD.Guesses}}{{count .SSHD.Guesses}} in the last day, from {{count .SSHD.GuessAddresses}} {{if eq .SSHD.GuessAddresses 1}}address{{else}}addresses{{end}}{{else}}None in the last day{{end}}
-      (sshd's <code>Failed password</code> lines, which roostack-agent counts as sshd writes them)</dd>{{end}}
+      (sshd's <code>Failed password</code> lines, which roostack-agent counts as sshd writes them)</dd>
+    <dt>Blocking</dt>
+    <dd>After 5 wrong passwords within 10 minutes, roostack-agent blocks the address from SSH for an hour, or for a day if it was
+      blocked in the last day (an IPv6 address with its <code>/64</code>), in the firewall's <code>ssh_blocked4</code> and
+      <code>ssh_blocked6</code> sets, which lift each block by themselves. Never blocked: your home network, the lab's servers and VPN
+      devices, and any address that logged in over SSH in the last day.</dd>{{end}}
   </dl>
 </details>
 {{end}}

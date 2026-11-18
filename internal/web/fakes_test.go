@@ -1838,6 +1838,11 @@ func (f *fakeSetup) SSHAccess(context.Context, bool) (node.SSHAccess, error) {
 	return node.SSHAccess{Choice: f.ssh, Login: f.sshLogin, Clients: f.clients, SSHD: f.sshd}, nil
 }
 
+func (f *fakeSetup) UnblockSSH(_ context.Context, address string) error {
+	f.sshd.Blocked = slices.DeleteFunc(f.sshd.Blocked, func(b agent.SSHBlock) bool { return b.Address == address })
+	return nil
+}
+
 func (f *fakeSetup) SetSSH(_ context.Context, c node.SSHChange) error {
 	if c.Choice == "off" && len(f.clients) > 0 && !c.Confirmed {
 		return &usererr.Error{Msg: "That would disconnect the SSH connection."}

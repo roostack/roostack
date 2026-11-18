@@ -128,9 +128,11 @@ type Host interface {
 	MountPhotos(service, who string, l Library) (string, error)
 	UnmountPhotos(service, who string) error
 	// SSHStatus reads what the SSH server does; SetSSHKeysOnly writes or
-	// removes Roostack's drop-in in its configuration (ssh.go).
+	// removes Roostack's drop-in in its configuration (ssh.go);
+	// UnblockSSH lifts a block on a password guesser (sshblocks.go).
 	SSHStatus() (SSHStatus, error)
 	SetSSHKeysOnly(on bool) error
+	UnblockSSH(address string) error
 }
 
 // Server is the agent's HTTP API.
@@ -256,6 +258,7 @@ func (s *Server) Handler() http.Handler {
 		return st, nil
 	}))
 	handle("PUT /v1/ssh", action(s, "set ssh keys only", 4<<10, func(r SSHRequest) error { return h.SetSSHKeysOnly(r.KeysOnly) }))
+	handle("POST /v1/ssh/unblock", action(s, "unblock ssh address", 4<<10, func(r UnblockRequest) error { return h.UnblockSSH(r.Address) }))
 	return s.checkCaller(mux)
 }
 

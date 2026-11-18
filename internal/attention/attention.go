@@ -641,6 +641,12 @@ func (lab *Lab) sshPasswords(l *List, this, several bool, name, id string, a nod
 	if st := a.SSHD; st.GuessesCounted && st.Guesses > 0 {
 		guessed = ", and in the last day there " + words.Plural(int(st.Guesses), "was ", "were ") +
 			words.Count(st.Guesses, "guess", "guesses") + " from " + words.Count(st.GuessAddresses, "address", "addresses")
+		switch n := len(st.Blocked); {
+		case n == 1:
+			guessed += ", and Roostack has blocked one of them for now"
+		case n > 1:
+			guessed += fmt.Sprintf(", and Roostack has blocked %d of them for now", n)
+		}
 	}
 	if a.Choice == config.SSHFromAny {
 		l.add(Item{Key: "ssh-passwords-open:" + id, Level: Problem,

@@ -342,3 +342,10 @@ type SSHRequest struct {
 }
 
 func (r SSHRequest) logAttrs() []any { return []any{"keys_only", r.KeysOnly} }
+
+// UnblockRequest names a blocked address (SSHBlock.Address).
+type UnblockRequest struct {
+	Address string `json:"address"`
+}
+
+func (r UnblockRequest) logAttrs() []any { return []any{"address", r.Address} }

@@ -86,6 +86,9 @@ type SSHStatus struct {
 	Guesses        int64 `json:"guesses,omitempty"`
 	GuessAddresses int64 `json:"guess_addresses,omitempty"`
 	GuessesCounted bool  `json:"guesses_counted,omitempty"`
+	// Blocked are the addresses that can't reach SSH for now, after too
+	// many wrong passwords (sshblocks.go).
+	Blocked []SSHBlock `json:"blocked,omitempty"`
 	// Error says why it couldn't all be read (a broken configuration makes
 	// `sshd -T` fail); what was read is still there.
 	Error string `json:"error,omitempty"`
@@ -122,6 +125,7 @@ func (h LinuxHost) SSHStatus() (SSHStatus, error) {
 	st := SSHStatus{Installed: true}
 	guesses, addrs, counted := sshGuesses.day(time.Now())
 	st.Guesses, st.GuessAddresses, st.GuessesCounted = int64(guesses), int64(addrs), counted
+	st.Blocked = sshBlocks.list(time.Now())
 	if _, err := os.Stat(SSHDropIn); err == nil {
 		st.KeysOnly = true
 	}
@@ -517,6 +521,9 @@ func sudoer(name string) bool {
 
 // ErrNoSSHServer: the server has no SSH server to change.
 var ErrNoSSHServer = errors.New("this server has no SSH server (openssh-server isn't installed)")
+
+// UnblockSSH lets a blocked address reach SSH again at once.
+func (h LinuxHost) UnblockSSH(address string) error { return sshBlocks.unblock(address) }
 
 // SetSSHKeysOnly writes or removes Roostack's drop-in, checks the whole
 // configuration with `sshd -t`, and reloads SSH. If sshd refuses it, the
