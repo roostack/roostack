@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
@@ -243,4 +244,89 @@ func TestBackupCopies(t *testing.T) {
 	if lab, _ = config.Load(h.LabPath); len(lab.Backup.Copies) != 0 {
 		t.Error("no copies")
 	}
+}
+
+// slowSSHServer answers SSHStatus only when the test lets it.
+type slowSSHServer struct {
+	fakeSSHServer
+	reads   chan struct{} // a read started
+	release chan agent.SSHStatus
+}
+
+func (f *slowSSHServer) SSHStatus(context.Context) (agent.SSHStatus, error) {
+	f.reads <- struct{}{}
+	return <-f.release, nil
+}
+
+// Once a read is sshCache old, pages get it at once while a new one runs
+// in the background; a read that started before a change isn't kept.
+func TestSSHStatusInBackground(t *testing.T) {
+	h, _, _ := newSettings(t)
+	sshd := &slowSSHServer{reads: make(chan struct{}, 1), release: make(chan agent.SSHStatus)}
+	h.SSHServer = sshd
+	ctx := context.Background()
+
+	go func() { <-sshd.reads; sshd.release <- agent.SSHStatus{Installed: true, Passwords: true} }()
+	if st, _ := h.sshStatus(ctx, false); !st.Passwords {
+		t.Fatalf("first read = %+v", st)
+	}
+
+	h.mu.Lock()
+	h.sshAt = time.Now().Add(-sshCache)
+	h.mu.Unlock()
+	if st, _ := h.sshStatus(ctx, false); !st.Passwords {
+		t.Errorf("an old read wasn't used at once: %+v", st)
+	}
+	<-sshd.reads // the background read
+	if st, _ := h.sshStatus(ctx, false); !st.Passwords {
+		t.Errorf("a page waited for the background read: %+v", st)
+	}
+	select {
+	case <-sshd.reads:
+		t.Fatal("a second background read started")
+	default:
+	}
+	sshd.release <- agent.SSHStatus{Installed: true}
+	waitFor(t, func() bool {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return !h.sshReading
+	})
+	if st, _ := h.sshStatus(ctx, false); st.Passwords {
+		t.Errorf("the background read wasn't kept: %+v", st)
+	}
+
+	// A change while a read runs: that read isn't kept.
+	h.mu.Lock()
+	h.sshAt = time.Now().Add(-sshCache)
+	h.mu.Unlock()
+	h.sshStatus(ctx, false)
+	<-sshd.reads
+	h.mu.Lock()
+	h.sshAt, h.sshGen = time.Time{}, h.sshGen+1
+	h.mu.Unlock()
+	sshd.release <- agent.SSHStatus{Installed: true, Passwords: true}
+	waitFor(t, func() bool {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return !h.sshReading
+	})
+	h.mu.Lock()
+	kept := !h.sshAt.IsZero()
+	h.mu.Unlock()
+	if kept {
+		t.Error("a read from before the change was kept")
+	}
+}
+
+// waitFor waits up to a few seconds for done.
+func waitFor(t *testing.T, done func() bool) {
+	t.Helper()
+	for range 500 {
+		if done() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("timed out")
 }

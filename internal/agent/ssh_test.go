@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -151,5 +153,57 @@ func TestPatternAddr(t *testing.T) {
 		if (want == "") == ok || (ok && a.String() != want) {
 			t.Errorf("patternAddr(%q) = %v, %v; want %q", pattern, a, ok, want)
 		}
+	}
+}
+
+// The first search reads keyLoginWindow back; each later one starts just
+// before the last, keeps what was found, and moves an account on to a
+// newer login. A failed search keeps the logins found before.
+func TestKeyLoginLog(t *testing.T) {
+	line := func(user, from string, at time.Time) string {
+		return fmt.Sprintf(`{"MESSAGE":"Accepted publickey for %s from %s port 1 ssh2: ED25519 SHA256:x","__REALTIME_TIMESTAMP":"%d"}`+"\n", user, from, at.UnixMicro())
+	}
+	t0 := time.Date(2026, 11, 18, 21, 0, 0, 0, time.UTC)
+	var k keyLoginLog
+	var asked []time.Time
+	answer := ""
+	journal := func(since time.Time) ([]byte, error) {
+		asked = append(asked, since)
+		if answer == "fail" {
+			return nil, errors.New("journalctl: broken")
+		}
+		return []byte(answer), nil
+	}
+	sudo := func(name string) bool { return name == "tom" }
+
+	answer = line("tom", "192.168.1.20", t0.Add(-time.Hour)) + line("root", "203.0.113.9", t0.Add(-2*time.Hour))
+	got, err := k.read(t0, journal, sudo)
+	if err != nil || len(got) != 2 || got[0].User != "tom" || !got[0].Sudo || got[1].User != "root" {
+		t.Fatalf("first = %+v, %v", got, err)
+	}
+	if !asked[0].Equal(t0.Add(-keyLoginWindow)) {
+		t.Errorf("first search from %v", asked[0])
+	}
+
+	answer = line("root", "198.51.100.4", t0.Add(30*time.Second))
+	got, err = k.read(t0.Add(time.Minute), journal, sudo)
+	if err != nil || len(got) != 2 || got[0].User != "root" || got[0].From != "198.51.100.4" || got[1].User != "tom" {
+		t.Fatalf("second = %+v, %v", got, err)
+	}
+	if !asked[1].Equal(t0.Add(-time.Second)) {
+		t.Errorf("second search from %v, want a second before the first", asked[1])
+	}
+
+	answer = "fail"
+	if _, err := k.read(t0.Add(2*time.Minute), journal, sudo); err == nil {
+		t.Error("a failed search said nothing")
+	}
+	answer = ""
+	got, _ = k.read(t0.Add(3*time.Minute), journal, sudo)
+	if len(got) != 2 {
+		t.Errorf("after a failed search = %+v", got)
+	}
+	if !asked[3].Equal(t0.Add(time.Minute - time.Second)) {
+		t.Errorf("after a failed search, searched from %v", asked[3])
 	}
 }

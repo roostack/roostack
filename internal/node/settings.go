@@ -132,7 +132,10 @@ type SSHServer interface {
 }
 
 // sshCache is how long a read of the SSH server's state is used for pages
-// that poll (the home page's Needs attention list).
+// that poll (the home page's Needs attention list). After that, pages
+// still get the last read at once while a new one runs in the background:
+// on a server whose journal is full of SSH password guesses, a read took
+// 13 seconds (2026-11-18).
 const sshCache = 30 * time.Second
 
 // HostSettings changes this server's settings: the time zone through
@@ -164,6 +167,10 @@ type HostSettings struct {
 	sshd   agent.SSHStatus
 	sshErr error
 	sshAt  time.Time
+	// sshReading: a read runs in the background. sshGen goes up with each
+	// change, so a read that started before it isn't kept.
+	sshReading bool
+	sshGen     int
 }
 
 // Settings is this server's settings, or nil.
@@ -211,21 +218,41 @@ func (h *HostSettings) SSHAccess(ctx context.Context, fresh bool) (SSHAccess, er
 	return a, err
 }
 
-// sshStatus reads the SSH server's state, or uses a read up to sshCache
-// old unless fresh.
+// sshStatus reads the SSH server's state. Unless fresh, it uses the last
+// read, and starts a new one in the background once that's sshCache old.
 func (h *HostSettings) sshStatus(ctx context.Context, fresh bool) (agent.SSHStatus, error) {
 	if h.SSHServer == nil {
 		return agent.SSHStatus{}, nil
 	}
 	h.mu.Lock()
-	if !fresh && !h.sshAt.IsZero() && time.Since(h.sshAt) < sshCache {
+	if !fresh && !h.sshAt.IsZero() {
 		defer h.mu.Unlock()
+		if time.Since(h.sshAt) >= sshCache && !h.sshReading {
+			h.sshReading = true
+			go func() {
+				ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+				defer cancel()
+				h.readSSH(ctx)
+			}()
+		}
 		return h.sshd, h.sshErr
 	}
 	h.mu.Unlock()
+	return h.readSSH(ctx)
+}
+
+// readSSH asks the agent for the SSH server's state and keeps it, unless
+// SSH's settings changed while it asked.
+func (h *HostSettings) readSSH(ctx context.Context) (agent.SSHStatus, error) {
+	h.mu.Lock()
+	gen := h.sshGen
+	h.mu.Unlock()
 	st, err := h.SSHServer.SSHStatus(ctx)
 	h.mu.Lock()
-	h.sshd, h.sshErr, h.sshAt = st, err, time.Now()
+	if gen == h.sshGen {
+		h.sshd, h.sshErr, h.sshAt = st, err, time.Now()
+	}
+	h.sshReading = false
 	h.mu.Unlock()
 	return st, err
 }
@@ -268,6 +295,7 @@ func (h *HostSettings) SetSSH(ctx context.Context, c SSHChange) error {
 		err := h.SSHServer.SetSSHKeysOnly(ctx, keys)
 		h.mu.Lock()
 		h.sshAt = time.Time{} // read it again next time
+		h.sshGen++
 		h.mu.Unlock()
 		if err != nil {
 			return usererr.New("Roostack couldn't change SSH's settings, so they're as they were: %v", err)

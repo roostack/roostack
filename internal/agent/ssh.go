@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"roostack.cloud/roostack/internal/fsutil"
@@ -382,11 +383,18 @@ func sshdSettings(out []byte) (passwords bool, root string) {
 // line that claims to be sshd's (logger -t sshd-session), but not set
 // _UID or _EXE, which journald fills in itself (docs/ASSUMPTIONS.md J3).
 func keyLogins() ([]KeyLogin, error) {
+	return keyLog.read(time.Now(), journalKeyLogins, sudoer)
+}
+
+// journalKeyLogins asks the journal for sshd's key logins since a time,
+// newest first.
+func journalKeyLogins(since time.Time) ([]byte, error) {
 	args := []string{"_UID=0"}
 	for _, exe := range sshdExes {
 		args = append(args, "_EXE="+exe)
 	}
-	args = append(args, "--grep", "^Accepted publickey for ", "--reverse", "--lines", "500",
+	args = append(args, "--since", "@"+strconv.FormatInt(since.Unix(), 10),
+		"--grep", "^Accepted publickey for ", "--reverse", "--lines", "500",
 		"--output", "json", "--output-fields", "MESSAGE,__REALTIME_TIMESTAMP", "--no-pager", "--quiet")
 	out, err := exec.Command("journalctl", args...).Output()
 	var exit *exec.ExitError
@@ -396,7 +404,61 @@ func keyLogins() ([]KeyLogin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("journalctl: %w", err)
 	}
-	return parseKeyLogins(out, sudoer), nil
+	return out, nil
+}
+
+// keyLoginWindow is how far back the first search reads. A server open to
+// the internet logs tens of thousands of password guesses a day, and
+// reading months of them took 13 seconds on a small cloud server
+// (2026-11-18).
+const keyLoginWindow = 30 * 24 * time.Hour
+
+// keyLog keeps the key logins found so far, so each later search reads
+// only what the journal gained since the last.
+var keyLog keyLoginLog
+
+type keyLoginLog struct {
+	mu     sync.Mutex
+	at     time.Time // when the last search started; zero before the first
+	logins map[string]KeyLogin
+}
+
+// read searches the journal from the last search (or keyLoginWindow
+// back), adds what it finds, and returns each account's latest key login,
+// newest first, at most 20. A failed search keeps what was found before.
+func (k *keyLoginLog) read(now time.Time, journal func(since time.Time) ([]byte, error), canSudo func(string) bool) ([]KeyLogin, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	since := now.Add(-keyLoginWindow)
+	if !k.at.IsZero() {
+		// A second back, for a login logged as the last search ran.
+		since = k.at.Add(-time.Second)
+	}
+	out, err := journal(since)
+	if err != nil {
+		return nil, err
+	}
+	if k.logins == nil {
+		k.logins = map[string]KeyLogin{}
+	}
+	for _, l := range parseKeyLogins(out, canSudo) {
+		if old, ok := k.logins[l.User]; !ok || l.At.After(old.At) {
+			k.logins[l.User] = l
+		}
+	}
+	k.at = now
+	logins := slices.SortedFunc(maps.Values(k.logins), func(a, b KeyLogin) int { return b.At.Compare(a.At) })
+	if len(logins) > 20 {
+		for _, l := range logins[20:] {
+			delete(k.logins, l.User)
+		}
+		logins = logins[:20]
+	}
+	// Whether an account can use sudo may have changed since it logged in.
+	for i := range logins {
+		logins[i].Sudo = canSudo(logins[i].User)
+	}
+	return logins, nil
 }
 
 // acceptedRe matches sshd's line for a key login.
