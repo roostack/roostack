@@ -100,8 +100,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Controller move (planned hand-over) and promotion from a node's replica
 - [ ] Edge: public service at home routed through a cloud node (TLS passthrough over WireGuard, PROXY protocol)
 - [ ] Failover: cold standby first
-- [ ] Who counts as home on the network (security review of 2026-10-16: H3, H4, M23; SPEC §6.10 item 1)
-  - [ ] People's devices on Roostack's network (remote access for people, SPEC §10.2): `100.96.128.0/17` is kept and counts as home; the hub would need to forward their traffic to other servers' home ports (today it forwards only the store port, from servers)
+- [x] Who counts as home on the network (security review of 2026-10-16: H3, H4, M23; SPEC §6.10 item 1)
+  - [x] People's devices on Roostack's network: superseded by the lab's VPN (SPEC §10.11, built 2026-11-11). Devices are a trust class of their own (`trust.People`), never home; each reaches the home's other devices only with its "The home network" box ticked, where the Owner allows it
 
 ## Service registry (SPEC §8.3, mostly decided 2026-10-13)
 
