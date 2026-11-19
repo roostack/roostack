@@ -30,7 +30,7 @@ These are candidates for the label.
 ### Making a service public
 - **Port forwarding through a real router**, which is the default way in: only tried with a simulated outside visitor (P8).
 - **Google as the fallback for finding the home's public address:** never used. OpenDNS, the first choice, works (P8).
-- **CrowdSec with signal sharing on**, the default once a service is public: every test ran with it off (P5, P8).
+- **CrowdSec with signal sharing on**, the default once a service is public: every test ran with it off (P5, P8). *Since checked (2026-11-19), on the maintainer's lab on Linode:* `cscli capi status` says it reaches CrowdSec's central API with signal sharing and the community blocklist on, and the lab had pulled 4,167 blocklist decisions. No alert of its own had been raised yet, so none had been shared.
 - **The edge's own listener** (Q12): network namespaces only, not a real edge.
 
 ### Email
