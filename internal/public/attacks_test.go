@@ -12,11 +12,16 @@ import (
 // blocked, and the commonest kinds.
 func TestParseAlerts(t *testing.T) {
 	a, err := parseAlerts([]byte(`[
-		{"scenario":"crowdsecurity/http-probing","source":{"ip":"203.0.113.5"},"decisions":[{"type":"ban"}]},
-		{"scenario":"crowdsecurity/http-probing","source":{"ip":"203.0.113.6"},"decisions":[{"type":"ban"}]},
-		{"scenario":"crowdsecurity/http-bad-user-agent","source":{"ip":"203.0.113.5"},"decisions":[]}]`))
+		{"scenario":"crowdsecurity/http-probing","start_at":"2026-11-19T09:00:00Z","source":{"ip":"203.0.113.5","cn":"DE"},"decisions":[{"type":"ban"}]},
+		{"scenario":"crowdsecurity/http-probing","start_at":"2026-11-19T11:00:00Z","source":{"ip":"203.0.113.6"},"decisions":[{"type":"ban"}]},
+		{"scenario":"crowdsecurity/http-bad-user-agent","start_at":"2026-11-19T10:00:00Z","source":{"ip":"203.0.113.5"},"decisions":[]}]`))
 	if err != nil || a.Alerts != 3 || a.Addresses != 2 || a.Blocked != 2 || len(a.Kinds) != 2 || a.Kinds[0] != "http-probing" {
 		t.Errorf("%+v %v", a, err)
+	}
+	// The newest first, with what each was and whether it was blocked.
+	if len(a.Latest) != 3 || a.Latest[0].From != "203.0.113.6" || a.Latest[1].Kind != "http-bad-user-agent" || a.Latest[1].Blocked ||
+		a.Latest[2].Country != "DE" || !a.Latest[2].Blocked {
+		t.Errorf("latest: %+v", a.Latest)
 	}
 	if a, err := parseAlerts([]byte(`[]`)); err != nil || a.Alerts != 0 {
 		t.Errorf("none: %+v %v", a, err)

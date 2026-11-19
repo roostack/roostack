@@ -234,6 +234,33 @@ ones Roostack can check itself.
     home already has it, Roostack can't share it. Public access through a
     cloud server, which needs no router changes, is planned.
 
+## What CrowdSec has stopped
+
+While anything is public, **Settings → Public access** shows what CrowdSec
+has done in the last 30 days: how many attacks it blocked and from how many
+addresses, how many requests trying a [known exploit](#blocking-known-exploits)
+it refused, and, if you share attack reports, how many addresses are on the
+community's list of known attackers, which are blocked before they try
+anything. The latest few attacks are listed with when they came, the
+address and its country, and what they tried.
+
+If you share attack reports, the addresses on the community's list can't
+reach SSH either, on every server where SSH is open to anyone, so known
+attackers are turned away before they guess a single password. Your home
+network, your lab's servers and VPN devices, and any address that logged in
+over SSH in the last day are never on it.
+
+??? note "For technical users"
+    Roostack reads these with `cscli` in CrowdSec's container (alerts over
+    720 hours, AppSec's alerts of kind `waf`, and `cscli decisions list -a`
+    for the community's list, from its central API and its console's lists),
+    keeping the answer for five minutes. Every quarter of an hour the
+    controller sends the list to each server's roostack-agent, which keeps
+    it in the firewall's `ssh_community4` and `ssh_community6` sets, each
+    address for six hours unless a newer list replaces it, so the list will
+    lift by itself if CrowdSec stops. The agent refuses a list of more than
+    100,000 addresses or a range wider than a /16 (IPv4) or /32 (IPv6).
+
 ## Blocking known exploits
 
 While a service is public, CrowdSec also checks each request from the

@@ -1844,6 +1844,8 @@ func (f *fakeSetup) UnblockSSH(_ context.Context, address string) error {
 	return nil
 }
 
+func (f *fakeSetup) SetSSHCommunity(context.Context, []string) error { return nil }
+
 func (f *fakeSetup) AddSSHKey(_ context.Context, r agent.SSHKeyRequest) error {
 	if r.Key == "not a key" {
 		return &usererr.Error{Msg: "That isn't an SSH public key."}

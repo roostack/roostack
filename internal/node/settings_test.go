@@ -100,6 +100,7 @@ type fakeSSHServer struct {
 func (f *fakeSSHServer) SSHStatus(context.Context) (agent.SSHStatus, error)   { return f.st, nil }
 func (f *fakeSSHServer) UnblockSSH(context.Context, string) error             { return nil }
 func (f *fakeSSHServer) AddSSHKey(context.Context, agent.SSHKeyRequest) error { return nil }
+func (f *fakeSSHServer) SetSSHCommunity(context.Context, []string) error      { return nil }
 func (f *fakeSSHServer) SetSSHKeysOnly(_ context.Context, on bool) error {
 	f.calls = append(f.calls, on)
 	if f.err != nil {

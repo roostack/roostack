@@ -131,11 +131,13 @@ type Host interface {
 	// removes Roostack's drop-in in its configuration (ssh.go);
 	// UnblockSSH lifts a block on a password guesser (sshblocks.go);
 	// AddSSHKey adds a public key to an account that can use sudo, making
-	// the account if it's new (sshkey.go).
+	// the account if it's new (sshkey.go); SetSSHCommunity keeps CrowdSec's
+	// community blocklist away from SSH (sshcommunity.go).
 	SSHStatus() (SSHStatus, error)
 	SetSSHKeysOnly(on bool) error
 	UnblockSSH(address string) error
 	AddSSHKey(r SSHKeyRequest) error
+	SetSSHCommunity(addrs []string) error
 }
 
 // Server is the agent's HTTP API.
@@ -262,6 +264,9 @@ func (s *Server) Handler() http.Handler {
 	}))
 	handle("PUT /v1/ssh", action(s, "set ssh keys only", 4<<10, func(r SSHRequest) error { return h.SetSSHKeysOnly(r.KeysOnly) }))
 	handle("POST /v1/ssh/unblock", action(s, "unblock ssh address", 4<<10, func(r UnblockRequest) error { return h.UnblockSSH(r.Address) }))
+	handle("POST /v1/ssh/community", action(s, "set crowdsec's community blocklist at ssh", 8<<20, func(r CommunityRequest) error {
+		return h.SetSSHCommunity(r.Addresses)
+	}))
 	handle("POST /v1/ssh/key", action(s, "add ssh key", 16<<10, h.AddSSHKey))
 	return s.checkCaller(mux)
 }

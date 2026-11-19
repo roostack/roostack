@@ -518,6 +518,10 @@ func (c *controller) wirePublic() {
 	srv.Blocks = func(ctx context.Context, since time.Duration) ([]public.Block, error) {
 		return public.CrowdSecBlocks(ctx, userLaunch, generate.CrowdSecUnit, since)
 	}
+	// The community's blocklist, kept away from every server's SSH too.
+	seen := &communitySeen{}
+	srv.Community = seen.get
+	go c.sendCommunity(seen)
 }
 
 // wireNetwork starts Roostack's network between servers (SPEC.md §10.2),

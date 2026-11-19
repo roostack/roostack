@@ -106,6 +106,21 @@ func (m *Manager) others() []RemoteServer {
 	return m.Others()
 }
 
+// ServerSettings are the settings of this server and of each other one
+// that answers, by server ID.
+func (m *Manager) ServerSettings() map[string]node.Settings {
+	out := map[string]node.Settings{}
+	if s := m.Node.Settings(); s != nil {
+		out[m.Lab.NodeID] = s
+	}
+	for _, r := range m.others() {
+		if s := r.Settings(); s != nil {
+			out[r.Identity().ID] = s
+		}
+	}
+	return out
+}
+
 // node returns the server with a node ID, or nil.
 func (m *Manager) node(id string) node.Node {
 	if id == "" || id == m.Lab.NodeID {

@@ -433,6 +433,14 @@ func (f rtSettings) AddSSHKey(_ context.Context, r agent.SSHKeyRequest) error {
 	f.rec("Settings.AddSSHKey", r)
 	return nil
 }
+
+// rtCommunity is a community blocklist sent to a server.
+var rtCommunity = []string{"203.0.113.9", "198.51.100.0/24"}
+
+func (f rtSettings) SetSSHCommunity(_ context.Context, addrs []string) error {
+	f.rec("Settings.SetSSHCommunity", addrs)
+	return nil
+}
 func (f rtSettings) SetRestartPolicy(_ context.Context, mode string, hour int) error {
 	f.rec("Settings.SetRestartPolicy", mode, hour)
 	return nil
@@ -683,6 +691,8 @@ func TestRoundTrip(t *testing.T) {
 			[]rtCall{call("Settings.SetSSH", change)}, nil},
 		{"Settings.UnblockSSH", func() (any, error) { return nil, settings.UnblockSSH(ctx, "2001:db8:1:2::/64") },
 			[]rtCall{call("Settings.UnblockSSH", "2001:db8:1:2::/64")}, nil},
+		{"Settings.SetSSHCommunity", func() (any, error) { return nil, settings.SetSSHCommunity(ctx, rtCommunity) },
+			[]rtCall{call("Settings.SetSSHCommunity", rtCommunity)}, nil},
 		{"Settings.AddSSHKey", func() (any, error) { return nil, settings.AddSSHKey(ctx, rtKey) },
 			[]rtCall{call("Settings.AddSSHKey", rtKey)}, nil},
 		{"Settings.PromoteBackupCopy", func() (any, error) { return nil, settings.PromoteBackupCopy(ctx, "backup-3", rtCopy) },

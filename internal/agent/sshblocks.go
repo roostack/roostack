@@ -52,7 +52,7 @@ type SSHBlock struct {
 const UnblockedFile = "/etc/roostack/ssh-unblocked.json"
 
 // sshBlocks blocks this server's guessers.
-var sshBlocks = &blocker{exempt: neverBlocked, nft: runNft, file: UnblockedFile}
+var sshBlocks = &blocker{exempt: neverBlocked, nft: runNft, nftScript: runNftScript, file: UnblockedFile}
 
 type blocker struct {
 	mu      sync.Mutex
@@ -65,11 +65,17 @@ type blocker struct {
 	unblocked map[netip.Prefix]time.Time
 	file      string
 	seen      int // failed passwords since the last sweep
-	// exempt says an address is never blocked; nft runs nft; log, if
+	// community is CrowdSec's community blocklist, as it came at
+	// communityAt (sshcommunity.go).
+	community   []netip.Prefix
+	communityAt time.Time
+	// exempt says an address is never blocked; nft runs nft, and
+	// nftScript runs a script of nft commands as one transaction; log, if
 	// set, hears when nft fails.
-	exempt func(netip.Addr) bool
-	nft    func(args ...string) error
-	log    *slog.Logger
+	exempt    func(netip.Addr) bool
+	nft       func(args ...string) error
+	nftScript func(script string) error
+	log       *slog.Logger
 }
 
 // blockKey is what's blocked for an address: itself, or its /64.
@@ -199,12 +205,15 @@ func elementOf(k netip.Prefix) string {
 	return k.String()
 }
 
-// reload puts every block back, after the firewall was loaded again
-// (which empties its sets).
+// reload puts every block back, and the community blocklist, after the
+// firewall was loaded again (which empties its sets).
 func (b *blocker) reload(now time.Time) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.add(b.blocked, now)
+	if err := b.loadCommunity(now); err != nil && b.log != nil {
+		b.log.Warn("putting CrowdSec's community blocklist back at SSH: it'll be back with the next list", "err", err)
+	}
 }
 
 // list returns the blocks in place now, the soonest over first.

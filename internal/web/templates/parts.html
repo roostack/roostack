@@ -899,6 +899,39 @@
   {{end}}
 </section>{{end}}
 
+{{/* protection: what CrowdSec has stopped in the last 30 days, on Public
+     access (protection.go). */}}
+{{define "protection"}}<section class="card section protection" id="protection" hx-disinherit="*">
+  <h2>What CrowdSec has stopped</h2>
+  {{if .Unknown}}{{notice "warn" "CrowdSec didn't answer, so Roostack can't show what it has stopped. It may still be starting: open this page again in a minute."}}{{else}}
+  <dl class="stat-tiles">
+    <div><dt>Attacks blocked</dt><dd>{{count .BlockedN}}</dd><dd class="hint">from {{count .AddressN}} {{if eq .Attacks.Addresses 1}}address{{else}}addresses{{end}} in 30 days</dd></div>
+    <div><dt>Known exploits refused</dt><dd>{{count .RefusedN}}</dd><dd class="hint">requests in 30 days</dd></div>
+    {{if .Sharing}}<div><dt>On the community's list</dt><dd>{{if .Community}}{{count .CommunityN}}{{else}}None yet{{end}}</dd><dd class="hint">addresses blocked before they try</dd></div>
+    {{else}}<div><dt>Community's list</dt><dd>Off</dd><dd class="hint"><a href="#sharing">You chose not to share</a></dd></div>{{end}}
+  </dl>
+  {{with .Attacks.Latest}}
+  <h3>Latest attacks</h3>
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>When</th><th>From</th><th>What it tried</th><th class="hide-phone">Blocked</th></tr></thead>
+    <tbody>{{range .}}<tr><td>{{when .At}}</td><td><code>{{.From}}</code>{{with .Country}} <span class="hint">{{.}}</span>{{end}}</td>
+      <td><code>{{.Kind}}</code></td><td class="hide-phone">{{if .Blocked}}Yes{{else}}No: noted only{{end}}</td></tr>{{end}}</tbody>
+  </table></div>
+  {{else}}<p class="hint">No attacks in the last 30 days.</p>{{end}}
+  {{if and .Sharing .Community}}<p class="hint">Addresses on the community's list can't reach SSH either, on every server where SSH is open to anyone.</p>{{end}}
+  <details class="technical">
+    <summary>Details</summary>
+    <p>Roostack reads these from CrowdSec in its container: its alerts over the last 30 days (<code>cscli alerts list --since 720h</code>), the
+      requests its AppSec component refused (<code>--kind waf</code>), and the community's list (<code>cscli decisions list -a</code>, from
+      its central API and its console's lists){{if not .CommunityAt.IsZero}}, last read {{when .CommunityAt}}{{end}}. Every quarter of an hour
+      the controller sends that list to each server's roostack-agent, which keeps it in the firewall's <code>ssh_community4</code> and
+      <code>ssh_community6</code> sets, dropped before SSH's accept rule. Each address stays for six hours unless a newer list replaces it, so
+      the list will lift by itself if CrowdSec stops. Never in it: your home network, the lab's servers and VPN devices, and any address
+      that logged in over SSH in the last day.</p>
+  </details>
+  {{end}}
+</section>{{end}}
+
 {{/* setting-fields: a package's settings ([]formField), as the install
      form and a service's settings show them: text settings two to a row,
      in the package's order, then on/off settings as switches. */}}

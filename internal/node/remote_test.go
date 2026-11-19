@@ -122,6 +122,7 @@ func (f *fakeSettings) UnblockSSH(_ context.Context, address string) error {
 	return nil
 }
 func (f *fakeSettings) AddSSHKey(context.Context, agent.SSHKeyRequest) error { return nil }
+func (f *fakeSettings) SetSSHCommunity(context.Context, []string) error      { return nil }
 func (f *fakeSettings) SetRestartPolicy(context.Context, string, int) error  { return nil }
 func (f *fakeSettings) RestartPolicy(context.Context) (string, int, error) {
 	return "notify", 3, nil

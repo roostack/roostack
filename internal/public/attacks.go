@@ -19,7 +19,24 @@ type Attacks struct {
 	Alerts, Addresses, Blocked int
 	// Kinds are the commonest kinds of attack, most first ("http-probing").
 	Kinds []string
+	// Latest are the newest attacks, newest first (at most attacksLatest).
+	Latest []Attack
 }
+
+// Attack is one attack CrowdSec saw.
+type Attack struct {
+	At time.Time
+	// From is the attacker's address, and Country its country's two
+	// letters ("DE") when CrowdSec knows it.
+	From, Country string
+	// Kind is what it tried ("http-probing"), and Blocked whether
+	// CrowdSec blocked the address for it.
+	Kind    string
+	Blocked bool
+}
+
+// attacksLatest is how many of the newest attacks Attacks keeps.
+const attacksLatest = 5
 
 // Launch runs a command as the roostack user (in its systemd session),
 // like cmd/roostack's userLaunch.
@@ -45,9 +62,11 @@ func parseAlerts(out []byte) (Attacks, error) {
 	var alerts []struct {
 		Kind     string `json:"kind"`
 		Scenario string `json:"scenario"`
+		StartAt  string `json:"start_at"`
 		Source   struct {
 			Value string `json:"value"`
 			IP    string `json:"ip"`
+			CN    string `json:"cn"`
 		} `json:"source"`
 		Decisions []json.RawMessage `json:"decisions"`
 	}
@@ -61,7 +80,8 @@ func parseAlerts(out []byte) (Attacks, error) {
 			continue // a request AppSec refused (CrowdSecBlocks)
 		}
 		a.Alerts++
-		addrs[cmp.Or(al.Source.IP, al.Source.Value)] = true
+		from := cmp.Or(al.Source.IP, al.Source.Value)
+		addrs[from] = true
 		if len(al.Decisions) > 0 {
 			a.Blocked++
 		}
@@ -70,6 +90,12 @@ func parseAlerts(out []byte) (Attacks, error) {
 			kind = k // crowdsecurity/http-probing → http-probing
 		}
 		kinds[kind]++
+		at, _ := time.Parse(time.RFC3339, al.StartAt)
+		a.Latest = append(a.Latest, Attack{At: at, From: from, Country: al.Source.CN, Kind: kind, Blocked: len(al.Decisions) > 0})
+	}
+	slices.SortStableFunc(a.Latest, func(x, y Attack) int { return y.At.Compare(x.At) })
+	if len(a.Latest) > attacksLatest {
+		a.Latest = a.Latest[:attacksLatest]
 	}
 	a.Addresses = len(addrs)
 	for k := range kinds {

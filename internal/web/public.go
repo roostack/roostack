@@ -43,7 +43,12 @@ type PublicAddresses struct {
 	// Blocks are the requests CrowdSec's AppSec refused over a while, for
 	// the service pages and the weekly summary (optional; waf.go).
 	Blocks func(ctx context.Context, since time.Duration) ([]public.Block, error)
-	waf    wafCache
+	// Community is how many addresses and ranges are on the community's
+	// blocklist CrowdSec pulled, and when the controller last read it
+	// (optional; zero while there's none; protection.go).
+	Community func() (int, time.Time)
+	waf       wafCache
+	protect   protectionCache
 }
 
 // PublicAccess is making services public, in internal/manager.

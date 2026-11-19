@@ -708,6 +708,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /settings/public/relay-resume", s.requireOwner(s.publicRelayResume))
 	// Visitors through the relay: Owners on Public access, Admins on their own page.
 	mux.Handle("GET /partials/relay-stats", s.require(auth.ManageServices, s.relayStatsPart))
+	mux.Handle("GET /partials/protection", s.require(auth.ManageServices, s.protectionPart))
 	mux.Handle("GET /visitors", s.require(auth.ManageServices, s.visitorsPage))
 	mux.Handle("POST /settings/public/countries/open", s.requireOwner(s.publicCountriesOpen))
 	mux.Handle("POST /services/{name}/move", s.requireOwner(s.moveSubmit))
