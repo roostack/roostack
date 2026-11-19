@@ -71,6 +71,12 @@ type Instance struct {
 	// (SPEC.md §6.9, "A restore that didn't finish"): only its databases
 	// run, until the Owner chooses what to do. Nil when it isn't held.
 	Held *Hold `yaml:"held,omitempty"`
+	// DumpsPending: a lab restore put its files back from this backup, and
+	// its databases' dumps among them still wait to be loaded (labrestore,
+	// step 3). Only its databases run until they are, so the app never
+	// starts on empty ones; while it's turned off, they wait until it's
+	// turned on. Nil when nothing waits.
+	DumpsPending *Restored `yaml:"dumps_pending,omitempty"`
 	// Local: installed from a package the Owner added themselves, not one
 	// from the service registry, so its pages say "Your own" (SPEC.md
 	// §8.3.4). Recorded here because the lab's copy of the package is the
@@ -203,6 +209,16 @@ type Hold struct {
 	// MovedFrom is the server a move through a backup came from, when its
 	// databases didn't load here and moving it back failed too.
 	MovedFrom string `yaml:"moved_from,omitempty"`
+	// NoBackup: a lab restore found no backup of it, so it came back with
+	// neither its files nor its databases (Error says why).
+	NoBackup bool `yaml:"no_backup,omitempty"`
+}
+
+// Restored is the backup a lab restore put a service back from
+// (Instance.DumpsPending), as a hold names it (Hold.Backup, Hold.Taken).
+type Restored struct {
+	Backup string    `yaml:"backup"`
+	Taken  time.Time `yaml:"taken"`
 }
 
 // RouteOverride holds user changes to a package route. Empty fields keep the

@@ -126,3 +126,44 @@ func TestRestoreAgainChoosesTheBackup(t *testing.T) {
 		t.Error("the backup asked for should be chosen")
 	}
 }
+
+// After a lab restore: a service Roostack found no backup of is held
+// stopped and says so, offering a restore from any backup; one whose
+// databases are being put back says "Being restored", with no way to open
+// it yet.
+func TestLabRestoreHolds(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	at := time.Date(2026, 11, 20, 9, 30, 0, 0, time.Local)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{
+			{Name: "forgejo", Title: "Forgejo", Status: StatusHeld, Server: "nuc",
+				Held: &instance.Hold{NoBackup: true, Error: "no backup of forgejo", At: at}},
+			{Name: "vaultwarden", Title: "Vaultwarden", Status: StatusRestoring, Server: "nuc", URLs: []string{"https://docs.example.org"}},
+		}, nil
+	}
+	_, body := h.get("/partials/home")
+	if !strings.Contains(body, "Forgejo is stopped: Roostack found no backup of it when it restored the lab.") {
+		t.Error("home doesn't say Forgejo had no backup")
+	}
+	_, body = h.get("/services/forgejo")
+	for _, want := range []string{
+		"<strong>Forgejo is stopped: Roostack found no backup of it when it restored the lab,</strong>",
+		"<em>no backup of forgejo</em>", `href="/backups/restore/forgejo">Restore from a backup…`, "Start it anyway",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("service page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Restore again") || strings.Contains(body, "backup of Mon 1 Jan") {
+		t.Error("a service with no backup is offered restoring the same backup again")
+	}
+	_, body = h.get("/services/vaultwarden")
+	for _, want := range []string{"Being restored", "ready once its databases are back"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("restoring service page missing %q", want)
+		}
+	}
+	if strings.Contains(body, ">Open Vaultwarden") {
+		t.Error("a service being restored offers opening it")
+	}
+}

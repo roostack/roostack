@@ -281,6 +281,7 @@ func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch ba
 			if err != nil {
 				return backup.Plan{}, err
 			}
+			keepDumps(services, d.Services)
 			return backup.LabPlan(lab.Paths, d.Services), nil
 		},
 	}, nil
@@ -365,4 +366,24 @@ func backupHelper(args []string) error {
 		}
 	}
 	return errors.New("backup-helper: usage: sqlite-copy|sqlite-restore <src> <dst>")
+}
+
+// keepDumps leaves out the database dumps of services whose databases
+// aren't what they should be: one waiting for a lab restore to load them
+// (instance.DumpsPending) and one held after a restore that didn't finish
+// (instance.Held). Their databases run, but empty or half loaded, so a
+// dump of them would replace the good one in their folder, which the
+// backup keeps instead.
+func keepDumps(services []state.Service, outs []*generate.Output) {
+	keep := map[string]bool{}
+	for _, s := range services {
+		if s.Instance != nil && (s.Instance.DumpsPending != nil || s.Instance.Held != nil) {
+			keep[s.Name()] = true
+		}
+	}
+	for _, out := range outs {
+		if keep[out.Service] {
+			out.Backup.Prepare = nil
+		}
+	}
 }

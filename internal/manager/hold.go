@@ -74,6 +74,34 @@ func (m *Manager) releaseHold(name, reason string) (bool, error) {
 	return true, nil
 }
 
+// DumpsLoaded ends a lab restore's wait for a service's databases
+// (instance.DumpsPending) and applies, so its app starts. When loadErr says
+// they didn't load, the service is held stopped instead (SPEC.md §6.9): its
+// files are the backup's, and it mustn't start without the databases that
+// go with them.
+func (m *Manager) DumpsLoaded(name string, loadErr error) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	file := state.InstanceFile(m.Lab, name)
+	in, err := instance.Load(file)
+	if err != nil || in.DumpsPending == nil {
+		return err
+	}
+	title := cmp.Or(in.Title, name)
+	reason := "Starting " + title + ": its databases are back"
+	if loadErr != nil {
+		in.Held = &instance.Hold{Backup: in.DumpsPending.Backup, Taken: in.DumpsPending.Taken, Error: loadErr.Error(), At: time.Now()}
+		reason = "Keeping " + title + " stopped: its databases didn't load"
+		m.Log.Warn("holding a service stopped: its databases didn't load", "service", name, "err", loadErr)
+	}
+	in.DumpsPending = nil
+	if err := in.Save(file); err != nil {
+		return err
+	}
+	m.startApplyLocked(reason)
+	return nil
+}
+
 // audit records something Roostack did by itself in the audit log.
 func (m *Manager) audit(ctx context.Context, action, detail string) {
 	if m.Audit != nil {

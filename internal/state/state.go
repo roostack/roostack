@@ -41,7 +41,8 @@ type Stop struct {
 // Output is what runs of a service on its server: generate.Service's, but
 // only its network and databases while Roostack has stopped it (SPEC.md
 // §8.3.4), it waits for its data to be brought in (SPEC.md §8.4) or it's
-// held after a restore that didn't finish (SPEC.md §6.9), and only its
+// held after a restore that didn't finish (SPEC.md §6.9) or its databases
+// wait to be loaded after a lab restore (labrestore), and only its
 // network and its address's "turned off" page while someone has turned
 // it off (SPEC.md §6.3.5).
 func Output(lab config.Lab, s Service) (*generate.Output, error) {
@@ -67,6 +68,10 @@ func trim(out *generate.Output, s Service) {
 	case s.Instance != nil && s.Instance.Held != nil:
 		// Its databases run, so they can be loaded again (SPEC.md §6.9,
 		// "A restore that didn't finish").
+		generate.Stop(out, s.Package, true)
+	case s.Instance != nil && s.Instance.DumpsPending != nil:
+		// Its databases run, empty until a lab restore's last step loads
+		// their dumps; then the app starts (labrestore).
 		generate.Stop(out, s.Package, true)
 	}
 }
@@ -197,7 +202,7 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		d.Services = append(d.Services, out)
 	}
 	for _, s := range proxied {
-		if s.Stop != nil || (s.Instance != nil && (s.Instance.AwaitingData || s.Instance.Held != nil)) {
+		if s.Stop != nil || (s.Instance != nil && (s.Instance.AwaitingData || s.Instance.Held != nil || s.Instance.DumpsPending != nil)) {
 			continue // its server has stopped it: nothing to pass on
 		}
 		out, err := generate.ProxySite(lab, s.Package, s.Instance, s.Addr)

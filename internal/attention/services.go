@@ -65,10 +65,13 @@ func (lab *Lab) holds(ctx context.Context, services []Service, l *List) {
 		}
 		item := Item{Level: Problem, Link: "/services/" + svc.Name + "#held", LinkText: "What to do",
 			Key: "held:" + svc.Name + ":" + v.At.Format(time.RFC3339)}
-		if v.MovedFrom != "" {
+		switch {
+		case v.MovedFrom != "":
 			item.Text = svc.Title + " is stopped on " + v.On + ": its database didn't load there, and moving it back to " +
 				v.From + " failed too."
-		} else {
+		case v.NoBackup:
+			item.Text = svc.Title + " is stopped: Roostack found no backup of it when it restored the lab."
+		default:
 			item.Text = svc.Title + " is stopped: its files are back from the backup of " + v.TakenText +
 				", but its database couldn't be loaded."
 		}

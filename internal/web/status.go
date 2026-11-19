@@ -23,6 +23,9 @@ const (
 	// StatusSwitching one being switched to it (SPEC.md §8.4).
 	StatusAwaitingData = "awaiting-data"
 	StatusSwitching    = "switching"
+	// StatusRestoring is a service a lab restore put back whose databases
+	// are still being loaded from their dumps: only they run until then.
+	StatusRestoring = "restoring"
 	// StatusHeld is a service held stopped after a restore (or a move) that
 	// didn't finish (SPEC.md §6.9).
 	StatusHeld = "held"
@@ -40,9 +43,9 @@ type ServiceFacts struct {
 	Off bool
 	// Stopped: the registry withdrew its version, and Roostack stopped it.
 	Stopped bool
-	// Updating, AwaitingData, Switching, Held and Waiting are the
-	// statuses of the same names.
-	Updating, AwaitingData, Switching, Held, Waiting bool
+	// Restoring, Updating, AwaitingData, Switching, Held and Waiting are
+	// the statuses of the same names.
+	Restoring, Updating, AwaitingData, Switching, Held, Waiting bool
 }
 
 // ServiceStatus is a service's status from f: each later one in this
@@ -54,6 +57,8 @@ func ServiceStatus(f ServiceFacts) string {
 		on     bool
 		status string
 	}{
+		// A turned-off service's databases wait until it's turned on.
+		{f.Restoring, StatusRestoring},
 		{f.Off, StatusOff},
 		{f.Stopped, StatusRegistryStop},
 		{f.Updating, StatusUpdating},

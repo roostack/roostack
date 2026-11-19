@@ -685,13 +685,17 @@ func (c *controller) startJobs() {
 	// Converge on startup, e.g. after Roostack itself was upgraded.
 	c.mgr.ApplyBecause("Roostack started (after a restart or an update)")
 	// After a lab restore, the services' databases go back once they're set
-	// up again.
+	// up again, and a turned-off one's once it's turned on.
 	if r, ok := c.local.Jobs.Restores.(*backup.Restores); ok {
 		assigned := func() (config.Lab, []state.Service, error) {
 			l, services := c.local.Assigned()
 			return l, services, nil
 		}
-		go finishLabRestore(c.lab, c.coord, r.Restorer, assigned, c.mgr.Wait, c.local.Activity, c.log)
+		load := func() {
+			finishLabRestore(c.lab, c.coord, r.Restorer, assigned, c.mgr.Wait, c.mgr.DumpsLoaded, c.local.Activity, c.log)
+		}
+		c.mgr.LoadDumps = func() { go load() }
+		go load()
 	}
 }
 

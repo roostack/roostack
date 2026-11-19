@@ -15,7 +15,7 @@
   <div class="page-head-actions">
     <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
     {{if and .Service.Off .CanManage}}<form method="post" action="/services/{{.Service.Name}}/on"><button type="submit">Turn it on</button></form>
-    {{- else if and .Service.URLs (not .Service.Install) (not .Service.NoAddress) (ne .Service.Status "registry-stop") (ne .Service.Status "awaiting-data") (ne .Service.Status "held") (ne .Service.Status "off")}}
+    {{- else if and .Service.URLs (not .Service.Install) (not .Service.NoAddress) (ne .Service.Status "registry-stop") (ne .Service.Status "awaiting-data") (ne .Service.Status "held") (ne .Service.Status "restoring") (ne .Service.Status "off")}}
     <a class="button" href="{{or .Service.Start (index .Service.URLs 0)}}" target="_blank" rel="noopener">Open {{.Service.Title}}{{template "new-window"}}</a>{{end}}
   </div>
 </div>
@@ -137,6 +137,11 @@
     <p><strong>{{$t}} is stopped on {{.On}}: its database didn't load there, and moving it back to {{.From}} failed too:</strong>
       <em>{{firstLine .Error}}</em>. Roostack will keep it stopped until you choose.</p>
     <p><a href="/services/{{$.Service.Name}}/move">See the move's log</a></p>
+    {{else if .NoBackup}}
+    <p><strong>{{$t}} is stopped: Roostack found no backup of it when it restored the lab,</strong> so it came back without its files
+      and database: <em>{{firstLine .Error}}</em>.</p>
+    <p>If it started now, {{$t}} would set itself up again as new, and its next backup would keep that. So Roostack will keep it
+      stopped until you choose: restore it from a backup you know has it, or start it anyway as new.</p>
     {{else}}
     <p><strong>{{$t}} is stopped: its restore didn't finish.</strong> Its files were put back from the backup of {{.TakenText}}, but its
       database couldn't be loaded: <em>{{firstLine .Error}}</em>.</p>
@@ -149,8 +154,10 @@
       {{if .MovedFrom}}
       <p><a class="button" href="/services/{{$.Service.Name}}/move">Move it again…</a></p>
       {{else}}
-      <p><a class="button" href="{{.RestoreAgain $.Service.Name}}">Restore again…</a><br>
-        <small class="hint">Try the same backup again once the cause is fixed (a full disk, say), or an older one.</small></p>
+      {{if .NoBackup}}<p><a class="button" href="{{.RestoreAgain $.Service.Name}}">Restore from a backup…</a><br>
+        <small class="hint">Choose a backup that has it, at another place your backups go, say.</small></p>
+      {{else}}<p><a class="button" href="{{.RestoreAgain $.Service.Name}}">Restore again…</a><br>
+        <small class="hint">Try the same backup again once the cause is fixed (a full disk, say), or an older one.</small></p>{{end}}
       {{if .Kept}}<p>{{confirm (printf "/services/%s/held/put-back" $.Service.Name)
         (printf "Put back %s's data from before the restore, as it was at %s? %s will start again as it was before you restored it. The files from the backup will be kept, so you can try the restore again." $t .AtText $t)
         "Put back what was there…" "secondary"}}</p>{{end}}
@@ -268,6 +275,7 @@
       {{range $u := .Service.URLs}}<dt>Address</dt><dd>{{if $.Service.Install}}<span class="address-pending">{{.}}</span> <small class="hint">· ready once installed</small>
         {{- else if or (eq $.Service.Status "registry-stop") (eq $.Service.Status "held")}}<span class="address-pending">{{.}}</span> <small class="hint">· off while it's stopped</small>
         {{- else if eq $.Service.Status "awaiting-data"}}<span class="address-pending">{{.}}</span> <small class="hint">· ready once its data is in</small>
+        {{- else if eq $.Service.Status "restoring"}}<span class="address-pending">{{.}}</span> <small class="hint">· ready once its databases are back</small>
         {{- else}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>
         {{- with $.Old}}{{with .URL $u}}<br><small class="hint">Until {{date $.Old.Until}} also at its old address, {{.}}</small>{{end}}{{end}}{{end}}</dd>{{end}}
       {{if not .Service.NoAddress}}{{range .Access}}<dt>Reachable from</dt><dd>{{if .AfterSetup}}{{if $.Internet}}Only through an SSH tunnel{{else}}Home only{{end}} for now:
@@ -462,7 +470,7 @@
     {{with .SetupActivity}}
     <section class="card"><div class="card-head"><h2>Setup</h2></div>{{activity .}}</section>
     {{end}}
-    {{if and .CanManage (not .Service.Off) (not .Service.Install) (ne .Service.Status "waiting") (ne .Service.Status "awaiting-data") (ne .Service.Status "held") (ne .Service.Status "updating")}}
+    {{if and .CanManage (not .Service.Off) (not .Service.Install) (ne .Service.Status "waiting") (ne .Service.Status "awaiting-data") (ne .Service.Status "held") (ne .Service.Status "restoring") (ne .Service.Status "updating")}}
     {{/* Turning it off for a while (SPEC.md §6.3.5). */}}
     <section class="card" id="turn-off">
       <details class="action"{{if or (eq .OpenAction "turn-off") .OffError}} open{{end}}>

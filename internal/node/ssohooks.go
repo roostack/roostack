@@ -255,6 +255,11 @@ func (n *Local) runSSOHooks(ctx context.Context) {
 		if s.Instance != nil && s.Instance.AwaitingData {
 			continue
 		}
+		// Nor while a lab restore puts its databases back: its app isn't
+		// running yet.
+		if s.Instance != nil && s.Instance.DumpsPending != nil {
+			continue
+		}
 		if err := n.syncSSO(ctx, s); err != nil {
 			n.Log.Error("single sign-on's hooks", "service", s.Name(), "err", err)
 		}
