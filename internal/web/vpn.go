@@ -244,6 +244,8 @@ func (s *Server) readDeviceForm(r *http.Request, a *acct, f *deviceForm, ready f
 			return lockedMessage(until)
 		case res == codeWrong:
 			return "That code isn't right. Enter the 6-digit code your authenticator app shows now."
+		case res == codeUsed:
+			return usedCodeMessage
 		}
 	}
 	return ""

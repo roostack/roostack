@@ -17,12 +17,19 @@ const (
 	// codeLocked: too many wrong codes for the account, so none is
 	// accepted for now (authkit.TOTPLockedUntil).
 	codeLocked
+	// codeUsed: the right code, but one that's been used already. Each
+	// is accepted once (RFC 6238 §5.2), so that someone who sees it
+	// can't use it too; it isn't a guess, so it isn't counted.
+	codeUsed
 )
+
+// usedCodeMessage is what someone who enters a code twice is told.
+const usedCodeMessage = "That code has already been used, so wait for your authenticator app to show the next one."
 
 // checkCode checks a user's two-factor code, at login or before showing
 // the recovery key, and counts wrong ones against the account, however
 // many logins they're spread over (SPEC.md §6.10). A code is accepted once
-// (UseTOTPStep), and not at all while the account is locked; until says
+// (UseTOTPStep, or codeUsed), and not at all while the account is locked; until says
 // when that ends. Checks run one at a time, so guesses sent all at once
 // can't slip past the count.
 func (s *Server) checkCode(ctx context.Context, userID int64, code string) (res codeResult, until time.Time, err error) {
@@ -40,6 +47,9 @@ func (s *Server) checkCode(ctx context.Context, userID int64, code string) (res 
 		if ok, err = s.Store.UseTOTPStep(ctx, u.ID, step); err != nil || ok {
 			return codeOK, time.Time{}, err
 		}
+	}
+	if _, ok := authkit.VerifyTOTP(u.TOTPSecret, code, now, 0); ok {
+		return codeUsed, time.Time{}, nil
 	}
 	n, err := s.Store.AddTOTPFailure(ctx, u.ID, now)
 	if err != nil {

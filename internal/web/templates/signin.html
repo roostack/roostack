@@ -71,6 +71,7 @@
         <form method="post" action="/roostack/confirm">
           <input type="hidden" name="state" value="{{.Trip}}">
           <input type="hidden" name="next" value="{{.Next}}">
+          {{if .Again}}<input type="hidden" name="again" value="1">{{end}}
           {{if .Code}}<label>Code from your authenticator app
             <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required autofocus>
           </label>{{else}}<label>Password

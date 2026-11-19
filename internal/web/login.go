@@ -153,8 +153,12 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 			s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until)})
 			return
 		}
+		msg := "That code didn't work. Check your authenticator app and try again."
+		if res == codeUsed {
+			msg = usedCodeMessage
+		}
 		w.WriteHeader(http.StatusUnauthorized)
-		s.render(w, "totp", map[string]any{"Error": "That code didn't work. Check your authenticator app and try again."})
+		s.render(w, "totp", map[string]any{"Error": msg})
 		return
 	}
 

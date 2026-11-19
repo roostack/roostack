@@ -39,6 +39,10 @@ const (
 	pagesStateCookie = "roostack_sign_in_state"
 	// pagesTrip is how long the trip may take, the sign-in included.
 	pagesTrip = 10 * time.Minute
+	// pagesConfirmFor is how long confirming it's them on the sign-in page
+	// lasts for another trip, such as the one started again when the
+	// first's cookie had gone (pagesCallback).
+	pagesConfirmFor = 2 * time.Minute
 
 	// signInPagesPath, on the sign-in page's address, hands Roostack's
 	// pages a code; signInConfirmPath is the step Owners and Admins take
@@ -86,8 +90,10 @@ type pagesHandoff struct {
 	signIn   string
 	ends     time.Time
 	remember bool
-	// state is the hash of the trip's cookie, and next the page to go to.
+	// state is the hash of the trip's cookie, next the page to go to, and
+	// again that the trip is a second try (pagesTripInfo).
 	state, next string
+	again       bool
 	// how is said in the audit log.
 	how string
 }
@@ -223,6 +229,9 @@ func (s *Server) pagesStart(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("away") == "1" {
 		q.Set("away", "1")
 	}
+	if r.FormValue("again") == "1" {
+		q.Set("again", "1")
+	}
 	redirect(w, r, "https://"+s.SignInHost+signInPagesPath+"?"+q.Encode())
 }
 
@@ -238,6 +247,17 @@ func (s *Server) pagesCallback(w http.ResponseWriter, r *http.Request) {
 		if currentUser(r) != nil {
 			// Another tab's trip got here first.
 			redirect(w, r, "/")
+			return
+		}
+		if ok && !h.again {
+			// The sign-in was real, but this browser's cookie for the trip
+			// had gone: it lasts pagesTrip, and a page left open on the
+			// sign-in page, or another tab's trip, outlasts or replaces it.
+			// Going again is safe, as the sign-in page will hand over
+			// whoever is signed in there in this browser, and it won't ask
+			// an Owner or Admin who has just confirmed (pagesConfirmFor).
+			s.Log.Info("starting the trip to the sign-in page again: its cookie had gone", "remote", r.RemoteAddr)
+			redirect(w, r, pathPagesStart+"?"+url.Values{"next": {h.next}, "again": {"1"}}.Encode())
 			return
 		}
 		s.Log.Warn("refused a sign-in from the sign-in page", "remote", r.RemoteAddr)
@@ -305,16 +325,24 @@ func (s *Server) signInToPages(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/sign-in?"+url.Values{"next": {r.URL.RequestURI()}}.Encode(), http.StatusSeeOther)
 		return
 	}
+	how := ""
 	if s.pagesConfirm(r.Context(), sess) {
-		s.renderSignIn(w, r, http.StatusOK, s.confirmView(r, sess, trip, ""))
-		return
+		var ok bool
+		if how, ok = s.confirmed.get(sess.Hash); !ok {
+			s.renderSignIn(w, r, http.StatusOK, s.confirmView(r, sess, trip, ""))
+			return
+		}
 	}
-	s.handOffPages(w, r, sess.User, &sess, trip, "")
+	s.handOffPages(w, r, sess.User, &sess, trip, how)
 }
 
-// pagesTripInfo is a trip from Roostack's pages: its state, and where to
-// go there.
-type pagesTripInfo struct{ state, next string }
+// pagesTripInfo is a trip from Roostack's pages: its state, where to go
+// there, and whether it's a second try, started again when the first's
+// cookie had gone (pagesCallback), so it isn't started a third time.
+type pagesTripInfo struct {
+	state, next string
+	again       bool
+}
 
 // pagesTripOf reads a trip from the sign-in page's query or form.
 func pagesTripOf(q url.Values) (pagesTripInfo, bool) {
@@ -322,7 +350,7 @@ func pagesTripOf(q url.Values) (pagesTripInfo, bool) {
 	if len(state) != 64 || strings.Trim(state, "0123456789abcdef") != "" {
 		return pagesTripInfo{}, false
 	}
-	return pagesTripInfo{state: state, next: localNext(q.Get("next"))}, true
+	return pagesTripInfo{state: state, next: localNext(q.Get("next")), again: q.Get("again") == "1"}, true
 }
 
 // pagesTripFrom reads a trip from a next address on the sign-in page.
@@ -350,7 +378,7 @@ func (s *Server) pagesConfirm(ctx context.Context, sess sso.Session) bool {
 }
 
 func (s *Server) confirmView(r *http.Request, sess sso.Session, trip pagesTripInfo, msg string) signInView {
-	return signInView{State: "confirm", User: sess.User, Trip: trip.state, Next: trip.next, Error: msg,
+	return signInView{State: "confirm", User: sess.User, Trip: trip.state, Next: trip.next, Again: trip.again, Error: msg,
 		Code: sess.User.TOTPSecret != "", Away: r.FormValue("away") == "1",
 		App: "Roostack", AppLogo: "/static/favicon.svg"}
 }
@@ -367,8 +395,11 @@ func (s *Server) signInConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, ok := s.signInSession(r)
 	if !ok {
-		http.Redirect(w, r, "/sign-in?"+url.Values{"next": {signInPagesPath + "?" + url.Values{"state": {trip.state}, "next": {trip.next}}.Encode()}}.Encode(),
-			http.StatusSeeOther)
+		back := url.Values{"state": {trip.state}, "next": {trip.next}}
+		if trip.again {
+			back.Set("again", "1")
+		}
+		http.Redirect(w, r, "/sign-in?"+url.Values{"next": {signInPagesPath + "?" + back.Encode()}}.Encode(), http.StatusSeeOther)
 		return
 	}
 	u := sess.User
@@ -387,9 +418,12 @@ func (s *Server) signInConfirm(w http.ResponseWriter, r *http.Request) {
 				s.renderSignIn(w, r, http.StatusTooManyRequests, s.confirmView(r, sess, trip, lockedMessage(until)))
 				return
 			}
-			s.Store.Audit(ctx, u, "failed sign-in", "a wrong code opening Roostack's pages from "+r.RemoteAddr)
-			s.renderSignIn(w, r, http.StatusUnauthorized, s.confirmView(r, sess, trip,
-				"That code didn't work. Check your authenticator app and try again."))
+			msg := usedCodeMessage
+			if res == codeWrong {
+				s.Store.Audit(ctx, u, "failed sign-in", "a wrong code opening Roostack's pages from "+r.RemoteAddr)
+				msg = "That code didn't work. Check your authenticator app and try again."
+			}
+			s.renderSignIn(w, r, http.StatusUnauthorized, s.confirmView(r, sess, trip, msg))
 			return
 		}
 	} else {
@@ -406,6 +440,7 @@ func (s *Server) signInConfirm(w http.ResponseWriter, r *http.Request) {
 		}
 		how = " (confirmed with a password)"
 	}
+	s.confirmed.put(sess.Hash, how, time.Now().Add(pagesConfirmFor))
 	s.handOffPages(w, r, u, &sess, trip, how)
 }
 
@@ -418,7 +453,7 @@ func (s *Server) handOffPages(w http.ResponseWriter, r *http.Request, u *store.U
 		s.serverError(w, err)
 		return
 	}
-	h := &pagesHandoff{userID: u.ID, state: trip.state, next: trip.next, how: how}
+	h := &pagesHandoff{userID: u.ID, state: trip.state, next: trip.next, again: trip.again, how: how}
 	if sess != nil {
 		h.signIn, h.ends, h.remember = sess.Hash, sess.Expires, sess.Remember
 	}

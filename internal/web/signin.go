@@ -187,9 +187,10 @@ type signInView struct {
 	RoostackURL string
 	// Trip is a trip from Roostack's pages (pagessignin.go), on the step
 	// confirming it's them; Code says it asks for a two-factor code (not
-	// the password), and Away that their session there just ended.
-	Trip       string
-	Code, Away bool
+	// the password), Away that their session there just ended, and Again
+	// that it's the trip's second try (pagesTripInfo).
+	Trip              string
+	Code, Away, Again bool
 	// After signing out, where an app asked to go back to and which app
 	// (OIDC's post_logout_redirect_uri and client_id), on the step asking
 	// whether to sign out.
@@ -486,8 +487,11 @@ func (s *Server) signInCode(w http.ResponseWriter, r *http.Request) {
 			s.renderSignIn(w, r, http.StatusTooManyRequests, signInView{State: "sign-in", Next: next, Error: lockedMessage(until)})
 			return
 		}
-		s.renderSignIn(w, r, http.StatusUnauthorized, signInView{State: "code", Next: next,
-			Error: "That code didn't work. Check your authenticator app and try again."})
+		msg := "That code didn't work. Check your authenticator app and try again."
+		if res == codeUsed {
+			msg = usedCodeMessage
+		}
+		s.renderSignIn(w, r, http.StatusUnauthorized, signInView{State: "code", Next: next, Error: msg})
 		return
 	}
 	s.pending.delete(key)

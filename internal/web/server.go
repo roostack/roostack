@@ -159,10 +159,12 @@ type Server struct {
 	// logins that passed the password check and are waiting for a 2FA
 	// code, keyed by token hash; handoffs are sign-ins at my.<domain>
 	// on their way to Roostack's own pages, keyed by the one-time code's
-	// hash (pagessignin.go).
-	pending  expiring[string, *pendingLogin]
-	handoffs expiring[string, *pagesHandoff]
-	stepUps  stepUpFailures
+	// hash, and confirmed are sign-ins whose Owner or Admin has just
+	// confirmed it's them, keyed by the sign-in's hash (pagessignin.go).
+	pending   expiring[string, *pendingLogin]
+	handoffs  expiring[string, *pagesHandoff]
+	confirmed expiring[string, string]
+	stepUps   stepUpFailures
 	// codeMu makes two-factor checks run one at a time (checkCode).
 	codeMu     sync.Mutex
 	issues     serverIssues

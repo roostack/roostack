@@ -168,14 +168,54 @@ func TestPagesSignInConfirm(t *testing.T) {
 	if resp, body := call(t, srv, c, "POST", signInHost, signInConfirmPath, wrong); resp.StatusCode != 401 || !strings.Contains(body, "That code didn") {
 		t.Errorf("wrong code: %d", resp.StatusCode)
 	}
-	h.store.SetTOTP(ctx, id, secret, 0) // the code just used works again
 	right := url.Values{"code": {now}}
 	for k, v := range trip {
 		right[k] = v
 	}
+	// The code that signed in a moment ago: said so, not counted.
+	if resp, body := call(t, srv, c, "POST", signInHost, signInConfirmPath, right); resp.StatusCode != 401 || !strings.Contains(body, "already been used") {
+		t.Errorf("a used code: %d", resp.StatusCode)
+	}
+	h.store.SetTOTP(ctx, id, secret, 0) // the code just used works again
 	resp, _ = call(t, srv, c, "POST", signInHost, signInConfirmPath, right)
 	if resp := backToPages(t, h, c, resp); resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/backups" {
 		t.Fatalf("after the code: %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+
+	// The trip's cookie gone by the time the code is entered (a page left
+	// on the confirm step, or another tab's trip): the trip goes again by
+	// itself, without asking for another code, and only once.
+	h.store.TouchSession(ctx, authkit.HashToken(c.Jar.(*plainJar).cookies[sessionCookie].Value), time.Now().Add(-time.Hour))
+	h.server.confirmed = expiring[string, string]{} // pagesConfirmFor has passed
+	if _, body = followTrip(t, h, srv, c, "/backups"); !strings.Contains(body, "Confirm it's you") {
+		t.Fatalf("confirm step again:\n%s", body)
+	}
+	trip = url.Values{"state": {between(body, `name="state" value="`, `"`)}, "next": {"/backups"}}
+	later, _ := authkit.TOTPCode(secret, nowFunc().Add(30*time.Second))
+	confirm := url.Values{"code": {later}}
+	for k, v := range trip {
+		confirm[k] = v
+	}
+	delete(c.Jar.(*plainJar).cookies, pagesStateCookie)
+	resp, _ = call(t, srv, c, "POST", signInHost, signInConfirmPath, confirm)
+	resp = backToPages(t, h, c, resp)
+	again, _ := url.Parse(resp.Header.Get("Location"))
+	if resp.StatusCode != http.StatusSeeOther || again.Path != pathPagesStart || again.Query().Get("again") != "1" || again.Query().Get("next") != "/backups" {
+		t.Fatalf("the cookie gone: %d %q", resp.StatusCode, again)
+	}
+	resp, _ = call(t, h.srv, c, "GET", pagesHost, again.RequestURI(), nil)
+	resp, _ = call(t, srv, c, "GET", signInHost, strings.TrimPrefix(resp.Header.Get("Location"), "https://"+signInHost), nil)
+	if resp := backToPages(t, h, c, resp); resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/backups" {
+		t.Fatalf("the trip again: %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	// Gone on the second try too: the sign-in page's error, not a loop.
+	delete(c.Jar.(*plainJar).cookies, sessionCookie)
+	resp, _ = call(t, h.srv, c, "GET", pagesHost, again.RequestURI(), nil)
+	resp, _ = call(t, srv, c, "GET", signInHost, strings.TrimPrefix(resp.Header.Get("Location"), "https://"+signInHost), nil)
+	delete(c.Jar.(*plainJar).cookies, pagesStateCookie)
+	if resp, body := call(t, h.srv, c, "GET", pagesHost, strings.TrimPrefix(resp.Header.Get("Location"), "https://"+pagesHost), nil); resp.StatusCode != http.StatusBadRequest ||
+		!strings.Contains(body, "didn") {
+		t.Errorf("the cookie gone twice: %d", resp.StatusCode)
 	}
 	// The sign-in for apps carried on throughout.
 	if _, err := h.store.SignInSession(ctx, signIn); err != nil {
@@ -239,8 +279,18 @@ func TestPagesSignInEdges(t *testing.T) {
 	resp, _ = call(t, srv, eve, "POST", signInHost, "/sign-in", url.Values{"username": {"eve"}, "password": {"a long password"}, "next": {loc.Query().Get("next")}})
 	resp, _ = call(t, srv, eve, "GET", signInHost, resp.Header.Get("Location"), nil)
 	victim := &http.Client{Jar: &plainJar{}, CheckRedirect: c.CheckRedirect}
-	if resp := backToPages(t, h, victim, resp); resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("a code in another browser: %d", resp.StatusCode)
+	resp = backToPages(t, h, victim, resp)
+	if loc := resp.Header.Get("Location"); resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(loc, pathPagesStart+"?") {
+		t.Fatalf("a code in another browser: %d %q", resp.StatusCode, loc)
+	}
+	if _, ok := victim.Jar.(*plainJar).cookies[sessionCookie]; ok {
+		t.Error("someone else's code signed the browser in")
+	}
+	// Going again, the victim's browser finds its own sign-in: none.
+	resp, _ = call(t, h.srv, victim, "GET", pagesHost, resp.Header.Get("Location"), nil)
+	resp, _ = call(t, srv, victim, "GET", signInHost, strings.TrimPrefix(resp.Header.Get("Location"), "https://"+signInHost), nil)
+	if loc, _ := url.Parse(resp.Header.Get("Location")); resp.StatusCode != http.StatusSeeOther || loc.Path != "/sign-in" {
+		t.Errorf("someone else's code, going again: %d %q", resp.StatusCode, loc)
 	}
 
 	// Roostack's own login page: at /login?here, and wherever the sign-in
