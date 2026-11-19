@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/registry/updates"
+	"roostack.cloud/roostack/internal/registry/watch"
 )
 
 const updatesUsage = `Usage: roostack registry updates [-repo dir] [-only a,b] [-write]
@@ -20,8 +22,10 @@ points to another digest (a rebuild) is the next revision of the same
 version. updates.yaml in the registry says what each package follows. The
 report (JSON, on standard output) gives each update's kind, as labs read
 it (patch, minor, major, other, or revision for a rebuild), and why any
-package couldn't be checked; -write puts each new revision in the
-repository. It never commits or opens anything: the workflow does.
+package couldn't be checked, and the known security problems each new app
+version fixes (from its source's advisories on GitHub, or its release
+notes on Codeberg; GITHUB_TOKEN, if set, is sent to GitHub's API); -write
+puts each new revision in the repository. It never commits or opens anything: the workflow does.
 `
 
 // registryUpdates finds the registry's updates, and with -write writes
@@ -34,12 +38,23 @@ func registryUpdates(args []string) error {
 	only := fs.String("only", "", "only these packages, separated by commas")
 	write := fs.Bool("write", false, "write each update's new revision into the repository")
 	fs.Parse(args)
-	rep, err := updates.Check(updates.Options{Repo: *repo, Only: splitList(*only), Write: *write, Now: time.Now()}, updates.Online{})
+	feeds := watch.DefaultFeeds()
+	feeds.GitHubToken = os.Getenv("GITHUB_TOKEN")
+	fixes := func(source, from, to string) ([]watch.Fix, error) {
+		return feeds.Fixes(context.Background(), source, from, to)
+	}
+	rep, err := updates.Check(updates.Options{Repo: *repo, Only: splitList(*only), Write: *write, Now: time.Now(), Fixes: fixes}, updates.Online{})
 	if err != nil {
 		return err
 	}
 	for _, u := range rep.Updates {
 		fmt.Fprintf(os.Stderr, "%s: %s → %s (%s)\n", u.Package, u.From, u.To, u.Kind)
+		for _, f := range u.Fixes {
+			fmt.Fprintf(os.Stderr, "  fixes %s: %s\n", f.ID, f.Title)
+		}
+		if u.FixesUnknown != "" {
+			fmt.Fprintf(os.Stderr, "  what it fixes couldn't be looked up: %s\n", u.FixesUnknown)
+		}
 	}
 	for _, s := range rep.Skipped {
 		fmt.Fprintf(os.Stderr, "%s: not checked: %s\n", s.Package, s.Reason)

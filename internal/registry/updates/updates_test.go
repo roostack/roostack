@@ -1,6 +1,7 @@
 package updates
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/imagecheck"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
+	"roostack.cloud/roostack/internal/registry/watch"
 )
 
 // fakeRegs is image registries in memory: each repository's tags, what
@@ -87,7 +89,14 @@ func TestNewVersion(t *testing.T) {
 		tags:    map[string][]string{vwRepo: {"1.34.3", "1.34.4", "1.35.0", "1.36.0-alpine", "2.0.0-rc1", "latest", "1.35"}},
 		digests: map[string]string{vwRepo + ":1.34.3": vwPinned, vwRepo + ":1.34.4": digest("a"), vwRepo + ":1.35.0": digest("b")},
 	}
-	rep, err := Check(Options{Repo: dir, Write: true, Now: day}, regs)
+	// The known security problems it fixes are looked up from its source,
+	// by app version.
+	var asked string
+	fixes := func(source, from, to string) ([]watch.Fix, error) {
+		asked = source + " " + from + " " + to
+		return []watch.Fix{{ID: "GHSA-aaaa-bbbb-cccc", Title: "lets anyone read every vault"}}, nil
+	}
+	rep, err := Check(Options{Repo: dir, Write: true, Now: day, Fixes: fixes}, regs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,6 +106,15 @@ func TestNewVersion(t *testing.T) {
 	u := rep.Updates[0]
 	if u.From != "1.34.3-roostack.1" || u.To != "1.35.0-roostack.1" || u.Kind != pkgspec.UpdateMinor || u.Tier != "official" {
 		t.Errorf("update %+v", u)
+	}
+	if asked != "https://github.com/dani-garcia/vaultwarden 1.34.3 1.35.0" || len(u.Fixes) != 1 || u.Fixes[0].ID != "GHSA-aaaa-bbbb-cccc" {
+		t.Errorf("fixes: asked %q, got %+v", asked, u.Fixes)
+	}
+	// A lookup that fails says so, and the update is still proposed.
+	fail := func(string, string, string) ([]watch.Fix, error) { return nil, errors.New("GitHub said 403") }
+	if rep, _ := Check(Options{Repo: repo(t, "", "vaultwarden"), Fixes: fail}, regs); len(rep.Updates) != 1 ||
+		rep.Updates[0].FixesUnknown != "GitHub said 403" || rep.Updates[0].Fixes != nil {
+		t.Errorf("a failed lookup: %+v", rep)
 	}
 	want := vwRepo + ":1.35.0@" + digest("b")
 	if len(u.Images) != 1 || u.Images[0].To != want || u.Images[0].Rebuilt {
@@ -189,7 +207,12 @@ func TestRebuild(t *testing.T) {
 		tags:    map[string][]string{fjRepo: {"15.0.9-rootless", "16.0.0-rootless"}},
 		digests: map[string]string{fjRepo + ":15.0.9-rootless": digest("rebuilt")},
 	}
-	rep, err := Check(Options{Repo: repo(t, "packages: {forgejo: {track: minor, reason: the long-term support line}}", "forgejo")}, regs)
+	// A rebuild is the same app version: nothing to look up.
+	noLookup := func(string, string, string) ([]watch.Fix, error) {
+		t.Error("looked up what a rebuild fixes")
+		return nil, nil
+	}
+	rep, err := Check(Options{Repo: repo(t, "packages: {forgejo: {track: minor, reason: the long-term support line}}", "forgejo"), Fixes: noLookup}, regs)
 	if err != nil {
 		t.Fatal(err)
 	}

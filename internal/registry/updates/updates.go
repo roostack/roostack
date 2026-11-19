@@ -33,6 +33,7 @@ import (
 	"roostack.cloud/roostack/internal/imagecheck"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/registry"
+	"roostack.cloud/roostack/internal/registry/watch"
 )
 
 // Registries is what the check asks image registries: imagecheck's calls,
@@ -126,8 +127,16 @@ type Update struct {
 	Releases string `json:"releases,omitempty"`
 	// File is the new revision's path in the repository, once written.
 	File string `json:"file,omitempty"`
-	// data is the new file's contents.
-	data []byte
+	// Fixes are the known security problems the new app version fixes
+	// (Options.Fixes): the workflow labels the update "security", and it
+	// merges without waiting for a person once its test has passed, even
+	// when it's a minor. FixesUnknown says why they couldn't be looked up.
+	Fixes        []watch.Fix `json:"fixes,omitempty"`
+	FixesUnknown string      `json:"fixes_unknown,omitempty"`
+	// data is the new file's contents, and source the app's source
+	// (about.source), where its advisories are.
+	data   []byte
+	source string
 }
 
 // ImageChange is one image's new reference.
@@ -161,6 +170,10 @@ type Options struct {
 	Write bool
 	// Now dates the comment saying when digests were looked up.
 	Now time.Time
+	// Fixes looks up the known security problems an app's version from
+	// has and to doesn't, from its source (watch.Feeds.Fixes); nil: not
+	// looked up.
+	Fixes func(source, from, to string) ([]watch.Fix, error)
 }
 
 // Check looks at each package's newest version and finds its update, if
@@ -192,6 +205,12 @@ func Check(o Options, regs Registries) (*Report, error) {
 		}
 		if u == nil {
 			continue
+		}
+		if o.Fixes != nil && u.Kind != "revision" {
+			u.Fixes, err = o.Fixes(u.source, pkgspec.Upstream(u.From), pkgspec.Upstream(u.To))
+			if err != nil {
+				u.FixesUnknown = err.Error()
+			}
 		}
 		if o.Write {
 			u.File = filepath.Join("packages", name, u.To+".yaml")
@@ -239,7 +258,7 @@ func checkPackage(dir, name string, rule Rule, regs Registries, now time.Time) (
 		}
 	}
 	app := pkgspec.Upstream(p.Version)
-	u := &Update{Package: name, Title: p.Title, Tier: tier, From: p.Version}
+	u := &Update{Package: name, Title: p.Title, Tier: tier, From: p.Version, source: p.About.Source}
 
 	// A new app version, for the containers whose tags carry it.
 	newApp, changes, err := newVersion(images, app, rule, regs)

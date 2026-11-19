@@ -22,11 +22,14 @@ Run hourly by the registry's CI (docs/RED-BUTTON-PLAN.md §10.1): reads
 GitHub's advisories for each package's source and Roostack's own parts,
 CISA's list of exploited vulnerabilities, CrowdSec's virtual-patch rules,
 EPSS, and OSV for the library versions in the images' bills of materials
-(boms/). Each strong match (an exact registry version, critical or being
+(boms/), and the release notes of packages whose source is on Codeberg
+(Forgejo's). Each strong match (an exact registry version, critical or being
 used in attacks) is drafted into advisories/ for a pull request; the
 summary (JSON) says what the CI should open, and which are urgent. Weaker
 matches wait in watch/state.json for the weekly digest, which -digest
-writes as markdown (nothing when there are none) and clears. It never
+writes as markdown (nothing when there are none) and clears: it lists
+what needs a decision, and collapses what the registry's newest versions
+have fixed since and what's in images' base systems. It never
 publishes anything. GITHUB_TOKEN, if set, is sent to GitHub's API.
 `
 
@@ -45,7 +48,13 @@ func registryWatch(args []string) error {
 		return err
 	}
 	if *digest != "" {
-		md := watch.Digest(st.Pending, time.Now())
+		// The registry as it is now, to leave out what its newest
+		// versions have fixed since.
+		r, err := watch.ReadRepo(*repo)
+		if err != nil {
+			return err
+		}
+		md := watch.Digest(st.Pending, r, time.Now())
 		if md == "" {
 			fmt.Println("Nothing for the digest.")
 			return nil
