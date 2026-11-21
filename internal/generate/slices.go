@@ -25,9 +25,6 @@ const (
 	RoostackSlice = "roostack.slice"
 	CoreSlice     = "roostack-core.slice"
 	ServicesSlice = "roostack-services.slice"
-	// MemoryKept is what the system and Roostack keep, whatever the
-	// services do: the maintainer chose 400 MB on any server (2026-11-19).
-	MemoryKept = 400_000_000
 	// memoryFloor is the least a service's automatic limit leaves above
 	// its figure, for a small service whose figure doubled is still small.
 	memoryFloor = 256_000_000
@@ -40,6 +37,15 @@ func ServiceSlice(name string) string {
 	return "roostack-services-" + strings.ReplaceAll(name, "-", "_") + ".slice"
 }
 
+// MemoryKept is what the system and Roostack keep on a server with this
+// much memory, whatever the services do: 200 MB and a tenth of the
+// server's memory, between 300 and 600 MB, so 400 MB on a 2 GB server and
+// 600 MB from 4 GB (the maintainer, 2026-11-21: as little as will do on a
+// small server). The kernel's own memory comes out of it too.
+func MemoryKept(total int64) int64 {
+	return min(max(200_000_000+total/10, 300_000_000), 600_000_000)
+}
+
 // ServicesMemory is what all the services together may use on a server
 // with this much memory before the kernel slows them down: all of it less
 // MemoryKept, and never less than half. 0 (no cap) when the server's
@@ -48,7 +54,7 @@ func ServicesMemory(total int64) int64 {
 	if total <= 0 {
 		return 0
 	}
-	return max(total-MemoryKept, total/2)
+	return max(total-MemoryKept(total), total/2)
 }
 
 // sliceFile is a slice's unit file.
@@ -65,9 +71,10 @@ func sliceFile(name, description string, lines ...string) File {
 // systemSlices are the slices for Caddy and for the services together, on
 // a server with this much memory (0: not known, so no cap).
 func systemSlices(total int64) []File {
-	services := []string{"CPUWeight=100"}
+	services, about := []string{"CPUWeight=100"}, "Roostack: the services"
 	if cap := ServicesMemory(total); cap > 0 {
 		services = append(services, fmt.Sprintf("MemoryHigh=%d", cap))
+		about += ", which together may use all but " + units.Bytes(total-cap) + " of the server's memory"
 	}
 	return []File{
 		// Every slice above Caddy's keeps as much as it does, as the kernel
@@ -77,7 +84,7 @@ func systemSlices(total int64) []File {
 		// Caddy uses about 50 MB of its own.
 		sliceFile(CoreSlice, "Roostack: Caddy, kept in memory ahead of the services",
 			"MemoryLow=96M", "CPUWeight=200"),
-		sliceFile(ServicesSlice, "Roostack: the services, which together may use all but "+units.Bytes(MemoryKept)+" of the server's memory", services...),
+		sliceFile(ServicesSlice, about, services...),
 	}
 }
 

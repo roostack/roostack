@@ -429,6 +429,7 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 
 ## Memory (SPEC §6.1, "Memory"; built 2026-11-21)
 
-- [ ] **How much the services leave** (the maintainer to decide): on a 2 GB VM, 400 MB kept let Roostack's protection be broken through now and then, since the kernel's own memory comes out of it too; 600 MB held (SPEC §6.1, "Memory", "Tried on a 2 GB VM"). `generate.MemoryKept`
+- [x] **How much the services leave:** 200 MB and a tenth of the server's memory, between 300 and 600 MB (the maintainer, 2026-11-21). `generate.MemoryKept`
+- [ ] **Roostack, Caddy, and CrowdSec use less memory,** so that 400 MB kept is enough on a 2 GB server, where Roostack's protection was still broken through now and then (SPEC §6.1, "Memory", "Tried on a 2 GB VM"). On the Linode (0.1.10, 2026-11-21) Roostack held 182 MB of its own, CrowdSec 52 MB, and Caddy 50 MB: try `GOMEMLIMIT`, and profile Roostack's heap
 - [ ] Measure on the Linode once released: Home's first view after a quiet spell, Roostack's swap, and `memory.events` (`low` on `roostack.service`, `high` on `roostack-services.slice`)
 - [ ] Later, if needed (docs/MEMORY-PLAN.md E, G): systemd-oomd on the services' slice; disk weights

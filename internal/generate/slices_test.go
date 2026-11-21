@@ -9,11 +9,14 @@ import (
 	"roostack.cloud/roostack/internal/pkgtest"
 )
 
-// The services together may use the server's memory less 400 MB, never
-// less than half; with the server's memory unknown, there's no cap.
+// The services together may use the server's memory less what's kept
+// (300 MB at 1 GB, 400 MB at 2 GB, 600 MB from 4 GB), never less than
+// half; with the server's memory unknown, there's no cap.
 func TestServicesMemory(t *testing.T) {
 	for _, tc := range []struct{ total, want int64 }{
-		{0, 0}, {2_000_000_000, 1_600_000_000}, {16_000_000_000, 15_600_000_000}, {600_000_000, 300_000_000},
+		{0, 0}, {600_000_000, 300_000_000}, {1_000_000_000, 700_000_000},
+		{2_000_000_000, 1_600_000_000}, {3_000_000_000, 2_500_000_000},
+		{4_000_000_000, 3_400_000_000}, {16_000_000_000, 15_400_000_000},
 	} {
 		if got := ServicesMemory(tc.total); got != tc.want {
 			t.Errorf("ServicesMemory(%d) = %d, want %d", tc.total, got, tc.want)
@@ -26,7 +29,8 @@ func TestServicesMemory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Slices) != 3 || !strings.Contains(out.Slices[2].Content, "MemoryHigh=1600000000\n") {
+	if len(out.Slices) != 3 || !strings.Contains(out.Slices[2].Content, "MemoryHigh=1600000000\n") ||
+		!strings.Contains(out.Slices[2].Content, "all but 400.0 MB of") {
 		t.Errorf("slices on a 2 GB server: %+v", out.Slices)
 	}
 }

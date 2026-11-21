@@ -135,4 +135,4 @@ The maintainer's answers: 1, 2 (Caddy in its own protected group), and 3 (a cap 
 - **Found on the VM:**
   - the kernel honours `MemoryLow` only as far as every slice above has as much, so the package sets it on `system.slice`, `user.slice`, `user-<uid>.slice`, and `user@<uid>.service`, and Roostack on `roostack.slice`;
   - a systemd reload doesn't apply a changed slice to a running one, so Roostack sets it live too;
-  - 400 MB kept was not quite enough on a 2 GB server, since the kernel's own memory comes out of it, and Roostack's protection was broken through now and then; 600 MB held. A question for the maintainer (TASKS.md, "Memory").
+  - 400 MB kept was not quite enough on a 2 GB server, since the kernel's own memory comes out of it, and Roostack's protection was broken through now and then; 600 MB held. The maintainer (2026-11-21): 400 MB on a 2 GB server, rising to 600 MB at 4 GB (200 MB and a tenth of the memory, between 300 and 600 MB), and make Roostack, Caddy, and CrowdSec use less so that 400 MB is enough.
