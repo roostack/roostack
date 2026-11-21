@@ -2,6 +2,8 @@
 
 A design for the maintainer to decide on. Item 2 of the list on 2026-11-19 ("the next big ticket items").
 
+**Deferred (the maintainer, 2026-11-21).** None of the options will be built for now: [why, what would bring it back, and what's done instead](#decision-deferred-2026-11-21). The rest of this document is kept as the record of what was weighed and tried.
+
 **Prototype, then test, then decide** (the maintainer, 2026-11-19: high risk, so nothing is built until a prototype has been tried). A throwaway prototype ran on two VMs on 2026-11-21: [what it showed](#prototype-results-2026-11-21) is below, with [how many user IDs are needed and why](#how-many-user-ids-and-why). Nothing is built; the prototype is on the branch `proto/container-slots`, which won't be merged.
 
 ## The problem
@@ -178,11 +180,49 @@ All four services installed, said Running, and answered on their ports, each con
   6. A VM run of all packages, on arm64 and amd64, and an Intel GPU (amd64 hardware, which the VMs can't give).
 - **B:** about 8 to 10, unchanged.
 
-## Recommendation
+## Decision: deferred (2026-11-21)
+
+The maintainer decided not to build A, B, or C for now, after reading the prototype's results.
+
+**Why:**
+
+- **The image copies.** Under A, every service would keep its own copy of every image it uses, and two services on the same database image would keep two. Many images are far bigger than Navidrome's 243 MB, every update would pay for the copies again, and on a small machine with one disk the space would show in Storage. All of that would guard against an event most labs will never meet.
+- **The complexity.** A reaches the generator, the installer, the config-file writer, backups, restores, moves, imports, devices, and media libraries. A mistake in any of them would show up as "permission denied" on someone's photos or music, often far from its cause, and every later feature that touches a service's files would have to think about slots. The uncertainty the prototype found (finding 1 to 6, I5, and I6 done by hand) is a fair sign of how often that would go wrong, for the project's human maintainers and its AI ones alike.
+- **What it protects against is narrow.** Without an escape, a container already reaches only its own folders and its own network (SPEC.md §6.4, §6.7). A only changes who an *escaped* process is, and escapes from rootless Podman with its seccomp filter come through bugs in the kernel, Podman, or crun, which the server's automatic security updates fix.
+
+**What would bring it back:**
+
+- Rootless Podman being able to share image layers between ID maps (idmapped mounts for unprivileged users, or something like composefs), which would remove the copies. The rest of A would still be the work in the table above.
+- An escape from rootless Podman being used in the wild against setups like Roostack's.
+- A package Roostack wants to offer that is risky enough to need its own IDs; that would more likely be worth a narrower answer for that package alone.
+
+**What's done instead:**
+
+- SPEC.md §6.10 says plainly what an escaped container would be (item 7).
+- The hardening below (Option 0), which makes an escape less likely without changing who owns any file.
+- The prototype stays on the branch `proto/container-slots` for reference, and nothing from it is in main.
+
+## Hardening instead (Option 0), to go through together
+
+Today a service's containers get Podman's defaults: its seccomp filter, its 11 default capabilities (`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID`, `KILL`, `NET_BIND_SERVICE`, `SETFCAP`, `SETGID`, `SETPCAP`, `SETUID`, and `SYS_CHROOT`), and a writable root filesystem. A package may set `NoNewPrivileges`, `DropCapability`, and `ReadOnly` (`internal/pkgspec/policy.go`), but no registry package does, and the generator doesn't add them (only Roostack's own Glances container has all three, `internal/generate/system.go`). Each item below would be a line in the Quadlet file a technical user can read. None is decided:
+
+| Item | What it would do | What it could break | My suggestion |
+|---|---|---|---|
+| **`NoNewPrivileges=true` for every container** | A process could never gain privileges through a setuid program (`su`, `sudo`, `ping` in old images), a common step in turning a bug into an escape. | An app whose start script switches user with `su` or `sudo` rather than as root with `gosu` or `setpriv`. Few do, but every registry package needs a start to check. | Do it, by default, with a way for a package to say it needs setuid. |
+| **Fewer capabilities, per package** | Each package lists the capabilities it needs, and the rest are dropped. Most apps need none once started, but their start scripts often change owners (`CHOWN`, `FOWNER`, `DAC_OVERRIDE`) and drop to their own user (`SETUID`, `SETGID`). | Dropping one an app needs only breaks it at that moment, perhaps weeks later (a first upload, a log rotation). | Per package, checked by the registry's CI. Start by dropping the ones almost nothing needs (`SETFCAP`, `SETPCAP`, `SYS_CHROOT`, `KILL`, `NET_BIND_SERVICE` where the app listens above 1024) for everyone, then the rest per package. |
+| **A read-only root filesystem, per package** | The image can't be changed while it runs, so a bug can't leave a changed program behind. Writable places are the service's own folders and a `/tmp` in memory. | Apps that write next to their own program (caches, generated files, PID files). | Per package where the app allows it, tested with the package. Later than the other two. |
+| **Patching quickly** | The real defence against escapes. Debian's security updates already reach the kernel, Podman, and crun (SPEC.md §3.2). | Nothing, but two things need checking: whether Roostack says so when a kernel update needs a restart, and whether running containers keep an old crun until they restart. | Check both, and make a needed restart visible if it isn't. |
+| **A container's network reach** | Already in "What it doesn't protect against" above: can a container connect to Roostack's own listeners on the host through pasta? | Nothing; it's a check. | Check it on a VM. |
+
+## Recommendation (2026-11-21, before the decision)
+
+Kept as written; [the decision](#decision-deferred-2026-11-21) above replaced it.
 
 **Go ahead with A**, in the order above, with one more check before the first session's code lands: the image copy on a big image and a slow disk (step 5's first half), since that's the one cost that could make installs and updates noticeably slower for everyone. The core held up: four quite different packages started, backed up, restored, moved, and were removed under slots with Roostack's own code untouched, and an escaped process (simulated) couldn't reach anything of Roostack's. What broke was what the plan predicted (the config-file writer) and two things it didn't (GPU containers keeping the `roostack` group, and every server needing the migrate), each with a clear fix.
 
 ## Questions for the maintainer
+
+With A deferred, these will wait with it. Question 1 is answered: none for now. Option 0 (question 7) is [above](#hardening-instead-option-0-to-go-through-together), to go through together.
 
 1. **Option A (a fixed range per service), B (a second user), or C (both)?** I recommend A: it's the only one that also keeps services from each other, it fits how backups and moves already work, and it doesn't grow the agent or add a process.
 2. **Slots lab-wide (the same on every server) or per server (shifting on every move)?** I recommend lab-wide.

@@ -433,3 +433,8 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [ ] **Roostack, Caddy, and CrowdSec use less memory,** so that 400 MB kept is enough on a 2 GB server, where Roostack's protection was still broken through now and then (SPEC §6.1, "Memory", "Tried on a 2 GB VM"). On the Linode (0.1.10, 2026-11-21) Roostack held 182 MB of its own, CrowdSec 52 MB, and Caddy 50 MB: try `GOMEMLIMIT`, and profile Roostack's heap
 - [ ] Measure on the Linode once released: Home's first view after a quiet spell, Roostack's swap, and `memory.events` (`low` on `roostack.service`, `high` on `roostack-services.slice`)
 - [ ] Later, if needed (docs/MEMORY-PLAN.md E, G): systemd-oomd on the services' slice; disk weights
+
+## Keeping services away from Roostack's own user (docs/CONTAINER-ISOLATION-PLAN.md)
+
+- [x] A block of IDs for each service (Option A) prototyped on two VMs: it worked, but each service would keep its own copy of every image it uses, and the change would reach most of Roostack. Deferred by the maintainer (2026-11-21); SPEC §6.10 item 7 says what an escaped container would be
+- [ ] Go through the hardening list (Option 0) together: `NoNewPrivileges` for every container, fewer capabilities, read-only root filesystems per package, whether a needed kernel restart is visible, and whether a container can reach Roostack's listeners on the host
