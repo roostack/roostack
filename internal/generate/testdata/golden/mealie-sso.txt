@@ -40,6 +40,7 @@ Label=io.roostack.component=app
 User=1000:1000
 
 [Service]
+Slice=roostack-services-mealie.slice
 Restart=always
 TimeoutStartSec=900
 

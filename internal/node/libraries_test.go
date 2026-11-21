@@ -188,11 +188,12 @@ func (f *fakeUnits) Status(_ context.Context, units ...string) ([]systemd.UnitSt
 	}
 	return out, nil
 }
-func (f *fakeUnits) DaemonReload(context.Context) error               { return nil }
-func (f *fakeUnits) Start(context.Context, ...string) error           { return nil }
-func (f *fakeUnits) StartNoBlock(context.Context, ...string) error    { return nil }
-func (f *fakeUnits) Stop(context.Context, ...string) error            { return nil }
-func (f *fakeUnits) ReloadOrRestart(context.Context, ...string) error { return nil }
+func (f *fakeUnits) DaemonReload(context.Context) error                   { return nil }
+func (f *fakeUnits) Start(context.Context, ...string) error               { return nil }
+func (f *fakeUnits) StartNoBlock(context.Context, ...string) error        { return nil }
+func (f *fakeUnits) Stop(context.Context, ...string) error                { return nil }
+func (f *fakeUnits) ReloadOrRestart(context.Context, ...string) error     { return nil }
+func (f *fakeUnits) SetProperty(context.Context, string, ...string) error { return nil }
 func (f *fakeUnits) Restart(_ context.Context, units ...string) error {
 	f.restarted = append(f.restarted, units...)
 	return nil

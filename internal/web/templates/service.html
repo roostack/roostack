@@ -195,6 +195,7 @@
       old container did, and will keep that place open only until it restarts.</p>
   </div>
   {{end}}{{end}}
+  {{with .MemoryHeld}}{{if $.CanManage}}{{notice "warn" (printf "%s is using all the memory it's allowed (%s), so its server is slowing it down. If it's slow, allow it more memory." $.Service.Title (size .Limit)) (printf "link=/services/%s/settings#memory" $.Service.Name) "linkText=Memory settings"}}{{else}}{{notice "warn" (printf "%s is using all the memory it's allowed, so it may be slow for a while." $.Service.Title)}}{{end}}{{end}}
   {{if eq .Service.Status "waiting"}}
   {{notice "warn" (printf "%s isn't running: its server, %s, is gone. Restore it from its backups onto any server." .Service.Title (or .Service.WasOn "a server that's gone")) (printf "link=/backups/restore/%s" .Service.Name) "linkText=Restore…"}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

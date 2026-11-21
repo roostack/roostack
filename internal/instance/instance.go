@@ -34,6 +34,10 @@ const (
 var subdomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 // Instance is the user's desired state for one installed service.
+// MemoryNoLimit is Instance.MemoryLimit for a service the Owner lets use
+// whatever memory it needs.
+const MemoryNoLimit = "none"
+
 type Instance struct {
 	// Name is the service's ID: its units, secrets, data folders, backups
 	// and address in the UI are named after it, and it never changes. Empty
@@ -80,6 +84,11 @@ type Instance struct {
 	// firewall) for this service's public addresses, after a warning
 	// (SPEC.md §6.10 item 4). Only the Owner can: a package has no say.
 	NoWAF bool `yaml:"no_waf,omitempty"`
+	// MemoryLimit is the Owner's choice of how much memory the service may
+	// use before the kernel slows it down (SPEC.md §6.1, "Memory"): a size
+	// ("1.5 GB"), MemoryNoLimit, or empty for Roostack to choose
+	// (generate.MemoryLimit).
+	MemoryLimit string `yaml:"memory_limit,omitempty"`
 	// PublicPause: the Owner or an Admin paused this service's public
 	// access (SPEC.md §6.16): visitors from outside get a page saying it's
 	// closed for a while, until someone lifts it. The lab's own pauses

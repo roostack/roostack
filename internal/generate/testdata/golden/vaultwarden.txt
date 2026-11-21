@@ -27,6 +27,7 @@ Label=io.roostack.service=vaultwarden
 Label=io.roostack.component=app
 
 [Service]
+Slice=roostack-services-vaultwarden.slice
 Restart=always
 TimeoutStartSec=900
 

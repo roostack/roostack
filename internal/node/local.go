@@ -863,6 +863,9 @@ func (n *Local) lab(a Assignment) config.Lab {
 	lab.DomainItself = a.Lab.DomainItself
 	lab.Devices = a.Lab.Devices
 	lab.GlancesHere, lab.GlancesBind, lab.GlancesSites = a.Glances != "", a.Glances, a.Lab.GlancesSites
+	if m, err := n.MemoryInfo(context.Background()); err == nil {
+		lab.MemoryTotal = m.Total
+	}
 	return lab
 }
 

@@ -478,6 +478,9 @@ func systemGolden(t *testing.T, public, internet bool, name string) {
 	for _, f := range out.Files {
 		b.WriteString("\n==> file " + f.Name + "\n" + f.Content)
 	}
+	for _, f := range out.Slices {
+		b.WriteString("\n==> slice/" + f.Name + "\n" + f.Content)
+	}
 	b.WriteString("\n==> secrets\n")
 	for _, s := range out.Secrets {
 		fmt.Fprintf(&b, "%s generate=%v\n", s.Name, s.Generate)

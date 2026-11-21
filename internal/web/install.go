@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/usererr"
@@ -40,9 +41,13 @@ func tookText(from, to time.Time) string {
 type installSummaryView struct {
 	*manager.InstallSummary
 	Package *pkgspec.Package
-	// TooBig: it expects more memory than is free on its server right now
-	// (a warning; installing still works).
-	TooBig bool
+	// Two warnings about memory, either or both (installing still works;
+	// SPEC.md §8.3.4): TooBig, it expects more than is free on its server
+	// right now; Crowded, with it the services on its server would
+	// together expect more than they may use (generate.ServicesMemory):
+	// Together is that sum, and Cap what they may use.
+	TooBig, Crowded bool
+	Together, Cap   int64
 	// Err is why there's no summary yet: something on the form to fix.
 	Err string
 	// BackedUp, Remade, and Written list what it keeps, in words: what's
@@ -83,6 +88,8 @@ func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) 
 	}
 	v.InstallSummary = sum
 	v.TooBig = sum.Server.Available > 0 && sum.Memory > sum.Server.Available
+	v.Together, v.Cap = sum.Server.Expected+sum.Memory, generate.ServicesMemory(sum.Server.Total)
+	v.Crowded = v.Cap > 0 && sum.Memory > 0 && v.Together > v.Cap
 	var backedUp, remade, written []string
 	databases := 0
 	for _, k := range sum.Kept {

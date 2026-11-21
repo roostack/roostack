@@ -9,12 +9,17 @@
 #   2. fetches Roostack's release key and checks it against the SHA-256
 #      written below, before anything trusts it;
 #   3. adds Roostack's package source, signed by that key only;
-#   4. runs apt update and apt install --no-install-recommends roostack.
+#   4. runs apt update and apt install --no-install-recommends roostack;
+#   5. on a server with no swap, offers to make a swap file (/swapfile), so
+#      a service needing more memory for a moment slows down rather than
+#      being killed (SPEC.md §6.1, "Memory").
 # Safe to run again: each step writes the same files.
 #
 # For testing, ROOSTACK_REPO is another repository to use (plain HTTP is
 # allowed for it), with ROOSTACK_KEY_SHA256 its key's SHA-256 and
-# ROOSTACK_SUITE its suite.
+# ROOSTACK_SUITE its suite. ROOSTACK_SWAP=yes or no answers step 5's
+# question, which is otherwise asked on the terminal (and skipped
+# without one).
 set -eu
 
 # Set at release (SPEC.md §6.3.2): the suite is the current minor series,
@@ -99,6 +104,53 @@ SOURCES
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold roostack </dev/null
+
+    # 5. A swap file, if there's no swap at all.
+    offer_swap
+}
+
+# offer_swap makes /swapfile, as big as the server's memory between 1 and
+# 4 GB, if the server has no swap, there's room for it on the disk, and
+# whoever is installing says yes.
+offer_swap() {
+    [ -z "$(swapon --show --noheadings 2>/dev/null)" ] || return 0
+    [ ! -e /swapfile ] || return 0
+    size=$(awk '/^MemTotal:/ { print int($2 / 1024) }' /proc/meminfo)
+    [ "$size" -ge 1024 ] || size=1024
+    [ "$size" -le 4096 ] || size=4096
+    free=$(df -Pm / | awk 'NR == 2 { print $4 }')
+    if [ "$free" -lt $((size + 4096)) ]; then
+        echo "This server has no swap, and there isn't enough free disk space for a swap file of $size MB, so the installer will leave it."
+        return 0
+    fi
+    if [ "$(stat -f -c %T /)" = btrfs ]; then
+        echo "This server has no swap. Its disk uses Btrfs, which needs a swap file made its own way, so the installer will leave it."
+        return 0
+    fi
+    answer=${ROOSTACK_SWAP:-}
+    if [ -z "$answer" ]; then
+        # In a subshell: a redirection that fails on ":" (a special
+        # built-in) would end the whole script.
+        if ! (: </dev/tty) 2>/dev/null; then
+            echo "This server has no swap. To have the installer make a swap file of $size MB, run it again with ROOSTACK_SWAP=yes."
+            return 0
+        fi
+        printf 'This server has no swap, so a service needing more memory than it has for a moment would be stopped rather than slowed down.\nMake a swap file of %s MB at /swapfile? [Y/n] ' "$size"
+        read -r answer </dev/tty || answer=n
+    fi
+    case "$answer" in
+    "" | [Yy]*) ;;
+    *)
+        echo "No swap file made."
+        return 0
+        ;;
+    esac
+    echo "Making a swap file of $size MB at /swapfile"
+    fallocate -l "${size}M" /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count="$size" status=none
+    chmod 600 /swapfile
+    mkswap /swapfile >/dev/null
+    swapon /swapfile
+    grep -q '^/swapfile[[:space:]]' /etc/fstab || echo '/swapfile none swap sw 0 0' >>/etc/fstab
 }
 
 main

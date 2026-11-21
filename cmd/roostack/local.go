@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -52,7 +53,7 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		PhotoUnits: sd,
 		Version:    version,
 		Lab:        lab,
-		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets(), Networks: podman.NewNetworks(),
+		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets(), Networks: podman.NewNetworks(), SlicesSet: new(atomic.Bool),
 			// New containers' images are downloaded as their own step, with
 			// podman's output in the apply's log (SPEC.md §6.3.3).
 			Pull: func(ctx context.Context, image string, w io.Writer) error {

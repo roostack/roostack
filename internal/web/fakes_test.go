@@ -64,6 +64,10 @@ type fakeManager struct {
 
 	// serviceNode, if set, is the server services run on (else this one).
 	serviceNode node.Node
+	// memory is every service's memory figures (nil: none), and
+	// memoryLimits the choices made of their limits.
+	memory       *manager.ServiceMemory
+	memoryLimits map[string]string
 }
 
 func (f *fakeManager) NodeFor(string) node.Node {
@@ -112,6 +116,28 @@ func (f *fakeManager) SetTitle(_ context.Context, name, title string) error {
 		return &usererr.Error{Msg: "Enter a title."}
 	}
 	f.serverOps = append(f.serverOps, "title "+name+"="+title)
+	return nil
+}
+
+func (f *fakeManager) ServiceMemory(_ context.Context, name string) (*manager.ServiceMemory, error) {
+	if f.memory == nil {
+		return nil, manager.ErrNotFound
+	}
+	m := *f.memory
+	m.Choice = f.memoryLimits[name]
+	return &m, nil
+}
+
+func (f *fakeManager) SetMemoryLimit(_ context.Context, name, limit string) error {
+	if limit != "" && limit != instance.MemoryNoLimit {
+		if b, err := pkgspec.ParseMemory(limit); err != nil || b < manager.MinMemoryLimit {
+			return &usererr.Error{Msg: "Enter a size of at least 100 MB, such as 800 MB or 1.5 GB."}
+		}
+	}
+	if f.memoryLimits == nil {
+		f.memoryLimits = map[string]string{}
+	}
+	f.memoryLimits[name] = limit
 	return nil
 }
 

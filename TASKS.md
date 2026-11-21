@@ -426,3 +426,9 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 
 - K5: setup-code approach for first-run setup (add to SPEC?)
 - roost.ac must go on the Public Suffix List before people get subdomains there (so browsers keep one lab's cookies away from another's); the request takes weeks, so file it early (SPEC §6.6)
+
+## Memory (SPEC §6.1, "Memory"; built 2026-11-21)
+
+- [ ] **How much the services leave** (the maintainer to decide): on a 2 GB VM, 400 MB kept let Roostack's protection be broken through now and then, since the kernel's own memory comes out of it too; 600 MB held (SPEC §6.1, "Memory", "Tried on a 2 GB VM"). `generate.MemoryKept`
+- [ ] Measure on the Linode once released: Home's first view after a quiet spell, Roostack's swap, and `memory.events` (`low` on `roostack.service`, `high` on `roostack-services.slice`)
+- [ ] Later, if needed (docs/MEMORY-PLAN.md E, G): systemd-oomd on the services' slice; disk weights

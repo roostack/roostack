@@ -86,6 +86,13 @@ func (m *Manager) Reload(ctx context.Context, units ...string) error {
 	return m.each(ctx, "reload", units)
 }
 
+// SetProperty sets a unit's properties now, until the next boot
+// (set-property --runtime): its unit file has them for after that.
+func (m *Manager) SetProperty(ctx context.Context, unit string, props ...string) error {
+	_, err := m.systemctl(ctx, append([]string{"set-property", "--runtime", unit}, props...)...)
+	return err
+}
+
 // ReloadOrRestart reloads running units and starts stopped ones.
 func (m *Manager) ReloadOrRestart(ctx context.Context, units ...string) error {
 	return m.each(ctx, "reload-or-restart", units)

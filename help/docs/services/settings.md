@@ -39,6 +39,34 @@ Below is its **Name**: what it's called
 on your pages. Renaming it won't change its name in folders, containers,
 and backups.
 
+## Memory
+
+The **Memory** card says how much memory the service is using, what its
+package expects, and how much it may use before its server slows it
+down. Roostack keeps 400 MB of each server's memory for itself and the
+system, and the services share the rest. When they would together need
+more than that, Roostack holds each one to about twice what its package
+expects, so that one busy service doesn't slow the others down. On a
+server with room to spare, it doesn't hold a service to its figure, so
+one that sometimes needs a lot (Immich learning about your photos,
+Jellyfin converting a film) can use what it needs.
+
+If a service is slow and its page says its server is slowing it down,
+choose **A limit** and give it more, or **No limit**. **Automatic** goes
+back to Roostack's choice. Saving won't restart it, and a service is
+never stopped for using too much: it's slowed down while its memory is
+moved to swap on the disk.
+
+??? note "For technical users"
+    A service's limit is `MemoryHigh` on its slice,
+    `roostack-services-<name>.slice` in
+    `/var/lib/roostack/home/.config/systemd/user/` (a hyphen in its name
+    is written `_`), under `roostack-services.slice`, whose `MemoryHigh`
+    is the server's memory less 400 MB. The choice is `memory_limit:` in
+    `/var/lib/roostack/services/<name>.yaml`: a size, `none`, or nothing
+    for Roostack's choice. `systemctl --user status
+    roostack-services.slice` (as the roostack user) shows the tree.
+
 ## Environment variables
 
 Many apps read options from environment variables, far more than a package

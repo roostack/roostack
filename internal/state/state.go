@@ -157,12 +157,19 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	// (SPEC.md §5.3).
 	first := map[string]string{}
 	lab.SharedLibraries = SharedLibraries(lab, services)
+	tight := MemoryTight(lab, services)
 	for _, s := range services {
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
+		limit, err := generate.MemoryLimit(lab, s.Package, s.Instance, tight)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: memory limit: %w", s.Name(), err))
+		}
+		slice := generate.ServiceSliceFile(s.Name(), limit)
+		out.Slice = &slice
 		// A stopped service keeps its names and ports, so nothing else takes
 		// them while it's stopped.
 		for _, h := range out.Hosts {
@@ -231,6 +238,27 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	}
 	d.System = sys
 	return d, errors.Join(errs...)
+}
+
+// MemoryTight says whether the services on this server together expect
+// more memory than they may use (generate.ServicesMemory), which is when
+// each is held to its own automatic limit (generate.MemoryLimit). A
+// service that's turned off uses none.
+func MemoryTight(lab config.Lab, services []Service) bool {
+	can := generate.ServicesMemory(lab.MemoryTotal)
+	if can == 0 {
+		return false
+	}
+	var expected int64
+	for _, s := range services {
+		if s.Instance.Off != nil {
+			continue
+		}
+		if mem, err := generate.ExpectedMemory(lab, s.Package, s.Instance); err == nil {
+			expected += mem
+		}
+	}
+	return expected > can
 }
 
 // HostInUseError is a web address (hostname) that another service, or

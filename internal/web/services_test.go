@@ -1542,15 +1542,28 @@ func TestInstallSummary(t *testing.T) {
 	// It compares the memory with what's free on the server, and warns
 	// (only) when it won't fit.
 	if !strings.Contains(body, "This server (nuc) has 8.0 GB, and 3.6 GB is free right now.") ||
-		!strings.Contains(body, "Services already on it expect 50.0 MB.") || strings.Contains(body, "needs about") {
+		!strings.Contains(body, "Services already on it expect 50.0 MB, and all of them together may use 7.6 GB, so the rest stays for the system and Roostack.") ||
+		strings.Contains(body, "needs about") || strings.Contains(body, "would together need") {
 		t.Error("install page: the server's memory, without a warning, is missing")
 	}
 	fm.serverMemory = manager.ServerMemory{Name: "pi", Servers: 2, Total: 4_000_000_000, Available: 1_900_000_000}
 	_, body = h.get("/install/immich")
 	if !strings.Contains(body, "pi has 4.0 GB, and 1.9 GB is free right now.") ||
-		!strings.Contains(body, "Immich needs about 2.8 GB, but only 1.9 GB is free on pi right now. It may be slow or stop working. Run it on another server or free some memory first.") ||
+		!strings.Contains(body, "Immich needs about 2.8 GB, but only 1.9 GB is free on pi right now, so it may be slow or stop working. Run it on another server or free some memory first.") ||
 		!strings.Contains(body, `<button type="submit">Install</button>`) {
 		t.Error("install page: the warning when it won't fit is missing")
+	}
+	// What every service on the server expects, the new one included,
+	// against what they may use together: a warning of its own, even with
+	// enough free right now, and both together.
+	fm.serverMemory = manager.ServerMemory{Name: "pi", Servers: 2, Total: 4_000_000_000, Available: 3_500_000_000, Expected: 1_000_000_000}
+	if _, body = h.get("/install/immich"); !strings.Contains(body, "With Immich, the services on pi would together need about 3.8 GB, more than the 3.6 GB it can give them. There&#39;s enough free right now, but they&#39;ll be slow when several are busy at once.") ||
+		strings.Contains(body, "needs about") {
+		t.Error("install page: the warning when the services together would need too much is missing")
+	}
+	fm.serverMemory.Available = 1_900_000_000
+	if _, body = h.get("/install/immich"); !strings.Contains(body, "Immich needs about 2.8 GB, but only 1.9 GB is free on pi right now, and with it the services there would together need about 3.8 GB, more than the 3.6 GB it can give them.") {
+		t.Error("install page: both warnings together are missing")
 	}
 	fm.serverMemory = manager.ServerMemory{Name: "pi", Servers: 2}
 	if _, body = h.get("/install/immich"); !strings.Contains(body, "pi didn't say how much memory is free.") || strings.Contains(body, "needs about") {

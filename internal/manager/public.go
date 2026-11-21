@@ -150,6 +150,43 @@ func (m *Manager) SetWAF(ctx context.Context, name string, on bool) error {
 	return nil
 }
 
+// SetMemoryLimit records the Owner's choice of how much memory a service
+// may use before the kernel slows it down (instance.MemoryLimit: a size,
+// instance.MemoryNoLimit, or "" for Roostack to choose), then applies it:
+// only its slice changes, so nothing restarts (SPEC.md §6.1, "Memory").
+func (m *Manager) SetMemoryLimit(ctx context.Context, name, limit string) error {
+	if limit != "" && limit != instance.MemoryNoLimit {
+		b, err := pkgspec.ParseMemory(limit)
+		if err != nil || b < MinMemoryLimit {
+			return usererr.New("Enter a size of at least 100 MB, such as 800 MB or 1.5 GB.")
+		}
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	services, err := state.LoadServices(m.Lab)
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Name() == name })
+	if i < 0 {
+		return ErrNotFound
+	}
+	in := services[i].Instance
+	if in.MemoryLimit == limit {
+		return nil
+	}
+	in.MemoryLimit = limit
+	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
+		return err
+	}
+	m.startApplyLocked("Changing how much memory " + name + " may use")
+	return nil
+}
+
+// MinMemoryLimit is the least memory limit the Owner may choose: below it,
+// almost any app would only crawl.
+const MinMemoryLimit = 100_000_000
+
 // PublicHosts lists the lab's public addresses, for their DNS records.
 func (m *Manager) PublicHosts() []string {
 	services, err := state.LoadServices(m.Lab)

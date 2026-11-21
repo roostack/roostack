@@ -207,9 +207,17 @@
       {{- with .Server}}<br><small class="hint">{{if .This}}This server ({{.Name}}){{else}}{{.Name}}{{end}}
       {{- if .Total}} has {{size .Total}}, and {{size .Available}} is free right now.{{else}} didn't say how much memory is free.{{end}}</small>{{end}}</dd>
   </dl>
-  {{if .TooBig}}{{notice "warn" (printf "%s needs about %s, but only %s is free on %s right now. It may be slow or stop working. %s"
-    .Package.Title (size .Memory) (size .Server.Available) .Server.Name
-    (or (and (gt .Server.Servers 1) "Run it on another server or free some memory first.") "Free some memory first, for example by removing a service you don't use."))}}{{end}}
+  {{/* Two checks, either or both (SPEC.md §8.3.4): what's free right now
+       (it counts caches the kernel can drop and idle services' low use),
+       and what every service on the server expects, the new one included,
+       against what the services may use together (it catches peaks). */}}
+  {{$then := or (and (gt .Server.Servers 1) "Run it on another server or free some memory first.") "Free some memory first, for example by removing a service you don't use."}}
+  {{if and .TooBig .Crowded}}{{notice "warn" (printf "%s needs about %s, but only %s is free on %s right now, and with it the services there would together need about %s, more than the %s it can give them. They'll be slow while busy and may stop working. %s"
+    .Package.Title (size .Memory) (size .Server.Available) .Server.Name (size .Together) (size .Cap) $then)}}
+  {{else if .TooBig}}{{notice "warn" (printf "%s needs about %s, but only %s is free on %s right now, so it may be slow or stop working. %s"
+    .Package.Title (size .Memory) (size .Server.Available) .Server.Name $then)}}
+  {{else if .Crowded}}{{notice "warn" (printf "With %s, the services on %s would together need about %s, more than the %s it can give them. There's enough free right now, but they'll be slow when several are busy at once. %s"
+    .Package.Title .Server.Name (size .Together) (size .Cap) $then)}}{{end}}
   <details class="technical" id="install-summary-details">
     <summary>Details</summary>
     <dl class="facts">
@@ -218,7 +226,7 @@
         <small class="hint">What each part typically uses, from the package: an estimate, not a limit.</small></dd>
       {{with .Server}}<dt>Server</dt>
       <dd>{{.Name}}: {{if .Total}}{{size .Total}} in all, {{size .Available}} free now{{else}}its memory isn't known{{end}}<br>
-        <small class="hint">Services already on it expect {{size .Expected}}. Free memory is the server's own figure (<code>MemAvailable</code> in <code>/proc/meminfo</code>), which counts what's running.</small></dd>{{end}}
+        <small class="hint">Services already on it expect {{size .Expected}}{{if $.Cap}}, and all of them together may use {{size $.Cap}}, so the rest stays for the system and Roostack{{end}}. Free memory is the server's own figure (<code>MemAvailable</code> in <code>/proc/meminfo</code>), which counts what's running.</small></dd>{{end}}
       <dt>Data</dt>
       <dd>{{range .Kept}}{{if .Path}}<code>{{.Path}}</code>{{else}}<code>{{.Name}}</code>{{end}}{{with .Database}} ({{databaseName .}} database){{end}}: {{if .BackedUp}}backed up{{else}}not backed up{{end}}<br>{{end}}</dd>
       {{with .GPU}}<dt>GPU</dt><dd>{{range .}}<code>{{.}}</code> gets <code>/dev/dri</code><br>{{end}}</dd>{{end}}
