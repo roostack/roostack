@@ -159,11 +159,26 @@ never leaves it, and a public key you copy to the server.
 
 Once setup has finished, **Settings → Remote access** will guide you
 through it until Roostack has seen a key login: it shows how to make a
-key on your computer, then you paste the public key, and Roostack will add
-it to a new account (with a password you choose, for `sudo` and for the
-server's own screen) or to one the server has already that can use `sudo`.
-It will then show the `ssh` command to log in with, and tick it off when
-it sees you log in.
+key on your computer, then you paste the public key and choose an account
+the server has already that can use `sudo`. Whoever has the key will be
+able to log in as that account, so Roostack will ask for your password and
+a code from your authenticator app again, and email the lab's Owners once
+it has added the key. It will then show the `ssh` command to log in with,
+and tick it off when it sees you log in.
+
+Roostack won't make a new account for you, since anything that could make
+one could also take over the server. To make one, run these as `root` on
+the server (with your own name for `you`), then reload the page and choose
+it:
+
+```bash
+useradd --create-home --groups sudo --shell /bin/bash you
+passwd you
+```
+
+`passwd` will ask for the account's password twice. You'll need it for
+`sudo`, and for logging in at the server's own screen or your provider's
+web console, but SSH won't take it once it's keys only.
 
 During setup, or to do it yourself, on your computer (macOS, Linux, or
 Windows' PowerShell):
@@ -193,12 +208,15 @@ Windows' PowerShell):
 ??? note "For technical users"
 
     The guide's request goes to `roostack-agent`, which checks the key (one
-    public key, no options) and, since its sandbox can't change accounts,
-    runs a short systemd job (`roostack-ssh-key`) that makes a new account
-    with `useradd --create-home --groups sudo --shell /bin/bash`, sets its
-    password with `chpasswd`, and appends the key to
-    `~/.ssh/authorized_keys` (folder 700, file 600, owned by the account).
-    It never adds a key to `root`.
+    public key, no options) and that the account exists, isn't `root`, and
+    is in the `sudo` group. Since its sandbox can't read home folders, it
+    runs a short systemd job (`roostack-ssh-key`) that checks again and
+    appends the key to `~/.ssh/authorized_keys` (folder 700, file 600,
+    owned by the account, a link in their place refused). The agent never
+    makes an account or sets a password: anything that can reach it, which
+    is anything running as the `roostack` user, could otherwise give itself
+    root. History records each key added, with its SHA256 fingerprint
+    (`ssh-keygen -lf ~/.ssh/id_ed25519.pub` shows yours).
 
 The account must be able to use `sudo`, since `root` can't log in with
 keys only. On a cloud server where you only log in as `root`, make an

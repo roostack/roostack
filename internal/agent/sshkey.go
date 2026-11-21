@@ -17,17 +17,19 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/systemd"
-	"roostack.cloud/roostack/internal/words"
 )
 
 // Adding an SSH key from the Remote access page (SPEC.md §6.10 item 3): the
-// Owner pastes their public key, and the agent adds it to an account that
-// can use sudo, a new one (with a password, for sudo and the server's own
-// screen) or one the server has already. The agent's sandbox can't change
-// accounts or read home folders (roostack-agent.service), so a short
-// systemd job of its own does it, as /etc/fstab is replaced (fstab.go).
+// Owner pastes their public key, and the agent adds it to an account the
+// server has already, one that can use sudo but isn't root. It never makes
+// an account or sets a password: anything that can reach the agent (the
+// roostack user, so a container that escapes, and the controller for a
+// node) could then make itself a sudo account it knows the password of.
+// Making one stays a command the Owner runs as root, which the page shows.
+// The agent's sandbox can't read home folders (roostack-agent.service), so
+// a short systemd job of its own adds the key, as /etc/fstab is replaced
+// (fstab.go).
 
 // AddSSHKeyCommand is roostack-agent's argument for AddSSHKey, which that
 // job runs with the request on its standard input.
@@ -39,8 +41,8 @@ var accountName = regexp.MustCompile(`^[a-z][-a-z0-9_]{0,31}$`)
 
 // Check says what's wrong with the request, in a sentence for the page:
 // the key isn't one public key, the name isn't one an account can have,
-// the new account exists already or its password is too short, or the
-// account it has already can't use sudo.
+// the server has no such account, or the account can't use sudo (root
+// can't either, here).
 func (r SSHKeyRequest) Check() error {
 	if _, err := parseSSHKey(r.Key); err != nil {
 		return err
@@ -48,23 +50,25 @@ func (r SSHKeyRequest) Check() error {
 	if !accountName.MatchString(r.User) {
 		return errors.New("An account's name must start with a small letter and have only small letters, digits, “-” and “_”, at most 32 of them.")
 	}
-	_, err := user.Lookup(r.User)
-	exists := err == nil
-	switch {
-	case r.New && exists:
-		return fmt.Errorf("This server already has an account called %s: choose another name, or add the key to that account.", r.User)
-	case r.New && strings.ContainsAny(r.Password, "\n\r\x00"):
-		return errors.New("The password can't have a line break in it.")
-	case r.New:
-		if err := authkit.CheckPasswordPolicy(r.Password); err != nil {
-			return errors.New(words.Capitalise(err.Error()) + ".")
-		}
-	case !exists:
-		return fmt.Errorf("This server has no account called %s.", r.User)
-	case !sudoer(r.User):
-		return fmt.Errorf("%s can't use sudo, so it couldn't change the server once passwords are off: choose another account, or a new one.", r.User)
+	if _, err := user.Lookup(r.User); err != nil {
+		return fmt.Errorf("This server has no account called %s: make it first, as root, with the commands on this page.", r.User)
+	}
+	if !sudoer(r.User) {
+		return fmt.Errorf("%s can't use sudo, so it couldn't change the server once passwords are off: choose another account, or make a new one.", r.User)
 	}
 	return nil
+}
+
+// SSHKeyFingerprint is the fingerprint of text as one public key
+// ("SHA256:…", as ssh-keygen -l shows it), or what's wrong with it in a
+// sentence for the page, which can then say so before it asks for the
+// Owner's password and code.
+func SSHKeyFingerprint(text string) (string, error) {
+	key, err := parseSSHKey(text)
+	if err != nil {
+		return "", err
+	}
+	return ssh.FingerprintSHA256(key), nil
 }
 
 // parseSSHKey reads one public key, as a line of authorized_keys, and
@@ -109,8 +113,8 @@ func authorizedKeyLine(text string) (string, error) {
 }
 
 // AddSSHKey checks the request and runs AddSSHKeyCommand in a systemd job
-// outside the agent's sandbox, with the request (and its password) on the
-// job's standard input, never in its command line.
+// outside the agent's sandbox, with the request on the job's standard
+// input.
 func (h LinuxHost) AddSSHKey(r SSHKeyRequest) error {
 	if err := r.Check(); err != nil {
 		return err
@@ -132,11 +136,9 @@ func (h LinuxHost) AddSSHKey(r SSHKeyRequest) error {
 	return nil
 }
 
-// AddSSHKey reads a request from in and does it: it makes the new account
-// (in the sudo group, with a home folder, its password set by chpasswd),
-// then adds the key to its ~/.ssh/authorized_keys unless it's there
-// already. If setting the password fails, the new account is removed
-// again. Run as root outside the agent's sandbox (LinuxHost.AddSSHKey).
+// AddSSHKey reads a request from in, checks it again, and adds the key to
+// the account's ~/.ssh/authorized_keys unless it's there already. Run as
+// root outside the agent's sandbox (LinuxHost.AddSSHKey).
 func AddSSHKey(in io.Reader) error {
 	var r SSHKeyRequest
 	if err := json.NewDecoder(in).Decode(&r); err != nil {
@@ -148,17 +150,6 @@ func AddSSHKey(in io.Reader) error {
 	line, err := authorizedKeyLine(r.Key)
 	if err != nil {
 		return err
-	}
-	if r.New {
-		if out, err := exec.Command("useradd", "--create-home", "--groups", "sudo", "--shell", "/bin/bash", "--", r.User).CombinedOutput(); err != nil {
-			return fmt.Errorf("useradd: %w: %s", err, strings.TrimSpace(string(out)))
-		}
-		chpasswd := exec.Command("chpasswd")
-		chpasswd.Stdin = strings.NewReader(r.User + ":" + r.Password + "\n")
-		if out, err := chpasswd.CombinedOutput(); err != nil {
-			exec.Command("userdel", "--remove", "--", r.User).Run()
-			return fmt.Errorf("chpasswd: %w: %s", err, strings.TrimSpace(string(out)))
-		}
 	}
 	u, err := user.Lookup(r.User)
 	if err != nil {

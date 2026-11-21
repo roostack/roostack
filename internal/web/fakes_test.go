@@ -1845,8 +1845,9 @@ func (f *fakeSetup) UnblockSSH(_ context.Context, address string) error {
 }
 
 func (f *fakeSetup) AddSSHKey(_ context.Context, r agent.SSHKeyRequest) error {
-	if r.Key == "not a key" {
-		return &usererr.Error{Msg: "That isn't an SSH public key."}
+	// As the agent does: only an account it has, in the sudo group.
+	if !slices.Contains(f.sshd.Sudoers, r.User) {
+		return &usererr.Error{Msg: "This server has no account called " + r.User + ": make it first, as root, with the commands on this page."}
 	}
 	f.sshKeys = append(f.sshKeys, r)
 	return nil

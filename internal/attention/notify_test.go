@@ -143,6 +143,10 @@ func TestSecurityEvents(t *testing.T) {
 		{store.AuditEntry{Action: "user role", Username: "sam", Detail: "kim → member", At: at}, "", "", ""},
 		{store.AuditEntry{Action: AuditGuestJoined, Username: "system", Detail: "Jones lab", At: at},
 			"", "Another lab started storing its backups here: Jones lab (5 October at 09:30).", ""},
+		{store.AuditEntry{Action: AuditSSHKeyAdded, Username: "sam", Detail: "debian on server-2, key SHA256:abc", At: at},
+			"", "sam added an SSH key to the account debian on server-2, key SHA256:abc (5 October at 09:30). Whoever has that key can log in " +
+				"to that server and use sudo, so if nobody in your lab added it, remove the key from that account's ~/.ssh/authorized_keys " +
+				"and change sam's password.", ""},
 		{store.AuditEntry{Action: AuditPublicPaused, Username: "sam", Detail: "services built with php", At: at},
 			"", "Public access to services built with php was paused by sam (5 October at 09:30). Visitors from the internet are seeing a page " +
 				"saying it's closed for a while, and it's still working at home.", ""},

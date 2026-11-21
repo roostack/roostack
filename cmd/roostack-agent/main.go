@@ -30,8 +30,7 @@ func main() {
 		}
 		return
 	}
-	// Adding an SSH key and maybe an account, which the sandbox can't do
-	// either (agent.AddSSHKey): the request comes on standard input.
+	// Adding an SSH key to an account, which the sandbox can't do either (agent.AddSSHKey): the request comes on standard input.
 	if len(os.Args) == 2 && os.Args[1] == agent.AddSSHKeyCommand {
 		if err := agent.AddSSHKey(os.Stdin); err != nil {
 			fmt.Fprintln(os.Stderr, "roostack-agent:", err)

@@ -325,8 +325,8 @@ func (c *Client) UnblockSSH(ctx context.Context, address string) error {
 	return c.call(ctx, http.MethodPost, "/v1/ssh/unblock", UnblockRequest{Address: address}, nil)
 }
 
-// AddSSHKey adds a public key to an account that can use sudo, making the
-// account if it's new.
+// AddSSHKey adds a public key to an account the server has already, one
+// that can use sudo.
 func (c *Client) AddSSHKey(ctx context.Context, r SSHKeyRequest) error {
 	return c.call(ctx, http.MethodPost, "/v1/ssh/key", r, nil)
 }

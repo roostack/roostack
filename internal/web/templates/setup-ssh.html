@@ -168,45 +168,50 @@
       </div></li>
     <li><strong>Paste your public key.</strong>
       {{with .KeyError}}<p class="error" role="alert">{{.}}</p>{{end}}
-      <form method="post" action="{{.Server.RemoteAccessKey}}" data-account="{{.KeyForm.Account}}" x-data="{ account: $el.dataset.account }">
+      {{if not .SSHD.Sudoers}}<p>This server has no account that can use <code>sudo</code> apart from root, which can't log in with
+        keys only. Make one first, as root on the server:</p>{{template "ssh-new-account" .}}
+      <p>Then reload this page, and you'll be able to paste your key here.</p>
+      {{else}}
+      <form method="post" action="{{.Server.RemoteAccessKey}}">
         <label>Public key
           <textarea name="key" rows="3" required autocapitalize="off" spellcheck="false" placeholder="ssh-ed25519 AAAA…">{{.KeyForm.Key}}</textarea>
           <small>The one line from the file ending in <code>.pub</code>, never the other file: that one is your private key, which must
             never leave your computer.</small></label>
-        {{if .SSHD.Sudoers}}
-        <fieldset>
-          <legend>Which account?</legend>
-          <label class="check"><input type="radio" name="account" value="new" x-model="account"{{if eq .KeyForm.Account "new"}} checked{{end}}>
-            <span>A new account</span></label>
-          <label class="check"><input type="radio" name="account" value="existing" x-model="account"{{if eq .KeyForm.Account "existing"}} checked{{end}}>
-            <span>An account it has already<small>One that can use sudo.</small></span></label>
-        </fieldset>
-        {{else}}<input type="hidden" name="account" value="new">{{end}}
-        <div x-show="account === 'new'"{{if eq .KeyForm.Account "existing"}} x-cloak{{end}}>
-          <label>Account name <input name="user" value="{{.KeyForm.User}}" autocapitalize="off" autocomplete="off" spellcheck="false"
-              pattern="[a-z][\-a-z0-9_]{0,31}" x-bind:required="account === 'new'">
-            <small>Small letters, digits, “-” and “_”. Roostack will add it to the <code>sudo</code> group.</small></label>
-          <div class="field-row">
-            <label>Password <input name="password" type="password" autocomplete="new-password" x-bind:required="account === 'new'"></label>
-            <label>Password again <input name="confirm" type="password" autocomplete="new-password" x-bind:required="account === 'new'"></label>
-          </div>
-          <p class="hint">For <code>sudo</code>, and for logging in at the server's own screen or your provider's web console. SSH won't take
-            it once it's keys only.</p>
+        <label>Account <select name="existing">{{range .SSHD.Sudoers}}<option{{if eq . $.KeyForm.Existing}} selected{{end}}>{{.}}</option>{{end}}</select>
+          <small>One that can use <code>sudo</code>, which you'll log in as.</small></label>
+        <details>
+          <summary>Make a new account</summary>
+          <p>Roostack won't make accounts itself, since anything that could make one could also take over the server. As root on the
+            server, run:</p>
+          {{template "ssh-new-account" .}}
+          <p class="hint">Then reload this page and choose it above.</p>
+        </details>
+        <p>Whoever has this key will be able to log in as an account that can use <code>sudo</code>, so Roostack will check it's you first and email
+          the lab's Owners once it has added the key.</p>
+        <div class="field-row">
+          <label>Your password <input name="password" type="password" autocomplete="current-password" required></label>
+          <label>Code from your authenticator app <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required></label>
         </div>
-        {{with .SSHD.Sudoers}}<div x-show="account === 'existing'"{{if ne $.KeyForm.Account "existing"}} x-cloak{{end}}>
-          <label>Account <select name="existing">{{range .}}<option{{if eq . $.KeyForm.Existing}} selected{{end}}>{{.}}</option>{{end}}</select></label>
-        </div>{{end}}
         <button type="submit">Add the key</button>
-      </form></li>
+      </form>{{end}}</li>
     <li><strong>Log in with it once.</strong> Roostack will show you how once it has added the key.</li>
   </ol>
   {{end}}
   <details class="technical">
     <summary>How Roostack adds the key</summary>
-    <p>roostack-agent checks the key, then in a short systemd job of its own (<code>roostack-ssh-key</code>), since its sandbox can't
-      change accounts, makes a new account with <code>useradd --create-home --groups sudo --shell /bin/bash</code>,
-      sets its password with <code>chpasswd</code>, and adds the key to <code>~/.ssh/authorized_keys</code> (the folder 700, the file
-      600, both owned by the account). It never adds a key to root.</p>
+    <p>roostack-agent checks the key (one public key, no options) and that the account exists and is in the <code>sudo</code>
+      group, then in a short systemd job of its own (<code>roostack-ssh-key</code>), since its sandbox can't read home folders, adds
+      the key to <code>~/.ssh/authorized_keys</code> (the folder 700, the file 600, both owned by the account, a link in their place
+      refused). It never adds a key to root, and never makes an account or sets a password: anything running as Roostack could then
+      give itself root. Adding a key is in History, with the key's fingerprint.</p>
   </details>
 </div>
 {{end}}{{end}}
+
+{{/* Making an account for the key guide, which the Owner does as root:
+     the agent won't (sshkey.go). */}}
+{{define "ssh-new-account"}}<pre class="output">useradd --create-home --groups sudo --shell /bin/bash {{.KeyForm.NewUser}}
+passwd {{.KeyForm.NewUser}}</pre>
+<p class="hint">Change <code>{{.KeyForm.NewUser}}</code> to the name you want, if you like. <code>passwd</code> will ask for its
+  password twice: you'll need it for <code>sudo</code>, and for logging in at the server's own screen or your provider's web console,
+  but SSH won't take it once it's keys only.</p>{{end}}

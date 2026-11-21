@@ -113,7 +113,7 @@ var (
 	rtLibrary  = agent.Library{Name: "Films", Drive: "1", Sub: "films"}
 	rtShare    = agent.Share{Type: "smb", Server: "nas", Path: "media", Username: "mum"}
 	rtWG       = agent.WireGuard{Interface: agent.GuestsInterface, Address: "100.103.66.1/24", ListenPort: 51821}
-	rtKey      = agent.SSHKeyRequest{Key: "ssh-ed25519 AAAA", User: "tyris", New: true, Password: "a long password"}
+	rtKey      = agent.SSHKeyRequest{Key: "ssh-ed25519 AAAA", User: "tyris"}
 	rtCopy     = BackupCopy{Name: "backup-2", Title: "Backup 2", Repository: "s3:x"}
 	rtDest     = BackupDestination{Repository: "rest:y", KeyHint: "k1"}
 	rtSetup    = &importer.Setup{From: importer.FromCompose, Project: "immich"}

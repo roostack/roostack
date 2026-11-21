@@ -40,8 +40,8 @@ type Settings interface {
 	// UnblockSSH lets an address that guessed too many passwords reach SSH
 	// again at once (SSHAccess.SSHD.Blocked).
 	UnblockSSH(ctx context.Context, address string) error
-	// AddSSHKey adds a public key to an account that can use sudo, making
-	// the account if it's new (agent.SSHKeyRequest); what's wrong with the
+	// AddSSHKey adds a public key to an account the server has already,
+	// one that can use sudo (agent.SSHKeyRequest); what's wrong with the
 	// request is a usererr.
 	AddSSHKey(ctx context.Context, r agent.SSHKeyRequest) error
 	SetRestartPolicy(ctx context.Context, mode string, hour int) error
@@ -347,7 +347,7 @@ func (h *HostSettings) AddSSHKey(ctx context.Context, r agent.SSHKeyRequest) err
 	}
 	err := h.SSHServer.AddSSHKey(ctx, r)
 	h.mu.Lock()
-	h.sshAt = time.Time{} // the account may be new
+	h.sshAt = time.Time{} // read again, for the guide's last step
 	h.sshGen++
 	h.mu.Unlock()
 	if err != nil {

@@ -130,8 +130,8 @@ type Host interface {
 	// SSHStatus reads what the SSH server does; SetSSHKeysOnly writes or
 	// removes Roostack's drop-in in its configuration (ssh.go);
 	// UnblockSSH lifts a block on a password guesser (sshblocks.go);
-	// AddSSHKey adds a public key to an account that can use sudo, making
-	// the account if it's new (sshkey.go).
+	// AddSSHKey adds a public key to an account the server has already,
+	// one that can use sudo (sshkey.go).
 	SSHStatus() (SSHStatus, error)
 	SetSSHKeysOnly(on bool) error
 	UnblockSSH(address string) error
