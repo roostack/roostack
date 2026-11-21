@@ -11,10 +11,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/attention"
@@ -63,6 +66,7 @@ func serve(args []string) error {
 		return err
 	}
 	lab.Timezone = hosttime.Zone()
+	authkit.SetMaxChecks(passwordChecks(log))
 	// Restarting after a lab restore: its database replaces the new one.
 	if restored, err := labrestore.StartFromBackup(lab.Paths); err != nil {
 		return err
@@ -929,4 +933,26 @@ func waitForNetwork(log *slog.Logger) string {
 		}
 		time.Sleep(time.Second)
 	}
+}
+
+// passwordChecks is how many password checks may run at once, each holding
+// 64 MiB (authkit.SetMaxChecks): one for each GiB of memory, from 2 to 4,
+// so that many sign-ins at once can't fill a small server's memory.
+func passwordChecks(log *slog.Logger) int {
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 2
+	}
+	for line := range strings.Lines(string(data)) {
+		if rest, ok := strings.CutPrefix(line, "MemTotal:"); ok {
+			kb, err := strconv.ParseInt(strings.TrimSuffix(strings.TrimSpace(rest), " kB"), 10, 64)
+			if err != nil {
+				break
+			}
+			n := min(max(int(kb>>20), 2), 4)
+			log.Info("password checks at once", "most", n)
+			return n
+		}
+	}
+	return 2
 }

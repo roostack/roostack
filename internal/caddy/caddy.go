@@ -104,9 +104,12 @@ type Route struct {
 	// itself, which Caddy won't check (pkgspec.Route.SelfSigned).
 	SelfSigned bool
 	// On a public route (SPEC.md §6.11): PrivatePaths (and everything
-	// under them) stay home-only, and LoginPaths get a strict rate limit.
+	// under them) stay home-only, LoginPaths get a strict rate limit, and
+	// TokenPaths a moderate one (apps swapping codes for tokens, which
+	// costs the server more than a page).
 	PrivatePaths []string
 	LoginPaths   []string
+	TokenPaths   []string
 	// UploadPaths (and everything under them) are where the service
 	// serves uploaded files: anything there but InlineTypes becomes a
 	// download (SPEC.md §8.1, "Uploaded files as downloads"). A "*" in
@@ -175,6 +178,10 @@ const SignInSubdomain = "my"
 // for the password again (SPEC.md §5.3).
 var SignInLoginPaths = []string{"/sign-in", "/account/password", "/account/two-factor"}
 
+// SignInTokenPaths get the moderate rate limit when the sign-in page is
+// public: an app's secret is checked there (sso.PathToken).
+var SignInTokenPaths = []string{"/token"}
+
 // CheckPattern is the only path on a public address that reaches
 // Roostack: a check link with its token, nothing else (internal/public).
 const CheckPattern = `^/\.well-known/roostack-check/[0-9a-f]{32}$`
@@ -187,6 +194,8 @@ const (
 	RateLimitWindow      = "10s"
 	LoginRateLimitEvents = 10
 	LoginRateLimitWindow = "1m"
+	TokenRateLimitEvents = 60
+	TokenRateLimitWindow = "1m"
 )
 
 // CrowdSecAPIKeyEnv is the environment variable holding the bouncer's
@@ -332,6 +341,10 @@ func publicRoute(b *strings.Builder, r Route) {
 	if len(r.LoginPaths) > 0 {
 		fmt.Fprintf(b, "\t\t\tzone %s-login {\n\t\t\t\tmatch {\n\t\t\t\t\tpath %s\n\t\t\t\t}\n", r.ID, pathPatterns(r.LoginPaths))
 		fmt.Fprintf(b, "\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", LoginRateLimitEvents, LoginRateLimitWindow)
+	}
+	if len(r.TokenPaths) > 0 {
+		fmt.Fprintf(b, "\t\t\tzone %s-token {\n\t\t\t\tmatch {\n\t\t\t\t\tpath %s\n\t\t\t\t}\n", r.ID, pathPatterns(r.TokenPaths))
+		fmt.Fprintf(b, "\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", TokenRateLimitEvents, TokenRateLimitWindow)
 	}
 	fmt.Fprintf(b, "\t\t\tzone %s {\n\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", r.ID, RateLimitEvents, RateLimitWindow)
 	b.WriteString("\t\t}\n")
@@ -511,7 +524,7 @@ func (r Route) validate() error {
 			return fmt.Errorf("caddy route %s: invalid characters in %q", f.name, f.val)
 		}
 	}
-	for _, p := range append(slices.Clone(r.PrivatePaths), r.LoginPaths...) {
+	for _, p := range slices.Concat(r.PrivatePaths, r.LoginPaths, r.TokenPaths) {
 		if !strings.HasPrefix(p, "/") || unsafe(p, "*") {
 			return fmt.Errorf("caddy route %s: invalid path %q", r.ID, p)
 		}
@@ -809,7 +822,7 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge 
 		route := Route{ID: "roostack-sign-in", Title: "Sign-in", Host: s.Host, Upstream: s.Upstream,
 			Private: !s.Public, PrivateFrom: from, PrivateExcept: c.EdgeFrom}
 		if s.Public {
-			route.LoginPaths = SignInLoginPaths
+			route.LoginPaths, route.TokenPaths = SignInLoginPaths, SignInTokenPaths
 			route.WAF = c.AppSecURL != ""
 		}
 		signIn, err := Site("roostack-sign-in", []Route{route})

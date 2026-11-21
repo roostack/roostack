@@ -634,6 +634,13 @@ func TestSignInSite(t *testing.T) {
 		if got := strings.Contains(main, "zone roostack-sign-in-login"); got != public {
 			t.Errorf("public %v: login limit %v", public, got)
 		}
+		// Apps' secrets are checked at /token: a limit of its own (the
+		// security review of 2026-11-19, M2).
+		_, token, _ := strings.Cut(main, "zone roostack-sign-in-token {")
+		token, _, _ = strings.Cut(token, "}\n\t\t\t}")
+		if got := strings.Contains(token, "path /token /token/*") && strings.Contains(token, "events 60"); got != public {
+			t.Errorf("public %v: token limit %v", public, got)
+		}
 		if got := strings.Contains(main, "abort @roostack-sign-in-external"); got == public {
 			t.Errorf("public %v: kept to home %v", public, got)
 		}

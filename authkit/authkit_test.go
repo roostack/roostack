@@ -180,3 +180,32 @@ func TestSealFor(t *testing.T) {
 		}
 	}
 }
+
+// No more password checks run at once than SetMaxChecks says, and one that
+// can't start in time fails with ErrBusy rather than "wrong" (the security
+// review of 2026-11-19, M2).
+func TestPasswordChecksAtOnce(t *testing.T) {
+	hash, err := HashPassword("correct horse battery")
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetMaxChecks(1)
+	defer SetMaxChecks(4)
+	old := busyWait
+	busyWait = 50 * time.Millisecond
+	defer func() { busyWait = old }()
+	done, err := argonTurn() // a check running
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := VerifyPassword(hash, "correct horse battery"); ok || err != ErrBusy {
+		t.Errorf("while busy: %v %v", ok, err)
+	}
+	if err := VerifyNoAccount("x"); err != ErrBusy {
+		t.Errorf("no account, while busy: %v", err)
+	}
+	done()
+	if ok, err := VerifyPassword(hash, "correct horse battery"); !ok || err != nil {
+		t.Errorf("once free: %v %v", ok, err)
+	}
+}

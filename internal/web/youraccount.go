@@ -2,6 +2,7 @@ package web
 
 import (
 	"cmp"
+	"errors"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -492,6 +493,10 @@ func (s *Server) acctPasswordSubmit(w http.ResponseWriter, r *http.Request, a *a
 		s.renderAcct(w, r, a, http.StatusBadRequest, v)
 	}
 	ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("current"))
+	if errors.Is(err, authkit.ErrBusy) {
+		fail(busyMessage)
+		return
+	}
 	if err != nil || !ok {
 		time.Sleep(failedLoginDelay)
 		fail("Your current password is wrong.")
@@ -586,7 +591,10 @@ func (s *Server) acctTwoFactorSubmit(w http.ResponseWriter, r *http.Request, a *
 	secret := strings.TrimSpace(r.FormValue("secret"))
 	change := u.TOTPSecret != ""
 	if change {
-		if ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("current")); err != nil || !ok {
+		if ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("current")); errors.Is(err, authkit.ErrBusy) {
+			s.renderAcctTwoFactor(w, r, a, http.StatusServiceUnavailable, secret, busyMessage)
+			return
+		} else if err != nil || !ok {
 			time.Sleep(failedLoginDelay)
 			s.renderAcctTwoFactor(w, r, a, http.StatusBadRequest, secret, "Your password is wrong.")
 			return

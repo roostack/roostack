@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -66,6 +67,10 @@ func (s *Server) recoveryKeyShowSubmit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, again func(status int, msg string)) bool {
 	u := currentUser(r)
 	ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("password"))
+	if errors.Is(err, authkit.ErrBusy) {
+		again(http.StatusServiceUnavailable, busyMessage)
+		return false
+	}
 	if err != nil {
 		s.serverError(w, err)
 		return false

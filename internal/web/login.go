@@ -40,6 +40,10 @@ type pendingLogin struct {
 	pagesOnly bool
 }
 
+// busyMessage answers a password that couldn't be checked because too many
+// were being checked at once (authkit.ErrBusy): never "wrong password".
+const busyMessage = "Too many people are signing in right now: try again in a moment."
+
 func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 	if s.needsSetup() {
 		redirect(w, r, "/setup")
@@ -61,14 +65,19 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		ok, err = authkit.VerifyPassword(u.PasswordHash, r.FormValue("password"))
-		if err != nil {
-			s.Log.Error("verify password", "user", username, "err", err)
-		}
 	case errors.Is(err, store.ErrNotFound):
-		authkit.VerifyNoAccount(r.FormValue("password"))
+		err = authkit.VerifyNoAccount(r.FormValue("password"))
 	default:
 		s.serverError(w, err)
 		return
+	}
+	if errors.Is(err, authkit.ErrBusy) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		s.renderLogin(w, r, map[string]any{"Error": busyMessage, "Username": username, "Next": localNext(r.FormValue("next"))})
+		return
+	}
+	if err != nil && known {
+		s.Log.Error("verify password", "user", username, "err", err)
 	}
 	if !ok {
 		// What was typed isn't logged or audited unless it's an account's

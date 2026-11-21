@@ -392,14 +392,18 @@ func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		ok, err = authkit.VerifyPassword(u.PasswordHash, r.FormValue("password"))
-		if err != nil {
-			s.Log.Error("verify password", "user", u.Username, "err", err)
-		}
 	case errors.Is(err, store.ErrNotFound):
-		authkit.VerifyNoAccount(r.FormValue("password"))
+		err = authkit.VerifyNoAccount(r.FormValue("password"))
 	default:
 		s.serverError(w, err)
 		return
+	}
+	if errors.Is(err, authkit.ErrBusy) {
+		again(http.StatusServiceUnavailable, busyMessage)
+		return
+	}
+	if err != nil && known {
+		s.Log.Error("verify password", "user", u.Username, "err", err)
 	}
 	if !ok {
 		who := "an unknown username"
