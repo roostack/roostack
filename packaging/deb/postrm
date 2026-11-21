@@ -4,6 +4,7 @@
 set -e
 if [ "$1" = purge ]; then
     rm -rf /etc/systemd/system/roostack.service.d
+    rm -f /etc/systemd/system/user-*.slice.d/roostack-memory.conf /etc/systemd/system/user@*.service.d/roostack-memory.conf
     systemctl daemon-reload || true
     echo "Roostack's data is kept in /var/lib/roostack and /srv/roostack; delete them yourself if you're sure." >&2
 fi

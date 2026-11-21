@@ -53,6 +53,7 @@ func (f *fakeSystemd) Stop(_ context.Context, u ...string) error    { return f.r
 func (f *fakeSystemd) ReloadOrRestart(_ context.Context, u ...string) error {
 	return f.rec("reload-or-restart", u)
 }
+func (f *fakeSystemd) SetProperty(context.Context, string, ...string) error { return nil }
 
 type fakeSecrets struct {
 	mu     sync.Mutex

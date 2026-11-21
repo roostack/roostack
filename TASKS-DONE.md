@@ -583,3 +583,12 @@ The review of 2026-10-16 found no CI for either Go repository.
 - [x] The package editor (`internal/editor`, `pkgspec/describe.go`) should learn the `sso` part (2026-10-20, and the `on: sso` hook, `saves`, `from_hook`, `secret_env` and renamed groups the same day)
 - [x] Licence: Apache-2.0, confirmed 2026-10-18 (SPEC §3.3); `LICENSE` and `NOTICE` added
 - [x] Repository: `github.com/roostack/roostack` (moved from Tyris/roostack by the Owner, 2026-10-18; Cloud's is `roostack/cloud`). The module path `roostack.cloud/roostack` is answered by a go-import page on the website, `roostack.cloud/roostack` (roostack-cloud `site/src/pages/roostack.astro`, and its Worker for each package's path)
+
+## Memory: Roostack stays quick when the services fill the server (SPEC §6.1, "Memory"; decided and built 2026-11-19 to 21)
+
+- [x] `roostack` and `roostack-agent` kept in memory ahead of the services (`MemoryLow`, `OOMScoreAdjust=-500`, `CPUWeight=200`), with the same kept on every slice above them, which the kernel needs before it honours theirs (found on VM 5)
+- [x] Slices in the roostack user's manager: Caddy's (`roostack-core.slice`), the services' together, capped at the server's memory less 400 MB (`MemoryHigh`, slowed, never killed), and each service's own; set live as well as written, as a reload alone leaves a running slice as it was
+- [x] Each service's own limit: the Owner's choice on its settings page (Memory: Automatic, a limit, or No limit), otherwise twice its package's figure (at least 256 MB above it) only while the server is tight; its page says when it's being slowed down
+- [x] The install summary warns on what's free right now, on what every service on the server would expect against the services' cap, or both
+- [x] zswap on (`/usr/lib/tmpfiles.d/roostack-zswap.conf`), and the installer offers a swap file on a server with none
+- [x] Tried on a 2 GB VM with 1.8 GB held by a process in the services' slice: Roostack kept its memory where it went to swap before; 400 MB kept wasn't quite enough there (see SPEC)

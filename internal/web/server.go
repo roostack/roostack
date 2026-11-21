@@ -281,6 +281,10 @@ type ServiceCatalog interface {
 	ServiceFiles(name string) (*manager.ServiceFiles, error)
 	// SetTitle changes what people call a service (never its name).
 	SetTitle(ctx context.Context, name, title string) error
+	// ServiceMemory and SetMemoryLimit are a service's memory figures and
+	// the choice of its limit (SPEC.md §6.1, "Memory").
+	ServiceMemory(ctx context.Context, name string) (*manager.ServiceMemory, error)
+	SetMemoryLimit(ctx context.Context, name, limit string) error
 	// SetOff turns a service off for a while, or on again (SPEC.md §6.3.5).
 	SetOff(ctx context.Context, name string, off bool, by string) error
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
@@ -847,6 +851,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /services/{name}/scheduled/{hook}/run", s.require(auth.ManageServices, s.scheduledSubmit))
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
 	mux.Handle("POST /services/{name}/title", s.require(auth.ManageServices, s.titleSubmit))
+	mux.Handle("POST /services/{name}/memory", s.require(auth.ManageServices, s.memorySubmit))
 	mux.Handle("POST /services/{name}/update", s.require(auth.ManageServices, s.updateSubmit))
 	mux.Handle("POST /services/{name}/updates", s.require(auth.ManageServices, s.updatePolicySubmit))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))

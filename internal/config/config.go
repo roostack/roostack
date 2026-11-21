@@ -91,6 +91,12 @@ func LibraryView(service string) string { return filepath.Join(LibraryViews, ser
 // folder's name. A service's name has no ".", so it's never another's.
 func LibraryAtView(service string) string { return filepath.Join(LibraryViews, service+".at") }
 
+// UserUnitDir is where the roostack user's own systemd units live: the
+// slices Roostack writes (generate/slices.go).
+func (p Paths) UserUnitDir() string {
+	return filepath.Join(p.HomeDir, ".config", "systemd", "user")
+}
+
 // QuadletDir is where rootless Quadlet files for the roostack user live.
 func (p Paths) QuadletDir() string {
 	return filepath.Join(p.HomeDir, ".config", "containers", "systemd")
@@ -579,6 +585,10 @@ type Lab struct {
 	SharedLibraries map[string]string `yaml:"-"`
 	GlancesBind     string            `yaml:"-"`
 	GlancesSites    []GlancesSite     `yaml:"-"`
+	// MemoryTotal is this server's memory in bytes, for the services'
+	// memory limits (generate/slices.go); 0 where it isn't known, for no
+	// limits. Read by the server for each apply, never in lab.yaml.
+	MemoryTotal int64 `yaml:"-"`
 }
 
 // Cloud is the lab's use of Roostack Cloud.

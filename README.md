@@ -25,6 +25,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the details.
 | `/srv/roostack/services/<name>/` | Each service's data |
 | `/srv/roostack/media/<name>/` | Large data (photos, videos); can be a separate disk |
 | `/var/lib/roostack/home/.config/containers/systemd/` | Generated Quadlet files (`roostack-*`) |
+| `/var/lib/roostack/home/.config/systemd/user/` | Generated slices (`roostack-*.slice`): Caddy's, which the kernel keeps in memory ahead of the services, the services' together, with their memory limit, and each service's own (SPEC.md §6.1, "Memory") |
+| `/usr/lib/tmpfiles.d/roostack-zswap.conf` | Turns zswap on at boot (compressed swap in memory); an empty `/etc/tmpfiles.d/roostack-zswap.conf` keeps it off |
+| `/usr/lib/systemd/system/{system,user}.slice.d/roostack-memory.conf`, `/etc/systemd/system/{user-<uid>.slice,user@<uid>.service}.d/roostack-memory.conf` | The memory kept for Roostack and Caddy on each slice above them, which the kernel needs before it honours theirs |
 | `/var/lib/roostack/caddy/` | Generated Caddy config |
 | `/var/lib/roostack/cloud/` | The lab's link to Roostack Cloud, if it has one (the controller only): its key and certificate, and a log of its requests |
 | `/var/lib/roostack/local-packages/<name>/` | Packages the Owner added themselves ("Add your own"): one version each, with its logo; backed up |

@@ -64,6 +64,13 @@ type ServiceUse struct {
 	// processor (100 is one processor busy all the time).
 	Memory int64   `json:"memory"`
 	CPU    float64 `json:"cpu"`
+	// Swap is what its containers have in swap; Limit the memory past
+	// which the kernel slows it down (its slice's memory.high, 0 for
+	// none: generate.MemoryLimit); Held, that the kernel held it back at
+	// that limit since the last reading (memory.events' "high" went up).
+	Swap  int64 `json:"swap,omitempty"`
+	Limit int64 `json:"limit,omitempty"`
+	Held  bool  `json:"held,omitempty"`
 }
 
 // The parts of Roostack's own, by the start of their units' names, and
@@ -128,6 +135,7 @@ type vitalsCounters struct {
 	swapIn            uint64 // pages
 	netIn, netOut     uint64
 	usage             map[string]uint64 // a unit's processor time, µs
+	high              map[string]uint64 // a service slice's memory.events high
 }
 
 func (r *vitalsReader) path(p string) string { return filepath.Join(r.root, p) }
@@ -144,11 +152,18 @@ func (r *vitalsReader) read(now time.Time) Vitals {
 	c.netIn, c.netOut = r.netBytes()
 	v.Temp, v.TempHigh, v.TempName = r.hottest()
 	v.Up = r.uptime()
-	units := r.units()
-	memory := map[string]int64{}
+	units, sliceDirs := r.units()
+	memory, swap := map[string]int64{}, map[string]int64{}
 	for unit, dir := range units {
 		c.usage[unit] = readUsage(filepath.Join(dir, "cpu.stat"))
 		memory[unit] = readInt(filepath.Join(dir, "memory.current"))
+		swap[unit] = readInt(filepath.Join(dir, "memory.swap.current"))
+	}
+	c.high = map[string]uint64{}
+	limits := map[string]int64{}
+	for svc, dir := range sliceDirs {
+		c.high[svc] = readEvent(filepath.Join(dir, "memory.events"), "high")
+		limits[svc] = readInt(filepath.Join(dir, "memory.high")) // "max" reads as 0
 	}
 
 	r.mu.Lock()
@@ -175,11 +190,16 @@ func (r *vitalsReader) read(now time.Time) Vitals {
 				byService[svc] = u
 			}
 			u.Memory += memory[unit]
+			u.Swap += swap[unit]
 			if prev, ok := r.last.usage[unit]; ok && secs > 0 {
 				u.CPU += float64(sub(c.usage[unit], prev)) / 1e6 / secs * 100
 			}
 		}
 		for _, u := range byService {
+			u.Limit = limits[u.Service]
+			if prev, ok := r.last.high[u.Service]; ok && c.high[u.Service] > prev {
+				u.Held = true
+			}
 			v.Services = append(v.Services, *u)
 		}
 		slices.SortFunc(v.Services, func(a, b ServiceUse) int { return int(b.Memory - a.Memory) })
@@ -353,19 +373,47 @@ func (r *vitalsReader) uptime() time.Duration {
 }
 
 // units are Roostack's units with a cgroup, by name: the services' and
-// Caddy's under the roostack user's systemd manager, and Roostack itself.
-func (r *vitalsReader) units() map[string]string {
-	out := map[string]string{}
+// Caddy's under the roostack user's systemd manager, in whichever slice
+// (generate/slices.go nests them: roostack.slice/roostack-services.slice/
+// roostack-services-<service>.slice), and Roostack itself; and each
+// service's slice, by the service's name.
+func (r *vitalsReader) units() (units, slices map[string]string) {
+	units, slices = map[string]string{}, map[string]string{}
 	user := r.path("sys/fs/cgroup/user.slice/user-" + strconv.Itoa(r.uid) + ".slice/user@" + strconv.Itoa(r.uid) + ".service")
-	dirs, _ := filepath.Glob(filepath.Join(user, "*.slice", "roostack-*.service"))
-	more, _ := filepath.Glob(filepath.Join(user, "roostack-*.service"))
-	for _, d := range append(dirs, more...) {
-		out[strings.TrimSuffix(filepath.Base(d), ".service")] = d
-	}
+	filepath.WalkDir(user, func(p string, d os.DirEntry, err error) error {
+		if err != nil || !d.IsDir() || p == user {
+			return nil
+		}
+		name := d.Name()
+		switch {
+		case strings.HasPrefix(name, "roostack-") && strings.HasSuffix(name, ".service"):
+			units[strings.TrimSuffix(name, ".service")] = p
+			return filepath.SkipDir // its containers' own cgroups
+		case strings.HasPrefix(name, "roostack-services-") && strings.HasSuffix(name, ".slice"):
+			svc := strings.TrimSuffix(strings.TrimPrefix(name, "roostack-services-"), ".slice")
+			slices[strings.ReplaceAll(svc, "_", "-")] = p
+		case strings.HasSuffix(name, ".slice"):
+		default:
+			return filepath.SkipDir // another unit: nothing of Roostack's inside
+		}
+		return nil
+	})
 	if d := r.path("sys/fs/cgroup/system.slice/roostack.service"); dirExists(d) {
-		out["roostack"] = d
+		units["roostack"] = d
 	}
-	return out
+	return units, slices
+}
+
+// readEvent reads a counter from a cgroup's memory.events.
+func readEvent(path, key string) uint64 {
+	data, _ := os.ReadFile(path)
+	for _, line := range strings.Split(string(data), "\n") {
+		if k, v, ok := strings.Cut(line, " "); ok && k == key {
+			n, _ := strconv.ParseUint(v, 10, 64)
+			return n
+		}
+	}
+	return 0
 }
 
 // serviceOf is the service a unit belongs to: the longest service name

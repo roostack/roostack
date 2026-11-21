@@ -28,6 +28,7 @@ Label=io.roostack.service=stirling-pdf
 Label=io.roostack.component=app
 
 [Service]
+Slice=roostack-services-stirling_pdf.slice
 Restart=always
 TimeoutStartSec=900
 

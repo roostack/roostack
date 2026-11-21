@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -48,6 +49,8 @@ type Systemd interface {
 	Restart(ctx context.Context, units ...string) error
 	Stop(ctx context.Context, units ...string) error
 	ReloadOrRestart(ctx context.Context, units ...string) error
+	// SetProperty sets a unit's properties now, until the next boot.
+	SetProperty(ctx context.Context, unit string, props ...string) error
 }
 
 // Secrets is the subset of Podman secret handling the reconciler needs.
@@ -98,6 +101,13 @@ type Reconciler struct {
 	// files are replaced. It returns a *CaddyRefused when Caddy refuses
 	// it, and any other error when Caddy couldn't be asked. Optional.
 	CheckCaddy func(ctx context.Context, rel string) error
+
+	// SlicesSet: an apply has set every slice's settings since Roostack
+	// started (Plan.SliceProps). Until then, each plan sets them all, so
+	// a slice whose file was written by an older Roostack, or whose
+	// setting failed, gets them. A pointer, shared by the copies made for
+	// each apply; nil sets them all every time.
+	SlicesSet *atomic.Bool
 }
 
 // CaddyRefused is Caddy refusing a new configuration (CheckCaddy), with
@@ -196,6 +206,11 @@ type Plan struct {
 	StartUnits   []string
 	DaemonReload bool
 	ReloadCaddy  bool
+	// SliceProps are the settings of slices whose files changed, set on
+	// them once systemd has reloaded: a reload alone leaves a slice
+	// that's already running with its old memory limit (checked on a VM,
+	// systemd 257, 2026-11-21).
+	SliceProps map[string][]string
 	// Waiting are Quadlet files left as they are because a secret they
 	// need hasn't been given yet (generate.Secret.Holds).
 	Waiting []string
@@ -334,6 +349,9 @@ func (p *Plan) String() string {
 	list("Restart units", p.RestartUnits)
 	list("Start units", p.StartUnits)
 	list("Waiting for a secret", p.Waiting)
+	for _, name := range slices.Sorted(maps.Keys(p.SliceProps)) {
+		fmt.Fprintf(&b, "Set %s: %s\n", name, strings.Join(p.SliceProps[name], " "))
+	}
 	if p.ReloadCaddy {
 		b.WriteString("Reload Caddy\n")
 	}
@@ -484,6 +502,44 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 			if strings.HasSuffix(name, ".network") {
 				plan.RemoveNetworks = append(plan.RemoveNetworks, quadletNetworkName(name, haveQuadlets[name]))
 			}
+		}
+	}
+
+	// Slices (generate/slices.go): written before any unit starts, so a
+	// container starts in its slice with its memory limit. A change takes
+	// effect with the reload, without restarting anything.
+	wantSlices := map[string]string{}
+	for _, f := range d.System.Slices {
+		wantSlices[f.Name] = f.Content
+	}
+	for _, s := range d.Services {
+		if s.Slice != nil {
+			wantSlices[s.Slice.Name] = s.Slice.Content
+		}
+	}
+	sliceDir := r.Paths.UserUnitDir()
+	haveSlices, err := readOwned(sliceDir, isOwnedSlice)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range slices.Sorted(maps.Keys(wantSlices)) {
+		changed := false
+		if old, ok := haveSlices[name]; !ok || old != wantSlices[name] {
+			plan.Write = append(plan.Write, FileChange{filepath.Join(sliceDir, name), wantSlices[name]})
+			plan.DaemonReload = true
+			changed = true
+		}
+		if changed || r.SlicesSet == nil || !r.SlicesSet.Load() {
+			if plan.SliceProps == nil {
+				plan.SliceProps = map[string][]string{}
+			}
+			plan.SliceProps[name] = sliceProps(wantSlices[name])
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(haveSlices)) {
+		if _, ok := wantSlices[name]; !ok {
+			plan.Remove = append(plan.Remove, FileChange{Path: filepath.Join(sliceDir, name)})
+			plan.DaemonReload = true
 		}
 	}
 
@@ -653,6 +709,18 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) (err error) {
 		if err := r.Systemd.DaemonReload(ctx); err != nil {
 			return err
 		}
+	}
+	if len(p.SliceProps) > 0 {
+		log.Step("Setting memory limits")
+	}
+	for _, name := range slices.Sorted(maps.Keys(p.SliceProps)) {
+		log.Printf("%s: %s", name, strings.Join(p.SliceProps[name], " "))
+		if err := r.Systemd.SetProperty(ctx, name, p.SliceProps[name]...); err != nil {
+			return err
+		}
+	}
+	if len(p.SliceProps) > 0 && r.SlicesSet != nil {
+		r.SlicesSet.Store(true)
 	}
 	r.removeNetworks(ctx, log, p.RemoveNetworks)
 	if len(p.RestartUnits) > 0 {
@@ -896,6 +964,32 @@ func boolInt(b bool) int {
 func isOwnedQuadlet(name string) bool {
 	return strings.HasPrefix(name, "roostack-") &&
 		(strings.HasSuffix(name, ".container") || strings.HasSuffix(name, ".network") || strings.HasSuffix(name, ".build"))
+}
+
+// sliceProps are the settings in a slice's [Slice] section, with
+// MemoryHigh=infinity when it has none, so that a limit taken away goes.
+func sliceProps(content string) []string {
+	var props []string
+	in, high := false, false
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "["):
+			in = line == "[Slice]"
+		case in && strings.Contains(line, "="):
+			props = append(props, line)
+			high = high || strings.HasPrefix(line, "MemoryHigh=")
+		}
+	}
+	if !high {
+		props = append(props, "MemoryHigh=infinity")
+	}
+	return props
+}
+
+// isOwnedSlice is a slice Roostack writes (generate/slices.go).
+func isOwnedSlice(name string) bool {
+	return name == generate.RoostackSlice || strings.HasPrefix(name, "roostack-") && strings.HasSuffix(name, ".slice")
 }
 
 // unitFor maps a Quadlet file name to its systemd service (ASSUMPTIONS A4).
