@@ -349,14 +349,3 @@ type UnblockRequest struct {
 }
 
 func (r UnblockRequest) logAttrs() []any { return []any{"address", r.Address} }
-
-// SSHKeyRequest adds an SSH public key to an account the server has
-// already, one that can use sudo (POST /v1/ssh/key, sshkey.go). The agent
-// never makes accounts or sets passwords: anything that can reach it could
-// then give itself root.
-type SSHKeyRequest struct {
-	Key  string `json:"key"`
-	User string `json:"user"`
-}
-
-func (r SSHKeyRequest) logAttrs() []any { return []any{"user", r.User} }

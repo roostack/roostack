@@ -40,7 +40,6 @@ type fakeHost struct {
 	erasedRoot bool
 	keysOnly   bool
 	unblocked  []string
-	keys       []SSHKeyRequest
 	series     string
 	library    *Library
 	unmounted  string
@@ -144,11 +143,6 @@ func (f *fakeHost) SSHStatus() (SSHStatus, error) {
 func (f *fakeHost) SetSSHKeysOnly(on bool) error { f.keysOnly = on; return nil }
 func (f *fakeHost) UnblockSSH(address string) error {
 	f.unblocked = append(f.unblocked, address)
-	return nil
-}
-
-func (f *fakeHost) AddSSHKey(r SSHKeyRequest) error {
-	f.keys = append(f.keys, r)
 	return nil
 }
 

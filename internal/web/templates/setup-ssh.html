@@ -39,12 +39,12 @@
     <div x-show="choice !== 'off'" x-cloak>
       <h2>How do they log in?</h2>
       {{if .KeyWorks}}{{notice "ok" .KeyText}}
+      <p class="hint"><a href="{{template "ssh-key-url" .}}?key#ssh-key" data-dialog="ssh-key">Add another SSH key</a></p>
       {{else if not .SSHD.KeysOnly}}{{notice "warn" "Roostack hasn't seen anyone log in with an SSH key and an account that can use sudo, so it can't turn passwords off without the risk of locking you out."}}
       {{with .NoSudo}}<p class="hint">Seen logging in with a key, but they can't use sudo: {{.}}. Root can't log in with keys only, so log in once as an
         account in the <code>sudo</code> group.</p>{{end}}
-      {{if .Wizard}}<p><a href="/help/start/first-run/#set-up-an-ssh-key" target="_blank" rel="noopener">How to set up a key{{template "new-window"}}</a>,
-        then <a href="/setup/ssh">check again</a>. Once setup has finished, this page will also guide you through it.</p>
-      {{else}}<p><a href="#key-guide">Set up a key</a> with the steps below this form.</p>{{end}}
+      <p><a class="button secondary" href="{{template "ssh-key-url" .}}?key#ssh-key" data-dialog="ssh-key">Set up an SSH key</a></p>
+      {{else}}<p class="hint"><a href="{{template "ssh-key-url" .}}?key#ssh-key" data-dialog="ssh-key">Add an SSH key</a></p>
       {{end}}
       <fieldset>
         <label class="check"><input type="radio" name="login" value="key"{{if eq .Login "key"}} checked{{end}}>
@@ -69,7 +69,7 @@
       log in will change at once.{{end}}</p>{{end}}
     <button type="submit">{{if .Wizard}}Continue{{else}}Save{{end}}</button>
   </form>
-{{template "ssh-key-guide" .}}
+{{template "ssh-key-dialog" .}}
 {{with .SSHD.Blocked}}
 <h2>Blocked for now</h2>
 <p>Roostack has blocked {{if eq (len .) 1}}this address from SSH after too many wrong passwords, and will let it in again at the time
@@ -123,95 +123,106 @@
 {{define "ssh-other-servers"}}{{if .MultiServer}} Not from this lab's other servers{{if not .Server.This}}, except the one that runs
   the lab{{end}}.{{end}}{{end}}
 
-{{/* The key guide (sshkey.go): after setup, until Roostack has seen a key
-     login by an account that can use sudo, and after adding a key, until
-     it sees a login with one (the page checks every few seconds); and to
-     say what was wrong with what was sent. */}}
-{{define "ssh-key-guide"}}{{if and .SSHD.Installed (not .Wizard) (or .KeyAdded .KeyError (and (not .KeyWorks) (not .SSHD.KeysOnly)))}}
-<div id="key-guide" class="key-guide"{{if and .KeyAdded (not .KeyWorks)}} hx-get="{{.Server.RemoteAccess}}?key={{.KeyAdded}}"
-  hx-trigger="every 5s [document.visibilityState === 'visible']" hx-select="#key-guide" hx-swap="outerHTML"{{end}}>
-  <h2>Set up an SSH key</h2>
-  {{if .KeyAdded}}
-  {{if .KeyWorks}}{{notice "ok" (printf "%s You can now choose “With an SSH key only” above and save." .KeyText)}}
-  {{else}}
-  {{notice "ok" (printf "Roostack has added your key to %s." .KeyAdded)}}
-  <h3>Log in with it once</h3>
-  <p>On your computer, run:</p>
-  <pre class="output">ssh {{.KeyAdded}}@{{.SSHHost}}</pre>
-  <p class="hint">The first time, SSH will ask whether you trust the server: type <code>yes</code>. It will then ask for your key's
-    passphrase, if it has one, but not for the account's password.</p>
-  <p role="status"><span class="spinner" aria-hidden="true"></span> Roostack is watching for that login and will tick this off by itself.</p>
-  <p class="hint"><a href="{{.Server.RemoteAccess}}#key-guide">Add another key</a></p>
-  {{end}}
-  {{else}}
+{{/* Where the key dialog's links and its check for a login go: this
+     page, in the wizard or in Settings. */}}
+{{define "ssh-key-url"}}{{if .Wizard}}/setup/ssh{{else}}{{.Server.RemoteAccess}}{{end}}{{end}}
+
+{{/* The SSH key dialog (sshkey.go): how to make a key, then the commands
+     that add it, which app.js (roostackSSHKey) fills in with the key and
+     the account as they're typed, then the login that Roostack watches
+     for. Without scripts, the commands keep their placeholder. */}}
+{{define "ssh-key-dialog"}}{{if .SSHD.Installed}}
+<dialog class="dialog form-dialog wide" id="ssh-key" aria-labelledby="ssh-key-title"{{if .KeyGuideOpen}} open{{end}}
+  x-data="roostackSSHKey($el)" data-account="{{.KeyForm.Existing}}" data-new-name="{{.KeyForm.NewUser}}" data-host="{{.SSHHost}}">
+  <div class="dialog-head"><h2 id="ssh-key-title">Set up an SSH key</h2>
+    <a class="icon-button" href="{{template "ssh-key-url" .}}" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
   <p>A key is a pair of files on your computer that lets you log in without typing a password. Unlike a password, it can't be
     guessed, so once it works Roostack can turn passwords off.</p>
   <ol class="steps">
     <li><strong>Make a key on your computer.</strong> Skip this if you already have one.
-      <div class="seg-group">
+      <div class="seg-group" x-on:change="if ($event.target.name === 'os') os = $event.target.value">
         {{segmented "os" "Your computer" "windows" (choice "windows" "Windows") (choice "mac" "macOS") (choice "linux" "Linux") "size=small"}}
         <div class="seg-panel" data-seg="1"><p>Open PowerShell (from the Start menu) and run:</p>
-          <pre class="output">ssh-keygen -t ed25519</pre>
+          {{template "copy-box" "ssh-keygen -t ed25519"}}
           <p>Press Enter to keep the file where it suggests, and choose a passphrase, which protects the key if someone gets your computer. Then show
             the public key:</p>
-          <pre class="output">type $env:USERPROFILE\.ssh\id_ed25519.pub</pre></div>
+          {{template "copy-box" "type $env:USERPROFILE\\.ssh\\id_ed25519.pub"}}</div>
         <div class="seg-panel" data-seg="2"><p>Open Terminal (in Applications, Utilities) and run:</p>
-          <pre class="output">ssh-keygen -t ed25519</pre>
+          {{template "copy-box" "ssh-keygen -t ed25519"}}
           <p>Press Enter to keep the file where it suggests, and choose a passphrase, which protects the key if someone gets your Mac. Then copy
             the public key:</p>
-          <pre class="output">pbcopy &lt; ~/.ssh/id_ed25519.pub</pre></div>
+          {{template "copy-box" "pbcopy < ~/.ssh/id_ed25519.pub"}}</div>
         <div class="seg-panel" data-seg="3"><p>Open a terminal and run:</p>
-          <pre class="output">ssh-keygen -t ed25519</pre>
+          {{template "copy-box" "ssh-keygen -t ed25519"}}
           <p>Press Enter to keep the file where it suggests, and choose a passphrase, which protects the key if someone gets your computer. Then show
             the public key:</p>
-          <pre class="output">cat ~/.ssh/id_ed25519.pub</pre></div>
+          {{template "copy-box" "cat ~/.ssh/id_ed25519.pub"}}</div>
       </div></li>
-    <li><strong>Paste your public key.</strong>
-      {{with .KeyError}}<p class="error" role="alert">{{.}}</p>{{end}}
-      {{if not .SSHD.Sudoers}}<p>This server has no account that can use <code>sudo</code> apart from root, which can't log in with
-        keys only. Make one first, as root on the server:</p>{{template "ssh-new-account" .}}
-      <p>Then reload this page, and you'll be able to paste your key here.</p>
-      {{else}}
-      <form method="post" action="{{.Server.RemoteAccessKey}}">
-        <label>Public key
-          <textarea name="key" rows="3" required autocapitalize="off" spellcheck="false" placeholder="ssh-ed25519 AAAA…">{{.KeyForm.Key}}</textarea>
-          <small>The one line from the file ending in <code>.pub</code>, never the other file: that one is your private key, which must
-            never leave your computer.</small></label>
-        <label>Account <select name="existing">{{range .SSHD.Sudoers}}<option{{if eq . $.KeyForm.Existing}} selected{{end}}>{{.}}</option>{{end}}</select>
-          <small>One that can use <code>sudo</code>, which you'll log in as.</small></label>
-        <details>
-          <summary>Make a new account</summary>
-          <p>Roostack won't make accounts itself, since anything that could make one could also take over the server. As root on the
-            server, run:</p>
-          {{template "ssh-new-account" .}}
-          <p class="hint">Then reload this page and choose it above.</p>
-        </details>
-        <p>Whoever has this key will be able to log in as an account that can use <code>sudo</code>, so Roostack will check it's you first and email
-          the lab's Owners once it has added the key.</p>
-        <div class="field-row">
-          <label>Your password <input name="password" type="password" autocomplete="current-password" required></label>
-          <label>Code from your authenticator app <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required></label>
-        </div>
-        <button type="submit">Add the key</button>
-      </form>{{end}}</li>
-    <li><strong>Log in with it once.</strong> Roostack will show you how once it has added the key.</li>
+    <li><strong>Paste your public key, and choose the account.</strong>
+      {{/* Never sent: it's a form for its fields' look, and Enter does nothing. */}}
+      <form x-on:submit.prevent>
+      <label>Public key
+        <textarea rows="3" x-model="key" autocapitalize="off" spellcheck="false" placeholder="ssh-ed25519 AAAA…"></textarea>
+        <small>The one line from the file ending in <code>.pub</code>, never the other file: that one is your private key, which must
+          never leave your computer. This page won't send your key anywhere: it only puts it into the commands below.</small></label>
+      <label>Account
+        <select x-model="account">{{range .SSHD.Sudoers}}<option value="{{.}}"{{if eq . $.KeyForm.Existing}} selected{{end}}>{{.}}</option>{{end}}
+          <option value=""{{if not .KeyForm.Existing}} selected{{end}}>A new account</option></select>
+        <small>One that can use <code>sudo</code>, which you'll log in as{{if not .SSHD.Sudoers}}. This server has none apart from root, which can't log
+          in with keys only{{end}}.</small></label>
+      <label x-show="account === ''"{{if .KeyForm.Existing}} x-cloak{{end}}>Name of the new account
+        <input x-model="newName" value="{{.KeyForm.NewUser}}" autocapitalize="off" spellcheck="false"></label>
+      <p class="error" role="alert" x-show="problem" x-text="problem" x-cloak></p>
+      </form></li>
+    <li><strong>Add it on the server.</strong>
+      <p>In a terminal on the server, as root: the one you installed Roostack from, or your provider's web console. If you're logged in as
+        another account, run <code>sudo -i</code> first.<span x-show="!ready"> The commands will have your key in them once you've pasted it.</span></p>
+      <div class="copy-box" x-data="{ copied: false }">
+        <pre class="output" x-ref="text" x-text="commands">{{if not .KeyForm.Existing}}useradd --create-home --groups sudo --shell /bin/bash {{.KeyForm.NewUser}}
+passwd {{.KeyForm.NewUser}}
+{{end}}{{with or .KeyForm.Existing .KeyForm.NewUser}}mkdir -p -m 700 ~{{.}}/.ssh
+echo 'your public key' >> ~{{.}}/.ssh/authorized_keys
+chown -R {{.}}: ~{{.}}/.ssh
+chmod 600 ~{{.}}/.ssh/authorized_keys{{end}}</pre>
+        <button type="button" class="icon-button copy-button" title="Copy" x-bind:title="copied ? 'Copied' : 'Copy'" x-bind:disabled="!ready"
+          x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+          ><span x-show="!copied">{{icon "copy"}}</span><span x-show="copied" x-cloak>{{icon "check"}}</span><span class="sr-only" aria-live="polite" x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+      </div>
+      <p class="hint" x-show="account === ''"{{if .KeyForm.Existing}} x-cloak{{end}}><code>passwd</code> will ask for the new account's password twice. You'll
+        need it for <code>sudo</code>, and for logging in at the server's own screen or your provider's web console, but SSH won't take it once it's
+        keys only.</p>
+      {{if .SSHD.Passwords}}<p class="hint" x-show="os !== 'windows' &amp;&amp; account !== ''" x-cloak>Or, if you know the account's password, run this on your computer
+        instead: <code class="nowrap" x-text="'ssh-copy-id ' + user + '@' + host"></code></p>{{end}}</li>
+    <li><strong>Log in with it once.</strong> On your computer, run:
+      <div class="copy-box" x-data="{ copied: false }">
+        <pre class="output" x-ref="text" x-text="'ssh ' + user + '@' + host">ssh {{or .KeyForm.Existing .KeyForm.NewUser}}@{{.SSHHost}}</pre>
+        <button type="button" class="icon-button copy-button" title="Copy" x-bind:title="copied ? 'Copied' : 'Copy'"
+          x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+          ><span x-show="!copied">{{icon "copy"}}</span><span x-show="copied" x-cloak>{{icon "check"}}</span><span class="sr-only" aria-live="polite" x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+      </div>
+      <p class="hint">The first time, SSH will ask whether you trust the server: type <code>yes</code>. It will then ask for your key's
+        passphrase, if it has one, but not for the account's password.</p>
+      {{template "ssh-key-status" .}}</li>
   </ol>
-  {{end}}
   <details class="technical">
-    <summary>How Roostack adds the key</summary>
-    <p>roostack-agent checks the key (one public key, no options) and that the account exists and is in the <code>sudo</code>
-      group, then in a short systemd job of its own (<code>roostack-ssh-key</code>), since its sandbox can't read home folders, adds
-      the key to <code>~/.ssh/authorized_keys</code> (the folder 700, the file 600, both owned by the account, a link in their place
-      refused). It never adds a key to root, and never makes an account or sets a password: anything running as Roostack could then
-      give itself root. Adding a key is in History, with the key's fingerprint.</p>
+    <summary>Why Roostack doesn't add the key itself</summary>
+    <p>roostack-agent, the part of Roostack that runs as root, has no way to add a key or make an account, so nothing running as
+      Roostack (a service that's been taken over, say) can give itself a way in as root. The commands make <code>~/.ssh</code> (700) and
+      add your key to <code>authorized_keys</code> in it (600), both owned by the account, as SSH requires. Roostack sees the login in
+      SSH's log, written by sshd itself (<code>journalctl _UID=0 _EXE=/usr/lib/openssh/sshd-session</code>).</p>
   </details>
-</div>
+  <div class="dialog-actions"><a class="button secondary" href="{{template "ssh-key-url" .}}" data-close>Close</a></div>
+</dialog>
 {{end}}{{end}}
 
-{{/* Making an account for the key guide, which the Owner does as root:
-     the agent won't (sshkey.go). */}}
-{{define "ssh-new-account"}}<pre class="output">useradd --create-home --groups sudo --shell /bin/bash {{.KeyForm.NewUser}}
-passwd {{.KeyForm.NewUser}}</pre>
-<p class="hint">Change <code>{{.KeyForm.NewUser}}</code> to the name you want, if you like. <code>passwd</code> will ask for its
-  password twice: you'll need it for <code>sudo</code>, and for logging in at the server's own screen or your provider's web console,
-  but SSH won't take it once it's keys only.</p>{{end}}
+{{/* The key dialog's last step: until Roostack has seen a key login by an
+     account that can use sudo, it checks every five seconds while the
+     dialog is open; then a button reloads the page, which offers keys
+     only. */}}
+{{define "ssh-key-status"}}<div id="ssh-key-status"{{if not .KeyWorks}} hx-get="{{template "ssh-key-url" .}}?key"
+  hx-trigger="every 5s [document.visibilityState === 'visible' &amp;&amp; document.getElementById('ssh-key').open]" hx-select="#ssh-key-status"
+  hx-swap="outerHTML"{{end}}>
+  {{if .KeyWorks}}{{notice "ok" .KeyText}}
+  {{if not .SSHD.KeysOnly}}<p><a class="button" href="{{template "ssh-key-url" .}}">Choose keys only</a></p>{{end}}
+  {{else}}<p role="status"><span class="spinner" aria-hidden="true"></span> Roostack is watching for that login and will tick this off by itself.</p>{{end}}
+</div>{{end}}

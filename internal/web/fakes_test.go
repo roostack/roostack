@@ -1800,7 +1800,6 @@ type fakeSetup struct {
 	restarted   bool
 	ssh         string
 	sshLogin    string
-	sshKeys     []agent.SSHKeyRequest
 	sshd        agent.SSHStatus
 	policy      string
 	clients     []netip.Addr
@@ -1841,15 +1840,6 @@ func (f *fakeSetup) SSHAccess(context.Context, bool) (node.SSHAccess, error) {
 
 func (f *fakeSetup) UnblockSSH(_ context.Context, address string) error {
 	f.sshd.Blocked = slices.DeleteFunc(f.sshd.Blocked, func(b agent.SSHBlock) bool { return b.Address == address })
-	return nil
-}
-
-func (f *fakeSetup) AddSSHKey(_ context.Context, r agent.SSHKeyRequest) error {
-	// As the agent does: only an account it has, in the sudo group.
-	if !slices.Contains(f.sshd.Sudoers, r.User) {
-		return &usererr.Error{Msg: "This server has no account called " + r.User + ": make it first, as root, with the commands on this page."}
-	}
-	f.sshKeys = append(f.sshKeys, r)
 	return nil
 }
 

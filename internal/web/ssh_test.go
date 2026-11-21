@@ -1,9 +1,6 @@
 package web
 
 import (
-	"context"
-	"crypto/ed25519"
-	"crypto/rand"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -11,11 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
-	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/agent"
-	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/manager"
@@ -34,7 +27,7 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 
 	_, body := h.get("/settings/remote-access")
 	for _, want := range []string{"How do they log in?", "hasn&#39;t seen anyone log in with an SSH key and an account that can use sudo",
-		"they can't use sudo: root", `<a href="#key-guide">Set up a key</a>`, `<h2>Set up an SSH key</h2>`,
+		"they can't use sudo: root", `data-dialog="ssh-key">Set up an SSH key</a>`,
 		`value="password" checked`, "Takes passwords", "with a key only (prohibit-password)", "<code>/etc/ssh/sshd_config.d/10-roostack.conf</code> (not there now)"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("remote access page missing %q", want)
@@ -50,7 +43,7 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 	}
 	code, body := h.post("/setup/ssh", url.Values{"ssh": {"lan"}, "login": {"key"}}, h.srv.URL)
 	if code != http.StatusBadRequest || !strings.Contains(body, "hasn&#39;t seen anyone") || !strings.Contains(body, `value="key" checked`) ||
-		!strings.Contains(body, `<a href="#key-guide">Set up a key</a>`) {
+		!strings.Contains(body, `data-dialog="ssh-key">Set up an SSH key</a>`) {
 		t.Errorf("keys only without a key login: %d", code)
 	}
 
@@ -60,7 +53,7 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 	if !strings.Contains(body, "Your SSH key works: tom logged in with one from 192.168.1.20 today") || !strings.Contains(body, `value="key" checked`) {
 		t.Error("a key login seen: keys only is offered, and the default")
 	}
-	if strings.Contains(body, "Set up an SSH key") {
+	if strings.Contains(body, ">Set up an SSH key</a>") {
 		t.Error("the key guide is shown once a key works")
 	}
 	if code, _ := h.post("/setup/ssh", url.Values{"ssh": {"any"}, "login": {"key"}}, h.srv.URL); code >= 400 {
@@ -128,152 +121,77 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 	}
 }
 
-// The key guide: it shows how to make a key, offers the accounts in the
-// sudo group (the Owner's first) and the commands that make a new one as
-// root, asks for the Owner's password and code again, keeps what was typed
-// (never the password) when something's wrong, audits the key as a
-// security event, and once it's added waits for a login with it, then
-// says it works.
-func TestSSHKeyGuide(t *testing.T) {
+// The key dialog: a button opens it, it shows how to make a key, offers the
+// accounts in the sudo group (the Owner's first) or a new one, and the
+// commands to run as root, which the browser fills in; it watches for a
+// login with a key while it's open, then says it works. Roostack takes no
+// key itself: there's nowhere to send one.
+func TestSSHKeyDialog(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{p: allDone, ssh: config.SSHFromAny, sshLogin: config.SSHLoginPassword,
 		sshd: agent.SSHStatus{Installed: true, Passwords: true, Sudoers: []string{"debian", "u"}}}
 	h.setSetup(fs)
 	_, body := h.get("/settings/remote-access")
-	for _, want := range []string{"ssh-keygen -t ed25519", `type $env:USERPROFILE\.ssh\id_ed25519.pub`, "pbcopy &lt; ~/.ssh/id_ed25519.pub",
-		`action="/settings/remote-access/key"`, "<option>debian</option><option selected>u</option>", "<summary>Make a new account</summary>",
-		"useradd --create-home --groups sudo --shell /bin/bash u\npasswd u", `name="password" type="password" autocomplete="current-password"`,
-		`name="code" inputmode="numeric"`} {
+	for _, want := range []string{`href="/settings/remote-access?key#ssh-key" data-dialog="ssh-key">Set up an SSH key</a>`,
+		`<dialog class="dialog form-dialog wide" id="ssh-key"`, `x-data="roostackSSHKey($el)" data-account="u" data-new-name="u" data-host="127.0.0.1"`,
+		"ssh-keygen -t ed25519", `type $env:USERPROFILE\.ssh\id_ed25519.pub`, "pbcopy &lt; ~/.ssh/id_ed25519.pub",
+		`<option value="debian">debian</option><option value="u" selected>u</option>`, `<option value="">A new account</option>`,
+		"mkdir -p -m 700 ~u/.ssh\necho 'your public key' >> ~u/.ssh/authorized_keys\nchown -R u: ~u/.ssh\nchmod 600 ~u/.ssh/authorized_keys",
+		"ssh u@127.0.0.1", "ssh-copy-id ", `hx-get="/settings/remote-access?key"`, "Roostack is watching for that login"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("key guide missing %q", want)
+			t.Errorf("key dialog missing %q", want)
 		}
 	}
-	if strings.Contains(body, `name="user"`) || strings.Contains(body, `autocomplete="new-password"`) {
-		t.Error("the guide still offers to make an account itself")
+	if strings.Contains(body, `id="ssh-key" aria-labelledby="ssh-key-title" open`) {
+		t.Error("the dialog is open before anyone asked")
+	}
+	// Its link without scripts, and its check for a login: open.
+	if _, body = h.get("/settings/remote-access?key"); !strings.Contains(body, `id="ssh-key" aria-labelledby="ssh-key-title" open`) {
+		t.Error("?key doesn't open the dialog")
+	}
+	// Nowhere to send a key.
+	if code, _ := h.post("/settings/remote-access/key", url.Values{"key": {"ssh-ed25519 AAAA"}, "existing": {"debian"}}, h.srv.URL); code < 400 {
+		t.Errorf("posting a key = %d", code)
 	}
 
-	key := testSSHKey(t) + " tom@laptop"
-	u, _ := h.store.UserByUsername(context.Background(), "u")
-	// The code that works, kept (see TestShowRecoveryKey).
-	good, _ := authkit.TOTPCode(u.TOTPSecret, nowFunc().Add(30*time.Second))
-	// Not a key: said before the password and code are checked, so the
-	// code isn't used up.
-	form := url.Values{"key": {"not a key"}, "existing": {"debian"}, "password": {"a long password"}, "code": {good}}
-	code, body := h.post("/settings/remote-access/key", form, h.srv.URL)
-	if code != http.StatusBadRequest || !strings.Contains(body, "That isn&#39;t an SSH public key") || !strings.Contains(body, "not a key</textarea>") ||
-		strings.Contains(body, "a long password") || len(fs.sshKeys) != 0 {
-		t.Errorf("not a key: %d", code)
-	}
-	// A wrong password or code: nothing is added, and what was typed
-	// stays (never the password).
-	form.Set("key", key)
-	form.Set("password", "not my password")
-	code, body = h.post("/settings/remote-access/key", form, h.srv.URL)
-	if code != http.StatusBadRequest || !strings.Contains(body, "That password or code didn&#39;t work.") || !strings.Contains(body, " tom@laptop</textarea>") ||
-		!strings.Contains(body, "<option selected>debian</option>") || strings.Contains(body, "not my password") || len(fs.sshKeys) != 0 {
-		t.Errorf("wrong password: %d", code)
-	}
-	form.Set("password", "a long password")
-	form.Set("code", wrongCode(u.TOTPSecret))
-	if code, _ := h.post("/settings/remote-access/key", form, h.srv.URL); code != http.StatusBadRequest || len(fs.sshKeys) != 0 {
-		t.Errorf("wrong code: %d", code)
-	}
-	// An account the server hasn't got (from a page made up, say): the
-	// agent's sentence.
-	form.Set("code", good)
-	form.Set("existing", "tom")
-	if code, body := h.post("/settings/remote-access/key", form, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "This server has no account called tom: make it first, as root") || len(fs.sshKeys) != 0 {
-		t.Errorf("no such account: %d", code)
-	}
-	// Each code works once: start the account's codes again.
-	h.store.SetTOTP(context.Background(), u.ID, u.TOTPSecret, 0)
-	form.Set("existing", "debian")
-	if code, loc := h.sent(http.MethodPost, "/settings/remote-access/key", form); loc != "/settings/remote-access?key=debian#key-guide" {
-		t.Errorf("after adding = %d %q", code, loc)
-	}
-	if want := (agent.SSHKeyRequest{Key: key, User: "debian"}); len(fs.sshKeys) != 1 || fs.sshKeys[0] != want {
-		t.Errorf("requests = %+v", fs.sshKeys)
-	}
-	// A security event, which every Owner is emailed, with the key's
-	// fingerprint; the wrong tries are audited too.
-	logs, _ := h.store.RecentAudit(context.Background(), 20)
-	var added, wrong int
-	for _, e := range logs {
-		if e.Action == attention.AuditSSHKeyAdded && strings.HasPrefix(e.Detail, "debian on nuc, key SHA256:") {
-			added++
-		}
-		if e.Action == "ssh key" && e.Detail == "wrong password or code" {
-			wrong++
-		}
-	}
-	if added != 1 || wrong != 2 {
-		t.Errorf("audit: added %d, wrong %d", added, wrong)
-	}
-
-	_, body = h.get("/settings/remote-access?key=debian")
-	for _, want := range []string{"Roostack has added your key to debian.", `hx-get="/settings/remote-access?key=debian"`, "ssh debian@127.0.0.1",
-		"Roostack is watching for that login"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("after adding, page missing %q", want)
-		}
-	}
 	fs.sshd.KeyLogins = []agent.KeyLogin{{User: "debian", From: "203.0.113.5", At: time.Now(), Sudo: true}}
-	_, body = h.get("/settings/remote-access?key=debian")
-	if !strings.Contains(body, "Your SSH key works: debian logged in with one from 203.0.113.5 today") || !strings.Contains(body, ". You can now choose “With an SSH key only” above and save.") || strings.Contains(body, "hx-get=\"/settings/remote-access?key") {
-		t.Error("the guide doesn't tick off the login")
+	_, body = h.get("/settings/remote-access?key")
+	if !strings.Contains(body, "Your SSH key works: debian logged in with one from 203.0.113.5 today") ||
+		!strings.Contains(body, `<a class="button" href="/settings/remote-access">Choose keys only</a>`) || strings.Contains(body, `hx-get="/settings/remote-access?key"`) {
+		t.Error("the dialog doesn't tick off the login")
 	}
-	if _, body = h.get("/settings/remote-access"); strings.Contains(body, "Set up an SSH key") {
-		t.Error("the guide is still shown once a key works")
-	}
-	// Sent anyway (from a page loaded before): what's wrong is still shown.
-	form.Set("key", "not a key")
-	if code, body := h.post("/settings/remote-access/key", form, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "That isn&#39;t an SSH public key") {
-		t.Errorf("not a key, once a key works: %d", code)
+	if _, body = h.get("/settings/remote-access"); strings.Contains(body, ">Set up an SSH key</a>") || !strings.Contains(body, ">Add another SSH key</a>") {
+		t.Error("the page still asks for a key once one works")
 	}
 }
 
-// With no account that can use sudo but root, the guide shows the commands
-// that make one, as root, and no form: Roostack won't make it.
-func TestSSHKeyGuideNoSudoer(t *testing.T) {
+// With no account that can use sudo but root, the dialog offers only a new
+// account, and its commands make it first.
+func TestSSHKeyDialogNoSudoer(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	h.setSetup(&fakeSetup{p: allDone, ssh: config.SSHFromAny, sshLogin: config.SSHLoginPassword,
 		sshd: agent.SSHStatus{Installed: true, Passwords: true}})
 	_, body := h.get("/settings/remote-access")
-	for _, want := range []string{"This server has no account that can use <code>sudo</code> apart from root",
-		"useradd --create-home --groups sudo --shell /bin/bash u\npasswd u", "Then reload this page"} {
+	for _, want := range []string{`data-account="" data-new-name="u"`, `<option value="" selected>A new account</option>`,
+		"This server has none apart from root", "useradd --create-home --groups sudo --shell /bin/bash u\npasswd u\nmkdir -p -m 700 ~u/.ssh"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("key guide missing %q", want)
+			t.Errorf("key dialog missing %q", want)
 		}
 	}
-	if strings.Contains(body, `action="/settings/remote-access/key"`) {
-		t.Error("a form with no account to add the key to")
-	}
 }
 
-// Only the Owner can add a key.
-func TestSSHKeyOwnerOnly(t *testing.T) {
-	h, _ := loggedIn(t, auth.RoleAdmin)
-	fs := &fakeSetup{p: allDone, sshd: agent.SSHStatus{Installed: true, Passwords: true, Sudoers: []string{"debian"}}}
-	h.setSetup(fs)
-	if code, _ := h.post("/settings/remote-access/key", url.Values{"key": {testSSHKey(t)}, "existing": {"debian"}}, h.srv.URL); code < 400 ||
-		len(fs.sshKeys) != 0 {
-		t.Errorf("an Admin adding a key: %d", code)
+// The setup step has the dialog too: people usually still have the shell
+// they installed Roostack from.
+func TestSSHKeyDialogWizard(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.setSetup(&fakeSetup{sshd: agent.SSHStatus{Installed: true, Passwords: true, Sudoers: []string{"debian"}}})
+	_, body := h.get("/setup/ssh")
+	for _, want := range []string{`href="/setup/ssh?key#ssh-key" data-dialog="ssh-key">Set up an SSH key</a>`, `hx-get="/setup/ssh?key"`,
+		"ssh debian@127.0.0.1"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("setup's key dialog missing %q", want)
+		}
 	}
-}
-
-// testSSHKey is a new ed25519 public key, as a line of authorized_keys.
-func testSSHKey(t *testing.T) string {
-	t.Helper()
-	pub, _, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	key, err := ssh.NewPublicKey(pub)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(key)))
 }
 
 // The page has one name in Settings (its breadcrumbs, heading and help

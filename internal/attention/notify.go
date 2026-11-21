@@ -97,11 +97,6 @@ const (
 	AuditVPNDeviceChanged = "vpn device changed"
 	AuditVPNDeviceRemoved = "vpn device removed"
 	AuditGuestJoined      = "storage guest joined"
-	// AuditSSHKeyAdded: an Owner added an SSH key to an account on one of
-	// the lab's servers (SPEC.md §6.10 item 3), with the account, the
-	// server, and the key's fingerprint in the detail. Whoever has the key
-	// can use sudo there, so every Owner hears at once.
-	AuditSSHKeyAdded = "ssh key added"
 	// Pausing public access and opening it again (SPEC.md §6.16), with
 	// what in the detail ("everything", "services built with php",
 	// "Lychee"): every Owner hears at once, so a pause nobody expected is
@@ -345,10 +340,6 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 			e.Username + " added a device to the lab's VPN: " + e.Detail + " (" + when + ").", e.Username
 	case AuditGuestJoined:
 		return "", "Another lab started storing its backups here: " + e.Detail + " (" + when + ").", ""
-	case AuditSSHKeyAdded:
-		return "", e.Username + " added an SSH key to the account " + e.Detail + " (" + when + "). Whoever has that key can log in to that " +
-			"server and use sudo, so if nobody in your lab added it, remove the key from that account's ~/.ssh/authorized_keys and change " +
-			e.Username + "'s password.", ""
 	case AuditPublicPaused:
 		if paused == manager.ClosedWhat {
 			return "", "Public access was closed completely " + by + " (" + when + "). Visitors from the internet can't connect at all, " +

@@ -120,9 +120,6 @@ func (m serverRef) RemoteAccessPost() string {
 func (m serverRef) RemoteAccessUnblock() string {
 	return m.path("/settings/remote-access/unblock", "/remote-access/unblock")
 }
-func (m serverRef) RemoteAccessKey() string {
-	return m.path("/settings/remote-access/key", "/remote-access/key")
-}
 func (m serverRef) Backups() string   { return m.path("/backups", "/backups") }
 func (m serverRef) BackupRun() string { return m.path("/backup/run", "/backups/run") }
 
@@ -141,7 +138,6 @@ func (s *Server) serverRoutes(mux *http.ServeMux) {
 		"GET " + p + "/remote-access":          s.sshPage,
 		"POST " + p + "/remote-access":         s.sshSubmit,
 		"POST " + p + "/remote-access/unblock": s.sshUnblockSubmit,
-		"POST " + p + "/remote-access/key":     s.sshKeySubmit,
 		"GET " + p + "/backups":                s.backupsPage,
 		"POST " + p + "/backups/run":           s.backupRun,
 		"POST " + p + "/backups/plan":          s.planAddSubmit(false),

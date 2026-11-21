@@ -40,10 +40,6 @@ type Settings interface {
 	// UnblockSSH lets an address that guessed too many passwords reach SSH
 	// again at once (SSHAccess.SSHD.Blocked).
 	UnblockSSH(ctx context.Context, address string) error
-	// AddSSHKey adds a public key to an account the server has already,
-	// one that can use sudo (agent.SSHKeyRequest); what's wrong with the
-	// request is a usererr.
-	AddSSHKey(ctx context.Context, r agent.SSHKeyRequest) error
 	SetRestartPolicy(ctx context.Context, mode string, hour int) error
 	// RestartPolicy is when the server may restart after updates.
 	RestartPolicy(ctx context.Context) (mode string, hour int, err error)
@@ -137,7 +133,6 @@ type SSHServer interface {
 	SSHStatus(ctx context.Context) (agent.SSHStatus, error)
 	SetSSHKeysOnly(ctx context.Context, on bool) error
 	UnblockSSH(ctx context.Context, address string) error
-	AddSSHKey(ctx context.Context, r agent.SSHKeyRequest) error
 }
 
 // sshCache is how long a read of the SSH server's state is used for pages
@@ -336,24 +331,6 @@ func (h *HostSettings) UnblockSSH(ctx context.Context, address string) error {
 	h.sshGen++
 	h.mu.Unlock()
 	return err
-}
-
-func (h *HostSettings) AddSSHKey(ctx context.Context, r agent.SSHKeyRequest) error {
-	if h.SSHServer == nil {
-		return usererr.New("This server has no SSH server.")
-	}
-	if err := r.Check(); err != nil {
-		return &usererr.Error{Msg: err.Error()}
-	}
-	err := h.SSHServer.AddSSHKey(ctx, r)
-	h.mu.Lock()
-	h.sshAt = time.Time{} // read again, for the guide's last step
-	h.sshGen++
-	h.mu.Unlock()
-	if err != nil {
-		return usererr.New("Roostack couldn't add the key: %s", err)
-	}
-	return nil
 }
 
 func (h *HostSettings) RestartPolicy(_ context.Context) (string, int, error) {

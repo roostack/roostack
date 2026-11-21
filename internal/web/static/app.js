@@ -270,4 +270,46 @@
   // A list in a sentence, with the Oxford comma: "A", "A and B", "A, B, and C".
   const listAnd = (items) =>
     items.length < 3 ? items.join(" and ") : items.slice(0, -1).join(", ") + ", and " + items[items.length - 1];
+
+  // The SSH key dialog (setup-ssh.html, SPEC.md §6.10 item 3): the key
+  // pasted and the account chosen become the commands to run as root on
+  // the server. The key stays in the browser, since Roostack never adds
+  // one itself. It goes inside single quotes in a root shell, so anything
+  // but one public-key line with no quote or control character in it is
+  // refused here.
+  const sshKeyLine = /^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-nistp256@openssh\.com) [A-Za-z0-9+/]+={0,3}( [^'\\\x00-\x1f\x7f]+)?$/;
+  const accountName = /^[a-z][-a-z0-9_]{0,31}$/;
+  window.roostackSSHKey = (el) => ({
+    key: "",
+    account: el.dataset.account,
+    newName: el.dataset.newName,
+    host: el.dataset.host,
+    os: /Mac/.test(navigator.platform) ? "mac" : /Linux/.test(navigator.platform) ? "linux" : "windows",
+    get user() { return this.account === "" ? this.newName.trim() : this.account; },
+    get keyLine() { return this.key.trim().split(/[ \t]+/).join(" "); },
+    get problem() {
+      const k = this.keyLine;
+      if (k === "") return "";
+      if (k.includes("PRIVATE KEY")) return "That's a private key, which must never leave your computer: paste the public key, from the file ending in .pub, and make a new key, since this one may have been seen.";
+      if (k.split("\n").filter((l) => l.trim()).length > 1) return "Paste one key at a time.";
+      if (k.startsWith("ssh-dss ")) return "That's a DSA key, which SSH no longer accepts: make an ed25519 key instead.";
+      if (!sshKeyLine.test(k)) {
+        if (sshKeyLine.test(k.replace(/['\\]/g, ""))) return "Take the ' or \\ out of the words after the key (its comment), since they would break the command.";
+        return "That isn't an SSH public key: it should be one line starting with ssh-ed25519 or ssh-rsa, from the file ending in .pub.";
+      }
+      if (!accountName.test(this.user)) return "An account's name must start with a small letter and have only small letters, digits, “-” and “_”, at most 32 of them.";
+      return "";
+    },
+    get ready() { return this.keyLine !== "" && this.problem === ""; },
+    get commands() {
+      const u = this.user, dir = "~" + u + "/.ssh", key = this.ready ? this.keyLine : "your public key";
+      return (this.account === "" ? "useradd --create-home --groups sudo --shell /bin/bash " + u + "\npasswd " + u + "\n" : "") +
+        "mkdir -p -m 700 " + dir + "\necho '" + key + "' >> " + dir + "/authorized_keys\nchown -R " + u + ": " + dir +
+        "\nchmod 600 " + dir + "/authorized_keys";
+    },
+    init() {
+      const r = el.querySelector('input[name="os"][value="' + this.os + '"]');
+      if (r) r.checked = true;
+    },
+  });
 })();

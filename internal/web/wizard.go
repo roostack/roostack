@@ -293,11 +293,8 @@ func (s *Server) sshPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	// Just added by the key guide (sshKeySubmit): its last step waits for
-	// a login with the key.
-	if u := r.URL.Query().Get("key"); accountNameRe.MatchString(u) {
-		data["KeyAdded"] = u
-	}
+	// The key dialog's link, without scripts, and its check for a login.
+	data["KeyGuideOpen"] = r.URL.Query().Has("key")
 	s.render(w, "setup-ssh", data)
 }
 
