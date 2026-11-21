@@ -233,7 +233,10 @@ down.
 Tick a server under **Servers that use it too** to have its own lookups
 use it as well. That's only worth it for a server whose own lookups should
 leave out ads too. It will ask the lab's DNS server first, and keep its own
-for when that one doesn't answer.
+for when that one doesn't answer. It will also trust that DNS server for
+every name it looks up, including the time servers it sets its clock from,
+so tick a server only if you trust the DNS server as much as the server
+itself.
 
 ??? note "For technical users"
 

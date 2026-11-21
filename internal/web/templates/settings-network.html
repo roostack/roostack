@@ -48,7 +48,8 @@
       <legend>Servers that use it too</legend>
       {{range .}}<label class="check"><input type="checkbox" name="server" value="{{.ID}}"{{if has $.Resolver.Choice.Servers .ID}} checked{{end}}><span>{{.Name}}</span></label>{{end}}
       <p class="hint">Only worth it for a server whose own lookups should leave out ads too. It will ask this DNS server first, and keep its own
-        for when it doesn't answer.</p>
+        for when it doesn't answer. It will also trust it for every name it looks up, including the time servers it sets its clock
+        from, so tick a server only if you trust this DNS server as much as the server itself.</p>
     </fieldset>
     {{end}}
     <p class="hint">A device's file names the DNS server only if the device can reach it, so download it again to pick up a change.
