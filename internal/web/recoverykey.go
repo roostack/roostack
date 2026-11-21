@@ -32,7 +32,7 @@ func (s *Server) recoveryKeyShowPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	s.render(w, "backups-recovery-key", map[string]any{"User": currentUser(r)})
+	s.render(w, "backups-recovery-key", map[string]any{"User": currentUser(r), "Passkey": s.passkeyOffered(r, currentUser(r))})
 }
 
 func (s *Server) recoveryKeyShowSubmit(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +44,7 @@ func (s *Server) recoveryKeyShowSubmit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	again := func(status int, msg string) {
 		w.WriteHeader(status)
-		s.render(w, "backups-recovery-key", map[string]any{"User": u, "Error": msg})
+		s.render(w, "backups-recovery-key", map[string]any{"User": u, "Error": msg, "Passkey": s.passkeyOffered(r, u)})
 	}
 	if !s.stepUp(w, r, "recovery key", again) {
 		return
@@ -58,13 +58,22 @@ func (s *Server) recoveryKeyShowSubmit(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "backups-recovery-key", map[string]any{"User": u, "Key": key})
 }
 
-// stepUp checks it's the Owner, though logged in: their password and a
-// fresh two-factor code (SPEC.md §6.9). Wrong codes count against the
-// account (checkCode), and maxStepUpFailures wrong tries end the session.
-// Each failure is audited under action. On failure it has answered, with
-// again (the page and an error) or by logging out, and returns false.
+// stepUp checks it's the Owner, though logged in: one of their passkeys,
+// or their password and a fresh two-factor code (SPEC.md §6.9). Wrong
+// codes count against the account (checkCode), and maxStepUpFailures wrong
+// tries end the session. Each failure is audited under action. On failure
+// it has answered, with again (the page and an error) or by logging out,
+// and returns false.
 func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, again func(status int, msg string)) bool {
 	u := currentUser(r)
+	if hasPasskeyAnswer(r) {
+		if !s.checkPasskeyOf(w, r, u, ceremonyConfirm) {
+			time.Sleep(failedLoginDelay)
+			again(http.StatusBadRequest, "The passkey didn't work, or you cancelled it. Try again, or use your password and code.")
+			return false
+		}
+		return true
+	}
 	ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("password"))
 	if err != nil {
 		s.serverError(w, err)

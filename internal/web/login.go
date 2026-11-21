@@ -84,9 +84,9 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderLogin(w, r, map[string]any{"Error": "Wrong username or password.", "Username": username, "Next": localNext(r.FormValue("next"))})
 		return
 	}
-	if u.TOTPSecret != "" {
+	if s.secondStep(u, s.twoFactorRequired(u)) {
 		// Say so now rather than after a code that can't work.
-		if until := authkit.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); time.Now().Before(until) {
+		if until := authkit.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); u.TOTPSecret != "" && u.Passkeys == 0 && time.Now().Before(until) {
 			w.WriteHeader(http.StatusTooManyRequests)
 			s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until), "Username": username, "Next": localNext(r.FormValue("next"))})
 			return
@@ -103,6 +103,14 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, localNext(r.FormValue("next")))
 }
 
+// secondStep says whether signing in with u's password asks for a second
+// step: their code whenever they have an authenticator app, and their
+// passkey when they have one and must use two-factor (required). Without
+// that, a passkey is another way in, and the password alone still works.
+func (s *Server) secondStep(u *store.User, required bool) bool {
+	return u.TOTPSecret != "" || (u.Passkeys > 0 && required)
+}
+
 // startPending records a login that passed the password step and asks for
 // the 2FA code.
 func (s *Server) startPending(w http.ResponseWriter, r *http.Request, u *store.User) {
@@ -117,7 +125,57 @@ func (s *Server) startPending(w http.ResponseWriter, r *http.Request, u *store.U
 		Name: pendingCookie, Value: token, Path: "/login", MaxAge: int(pendingDuration.Seconds()),
 		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r),
 	})
-	s.render(w, "totp", map[string]any{})
+	s.render(w, "totp", s.secondStepView(r, u, ""))
+}
+
+// secondStepView is what the step after a password offers: the code, a
+// passkey, or both.
+func (s *Server) secondStepView(r *http.Request, u *store.User, msg string) map[string]any {
+	v := map[string]any{"Code": u.TOTPSecret != "", "Passkey": u.Passkeys > 0 && s.passkeysWork(r),
+		"NoPasskeyHere": u.Passkeys > 0 && !s.passkeysWork(r), "UIHost": s.UIHost}
+	if msg != "" {
+		v["Error"] = msg
+	}
+	return v
+}
+
+// loginPasskeyOptions starts the step after a password with a passkey.
+func (s *Server) loginPasskeyOptions(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie(pendingCookie)
+	if err != nil {
+		passkeyBeginError(w, http.StatusBadRequest, "That took too long. Please log in again.")
+		return
+	}
+	p, ok := s.pending.get(originOf(r) + authkit.HashToken(c.Value))
+	if !ok {
+		passkeyBeginError(w, http.StatusBadRequest, "That took too long. Please log in again.")
+		return
+	}
+	u, err := s.Store.UserByID(r.Context(), p.userID)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.passkeySecondBegin(w, r, u)
+}
+
+// loginPasskey signs in with a passkey alone, at Roostack's own address.
+func (s *Server) loginPasskey(w http.ResponseWriter, r *http.Request) {
+	next := localNext(r.FormValue("next"))
+	u, ok := s.finishPasskeyLogin(w, r)
+	if !ok {
+		time.Sleep(failedLoginDelay)
+		w.WriteHeader(http.StatusUnauthorized)
+		s.renderLogin(w, r, map[string]any{"Error": passkeyFailed, "Next": next})
+		return
+	}
+	if err := s.startSession(w, r, u, r.FormValue("remember") == "on"); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), u, "login", "with a passkey")
+	s.noteDevice(w, r, u)
+	redirect(w, r, next)
 }
 
 func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
@@ -138,28 +196,35 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	res, until, err := s.checkCode(r.Context(), u.ID, r.FormValue("code"))
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	if res != codeOK {
-		s.Log.Warn("failed 2FA code", "user", u.Username, "remote", r.RemoteAddr)
-		time.Sleep(failedLoginDelay)
-		if res == codeLocked {
-			s.Store.Audit(r.Context(), u, attention.AuditLocked, "at login")
-			s.pending.delete(key)
-			w.WriteHeader(http.StatusTooManyRequests)
-			s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until)})
+	how := "with two-factor code"
+	if hasPasskeyAnswer(r) {
+		if !s.checkPasskeyOf(w, r, u, ceremonySecond) {
+			time.Sleep(failedLoginDelay)
+			w.WriteHeader(http.StatusUnauthorized)
+			s.render(w, "totp", s.secondStepView(r, u, passkeyFailed))
 			return
 		}
-		msg := "That code didn't work. Check your authenticator app and try again."
-		if res == codeUsed {
-			msg = usedCodeMessage
+		how = "with a passkey"
+	} else {
+		res, until, err := s.checkCode(r.Context(), u.ID, r.FormValue("code"))
+		if err != nil {
+			s.serverError(w, err)
+			return
 		}
-		w.WriteHeader(http.StatusUnauthorized)
-		s.render(w, "totp", map[string]any{"Error": msg})
-		return
+		if res != codeOK {
+			s.Log.Warn("failed 2FA code", "user", u.Username, "remote", r.RemoteAddr)
+			time.Sleep(failedLoginDelay)
+			if res == codeLocked {
+				s.Store.Audit(r.Context(), u, attention.AuditLocked, "at login")
+				s.pending.delete(key)
+				w.WriteHeader(http.StatusTooManyRequests)
+				s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until)})
+				return
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+			s.render(w, "totp", s.secondStepView(r, u, codeMessage(res, until)))
+			return
+		}
 	}
 
 	s.pending.delete(key)
@@ -168,7 +233,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), u, "login", "with two-factor code")
+	s.Store.Audit(r.Context(), u, "login", how)
 	s.noteDevice(w, r, u)
 	redirect(w, r, p.next)
 }

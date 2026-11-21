@@ -1,22 +1,36 @@
 {{define "title"}}Log in{{end}}
 {{define "content"}}
-<section class="card narrow">
+<section class="card narrow" data-passkey-area>
   <h1>Log in</h1>
   {{with .Expired}}{{notice "info" (printf "You were signed out after %d minutes without activity. Log in again to carry on." .)}}{{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .PasskeysWork}}
+  <p class="error" role="alert" data-passkey-error hidden></p>
+  <div data-passkey-shown hidden>
+    <p><button type="button" class="wide passkey-button" data-passkey="/login/passkey/options" data-form="passkey-login"
+      data-failed="The passkey didn't work, or you cancelled it. Try again, or log in with your password.">{{icon "key"}} Log in with a passkey</button></p>
+    <p class="or"><span>or</span></p>
+  </div>
+  <form id="passkey-login" method="post" action="/login/passkey" hidden>
+    {{with .Next}}{{if ne . "/"}}<input type="hidden" name="next" value="{{.}}">{{end}}{{end}}
+    <input type="hidden" name="remember" data-copy="remember">
+  </form>
+  {{end}}
   <form method="post" action="/login">
     {{with .Next}}{{if ne . "/"}}<input type="hidden" name="next" value="{{.}}">{{end}}{{end}}
     <label>Username
-      <input name="username" value="{{.Username}}" autocomplete="username" required autofocus>
+      <input name="username" value="{{.Username}}" required autofocus{{if .PasskeysWork}} autocomplete="username webauthn"
+        data-passkey-autofill="/login/passkey/options?mediation=conditional" data-form="passkey-login"{{else}} autocomplete="username"{{end}}>
     </label>
     <label>Password
       <input name="password" type="password" autocomplete="current-password" required>
     </label>
-    {{if .OfferRemember}}<label class="check"><input type="checkbox" name="remember">
+    {{if .OfferRemember}}<label class="check"><input type="checkbox" name="remember" id="remember">
       <span>Keep me signed in<small>On this browser, for 30 days, even when you're away. Only on a device that's yours alone.</small></span></label>{{end}}
-    <button type="submit">Log in</button>
+    <button type="submit"{{if .PasskeysWork}} class="secondary"{{end}}>Log in</button>
   </form>
   {{if .SignInPage}}<p class="hint">Or <a href="/login/sign-in">sign in with the lab's sign-in page</a>, as for its services.</p>{{end}}
   <p class="hint">Forgotten your password, or lost your phone? <a href="/help/trouble/locked-out/" target="_blank" rel="noopener">Getting back in{{template "new-window"}}</a>.</p>
 </section>
+{{if .PasskeysWork}}<script src="/static/passkey.js" defer></script>{{end}}
 {{end}}

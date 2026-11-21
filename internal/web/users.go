@@ -10,6 +10,7 @@ import (
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // usersPage lists accounts for the Owner (SPEC.md §5).
@@ -175,12 +176,17 @@ func (s *Server) userReset2FASubmit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.Store.ResetTOTP(r.Context(), u.ID); err != nil {
+	removed, err := s.Store.ResetTOTP(r.Context(), u.ID)
+	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "2FA reset", u.Username)
+	s.Store.Audit(r.Context(), currentUser(r), "2FA reset", u.Username+passkeysRemoved(removed))
 	msg := "Two-factor authentication is off for " + u.Username + ", and they've been logged out."
+	if removed > 0 {
+		msg = "Two-factor authentication is off for " + u.Username + ", Roostack has removed their " +
+			words.Count(int64(removed), "passkey", "passkeys") + ", and they've been logged out."
+	}
 	if u.Role == auth.RoleOwner {
 		msg += " They'll set it up again when they next log in."
 	}

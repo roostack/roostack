@@ -28,7 +28,7 @@
     <tr><th>For</th><th>Old address</th><th>New address</th></tr>
     {{range $.OldRows}}<tr><td>{{.Title}}</td><td><code>{{.Old}}</code></td><td><a href="{{.New}}" target="_blank" rel="noopener"><code>{{.New}}</code>{{template "new-window"}}</a></td></tr>{{end}}
   </table>
-  <p class="hint">Passkeys and security keys made for an old address don't work at the new one: add new ones in each app.
+  <p class="hint">Passkeys and security keys made for an old address don't work at the new one: add new ones on Your account → Security and in each app.
     Apps' own settings that include the address (such as Vaultwarden's) already use the new one.</p>
   {{with $.OldProblem}}{{notice "warn" (printf "%s. Until that works, old addresses may stop working early if your home's address changes. Roostack will try again in a few minutes." .)}}{{end}}
   <details class="technical" id="old-address-details"><summary>Details</summary>

@@ -1250,6 +1250,18 @@ button.wide { width: 100%; }
 .signin-apps .logo-tile { width: 40px; height: 40px; padding: 4px; }
 .signin-apps small { display: block; color: var(--muted); }
 
+/* Passkeys (passkeys.go; mock-ups in docs/mockups/passkeys): the button,
+   "or" between it and the password or code, and the Passkeys card's
+   notes. */
+.passkey-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); }
+.passkey-button .icon, .acct-page .button .icon, [data-create] .icon { width: 18px; height: 18px; vertical-align: -3px; }
+.or { display: flex; align-items: center; gap: var(--space-3); color: var(--muted); font-size: var(--text-sm); margin: var(--space-3) 0 0; }
+.or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--edge-strong); }
+.signin-card .or + form, .card .or + form { margin-top: var(--space-3); }
+.passkey-old { display: block; color: var(--warn); margin-top: var(--space-1); }
+.passkey-warn { border-left: 3px solid var(--warn); padding-left: var(--space-3); }
+.acct-tech summary { cursor: pointer; color: var(--muted); }
+
 /* Your account (SPEC.md §5.3; mock-ups in docs/mockups/your-account): the
    bare layout in the lab's look, a header with who's signed in, and
    tabs. */

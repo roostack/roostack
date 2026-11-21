@@ -165,6 +165,11 @@ type Server struct {
 	handoffs  expiring[string, *pagesHandoff]
 	confirmed expiring[string, string]
 	stepUps   stepUpFailures
+	// ceremonies are passkey challenges, keyed by their cookie's hash, and
+	// addConfirmed the sessions that have just confirmed it's them for
+	// adding a passkey (passkeys.go).
+	ceremonies   expiring[string, *passkeyCeremony]
+	addConfirmed expiring[string, struct{}]
 	// codeMu makes two-factor checks run one at a time (checkCode).
 	codeMu     sync.Mutex
 	issues     serverIssues
@@ -577,6 +582,9 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.loginSubmit)
 	mux.HandleFunc("POST /login/totp", s.loginTOTP)
+	mux.HandleFunc("POST /login/passkey", s.loginPasskey)
+	mux.HandleFunc("POST /login/passkey/options", s.passkeyLoginBegin)
+	mux.HandleFunc("POST /login/passkey/options/second", s.loginPasskeyOptions)
 	mux.HandleFunc("POST /logout", s.logout)
 	mux.HandleFunc("GET "+pathPagesStart, s.pagesStart)
 	mux.HandleFunc("GET "+pathPagesCallback, s.pagesCallback)

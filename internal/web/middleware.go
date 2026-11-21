@@ -76,7 +76,7 @@ func (s *Server) requireLogin(h http.HandlerFunc) http.Handler {
 func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
 	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
 		u := currentUser(r)
-		if u.TOTPSecret == "" && s.twoFactorRequired(u) {
+		if !u.HasSecondFactor() && s.twoFactorRequired(u) {
 			redirect(w, r, firstThen(s.twoFactorPath(r, u), r))
 			return
 		}
@@ -242,7 +242,7 @@ func (s *Server) requireOwner(h http.HandlerFunc) http.Handler {
 			http.Error(w, "Only the Owner can change these settings.", http.StatusForbidden)
 			return
 		}
-		if u.TOTPSecret == "" {
+		if !u.HasSecondFactor() {
 			redirect(w, r, firstThen(s.twoFactorPath(r, u), r))
 			return
 		}

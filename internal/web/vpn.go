@@ -92,6 +92,8 @@ type deviceForm struct {
 	CanPages, CanSSH, CanHome, CanInternet bool
 	// NeedCode: they have two-factor, so it's asked for again.
 	NeedCode bool
+	// Passkey offers their passkey instead of the code (passkeys.go).
+	Passkey bool
 }
 
 // deviceAdded is a device's settings, shown once.
@@ -214,7 +216,7 @@ func (s *Server) acctDeviceAdd(w http.ResponseWriter, r *http.Request, a *acct) 
 // readDeviceForm reads and checks the form, keeping what a may choose,
 // then (if the rest is fine and ready says nothing's wrong) the two-factor
 // code, which is used up once it's right.
-func (s *Server) readDeviceForm(r *http.Request, a *acct, f *deviceForm, ready func() string) string {
+func (s *Server) readDeviceForm(w http.ResponseWriter, r *http.Request, a *acct, f *deviceForm, ready func() string) string {
 	f.Name = strings.Join(strings.Fields(r.FormValue("name")), " ")
 	// What the Owner doesn't allow isn't on the form: a device that had
 	// it keeps the choice, for when it's allowed again.
@@ -235,7 +237,11 @@ func (s *Server) readDeviceForm(r *http.Request, a *acct, f *deviceForm, ready f
 	if msg := ready(); msg != "" {
 		return msg
 	}
-	if f.NeedCode {
+	if f.NeedCode && hasPasskeyAnswer(r) {
+		if !s.checkPasskeyOf(w, r, a.User, ceremonyConfirm) {
+			return "The passkey didn't work, or you cancelled it. Try again, or enter your code."
+		}
+	} else if f.NeedCode {
 		res, until, err := s.checkCode(r.Context(), a.User.ID, strings.ReplaceAll(r.FormValue("code"), " ", ""))
 		switch {
 		case err != nil:
@@ -258,7 +264,7 @@ func (s *Server) acctDeviceSubmit(w http.ResponseWriter, r *http.Request, a *acc
 		return
 	}
 	f := s.newDeviceForm(a)
-	if msg := s.readDeviceForm(r, a, f, func() string { return s.vpnNotReady(r.Context()) }); msg != "" {
+	if msg := s.readDeviceForm(w, r, a, f, func() string { return s.vpnNotReady(r.Context()) }); msg != "" {
 		s.renderDeviceForm(w, r, a, "Add a device", f, msg)
 		return
 	}
@@ -310,7 +316,7 @@ func (s *Server) acctDeviceChangeSubmit(w http.ResponseWriter, r *http.Request, 
 		}
 		return ""
 	}
-	if msg := s.readDeviceForm(r, a, f, ready); msg != "" {
+	if msg := s.readDeviceForm(w, r, a, f, ready); msg != "" {
 		s.renderDeviceForm(w, r, a, "Change "+d.Name, f, msg)
 		return
 	}
@@ -386,6 +392,7 @@ func (s *Server) renderDeviceForm(w http.ResponseWriter, r *http.Request, a *acc
 		s.serverError(w, err)
 		return
 	}
+	f.Passkey = f.NeedCode && s.passkeyOffered(r, a.User)
 	v.Title, v.Devices.Form, v.Error = title, f, msg
 	status := http.StatusOK
 	if msg != "" {

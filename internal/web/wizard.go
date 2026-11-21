@@ -387,6 +387,12 @@ func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) addressData(data map[string]any) map[string]any {
 	data["CloudDisabled"] = s.Cloud == nil
 	data["OldDays"] = config.OldAddressDays
+	if s.Domain != "" {
+		// Passkeys are tied to the domain they were made for (passkeys.go).
+		if n, err := s.Store.CountPasskeys(context.Background(), s.Domain); err == nil && n > 0 {
+			data["Passkeys"] = words.Count(int64(n), "passkey", "passkeys")
+		}
+	}
 	if o := s.oldAddress(); o != nil {
 		data["Old"] = o
 	}

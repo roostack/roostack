@@ -422,7 +422,7 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [ ] Services on another server: the controller makes the client secret and sends it in the assignment; `AddHost` to the controller over WireGuard; Caddy lets the lab's servers reach the sign-in page
 - [ ] Removing a service: delete its `service_access` rows (`internal/web/services.go`, left alone while the package editor changes it)
 - [ ] Check on a lab with a real address: a real certificate, the sign-in page public (CrowdSec, AppSec, the login limit, its DNS record), and a backup and restore keeping the signing key (docs/ASSUMPTIONS.md V6)
-- [ ] Later (SPEC §5.2): passkeys (`go-webauthn`, to agree), single sign-out (back-channel logout), signing-key rotation, choosing an app's admins per service
+- [ ] Later (SPEC §5.2): single sign-out (back-channel logout), signing-key rotation, choosing an app's admins per service
 
 - K5: setup-code approach for first-run setup (add to SPEC?)
 - roost.ac must go on the Public Suffix List before people get subdomains there (so browsers keep one lab's cookies away from another's); the request takes weeks, so file it early (SPEC §6.6)

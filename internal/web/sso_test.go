@@ -151,7 +151,7 @@ func TestSignInOIDC(t *testing.T) {
 		t.Fatalf("not signed in: %d %q", resp.StatusCode, next)
 	}
 	_, body := call(t, srv, c, "GET", signInHost, next, nil)
-	for _, want := range []string{"Smiths&#39; lab", "to continue to", "Mealie", `name="remember" checked`, `class="brand-mark`} {
+	for _, want := range []string{"Smiths&#39; lab", "to continue to", "Mealie", `name="remember" id="remember" checked`, `class="brand-mark`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("sign-in page missing %q", want)
 		}
@@ -396,11 +396,11 @@ func TestSignInHosts(t *testing.T) {
 		t.Errorf("cross-site sign-in: %d", resp.StatusCode)
 	}
 	resp, body := call(t, srv, c, "GET", signInHost, "/sign-in", nil)
-	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'none'") || !strings.Contains(csp, "frame-ancestors 'none'") {
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'self'") || !strings.Contains(csp, "frame-ancestors 'none'") {
 		t.Errorf("CSP %q", csp)
 	}
 	if strings.Contains(body, "<script") {
-		t.Error("the sign-in page has a script")
+		t.Error("the sign-in page has a script where passkeys can't work")
 	}
 	// Where to go after signing in stays on the sign-in page.
 	for _, next := range []string{"https://evil.example/", "//evil.example/", "/authorize?\r\nx"} {

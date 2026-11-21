@@ -1,0 +1,109 @@
+<!doctype html><html lang="en" data-palette="teal" data-states="list:Two passkeys,none:No passkeys yet,confirm:Adding (confirm it's you),name:Adding (name it),only:One passkey only,domain:After a domain change">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Security · Smiths' lab (mock-up)</title>
+  <link rel="icon" href="../../../internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../../internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/app.css">
+  <link rel="stylesheet" href="../your-account/mock.css">
+  <link rel="stylesheet" href="../sso/mock.css">
+  <link rel="stylesheet" href="mock.css">
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="bare">
+    <header class="acct-header">
+      <a class="acct-brand" href="security.html"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><strong>Smiths' lab</strong></a>
+      <div class="acct-who">
+        <span class="avatar" aria-hidden="true">S</span>
+        <span class="who-name"><strong>sam</strong><span>Owner</span></span>
+        <form method="post" action="#"><button type="button" class="icon-button" title="Sign out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Sign out</span></button></form>
+      </div>
+    </header>
+    <main class="page acct-page">
+      <div class="page-head"><div><h1>Security</h1></div></div>
+      <nav class="settings-nav area-tabs acct-tabs" aria-label="Your account"><a href="#">Services</a><a href="#">Account</a><a href="security.html" class="active" aria-current="page">Security</a><a href="#">Notifications</a><a href="#">VPN devices</a></nav>
+
+<section class="card">
+  <div class="card-head"><h2>Password</h2></div>
+  <p>Last changed on 3 November.</p>
+  <p><button type="button" class="secondary">Change your password…</button></p>
+</section>
+
+<section class="card mock-new" id="passkeys">
+  <div class="card-head"><h2>Passkeys</h2>
+    <span data-state="list" class="pill pill-ok">2</span><span data-state="only domain" class="pill pill-ok">1</span><span data-state="none" class="pill">None</span></div>
+
+  <div data-state="none">
+    <p>A passkey will let you sign in with your fingerprint, your face, or your device's PIN instead of your password and a code. It only
+      works on Smiths' lab's own pages, so a fake sign-in page can't steal it.</p>
+    <p><a class="button secondary" href="?s=confirm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l2.5 2.5M14 9l2 2"/></svg> Add a passkey…</a></p>
+  </div>
+
+  <div data-state="list only domain">
+    <p data-state="list only">You can sign in with any of these instead of your password and a code.</p>
+    <div class="table-wrap"><table class="list">
+      <thead><tr><th>Passkey</th><th class="hide-phone">Added</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+        <tr data-state="list only"><td>Safari on iPhone<small class="hint"> · synced to your Apple account</small></td><td class="hide-phone">19 Nov</td><td>Today</td>
+          <td><button type="button" class="table-action quiet" data-state="list">Remove</button><span class="hint" data-state="only" title="It's your only way to meet two-factor, which you need as the Owner">Your only one</span></td></tr>
+        <tr data-state="list"><td>YubiKey<small class="hint"> · on this key only</small></td><td class="hide-phone">19 Nov</td><td>Never</td><td><button type="button" class="table-action quiet">Remove</button></td></tr>
+        <tr data-state="domain"><td>Firefox on Linux<small class="hint"> · synced to 1Password</small>
+          <small class="mock-old">Made for smiths.roost.ac, so it won't work since the lab's address changed: remove it and add a new one.</small></td><td class="hide-phone">2 Nov</td><td>12 Nov</td><td><button type="button" class="table-action quiet">Remove</button></td></tr>
+      </tbody>
+    </table></div>
+    <p class="mock-warn" data-state="only">If you lose this phone, you'll need your password and the server's command line to get back in. Add a
+      second passkey or an authenticator app.</p>
+    <p><a class="button secondary" href="?s=confirm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l2.5 2.5M14 9l2 2"/></svg> Add a passkey…</a></p>
+  </div>
+
+  <div data-state="confirm">
+    <h3>Confirm it's you</h3>
+    <p>A passkey will let whoever has it into your account, so Roostack will check it's you before adding one.</p>
+    <p><button type="button" class="passkey-button" onclick="location.search='?s=name'"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l2.5 2.5M14 9l2 2"/></svg> Use a passkey you already have</button></p>
+    <p class="or"><span>or</span></p>
+    <form onsubmit="event.preventDefault(); location.search='?s=name'">
+      <label>Password <input type="password" autocomplete="current-password" required></label>
+      <label>Code from your authenticator app <input inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" required></label>
+      <button type="submit" class="secondary">Continue</button> <a href="?s=list">Cancel</a>
+    </form>
+  </div>
+
+  <div data-state="name">
+    <div class="mock-device" role="presentation"><strong>Your device</strong><span>Use Face ID to save a passkey for lab.grahamhq.com?</span><small>The browser's own window, not Roostack's: shown here to say what will happen.</small></div>
+    <form onsubmit="event.preventDefault(); location.search='?s=list'">
+      <label>Name <input value="Safari on iPhone" required>
+        <small>So you can tell your passkeys apart, such as the device or password manager it's in.</small></label>
+      <button type="submit">Save passkey</button>
+    </form>
+    <p class="hint">Roostack will email you that a passkey was added, so you'll know if it wasn't you.</p>
+  </div>
+
+  <details class="mock-tech" data-state="list none only domain"><summary>How passkeys work here</summary>
+    <p>A passkey is a pair of keys: your device keeps the private one, and Roostack keeps only the public one, in its database
+      (<code>/var/lib/roostack/roostack.db</code>, table <code>passkeys</code>). It's made for the lab's domain,
+      <code>lab.grahamhq.com</code>, and Roostack will accept it at <code>my.lab.grahamhq.com</code> and
+      <code>roost.lab.grahamhq.com</code> only. Your device checks it's you each time, with your fingerprint, face, or PIN, so a passkey
+      is both steps of signing in. Through the SSH tunnel, or before the lab has a domain, browsers won't use passkeys, so your password and
+      code stay.</p>
+  </details>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Two-factor</h2><span class="pill pill-ok" data-state="list confirm name domain">On</span><span class="pill" data-state="only none">Off</span></div>
+  <p data-state="list confirm name domain">Signing in with your password asks for a code from your authenticator app as well. As the Owner, you
+    need two-factor: a passkey, or this.</p>
+  <p data-state="only">Your passkey meets the two-factor you need as the Owner. An authenticator app as well will let you sign in with your
+    password and a code where passkeys can't be used, such as through the SSH tunnel.</p>
+  <p data-state="none">As the Owner, you need two-factor: a passkey, or a code from an authenticator app on your phone as well as your password.</p>
+  <p><a class="button secondary" href="#">Use a new authenticator app…</a></p>
+</section>
+
+    </main>
+    <footer class="site acct-foot">Smiths' lab runs on Roostack · <a href="#">What is this page?</a></footer>
+  </div>
+  <script src="mock.js"></script>
+</body>
+</html>

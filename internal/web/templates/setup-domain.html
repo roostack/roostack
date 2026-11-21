@@ -5,7 +5,8 @@
     <h1>{{if .Wizard}}Your lab's address{{else if .StepDone}}Change your lab's address{{else}}Give your lab an address{{end}}</h1>
     {{if and (not .Wizard) .StepDone}}<p class="lede">Saving will check the new details, then restart Roostack to use them. Your services will keep their data.
       If the address changes, the old addresses will keep working for {{.OldDays}} days so you can update bookmarks and apps
-      {{- with .Old}}; {{.Domain}}, the address before, will stop at once{{end}}.</p>{{end}}
+      {{- with .Old}}; {{.Domain}}, the address before, will stop at once{{end}}.</p>
+    {{with .Passkeys}}{{notice "warn" (printf "%s made for this address will stop working at a new one, as each is tied to the address it was made for. People will sign in with their password and code, and add new passkeys on Your account → Security." .)}}{{end}}{{end}}
   </div>
 </div>
 <section class="card narrow" x-data="{ choice: '{{.Choice}}' }">

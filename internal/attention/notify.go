@@ -97,6 +97,12 @@ const (
 	AuditVPNDeviceChanged = "vpn device changed"
 	AuditVPNDeviceRemoved = "vpn device removed"
 	AuditGuestJoined      = "storage guest joined"
+	// Passkeys (SPEC.md §5, "Passkeys"): one added or removed by its
+	// person, with its name in the detail, and one refused because its
+	// counter went backwards, which means it may have been copied.
+	AuditPasskeyAdded   = "passkey added"
+	AuditPasskeyRemoved = "passkey removed"
+	AuditPasskeyCopied  = "passkey refused"
 	// Pausing public access and opening it again (SPEC.md §6.16), with
 	// what in the detail ("everything", "services built with php",
 	// "Lychee"): every Owner hears at once, so a pause nobody expected is
@@ -338,6 +344,13 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 		return "A device was added to your account on the lab's VPN: " + e.Detail + " (" + when + "). If it wasn't you, remove it on " +
 				"Your account and change your password.",
 			e.Username + " added a device to the lab's VPN: " + e.Detail + " (" + when + ").", e.Username
+	case AuditPasskeyAdded:
+		return "A passkey was added to your account: " + e.Detail + " (" + when + "). If it wasn't you, remove it on Your account → Security " +
+			"and change your password.", "", e.Username
+	case AuditPasskeyCopied:
+		return "Roostack refused your passkey " + e.Detail + " (" + when + "): its counter went backwards, which means a copy of it may be " +
+				"in use. Remove it on Your account → Security and add a new one.",
+			e.Username + "'s passkey " + e.Detail + " was refused, as a copy of it may be in use (" + when + ").", e.Username
 	case AuditGuestJoined:
 		return "", "Another lab started storing its backups here: " + e.Detail + " (" + when + ").", ""
 	case AuditPublicPaused:

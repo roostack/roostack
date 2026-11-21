@@ -1,0 +1,19 @@
+/* Passkeys mock-ups (2026-11-19): only what the real stylesheet and the
+   Your account and single sign-on mock-ups' own CSS lack. */
+.passkey-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); }
+.passkey-button .icon, .acct-page .button .icon { width: 18px; height: 18px; vertical-align: -3px; }
+/* "or" between the passkey and the password or code. */
+.or { display: flex; align-items: center; gap: var(--space-3); color: var(--muted); font-size: var(--text-sm); margin: var(--space-3) 0 0; }
+.or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
+.signin-card .or + form { margin-top: var(--space-3); }
+/* What the browser's autofill and the device's own window would show. */
+.mock-autofill { display: flex; align-items: center; gap: var(--space-2); margin: calc(-1 * var(--space-3)) 0 var(--space-4);
+  padding: var(--space-2) var(--space-3); border-radius: 10px; background: var(--surface); border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgb(0 0 0 / .12); }
+.mock-autofill .icon { width: 20px; height: 20px; }
+.mock-autofill small { display: block; color: var(--muted); }
+.mock-device { display: grid; gap: var(--space-1); max-width: 360px; margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4);
+  border-radius: 14px; border: 1px dashed var(--border); background: var(--surface); }
+.mock-device small { color: var(--muted); }
+.mock-old { display: block; color: var(--warn, #b45309); margin-top: var(--space-1); }
+.mock-warn { border-left: 3px solid var(--warn, #b45309); padding-left: var(--space-3); }

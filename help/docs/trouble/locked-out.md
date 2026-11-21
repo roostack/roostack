@@ -18,8 +18,13 @@ you to choose a new one. You'll be logged out everywhere else.
 
 ## You lost your phone (two-factor)
 
+**If you have a passkey on another device**, or an authenticator app as
+well as a passkey, sign in with the one you still have, then remove the
+lost one on Your account → **Security**.
+
 **If there's another Owner**, they can turn off your two-factor: **Settings
 → People**, **Change…** next to you, **Turn off two-factor (lost phone)**.
+That will also remove your passkeys.
 
 **If you're the only Owner**, on the server:
 

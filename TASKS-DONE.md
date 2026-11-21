@@ -569,6 +569,8 @@ The review of 2026-10-16 found no CI for either Go repository.
 
 ## Single sign-on: what's next (SPEC §5.2)
 
+- [x] Passkeys (2026-11-20, SPEC §5 "Passkeys", docs/PASSKEYS-PLAN.md): go-webauthn; signing in with a passkey alone at my. and roost., standing in for the code wherever Roostack confirms it's them, added and removed on Your account → Security, removed with a two-factor reset, and a warning before the domain changes
+
 - [x] An app with no sign-in of its own: `sso.required` (2026-11-06, SPEC §5.2), for Outline: always on, no way to turn it off, refused where it can't work
 
 - [x] Run the OpenID Foundation's conformance suite (Basic OP and Config OP plans) against the provider before a release (2026-10-20: both pass with no failures after fixing `auth_time`, `prompt=login`/`max_age`, POST to `/authorize` and revoking a reused code's tokens; claims now follow scopes, the Owner's choice; five deliberate warnings; SPEC §5.2, docs/ASSUMPTIONS.md V7)
