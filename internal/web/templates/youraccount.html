@@ -158,7 +158,7 @@
     {{if eq $.User.Role "owner"}}the server's command line{{else}}{{$.Owner}}{{end}} to get back in. Add a second passkey or an authenticator app.</p>{{end}}
   {{else}}
   <p>A passkey will let you sign in with your fingerprint, your face, or your device's PIN instead of your password and a code. It only
-    works on {{.LabName}}'s own pages, so a fake sign-in page can't steal it.</p>
+    works on {{with .LabName}}{{.}}'s{{else}}the lab's{{end}} own pages, so a fake sign-in page can't steal it.</p>
   {{end}}
   {{if .PasskeysWork}}<p><a class="button secondary" href="/account/passkeys/add">{{icon "key"}} Add a passkey…</a></p>
   {{else}}<p class="hint">Passkeys only work at the lab's address{{with .SignInHost}}, <a href="https://{{.}}/account/security">{{.}}</a>{{end}}.</p>{{end}}

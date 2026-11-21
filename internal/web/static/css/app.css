@@ -1254,7 +1254,7 @@ button.wide { width: 100%; }
    "or" between it and the password or code, and the Passkeys card's
    notes. */
 .passkey-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); }
-.passkey-button .icon, .acct-page .button .icon, [data-create] .icon { width: 18px; height: 18px; vertical-align: -3px; }
+.passkey-button .icon, .acct-page .button .icon, [data-create] .icon { width: 18px; height: 18px; vertical-align: -3px; color: currentColor; }
 .or { display: flex; align-items: center; gap: var(--space-3); color: var(--muted); font-size: var(--text-sm); margin: var(--space-3) 0 0; }
 .or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--edge-strong); }
 .signin-card .or + form, .card .or + form { margin-top: var(--space-3); }
