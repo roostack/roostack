@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"roostack.cloud/roostack/internal/agent"
@@ -150,6 +151,13 @@ func TestCutsOffServers(t *testing.T) {
 	}
 	if fw, _ := Desired(lab, nil, Roles{}); fw.Controller != "100.96.0.1" || fw.Validate() != nil {
 		t.Errorf("a node's firewall lets in %q", fw.Controller)
+	}
+	// A node's web services: from the controller only, not every server
+	// in the lab.
+	fw, _ := Desired(lab, []*generate.Output{{Service: "immich", Ports: []int{20001}}}, Roles{})
+	rules := fw.Ruleset()
+	if !strings.Contains(rules, `ip saddr 100.96.0.1 tcp dport 20001 accept`) || strings.Contains(rules, `100.96.0.0/17 tcp dport 20001`) {
+		t.Errorf("a node's web port:\n%s", rules)
 	}
 }
 

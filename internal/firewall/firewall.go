@@ -164,11 +164,13 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	if c := Controller(lab); c.IsValid() {
 		fw.Controller = c.String()
 	}
-	// A node's web services are reached by the controller's Caddy.
+	// A node's web services are reached by the controller's Caddy alone:
+	// the lab's other servers going straight to them would skip its
+	// private routes, limits and pauses.
 	if lab.IsNode() {
 		for _, s := range services {
 			for _, p := range s.Ports {
-				fw.Allow = append(fw.Allow, agent.Rule{Port: p, Proto: "tcp", For: trust.Servers,
+				fw.Allow = append(fw.Allow, agent.Rule{Port: p, Proto: "tcp", For: trust.Controller,
 					Reason: s.Service + " web (via the controller)"})
 			}
 		}
