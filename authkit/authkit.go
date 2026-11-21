@@ -111,16 +111,22 @@ func HashPassword(pw string) (string, error) {
 
 // noAccountHash is checked when a login names no account, so the answer
 // takes as long as a wrong password would and doesn't reveal which
-// usernames exist.
-var noAccountHash = sync.OnceValue(func() string {
-	h, _ := HashPassword("no such account")
-	return h
-})
+// usernames exist. It never needs to match, so it's written out with
+// today's settings, a random salt and a key of zeros, rather than made
+// with argon2: making it could fail while every check's turn is taken
+// (argonTurn), and an empty hash kept would answer at once from then on.
+var noAccountHash = func() string {
+	salt := make([]byte, saltLen)
+	rand.Read(salt)
+	b64 := base64.RawStdEncoding
+	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
+		argon2.Version, argonMemory, argonTime, argonThreads, b64.EncodeToString(salt), b64.EncodeToString(make([]byte, argonKeyLen)))
+}()
 
 // VerifyNoAccount does the work of a password check for a login that names
 // no account, and always fails: with ErrBusy when VerifyPassword would.
 func VerifyNoAccount(pw string) error {
-	_, err := VerifyPassword(noAccountHash(), pw)
+	_, err := VerifyPassword(noAccountHash, pw)
 	return err
 }
 

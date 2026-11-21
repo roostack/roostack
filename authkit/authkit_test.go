@@ -58,8 +58,8 @@ func TestTokens(t *testing.T) {
 func TestVerifyNoAccountTakesAsLong(t *testing.T) {
 	hash, _ := HashPassword("correct horse battery")
 	settings := func(h string) string { return strings.Split(h, "$")[3] }
-	if settings(noAccountHash()) != settings(hash) {
-		t.Fatalf("no account's hash uses %s, a password's %s", settings(noAccountHash()), settings(hash))
+	if settings(noAccountHash) != settings(hash) {
+		t.Fatalf("no account's hash uses %s, a password's %s", settings(noAccountHash), settings(hash))
 	}
 	timed := func(f func()) time.Duration {
 		start := time.Now()
@@ -207,5 +207,31 @@ func TestPasswordChecksAtOnce(t *testing.T) {
 	done()
 	if ok, err := VerifyPassword(hash, "correct horse battery"); !ok || err != nil {
 		t.Errorf("once free: %v %v", ok, err)
+	}
+}
+
+// The no-account hash is a valid hash made without argon2, so a busy
+// moment can't spoil it: while every turn is taken, VerifyNoAccount waits
+// for one like any check (ErrBusy, past parsing), and once free it does
+// the full work and fails.
+func TestNoAccountHash(t *testing.T) {
+	if ok, err := VerifyPassword(noAccountHash, "no such account"); ok || err != nil {
+		t.Fatalf("the no-account hash: %v %v", ok, err)
+	}
+	SetMaxChecks(1)
+	defer SetMaxChecks(4)
+	old := busyWait
+	busyWait = 50 * time.Millisecond
+	defer func() { busyWait = old }()
+	done, err := argonTurn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyNoAccount("x"); err != ErrBusy {
+		t.Errorf("while busy: %v", err)
+	}
+	done()
+	if err := VerifyNoAccount("x"); err != nil {
+		t.Errorf("once free: %v", err)
 	}
 }
