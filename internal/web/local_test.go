@@ -23,6 +23,7 @@ import (
 // (SPEC.md §8.3.4); nobody else can.
 func TestAddYourOwn(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
+	h.confirmed(t) // asked again, and right (confirmIt): see TestStepUpActions
 	fm.local = map[string]bool{"forgejo": true}
 
 	_, body := h.get("/catalog")
@@ -194,6 +195,7 @@ func TestServiceTierBadges(t *testing.T) {
 // it adds arrives as text, through the same checks as a file.
 func TestPackageEditor(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
+	h.confirmed(t) // asked again, and right (confirmIt): see TestStepUpActions
 	code, body := h.get("/catalog/editor")
 	if code != http.StatusOK {
 		t.Fatalf("the editor page: %d", code)

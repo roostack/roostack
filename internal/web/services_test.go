@@ -32,6 +32,7 @@ import (
 
 func TestInstallFlow(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
+	h.confirmed(t) // asked again, and right (confirmIt): see TestStepUpActions
 
 	_, body := h.get("/services")
 	if !strings.Contains(body, `href="/catalog"`) || !strings.Contains(body, `href="/services/vaultwarden"`) {
@@ -1690,6 +1691,7 @@ func TestServicesAskedForOnlyWhereShown(t *testing.T) {
 // delete its data too.
 func TestRemovedServicesData(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
+	h.confirmed(t) // asked again, and right (confirmIt): see TestStepUpActions
 	ctx := context.Background()
 	if _, body := h.get("/services"); strings.Contains(body, "Removed, data kept") {
 		t.Error("the view is offered with nothing removed")

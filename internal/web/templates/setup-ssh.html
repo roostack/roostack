@@ -65,6 +65,7 @@
       <label class="check"><input type="checkbox" name="confirm"><span>I understand</span></label>
     </div>
     {{end}}
+    {{template "step-up-fields" .StepUp}}
     {{if .Wizard}}<p class="hint">The firewall will take effect when setup finishes (Roostack will restart once, then).{{if .SSHD.Installed}} How people
       log in will change at once.{{end}}</p>{{end}}
     <button type="submit">{{if .Wizard}}Continue{{else}}Save{{end}}</button>

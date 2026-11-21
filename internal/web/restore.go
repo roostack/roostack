@@ -137,7 +137,7 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 	slices.SortStableFunc(kept.Copies, func(a, b keptView) int { return b.Time.Compare(a.Time) })
 	kept.Total = keptTotal(kept.Copies)
 	data := map[string]any{"User": currentUser(r), "Service": svc, "Groups": groups, "Notes": notes,
-		"Servers": servers, "Host": host, "Kept": kept, "Pending": pending, "Error": errMsg}
+		"Servers": servers, "Host": host, "Kept": kept, "Pending": pending, "Error": errMsg, "StepUp": s.stepUpView(r)}
 	if len(groups) > 0 {
 		// The newest backup, or the one asked for (?backup=: "Restore
 		// again…" after a restore that didn't finish, SPEC.md §6.9).
@@ -234,6 +234,9 @@ func (s *Server) restoreSubmit(w http.ResponseWriter, r *http.Request) {
 	id, to := r.FormValue("backup"), r.FormValue("to")
 	if id == "" {
 		s.renderRestore(w, r, svc, "Choose a backup to restore.", http.StatusBadRequest)
+		return
+	}
+	if !s.confirmIt(w, r, "restore", func(status int, msg string) { s.renderRestore(w, r, svc, msg, status) }) {
 		return
 	}
 	err := s.Manager.RestoreService(r.Context(), svc.Name, id, to)

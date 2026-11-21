@@ -261,8 +261,17 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 		"MultiServer": multi, "Error": errMsg, "Internet": internet, "PasswordsOpen": a.PasswordsOpen(),
 		"Login": login, "SSHD": a.SSHD, "SSHDError": a.SSHDError, "KeyWorks": keyWorks, "KeyText": keyText,
 		"NoSudo": strings.Join(noSudo, ", "), "SavedLogin": a.Login,
-		"DropIn": agent.SSHDropIn, "KeyForm": defaultSSHKeyForm(currentUser(r), a.SSHD.Sudoers),
+		"DropIn": agent.SSHDropIn, "KeyForm": defaultSSHKeyForm(currentUser(r), a.SSHD.Sudoers), "StepUp": s.sshStepUp(r),
 		"SSHHost": sshHost(r, s.serverRefOf(r))}), nil
+}
+
+// sshStepUp is what changing who can log in asks first (confirmIt):
+// nothing during setup, where the account was made moments ago.
+func (s *Server) sshStepUp(r *http.Request) stepUpView {
+	if s.serverRefOf(r).This && s.inWizard(r) {
+		return stepUpView{}
+	}
+	return s.stepUpView(r)
 }
 
 // sshClientWhere says where an SSH client is from, as the choice of who
@@ -305,6 +314,20 @@ func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := s.serverRefOf(r)
+	if s.sshStepUp(r).Ask {
+		again := func(status int, msg string) {
+			data, err := s.sshData(r, choice, login, msg)
+			if err != nil {
+				s.serverError(w, err)
+				return
+			}
+			w.WriteHeader(status)
+			s.render(w, "setup-ssh", data)
+		}
+		if !s.confirmIt(w, r, "remote access", again) {
+			return
+		}
+	}
 	err := s.server(r).SetSSH(r.Context(), node.SSHChange{Choice: choice, Login: login, Confirmed: r.FormValue("confirm") == "on"})
 	if err == nil && m.This {
 		err = s.Setup.Done(r.Context(), setup.StepSSH)

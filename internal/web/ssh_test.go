@@ -20,6 +20,7 @@ import (
 // passwords are taken.
 func TestSSHKeysOnlyPage(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
+	h.confirmed(t) // asked again, and right (confirmIt): see TestStepUpActions
 	fs := &fakeSetup{p: allDone, ssh: config.SSHFromLAN, sshLogin: config.SSHLoginPassword,
 		sshd: agent.SSHStatus{Installed: true, Passwords: true, RootLogin: "prohibit-password",
 			KeyLogins: []agent.KeyLogin{{User: "root", From: "192.168.1.30", At: time.Now()}}}}

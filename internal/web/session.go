@@ -38,6 +38,8 @@ type sessionKey struct{}
 type sessionState struct {
 	Expired  bool // it ended for inactivity, just now
 	Remember bool
+	// Hash is the session's, for what's kept for it (confirmIt).
+	Hash string
 }
 
 func sessionOf(r *http.Request) sessionState {
@@ -85,7 +87,7 @@ func (s *Server) checkSession(r *http.Request, hash string, u *store.User, lastS
 		}
 	}
 	ctx := context.WithValue(r.Context(), userKey{}, u)
-	return r.WithContext(context.WithValue(ctx, sessionKey{}, sessionState{Remember: remember}))
+	return r.WithContext(context.WithValue(ctx, sessionKey{}, sessionState{Remember: remember, Hash: hash}))
 }
 
 // linkedNotMember reports whether a session kept from the idle limit

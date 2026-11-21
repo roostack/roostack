@@ -513,9 +513,15 @@ func (s *Server) removePage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	s.renderRemove(w, r, p, http.StatusOK, "")
+}
+
+// renderRemove is the page asking whether to remove a service.
+func (s *Server) renderRemove(w http.ResponseWriter, r *http.Request, p *pkgspec.Package, status int, errMsg string) {
 	name := r.PathValue("name")
+	w.WriteHeader(status)
 	s.render(w, "remove", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Package": p, "Name": name, "DataDirs": s.Manager.DataDirs(name),
-		"IsOwner": auth.Can(currentUser(r).Role, auth.ManageHost)})
+		"IsOwner": auth.Can(currentUser(r).Role, auth.ManageHost), "StepUp": s.stepUpView(r), "Error": errMsg})
 }
 
 func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
@@ -524,6 +530,9 @@ func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := r.PathValue("name")
+	if !s.confirmIt(w, r, "remove", func(status int, msg string) { s.renderRemove(w, r, p, status, msg) }) {
+		return
+	}
 	// What it was, for Services → Removed (removed.go): asked before it's
 	// gone.
 	removed := s.removedRecord(r, name, p)

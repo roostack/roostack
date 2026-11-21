@@ -24,14 +24,17 @@ import (
 const localUploadMax = manager.LocalPackageMaxBytes + pkgspec.IconMaxBytes + 64<<10
 
 func (s *Server) localAddPage(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "local-add", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Dir": s.Manager.LocalPackagesDir()})
+	s.render(w, "local-add", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Dir": s.Manager.LocalPackagesDir(),
+		"StepUp": s.stepUpView(r)})
 }
 
 func (s *Server) localAddSubmit(w http.ResponseWriter, r *http.Request) {
-	fail := func(msg string) {
-		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "local-add", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Dir": s.Manager.LocalPackagesDir(), "Error": msg})
+	again := func(status int, msg string) {
+		w.WriteHeader(status)
+		s.render(w, "local-add", map[string]any{"User": currentUser(r), pageServicesKey: s.sidebarServices(r), "Dir": s.Manager.LocalPackagesDir(), "Error": msg,
+			"StepUp": s.stepUpView(r)})
 	}
+	fail := func(msg string) { again(http.StatusBadRequest, msg) }
 	r.Body = http.MaxBytesReader(w, r.Body, localUploadMax)
 	if err := r.ParseMultipartForm(localUploadMax); err != nil {
 		var tooLarge *http.MaxBytesError
@@ -43,6 +46,10 @@ func (s *Server) localAddSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
+	// A package can mount host folders and decide what its app runs.
+	if !s.confirmIt(w, r, "add package", again) {
+		return
+	}
 	data, err := uploaded(r, "package")
 	if err != nil {
 		s.serverError(w, err)

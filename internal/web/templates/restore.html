@@ -59,6 +59,7 @@
       it will be kept aside, listed below, until you delete it.</p>
     <label class="check"><input type="checkbox" name="confirm" required>
       <span>I understand, restore {{.Service.Title}}</span></label>
+    {{template "step-up-fields" .StepUp}}
     <button type="submit">Restore {{.Service.Title}}</button>
   </form>
   {{if .JustDone}}</details>{{end}}
