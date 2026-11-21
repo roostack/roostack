@@ -131,10 +131,10 @@ func ptr(s string) *string { return &s }
 func TestFstabLine(t *testing.T) {
 	usb := Drive{UUID: "64B1-2F3C", FSType: "exfat"}
 	if got, _ := fstabLine(usb, "/mnt/roostack-backup", 999, 989); got !=
-		"UUID=64B1-2F3C /mnt/roostack-backup exfat defaults,nofail,x-systemd.automount,x-systemd.device-timeout=10s,uid=999,gid=989,umask=077 0 2" {
+		"UUID=64B1-2F3C /mnt/roostack-backup exfat nosuid,nodev,noexec,nofail,x-systemd.automount,x-systemd.device-timeout=10s,uid=999,gid=989,umask=077 0 2" {
 		t.Errorf("exfat: %s", got)
 	}
-	if got, _ := fstabLine(Drive{UUID: "64B1-2F3C", FSType: "ext4"}, "/mnt/x", 1, 1); strings.Contains(got, "uid=") || !strings.Contains(got, "nofail") {
+	if got, _ := fstabLine(Drive{UUID: "64B1-2F3C", FSType: "ext4"}, "/mnt/x", 1, 1); strings.Contains(got, "uid=") || !strings.Contains(got, " nosuid,nodev,noexec,nofail,") {
 		t.Errorf("ext4: %s", got)
 	}
 	if got, _ := fstabLine(Drive{UUID: "0123456789ABCDEF", FSType: "ntfs"}, "/mnt/x", 1, 1); !strings.Contains(got, " ntfs3 ") {

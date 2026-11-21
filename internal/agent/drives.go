@@ -555,8 +555,10 @@ func fstabMount(fstab, uuid string) string {
 // change what the line means, or add a line.
 func fstabLine(d Drive, mp string, uid, gid int) (string, error) {
 	// Mounted when first used (e.g. by the nightly backup), so a drive
-	// unplugged and plugged back in is there again.
-	fs, opts := d.FSType, "defaults,nofail,x-systemd.automount,x-systemd.device-timeout=10s"
+	// unplugged and plugged back in is there again. No programs, devices or
+	// setuid from it, as for media libraries: a drive used as it is may have
+	// been prepared on another machine, and restic needs none of them.
+	fs, opts := d.FSType, "nosuid,nodev,noexec,nofail,x-systemd.automount,x-systemd.device-timeout=10s"
 	if fs == "ntfs" {
 		fs = "ntfs3" // the kernel's driver
 	}
