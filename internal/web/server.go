@@ -534,6 +534,10 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 	if s.help, err = newHelpSite(helpFS); err != nil {
 		return nil, err
 	}
+	shared, err := sharedParts()
+	if err != nil {
+		return nil, err
+	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "local-editor", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "services-updates", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account-appearance", "users", "about",
@@ -541,8 +545,7 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check", "monitoring-server",
 		"import", "import-folders", "photos", "photos-home", "photos-folders", "pause", "pause-close"} {
-		t, err := template.New("layout.html").Funcs(templateFuncs()).ParseFS(templateFS,
-			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
+		t, err := parsePage(page, shared)
 		if err != nil {
 			return nil, err
 		}
