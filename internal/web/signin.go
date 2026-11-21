@@ -384,6 +384,10 @@ func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 	again := func(status int, msg string) {
 		s.renderSignIn(w, r, status, signInView{State: "sign-in", Next: next, Error: msg, Username: name, Remember: remember})
 	}
+	if wait := s.passwordTries.wait(name, time.Now()); wait > 0 {
+		again(http.StatusTooManyRequests, slowedMessage(wait))
+		return
+	}
 	u, err := s.Store.UserByUsername(ctx, name)
 	if errors.Is(err, store.ErrNotFound) && strings.Contains(name, "@") {
 		u, err = s.Store.UserByEmail(ctx, name)
@@ -412,10 +416,16 @@ func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 		s.Log.Warn("failed sign-in", "user", who, "remote", r.RemoteAddr)
 		s.Store.Audit(ctx, nil, "failed sign-in", who+" on the sign-in page from "+r.RemoteAddr)
+		var acct *store.User
+		if known {
+			acct = u
+		}
+		s.wrongPassword(r, name, acct)
 		time.Sleep(failedLoginDelay)
 		again(http.StatusUnauthorized, "Wrong username or password.")
 		return
 	}
+	s.passwordTries.clear(name)
 	blocked := ""
 	switch {
 	case u.MustChangePassword:

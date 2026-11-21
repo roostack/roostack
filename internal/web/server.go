@@ -165,6 +165,8 @@ type Server struct {
 	handoffs  expiring[string, *pagesHandoff]
 	confirmed expiring[string, string]
 	stepUps   stepUpFailures
+	// passwordTries counts wrong passwords for each username typed.
+	passwordTries passwordTries
 	// codeMu makes two-factor checks run one at a time (checkCode).
 	codeMu     sync.Mutex
 	issues     serverIssues

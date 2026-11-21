@@ -86,6 +86,11 @@ func GroupsFor(role string) []NotifyGroup {
 const (
 	AuditLocked    = "2fa locked"
 	AuditNewDevice = "new device"
+	// AuditPasswordGuesses: an account has had many wrong passwords in a
+	// day (internal/web's passwordTries), with how many and from how many
+	// addresses in the detail. Roostack slows the tries down but never
+	// locks the account, so its person and the Owners hear at once.
+	AuditPasswordGuesses = "password guesses"
 	// AuditTwoFactorChanged: someone moved their two-factor to a new
 	// authenticator app (Your account, SPEC.md §5.3).
 	AuditTwoFactorChanged = "2fa changed"
@@ -313,6 +318,12 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 		return "Two-factor authentication for your account was moved to a new authenticator app (" + when + "). If it wasn't you, tell your lab's Owner.", "", e.Username
 	case AuditNewDevice:
 		return "Someone logged in to your account from a new browser or device (" + when + ", " + e.Detail + "). If it wasn't you, change your password.", "", e.Username
+	case AuditPasswordGuesses:
+		return "Someone has entered a wrong password for your account " + e.Detail + " (the last on " + when +
+				"). Roostack is slowing their tries down and won't lock you out, but make sure your password is long and used nowhere else, " +
+				"and turn on two-factor authentication if it isn't on.",
+			"Someone has entered a wrong password for " + e.Username + "'s account " + e.Detail + " (the last on " + when +
+				"). Roostack is slowing their tries down and won't lock the account.", e.Username
 	case AuditLocked:
 		return "Several wrong two-factor codes were entered for your account, so codes are locked for a while (" + when + ", " + e.Detail + ").",
 			e.Username + "'s two-factor codes were locked after several wrong codes (" + when + ").", e.Username

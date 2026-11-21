@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Logging in to Roostack's own pages: the password, then the two-factor
@@ -40,6 +42,28 @@ type pendingLogin struct {
 	pagesOnly bool
 }
 
+// wrongPassword counts a wrong password for the username typed
+// (passwordTries) and tells the lab's Owners when an account (u, nil for
+// none) has had passwordWarnTries in a day.
+func (s *Server) wrongPassword(r *http.Request, username string, u *store.User) {
+	addr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		addr = r.RemoteAddr
+	}
+	day, addrs := s.passwordTries.fail(username, addr, time.Now())
+	if day > 0 && u != nil {
+		s.Store.Audit(r.Context(), u, attention.AuditPasswordGuesses, fmt.Sprintf("%d times today, from %d %s", day, addrs,
+			map[bool]string{true: "address", false: "addresses"}[addrs == 1]))
+	}
+}
+
+// slowedMessage answers a try that must wait (passwordTries.wait).
+func slowedMessage(wait time.Duration) string {
+	secs := int((wait + time.Second - 1) / time.Second) // rounded up
+	return fmt.Sprintf("Too many wrong passwords for this username, so Roostack is slowing tries down: try again in %s.",
+		words.Count(int64(secs), "second", "seconds"))
+}
+
 // busyMessage answers a password that couldn't be checked because too many
 // were being checked at once (authkit.ErrBusy): never "wrong password".
 const busyMessage = "Too many people are signing in right now: try again in a moment."
@@ -60,6 +84,11 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	username := strings.TrimSpace(r.FormValue("username"))
+	if wait := s.passwordTries.wait(username, time.Now()); wait > 0 {
+		w.WriteHeader(http.StatusTooManyRequests)
+		s.renderLogin(w, r, map[string]any{"Error": slowedMessage(wait), "Username": username, "Next": localNext(r.FormValue("next"))})
+		return
+	}
 	u, err := s.Store.UserByUsername(r.Context(), username)
 	ok, known := false, err == nil
 	switch {
@@ -88,11 +117,13 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 		s.Log.Warn("failed login", "user", who, "remote", r.RemoteAddr)
 		s.Store.Audit(r.Context(), nil, "failed login", who+" from "+r.RemoteAddr)
+		s.wrongPassword(r, username, u)
 		time.Sleep(failedLoginDelay)
 		w.WriteHeader(http.StatusUnauthorized)
 		s.renderLogin(w, r, map[string]any{"Error": "Wrong username or password.", "Username": username, "Next": localNext(r.FormValue("next"))})
 		return
 	}
+	s.passwordTries.clear(username)
 	if u.TOTPSecret != "" {
 		// Say so now rather than after a code that can't work.
 		if until := authkit.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); time.Now().Before(until) {
