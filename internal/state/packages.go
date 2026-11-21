@@ -1,11 +1,13 @@
 package state
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/fsutil"
@@ -65,7 +67,7 @@ func LoadPackage(paths config.Paths, name, version string) (*pkgspec.Package, er
 				name, version, path, err)
 		}
 	}
-	p, err := pkgspec.Load(path)
+	p, err := labPackages.load(path)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +75,50 @@ func LoadPackage(paths config.Paths, name, version string) (*pkgspec.Package, er
 		return nil, fmt.Errorf("%s is %s %s, not %s %s", path, p.Name, p.Version, name, version)
 	}
 	return p, nil
+}
+
+// labPackages keeps the lab's copies of the packages its services use,
+// parsed: the checks that run every minute load every service's package,
+// and parsing them each time made most of Roostack's garbage.
+var labPackages = packageCache{parsed: map[string]cachedPackage{}}
+
+// packageCache keeps packages parsed, each by its file's path and a hash of
+// what was in it, and hands out copies.
+type packageCache struct {
+	mu     sync.Mutex
+	parsed map[string]cachedPackage
+}
+
+type cachedPackage struct {
+	sum [sha256.Size]byte
+	p   *pkgspec.Package
+}
+
+// load is pkgspec.Load, parsing the file only when what's in it has
+// changed. The copy it returns is the caller's to change.
+func (c *packageCache) load(path string) (*pkgspec.Package, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		c.mu.Lock()
+		delete(c.parsed, path)
+		c.mu.Unlock()
+		return nil, err
+	}
+	sum := sha256.Sum256(data)
+	c.mu.Lock()
+	kept, ok := c.parsed[path]
+	c.mu.Unlock()
+	if ok && kept.sum == sum {
+		return kept.p.Clone(), nil
+	}
+	p, err := pkgspec.Parse(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	c.mu.Lock()
+	c.parsed[path] = cachedPackage{sum: sum, p: p}
+	c.mu.Unlock()
+	return p.Clone(), nil
 }
 
 // PrunePackages deletes the lab's copies of package versions no service
