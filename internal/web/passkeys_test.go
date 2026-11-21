@@ -77,7 +77,8 @@ func (k *softKey) authData(rpID string, attested bool) []byte {
 		out = append(out, make([]byte, 16)...) // AAGUID: none
 		out = binary.BigEndian.AppendUint16(out, uint16(len(k.id)))
 		out = append(out, k.id...)
-		x, y := k.key.PublicKey.X.FillBytes(make([]byte, 32)), k.key.PublicKey.Y.FillBytes(make([]byte, 32))
+		raw, _ := k.key.PublicKey.Bytes() // 0x04, then X and Y
+		x, y := raw[1:33], raw[33:]
 		cose, _ := cbor.Marshal(map[int]any{1: 2, 3: -7, -1: 1, -2: x, -3: y})
 		out = append(out, cose...)
 	}
