@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
@@ -145,13 +146,21 @@ func (r *Reconciler) writeConfig(ctx context.Context, f generate.ConfigFile, cre
 	return writeInRoot(f.Dir, f.Path, []byte(text), mode)
 }
 
+// maxConfig is the most of an app's config file Roostack will read: far
+// more than any needs, so that a huge file the app made isn't read into
+// memory.
+const maxConfig = 4 << 20
+
+// readConfig reads a config file in the app's storage, which the app
+// controls: a named pipe or a file over maxConfig is refused, so it can't
+// hang or flood an apply (fsutil.ReadRegularInRoot).
 func readConfig(f generate.ConfigFile) (string, error) {
 	root, err := os.OpenRoot(f.Dir)
 	if err != nil {
 		return "", err
 	}
 	defer root.Close()
-	b, err := root.ReadFile(f.Path)
+	b, _, err := fsutil.ReadRegularInRoot(root, f.Path, maxConfig)
 	return string(b), err
 }
 
