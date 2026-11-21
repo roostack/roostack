@@ -56,9 +56,11 @@
         <p class="seg-panel hint seg-hint" data-seg="2">Unix sharing. The share is the export's path, and the NAS must let
           {{.ServerName}}'s address mount it.</p>{{end}}
         <div class="field-row">
-          <label>Server <input name="share_server" value="{{.ShareServer}}" placeholder="nas.local or 192.168.1.20" autocapitalize="off" spellcheck="false"
+          {{if .Servers}}<label>Server <select name="share_server">{{range .Servers}}<option{{if eq . $.ShareServer}} selected{{end}}>{{.}}</option>{{end}}</select>
+            <small>One your lab already uses.</small></label>
+          {{else}}<label>Server <input name="share_server" value="{{.ShareServer}}" placeholder="nas.local or 192.168.1.20" autocapitalize="off" spellcheck="false"
               {{- if .Media}} x-bind:required="where === 'share'">
-            <small>The NAS or computer sharing it.</small>{{else}}>{{end}}</label>
+            <small>The NAS or computer sharing it.</small>{{else}}>{{end}}</label>{{end}}
           <label>Share <input name="share_path" value="{{.SharePath}}" placeholder="{{.Example}}" autocapitalize="off" spellcheck="false"
               {{- if .Media}} x-bind:required="where === 'share'"{{end}}></label>
         </div>
@@ -980,7 +982,7 @@
         <hr class="form-rule">
         <h2 class="form-section">Where they can migrate photos from</h2>
         <label class="check"><input type="checkbox" class="switch" role="switch" name="drives"{{if not .Settings.NoDrives}} checked{{end}}><span>USB drives they plug into the server<small>Never your backups' drive, the system disk, or a drive with a media library.</small></span></label>
-        <label class="check"><input type="checkbox" class="switch" role="switch" name="shares"{{if not .Settings.NoShares}} checked{{end}}><span>Network shares, with their own login</span></label>
+        <label class="check"><input type="checkbox" class="switch" role="switch" name="shares"{{if .Settings.MemberShares}} checked{{end}}><span>Network shares, with their own login<small>Only on a NAS your lab already uses for a media library or a location. Roostack will connect to the share as this server, so a NAS that trusts this server will let them read what it shares with it.</small></span></label>
         <hr class="form-rule">
         <h2 class="form-section">Additional locations</h2>
         <p class="hint">Folders you set up for people to migrate from: on a drive, on the server, or on a share with your login. Everyone who can migrate photos will see what's in them, so a folder per person will keep them apart.</p>

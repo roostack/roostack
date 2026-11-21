@@ -62,14 +62,17 @@ type Users interface {
 
 // PhotoSettings are the Owner's choices for migrations into one Immich.
 // The zero value is the default: everyone who uses Immich, from their own
-// drives and shares.
+// drives, but not from shares.
 type PhotoSettings struct {
 	// OwnersOnly: only Owners and Admins may migrate.
 	OwnersOnly bool `json:"owners_only,omitempty"`
-	// NoDrives and NoShares: others may not use a drive they plug in, or
-	// a share with their own login.
+	// NoDrives: others may not use a drive they plug in.
 	NoDrives bool `json:"no_drives,omitempty"`
-	NoShares bool `json:"no_shares,omitempty"`
+	// MemberShares: others may use a share with their own login, on a
+	// NAS the lab already uses (ShareServers). Off unless the Owner turns
+	// it on, since Roostack connects to it as root, as the server: a NAS
+	// that trusts the server would let them read what it shares with it.
+	MemberShares bool `json:"member_shares,omitempty"`
 	// Memory: how much of the server's memory a migration may use
 	// (photoimport.MemoryShares, "" for half), kept on Immich's server too.
 	Memory string `json:"memory,omitempty"`
@@ -174,6 +177,29 @@ func (p *Photos) PhotoLocations(ctx context.Context, service string) []store.Med
 		return nil
 	}
 	return slices.DeleteFunc(libs, func(l store.MediaLibrary) bool { return l.PhotosFor != service })
+}
+
+// ShareServers are the NAS boxes the lab already uses, for its media
+// libraries and locations: the only ones others may migrate from with
+// their own login (PhotoSettings.MemberShares).
+func (p *Photos) ShareServers(ctx context.Context) []string {
+	lib := p.core.libraries()
+	if lib == nil {
+		return nil
+	}
+	libs, err := lib.MediaLibraries(ctx)
+	if err != nil {
+		p.core.logger().Error("reading media libraries", "err", err)
+		return nil
+	}
+	var out []string
+	for _, l := range libs {
+		if l.ShareType != "" && !slices.Contains(out, l.ShareServer) {
+			out = append(out, l.ShareServer)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // AddPhotoLocation adds a location for migrating photos into a service: a
@@ -285,8 +311,14 @@ func (p *Photos) CheckPhotoSource(ctx context.Context, service string, src node.
 		}
 		return nil
 	case "share":
-		if !admin && set.NoShares {
+		if admin {
+			return nil
+		}
+		if !set.MemberShares {
 			return usererr.New("Shares can't be used here: choose one of the other places.")
+		}
+		if src.Library.Share == nil || !slices.Contains(p.ShareServers(ctx), src.Library.Share.Server) {
+			return usererr.New("Choose one of the servers listed: Roostack will only connect to ones your lab already uses.")
 		}
 		return nil
 	case "folder":
