@@ -18,7 +18,7 @@ var CaddyImage = cmp.Or(devCaddyImage, PublishedCaddyImage)
 // digest is zeros until the workflow first runs: a release refuses it, and
 // a development build needs CADDY_DEV_IMAGE meanwhile.
 const (
-	PublishedCaddyImage      = "ghcr.io/roostack/roostack-caddy@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+	PublishedCaddyImage      = "ghcr.io/roostack/roostack-caddy@sha256:7bbbb68e485325d20a5e45f814e04e97a09b3a905663be14e126d8f85a87c36b"
 	CaddyContainerfileSHA256 = "7fe5fa774d6d60c1adbd5c593adb3b47cefbd02c77af6aca9f49f8d59c8b477c"
 )
 

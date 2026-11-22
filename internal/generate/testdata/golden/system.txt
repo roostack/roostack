@@ -34,10 +34,10 @@ WantedBy=default.target
 Description=Roostack: download the reverse proxy image (Caddy with its plugins)
 
 [Image]
-Image=ghcr.io/roostack/roostack-caddy@sha256:0000000000000000000000000000000000000000000000000000000000000000
+Image=ghcr.io/roostack/roostack-caddy@sha256:7bbbb68e485325d20a5e45f814e04e97a09b3a905663be14e126d8f85a87c36b
 
 [Service]
-ExecCondition=/bin/sh -c "! /usr/bin/podman image exists ghcr.io/roostack/roostack-caddy@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+ExecCondition=/bin/sh -c "! /usr/bin/podman image exists ghcr.io/roostack/roostack-caddy@sha256:7bbbb68e485325d20a5e45f814e04e97a09b3a905663be14e126d8f85a87c36b"
 TimeoutStartSec=900
 StandardOutput=truncate:/var/lib/roostack/caddy-image.log
 StandardError=inherit
