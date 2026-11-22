@@ -59,6 +59,19 @@ type WireAssignment struct {
 type LabContext struct {
 	Domain string `json:"domain"`
 	Email  string `json:"email,omitempty"`
+	// Name is the lab's name (config.Lab), for an app's "Sign in with …"
+	// button (single sign-on).
+	Name string `json:"name,omitempty"`
+	// TestAddress: the domain is a test address (config.Lab), whose
+	// certificates come from Caddy's own authority, for a server serving
+	// directly.
+	TestAddress bool `json:"test_address,omitempty"`
+	// Direct are the servers serving their public routes themselves
+	// (config.Lab).
+	Direct []string `json:"direct,omitempty"`
+	// SignInServers: an app on another server reaches the sign-in page
+	// (config.Lab), for the controller.
+	SignInServers bool `json:"sign_in_servers,omitempty"`
 	// NoSharing is the Owner's CrowdSec opt-out (config.Public), for the
 	// server running Caddy.
 	NoSharing bool `json:"no_sharing,omitempty"`

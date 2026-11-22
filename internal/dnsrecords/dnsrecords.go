@@ -117,8 +117,12 @@ type Manager struct {
 	// records point at. Protected says whether CrowdSec is up: records only
 	// go public once it is (SPEC.md §6.11).
 	PublicHosts func() []string
-	Entry       public.Entry
-	Protected   func(ctx context.Context) bool
+	// Direct are the public addresses that servers serving directly serve
+	// themselves (SPEC.md §10.5), each with that server's public address,
+	// which its record points at instead of the entry's; nil means none.
+	Direct    func() map[string]string
+	Entry     public.Entry
+	Protected func(ctx context.Context) bool
 	// LinkWanted says someone chose link.<domain> as the address other
 	// servers and labs reach this one at: its record is kept pointing at
 	// the entry's address (link.go).
@@ -412,6 +416,7 @@ func (m *Manager) syncCurrent(ctx context.Context, lab config.Lab) Status {
 	st = m.check(ctx, st)
 	if lab.OnInternet() {
 		st.Public, st.PublicIP = m.coveredByWildcard(ctx, st)
+		m.setDirect(ctx, p, values, zone, st.Public)
 	} else {
 		st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
 	}
@@ -590,8 +595,9 @@ func (m *Manager) releaseOwned(ctx context.Context, p *dns.Provider, values map[
 // the wildcard, the domain itself while it's served (SPEC.md §5.3), a
 // public address or link.<domain>.
 func (m *Manager) wantsA(lab config.Lab, host string, publicHosts []string) bool {
+	_, direct := m.direct()[host]
 	return host == "*."+lab.Domain || host == lab.Domain && lab.ServesDomain() ||
-		slices.Contains(publicHosts, host) || host == m.linkHost() && m.linkWanted()
+		slices.Contains(publicHosts, host) || direct || host == m.linkHost() && m.linkWanted()
 }
 
 // domainOf says which of domains a host is under ("" for none); where one

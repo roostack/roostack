@@ -199,7 +199,7 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 		// units yet).
 		d.Install = n.installProgress(name)
 		if d.Install == nil && notWritten && n.Units != nil && len(gen.Units) > 0 {
-			d.Install = queuedInstall(!lab.IsNode() && n.caddyBuilding(ctx))
+			d.Install = queuedInstall(lab.CaddyHere() && n.caddyBuilding(ctx))
 		}
 		if d.Install != nil {
 			d.Status = "installing"
@@ -215,18 +215,22 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 			d.Containers = append(d.Containers, Container{Name: unit, Image: quadletValue(q.Content, "Image"),
 				State: states[unit+".service"]})
 		}
-		addr := "127.0.0.1"
-		if lab.IsNode() {
-			addr = lab.OverlayAddr
-		}
 		for i, host := range gen.Hosts {
 			if i < len(gen.Ports) {
+				addr := "127.0.0.1"
+				if lab.IsNode() && !slices.Contains(gen.DirectPorts, gen.Ports[i]) {
+					addr = lab.OverlayAddr
+				}
 				d.Routes = append(d.Routes, host+" → "+addr+":"+itoa(gen.Ports[i]))
 			}
 		}
 		if !lab.HasAddress() {
 			// No address yet (SPEC.md §6.6): the routes' local ports, for
 			// an SSH tunnel meanwhile.
+			addr := "127.0.0.1"
+			if lab.IsNode() {
+				addr = lab.OverlayAddr
+			}
 			for _, port := range gen.Ports {
 				d.Routes = append(d.Routes, "no web address yet → "+addr+":"+itoa(port))
 			}
@@ -261,8 +265,11 @@ func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 	}
 	sysUnit("Roostack", "roostack.service", "Runs this server's services, backups, and updates"+n.versionText())
 	sysUnit("Roostack agent", "roostack-agent.service", "Does the few things that need root: firewall, WireGuard, OS updates, restarts")
-	if !n.Lab.IsNode() {
+	if n.lab(a).CaddyHere() {
 		b := BuiltIn{Name: "Caddy", Kind: "proxy", Status: "unknown", Detail: "Web addresses and HTTPS certificates for the lab's services"}
+		if n.Lab.IsNode() {
+			b.Detail = "Web addresses and HTTPS certificates for this server's public services, which it serves itself"
+		}
 		if n.Units != nil {
 			if st, err := n.Units.Status(ctx, generate.CaddyUnit+".service", CaddyBuildUnit); err == nil && len(st) == 2 {
 				b.Status = caddyState(st[0], st[1])

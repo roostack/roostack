@@ -13,8 +13,8 @@ says so). Your lab needs its address first: the sign-in page is at
 
 When you install an app that can use it, the install form has **Sign in
 with your lab's account**, ticked: leave it ticked and the app will start
-with single sign-on on. It's offered once your lab has an address, for
-apps on the lab's main server.
+with single sign-on on. It's offered once your lab has an address, on any
+of your lab's servers.
 
 Later, on the service's page, under **Single sign-on**, choose who can sign in,
 then **Turn on single sign-on**. Owners and Admins can turn it on; only an
@@ -193,8 +193,13 @@ The sign-in page has the lab's name, logo, and colours, chosen on
       Config OP plans).
     - An app's client ID is the service's name; its secret is the Podman
       secret `roostack-<service>-sso-client-secret`, deleted once single
-      sign-on is off. Its container finds `my.` your address through an
-      `AddHost` line pointing at the server's Caddy.
+      sign-on is off. For an app on another server, the server that runs the
+      lab makes the secret, keeps its own copy for the sign-in page, and
+      hands it over with that server's assignment. The app's container
+      finds `my.` your address through an `AddHost` line pointing at the
+      Caddy of the server that runs the lab: the server itself, or that
+      server's address on the lab's network (`100.96.0.1`) from another
+      one, where its firewall lets the lab's servers reach port 443 for it.
     - An app set by its single sign-on step (an `on: sso` hook) gets
       `ROOSTACK_SSO=on` or `off`; Roostack keeps a fingerprint of what it
       was last given (on or off, its command and settings, its secrets'

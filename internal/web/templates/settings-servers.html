@@ -80,7 +80,20 @@
       </form>
       <small>Where this server is located{{if not $loc}} (not set yet){{end}}.</small>
     </dd>
-    {{if not .Controller}}
+    {{if not .Controller}}{{with index $.Serve .ID}}
+    <dt>{{icon "network"}}Public services</dt>
+    <dd>
+      <form method="post" action="/settings/servers/{{$m.ID}}/serve" class="inline-form">
+        <label class="check"><input type="radio" name="serve" value="direct"{{if eq .Mode "direct"}} checked{{end}} required><span>Served by {{$m.Name}} itself</span></label>
+        <label class="check"><input type="radio" name="serve" value="controller"{{if eq .Mode "controller"}} checked{{end}}><span>Through the server that runs the lab</span></label>
+        <button type="submit" class="secondary">Save</button>
+      </form>
+      <small>How visitors reach the public services on {{$m.Name}}{{if not .Chosen}} (Roostack's choice for it){{end}}.
+        Served by {{$m.Name}} itself, they'll come straight to it, with its own certificates and CrowdSec, rather than
+        through the server that runs the lab; its private services will still go through that server.</small>
+      {{with .Why}}<p class="hint">{{.}}</p>{{end}}
+    </dd>
+    {{end}}
     <dt>{{icon "server"}}Direct links</dt>
     <dd>
       <form method="post" action="/settings/servers/{{.ID}}/link-address" class="inline-form">

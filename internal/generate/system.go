@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/errpage"
 	"roostack.cloud/roostack/internal/quadlet"
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // CaddyImage is Roostack's Caddy build with DNS plugins, built on each
@@ -98,6 +99,10 @@ type SystemOptions struct {
 	// FirstHosts are each service's first address, by name, where the
 	// domain itself may go (DomainRedirect).
 	FirstHosts map[string]string
+	// DirectHosts, on a server other than the controller, are the names
+	// its own Caddy serves (Output.DirectHosts): while there are any, it
+	// runs Caddy and CrowdSec for them (SPEC.md §10.5).
+	DirectHosts []string
 }
 
 // SystemWith is System with everything the services ask for.
@@ -110,8 +115,10 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 			return nil, err
 		}
 	}
-	if lab.IsNode() {
-		// Nodes have no Caddy: the controller's serves their routes.
+	// Other servers have no Caddy, as the controller's serves their
+	// routes, unless they serve their public ones directly.
+	direct := lab.IsNode()
+	if direct && len(opts.DirectHosts) == 0 {
 		return out, nil
 	}
 	if !lab.HasAddress() {
@@ -137,7 +144,7 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	cs.Add("PublishPort", "80:80")
 	cs.Add("PublishPort", "443:443")
 	cs.Add("PublishPort", "443:443/udp") // HTTP/3
-	if len(lab.EdgeAddrs) > 0 {
+	if len(lab.EdgeAddrs) > 0 && !direct {
 		// The edges' own listener (caddy.EdgePort); the firewall lets only
 		// the edges reach it.
 		cs.Add("PublishPort", fmt.Sprintf("%d:%d", caddy.EdgePort, caddy.EdgePort))
@@ -145,9 +152,18 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	cs.Add("Volume", lab.Paths.CaddyDir()+":/etc/caddy:ro")
 	cs.Add("Volume", lab.Paths.CaddyDataDir()+":/data")
 	// DNS provider credentials, one Podman secret per field (internal/dns).
-	directive, fields, err := dnsConfig(lab)
-	if err != nil {
-		return nil, err
+	// A server serving directly has none: Let's Encrypt checks each name
+	// it serves through the name itself (SPEC.md §10.5).
+	var directive string
+	var fields []string
+	var err error
+	switch {
+	case !direct:
+		if directive, fields, err = dnsConfig(lab); err != nil {
+			return nil, err
+		}
+	case lab.TestAddress():
+		directive = "issuer internal"
 	}
 	for _, f := range fields {
 		cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", dns.SecretName(f), dns.EnvName(f)))
@@ -157,6 +173,9 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	// The previous address's provider, while it still works (SPEC.md
 	// §6.6): its certificate may need renewing meanwhile.
 	old := lab.Old(time.Now())
+	if direct {
+		old = nil
+	}
 	var oldDirective string
 	if old != nil {
 		var oldFields []string
@@ -192,6 +211,7 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	out.Quadlets = append(out.Quadlets, build)
 
 	mc := caddy.MainConfig{
+		Hosts:         opts.DirectHosts,
 		Domain:        lab.Domain,
 		Email:         lab.Email,
 		DNSDirective:  directive,
@@ -206,17 +226,30 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 		PagesDevices: lab.Devices.Pages,
 		AllDevices:   lab.Devices.All,
 	}
+	if direct {
+		// Its services alone (caddy.MainConfig.Hosts).
+		mc.AdminUpstream, mc.AdminPublic, mc.StatusPage, mc.EdgeFrom = "", false, false, nil
+		mc.PrivateFrom = caddy.ThisServerOnly(lab.HostIP, CaddyHostLoopback)
+		mc.PagesDevices, mc.AllDevices = nil, nil
+	}
 	for _, g := range lab.GlancesSites {
+		if direct {
+			break
+		}
 		mc.Glances = append(mc.Glances, caddy.GlancesSite{Host: g.Host, Upstream: g.Upstream,
 			Wall: caddy.Wall{Upstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, config.SignInPort), Service: g.Client}})
 	}
-	if lab.ServesDomain() {
+	if lab.ServesDomain() && !direct {
 		// The domain itself (SPEC.md §5.3).
 		mc.DomainItself = &caddy.DomainSite{Redirect: DomainRedirect(lab, opts.FirstHosts), Page: lab.Shows() == config.ShowPage, Public: lab.DomainPublic()}
 	}
-	if opts.SignIn {
+	if opts.SignIn && !direct {
 		mc.SignIn = &caddy.SignInSite{Host: lab.SignInHost(), Upstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, config.SignInPort),
-			Public: opts.SignInPublic, Containers: ContainerHostGateway}
+			Public: opts.SignInPublic, Containers: []string{ContainerHostGateway}}
+		if lab.SignInServers {
+			// Apps on the lab's other servers, over Roostack's network.
+			mc.SignIn.Containers = append(mc.SignIn.Containers, trust.ServersRange.String())
+		}
 	}
 	if old != nil {
 		mc.OldDomain, mc.OldDNSDirective = old.Domain, oldDirective

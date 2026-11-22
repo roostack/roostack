@@ -55,6 +55,9 @@ func (m *Manager) MonitorChecks(ctx context.Context) []monitor.Check {
 	states := m.ServiceStates(ctx)
 	lab := m.labNow()
 	roots := localRoots(lab)
+	// Addresses servers serving directly serve themselves are checked at
+	// those servers, as visitors reach them (SPEC.md §10.5).
+	direct := m.DirectAddrs()
 	for _, s := range services {
 		name := s.Name()
 		gen, err := state.Output(lab, s)
@@ -64,10 +67,14 @@ func (m *Manager) MonitorChecks(ctx context.Context) []monitor.Check {
 		st := states[name]
 		paused := m.monitorPaused(ctx, name, st, unreachable[st.Server])
 		for _, rm := range gen.Monitors {
+			dial := CaddyLocal
+			if addr, ok := direct[rm.Host]; ok {
+				dial = net.JoinHostPort(addr, "443")
+			}
 			out = append(out, monitor.Check{
 				Key: "service:" + name + ":" + rm.Route, Kind: monitor.KindService, Name: s.Title(), Address: rm.Host,
 				Service: name, Server: st.Server,
-				URL: "https://" + rm.Host + rm.Path, Dial: CaddyLocal, Statuses: rm.Statuses,
+				URL: "https://" + rm.Host + rm.Path, Dial: dial, Statuses: rm.Statuses,
 				Paused: paused, Alert: true, Public: rm.Public, Roots: roots,
 				PublicPaused: rm.Public && generate.Paused(lab, s.Package, s.Instance),
 			})

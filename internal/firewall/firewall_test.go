@@ -350,3 +350,36 @@ func TestCaddyUnit(t *testing.T) {
 		t.Errorf("Caddy's cgroup %q doesn't end in %q", agent.CaddyCgroup(999), want)
 	}
 }
+
+// TestDirectPorts: a route its own Caddy serves, serving directly, needs
+// no port open to the controller (SPEC.md §10.5).
+func TestDirectPorts(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.Role, lab.OverlayAddr = config.RoleNode, "100.96.0.2"
+	fw, _ := Desired(lab, []*generate.Output{{Service: "immich", Ports: []int{20001, 20002}, DirectPorts: []int{20002}}}, Roles{})
+	if !slices.ContainsFunc(fw.Allow, func(r agent.Rule) bool { return r.Port == 20001 && r.For == trust.Controller }) ||
+		slices.ContainsFunc(fw.Allow, func(r agent.Rule) bool { return r.Port == 20002 }) {
+		t.Errorf("a node's web ports: %+v", fw.Allow)
+	}
+}
+
+// TestSignInServers: apps on the lab's other servers reach the
+// controller's 443 for the sign-in page, only while there are any.
+func TestSignInServers(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.OverlayAddr = "100.96.0.1"
+	rule := func(r agent.Rule) bool { return r.Port == 443 && r.For == trust.Servers }
+	if fw, _ := Desired(lab, nil, Roles{}); slices.ContainsFunc(fw.Allow, rule) {
+		t.Error("443 open to the lab's servers with no app there")
+	}
+	lab.SignInServers = true
+	fw, _ := Desired(lab, nil, Roles{})
+	if !slices.ContainsFunc(fw.Allow, rule) || fw.Validate() != nil {
+		t.Errorf("443 for the sign-in page: %+v", fw.Allow)
+	}
+	if !strings.Contains(fw.Ruleset(), `iifname "roostack" ip saddr 100.96.0.0/17 tcp dport 443 accept`) {
+		t.Errorf("ruleset:\n%s", fw.Ruleset())
+	}
+}

@@ -504,7 +504,7 @@ func (n *Local) caddyNow(ctx context.Context) error {
 	a := n.assignment
 	n.mu.Unlock()
 	lab := n.lab(a)
-	if lab.IsNode() || n.Reconciler == nil {
+	if !lab.CaddyHere() || n.Reconciler == nil {
 		return nil // the controller's Caddy serves the lab's addresses
 	}
 	desired, err := state.Desired(lab, n.withInstallValues(ctx, a.Services), a.Proxied...)
@@ -686,7 +686,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	// Caddy's image builds in the background (for minutes the first time):
 	// show it, whether this apply starts it or it was already running when
 	// Roostack restarted (e.g. at the end of the setup wizard).
-	building := (!n.lab(a).IsNode() || a.Edge != nil) && (slices.Contains(plan.BuildUnits, CaddyBuildUnit) || n.caddyBuilding(ctx))
+	building := (n.lab(a).CaddyHere() || a.Edge != nil) && (slices.Contains(plan.BuildUnits, CaddyBuildUnit) || n.caddyBuilding(ctx))
 	if building {
 		n.clearBuildLog(ctx, plan, n.lab(a).Paths.CaddyBuildLog())
 	}
@@ -854,7 +854,14 @@ func (n *Local) lab(a Assignment) config.Lab {
 	if a.Lab.Domain != "" {
 		lab.Domain, lab.Email = a.Lab.Domain, a.Lab.Email
 		lab.Public.NoSharing = a.Lab.NoSharing
+		if a.Lab.Name != "" {
+			lab.Name = a.Lab.Name
+		}
+		if a.Lab.TestAddress && lab.IsNode() {
+			lab.DNS.Provider = config.ProviderTestAddress
+		}
 	}
+	lab.Direct, lab.SignInServers = a.Lab.Direct, a.Lab.SignInServers
 	lab.EdgeAddrs = a.Lab.EdgeAddrs
 	lab.HomeAddress = a.Lab.HomeAddress
 	lab.Monitoring.StatusPage = a.Lab.StatusPage

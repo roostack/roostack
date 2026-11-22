@@ -1442,3 +1442,88 @@ ports:
 		t.Errorf("no address: %q", h)
 	}
 }
+
+// TestServedDirectly: a server serving directly serves its public routes
+// with its own Caddy, published on loopback, and the controller's Caddy
+// leaves them out; its private routes go through the controller as before
+// (SPEC.md §10.5).
+func TestServedDirectly(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.Host = "n-4a3b2faab3"
+	in.Routes["web"] = instance.RouteOverride{Subdomain: "passwords", Port: 20001, Exposure: pkgspec.ExposurePublic}
+	node := testLab()
+	node.Role, node.OverlayAddr, node.NodeID, node.Direct = config.RoleNode, "100.96.0.2", "n-4a3b2faab3", []string{"n-4a3b2faab3"}
+	unitOf := func(out *Output) string {
+		for _, f := range out.Quadlets {
+			if strings.Contains(f.Content, "PublishPort=") {
+				return f.Content
+			}
+		}
+		return ""
+	}
+
+	out, err := Service(node, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.CaddySite == nil || !strings.Contains(out.CaddySite.Content, "@vaultwarden-web host passwords.") ||
+		!strings.Contains(out.CaddySite.Content, "reverse_proxy "+CaddyHostLoopback+":20001") {
+		t.Fatalf("the node's own site: %+v", out.CaddySite)
+	}
+	if strings.Contains(out.CaddySite.Content, "roostack-check") {
+		t.Errorf("a check link to a UI the node hasn't got:\n%s", out.CaddySite.Content)
+	}
+	if !slices.Equal(out.DirectPorts, []int{20001}) || !slices.Equal(out.DirectHosts, []string{"passwords.lab.example.com"}) {
+		t.Errorf("direct ports %v, hosts %v", out.DirectPorts, out.DirectHosts)
+	}
+	if u := unitOf(out); !strings.Contains(u, "PublishPort=127.0.0.1:20001:") || strings.Contains(u, "100.96.0.2:") {
+		t.Errorf("a direct route is on loopback:\n%s", u)
+	}
+	sys, err := SystemWith(node, SystemOptions{Public: true, DirectHosts: out.DirectHosts})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sys.Caddyfile.Content, "passwords.lab.example.com {") || strings.Contains(sys.Caddyfile.Content, "*.lab.example.com") ||
+		strings.Contains(sys.Caddyfile.Content, "dns ") || strings.Contains(sys.Caddyfile.Content, "roost.lab.example.com") {
+		t.Errorf("the node's Caddyfile:\n%s", sys.Caddyfile.Content)
+	}
+	if !slices.Contains(sys.Units, CrowdSecUnit+".service") || slices.ContainsFunc(sys.Secrets, func(s Secret) bool { return strings.Contains(s.Name, "dns") }) {
+		t.Errorf("the node runs CrowdSec and holds no DNS login: units %v, secrets %+v", sys.Units, sys.Secrets)
+	}
+
+	// The controller leaves the public route to the node.
+	ctrl := testLab()
+	ctrl.Direct = node.Direct
+	proxy, err := ProxySite(ctrl, p, in, "100.96.0.2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proxy.CaddySite != nil || len(proxy.Hosts) == 0 {
+		t.Errorf("the controller passes on a route the node serves: %+v", proxy.CaddySite)
+	}
+
+	// Private, it goes through the controller as before.
+	in.Routes["web"] = instance.RouteOverride{Subdomain: "passwords", Port: 20001, Exposure: pkgspec.ExposurePrivate}
+	if out, err = Service(node, p, in); err != nil || out.CaddySite != nil || len(out.DirectPorts) != 0 {
+		t.Errorf("a private route on the node: %+v %v", out, err)
+	}
+	if u := unitOf(out); !strings.Contains(u, "PublishPort=100.96.0.2:20001:") {
+		t.Errorf("a private route is on the node's network address:\n%s", u)
+	}
+	if proxy, err = ProxySite(ctrl, p, in, "100.96.0.2"); err != nil || proxy.CaddySite == nil {
+		t.Errorf("the controller passes on a private route: %+v %v", proxy, err)
+	}
+	// Not set to serve directly: everything goes through the controller.
+	node.Direct = nil
+	in.Routes["web"] = instance.RouteOverride{Subdomain: "passwords", Port: 20001, Exposure: pkgspec.ExposurePublic}
+	if out, err = Service(node, p, in); err != nil || out.CaddySite != nil || len(out.DirectPorts) != 0 {
+		t.Errorf("a public route on a node not serving directly: %+v %v", out, err)
+	}
+}

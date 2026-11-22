@@ -555,6 +555,13 @@ func (r Route) validate() error {
 type MainConfig struct {
 	Domain string
 	Email  string
+	// Hosts, on a server serving directly (SPEC.md §10.5), are the names
+	// it serves: its site names them rather than the wildcard, each with
+	// its own certificate from Let's Encrypt's own challenges (no DNS
+	// login on the server), and has none of Roostack's own pages.
+	// DNSDirective is then empty, or Caddy's own authority on a test
+	// address.
+	Hosts []string
 	// DNSDirective (with CertResolvers) is the tls "dns ..." directive for the DNS-01 challenge
 	// (from internal/dns); it may span several lines.
 	DNSDirective string
@@ -629,10 +636,11 @@ const DomainPageDir = "/etc/caddy/domain"
 type SignInSite struct {
 	Host, Upstream string
 	Public         bool
-	// Containers is where this server's containers come from, as Caddy
-	// sees them (generate.ContainerHostGateway): OIDC apps swap codes for
-	// tokens here themselves, so a private sign-in page lets them in too.
-	Containers string
+	// Containers are where apps' containers come from, as Caddy sees them:
+	// this server's (generate.ContainerHostGateway), and the lab's other
+	// servers' when apps run there. OIDC apps swap codes for tokens here
+	// themselves, so a private sign-in page lets them in too.
+	Containers []string
 }
 
 // GlancesSite is a server's live view at Host, served from Upstream
@@ -675,8 +683,17 @@ var AdminLoginPaths = []string{"/login", "/backups/recovery-key", "/account/pass
 
 // Main renders the main Caddyfile.
 func Main(c MainConfig) (string, error) {
-	if strings.TrimSpace(c.DNSDirective) == "" {
+	if strings.TrimSpace(c.DNSDirective) == "" && len(c.Hosts) == 0 {
 		return "", errors.New("caddy: no DNS provider configured")
+	}
+	if len(c.Hosts) > 0 && (c.AdminUpstream != "" || c.SignIn != nil || c.DomainItself != nil || len(c.Glances) > 0 ||
+		c.StatusPage || len(c.EdgeFrom) > 0 || c.OldDomain != "") {
+		return "", errors.New("caddy: a server serving directly serves its services alone")
+	}
+	for _, h := range c.Hosts {
+		if h == "" || unsafe(h, "") || !strings.HasSuffix(h, "."+c.Domain) {
+			return "", fmt.Errorf("caddy: invalid host %q", h)
+		}
 	}
 	if c.Domain == "" || unsafe(c.Domain+c.Email+c.CrowdSecAPI+c.AppSecURL+c.AccessLog, "") {
 		return "", fmt.Errorf("caddy: invalid domain, email, CrowdSec address or log file")
@@ -769,25 +786,30 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge 
 		port = fmt.Sprintf(":%d", EdgePort)
 		fmt.Fprintf(b, "# Visitors through the lab's edges: never private (SPEC.md §10.5).\n")
 	}
-	if bare != nil {
+	switch {
+	case len(c.Hosts) > 0:
+		fmt.Fprintf(b, "# This server's own public services (SPEC.md §10.5, \"Serving directly\").\n%s {\n", strings.Join(c.Hosts, ", "))
+	case bare != nil:
 		fmt.Fprintf(b, "*.%s%s, %s%s {\n", domain, port, domain, port)
-	} else {
+	default:
 		fmt.Fprintf(b, "*.%s%s {\n", domain, port)
 	}
 	if edge {
 		fmt.Fprintf(b, "\tvars %s yes\n", EdgeVar)
 	}
-	b.WriteString("\ttls {\n")
-	for _, line := range strings.Split(strings.TrimSpace(directive), "\n") {
-		fmt.Fprintf(b, "\t\t%s\n", line)
+	if strings.TrimSpace(directive) != "" {
+		b.WriteString("\ttls {\n")
+		for _, line := range strings.Split(strings.TrimSpace(directive), "\n") {
+			fmt.Fprintf(b, "\t\t%s\n", line)
+		}
+		// Resolvers are for checking a DNS challenge: a directive without
+		// one (lab.yaml's dns.directive, e.g. "issuer internal" on a test
+		// lab) can't have them.
+		if strings.Contains(directive, "dns ") {
+			fmt.Fprintf(b, "\t\tresolvers %s\n", CertResolvers)
+		}
+		b.WriteString("\t}\n")
 	}
-	// Resolvers are for checking a DNS challenge: a directive without one
-	// (lab.yaml's dns.directive, e.g. "issuer internal" on a test lab)
-	// can't have them.
-	if strings.Contains(directive, "dns ") {
-		fmt.Fprintf(b, "\t\tresolvers %s\n", CertResolvers)
-	}
-	b.WriteString("\t}\n")
 	if c.AccessLog != "" {
 		fmt.Fprintf(b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
 	}
@@ -813,11 +835,11 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge 
 		// The sign-in page for services (SPEC.md §5.2): reached through
 		// an edge only when it's public, like a service.
 		from := WithDevices(cmp.Or(c.PrivateFrom, PrivateRanges), c.AllDevices)
-		if s.Containers != "" {
-			if err := checkPrefixes([]string{s.Containers}); err != nil {
+		if len(s.Containers) > 0 {
+			if err := checkPrefixes(s.Containers); err != nil {
 				return fmt.Errorf("caddy: sign-in page: %w", err)
 			}
-			from += " " + s.Containers
+			from += " " + strings.Join(s.Containers, " ")
 		}
 		route := Route{ID: "roostack-sign-in", Title: "Sign-in", Host: s.Host, Upstream: s.Upstream,
 			Private: !s.Public, PrivateFrom: from, PrivateExcept: c.EdgeFrom}

@@ -400,6 +400,13 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		links[mc.ID] = s.Manager.LinkAddress(r.Context(), mc.ID)
 	}
 	data["LinkAddrs"] = links
+	serve := map[string]manager.ServeChoice{}
+	for _, mc := range servers {
+		if !mc.This {
+			serve[mc.ID] = s.Manager.ServeChoiceOf(r.Context(), mc.ID)
+		}
+	}
+	data["Serve"] = serve
 	// Each server's latest apply: why it ran and what it did (SPEC.md §6.14).
 	applies := map[string]*activityView{}
 	for _, mn := range s.serverNodes() {
@@ -648,6 +655,29 @@ func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
 
 // linkAddressSubmit sets where other servers reach a server directly
 // (SPEC.md §10.10).
+// serveSubmit sets how visitors reach a server's public services (SPEC.md
+// §10.5, "Serving directly").
+func (s *Server) serveSubmit(w http.ResponseWriter, r *http.Request) {
+	id, mode := r.PathValue("server"), r.FormValue("serve")
+	err := s.Manager.SetServe(r.Context(), id, mode)
+	if msg, ok := usererr.Message(err); ok {
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	what := map[string]string{config.ServeDirect: id + " serves its public services itself",
+		config.ServeController: id + "'s public services go through the server that runs the lab"}[mode]
+	s.Store.Audit(r.Context(), currentUser(r), "servers", what)
+	redirect(w, r, "/servers#server-"+id)
+}
+
 func (s *Server) linkAddressSubmit(w http.ResponseWriter, r *http.Request) {
 	id, addr := r.PathValue("server"), strings.TrimSpace(r.FormValue("address"))
 	err := s.Manager.SetLinkAddress(r.Context(), id, addr)

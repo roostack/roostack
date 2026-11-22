@@ -11,11 +11,14 @@ import (
 
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/sleep"
+	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/web"
 )
@@ -30,7 +33,7 @@ import (
 // Roostack Cloud backup's short-lived keys (storageKeys: nil without
 // Cloud), each server getting only its own folder's.
 func controllerAPI(hub *labnet.Hub, guestHub *labnet.GuestHub, mgr *manager.Manager,
-	storageKeys func(ctx context.Context, server string) (cloudapi.StorageKeys, error)) http.Handler {
+	storageKeys func(ctx context.Context, server string) (cloudapi.StorageKeys, error), wall http.Handler) http.Handler {
 	api := http.NewServeMux()
 	api.Handle("POST /v1/join", hub.JoinHandler())
 	// A server fetches its assignment when it starts (SPEC.md §10.3).
@@ -60,6 +63,31 @@ func controllerAPI(hub *labnet.Hub, guestHub *labnet.GuestHub, mgr *manager.Mana
 			return
 		}
 		labnet.WriteJSON(w, http.StatusOK, k)
+	})))
+	// A server serving directly asks the sign-in page about its walled
+	// services' visitors (SPEC.md §5.2): only its own, for its Caddy's
+	// walls, as the controller's Caddy asks for the rest (wallRelay).
+	api.Handle(labnet.PathWall+"/", hub.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		walled := mgr.WalledOn(labnet.Caller(r))
+		host := public.HostOnly(r.Header.Get(labnet.WallHostHeader))
+		path := strings.TrimPrefix(r.URL.Path, labnet.PathWall)
+		var ok bool
+		switch {
+		case path == sso.PathCheck:
+			// The service asked about, at the address Caddy asks for.
+			svc := r.URL.Query().Get("service")
+			ok = svc != "" && walled[public.HostOnly(r.Header.Get("X-Forwarded-Host"))] == svc
+		case strings.HasPrefix(path, caddy.WallCallbackPath+"/"):
+			ok = walled[host] != ""
+		}
+		if !ok || host == "" {
+			labnet.WriteError(w, http.StatusForbidden, errors.New("not a walled service this server serves"))
+			return
+		}
+		in := r.Clone(r.Context())
+		in.Host, in.URL.Path, in.URL.RawPath = host, path, ""
+		in.Header.Del(labnet.WallHostHeader)
+		wall.ServeHTTP(w, in)
 	})))
 	// Guests' requests, forwarded by the server offering storage for others.
 	guestAPI := http.StripPrefix("/v1/guest-api", guestHub.Handler())

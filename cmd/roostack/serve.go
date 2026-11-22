@@ -255,10 +255,11 @@ func (c *controller) wireManager() {
 			}
 			return out
 		},
-		UpdateLab: func(change func(*config.Lab)) error { return config.Update(labPath, change) },
-		Submit:    func(j maintenance.Job) { c.coord.Submit(j) },
-		Settings:  c.st,
-		People:    c.st,
+		UpdateLab:     func(change func(*config.Lab)) error { return config.Update(labPath, change) },
+		Submit:        func(j maintenance.Job) { c.coord.Submit(j) },
+		ClientSecrets: podman.NewSecrets(),
+		Settings:      c.st,
+		People:        c.st,
 		SyncNetwork: func(ctx context.Context) error {
 			if c.hub == nil || !c.hub.Enabled() {
 				return nil
@@ -631,7 +632,7 @@ func (c *controller) wireBackups() {
 // keeps this server's own lab certificate renewed.
 func (c *controller) serveLabAPI() {
 	stateDir := c.lab.Paths.StateDir
-	go labnet.Serve(c.ctx, stateDir, controllerAPI(c.hub, c.guestHub, c.mgr, c.storageKeys), c.log)
+	go labnet.Serve(c.ctx, stateDir, controllerAPI(c.hub, c.guestHub, c.mgr, c.storageKeys, c.srv.SignInHandler()), c.log)
 	go labnet.KeepRenewed(c.ctx, labnet.Identity{Dir: labnet.IdentityDir(stateDir)}, c.id.ID, c.hub.RenewSelf, c.log)
 }
 
@@ -814,7 +815,7 @@ func (c *controller) wireDNS() {
 			// Public addresses point at the lab's edge, if it has one
 			// (SPEC.md §10.5), else the home's public address (port
 			// forwarding), once CrowdSec is up.
-			PublicHosts: mgr.PublicHosts, Protected: c.crowdSecUp, DomainItself: mgr.DomainItself,
+			PublicHosts: mgr.PublicHosts, Direct: mgr.DirectAddrs, Protected: c.crowdSecUp, DomainItself: mgr.DomainItself,
 			Entry: public.Chosen{Home: public.PortForwarding{}, Edge: func(ctx context.Context) (public.Edge, bool) {
 				if mgr.RelayOn() && mgr.Relay.Edges != nil {
 					// Cloud points relayed names at its edges itself.

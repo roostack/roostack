@@ -624,7 +624,7 @@ func TestWall(t *testing.T) {
 func TestSignInSite(t *testing.T) {
 	for _, public := range []bool{false, true} {
 		main, err := Main(MainConfig{Domain: "lab.example", DNSDirective: "dns cloudflare {env.CF}", AdminUpstream: "169.254.1.3:8480",
-			SignIn: &SignInSite{Host: "my.lab.example", Upstream: "169.254.1.3:8482", Public: public, Containers: "169.254.1.2"}})
+			SignIn: &SignInSite{Host: "my.lab.example", Upstream: "169.254.1.3:8482", Public: public, Containers: []string{"169.254.1.2"}}})
 		if err != nil {
 			t.Fatal(err)
 		}

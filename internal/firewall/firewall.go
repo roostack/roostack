@@ -130,6 +130,13 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 			if roles.Hub {
 				fw.JoinPort, fw.Members = labnet.Port, roles.Members
 			}
+			// Apps on the lab's other servers swap codes for tokens at
+			// the sign-in page (single sign-on, SPEC.md §5.2), and Caddy
+			// lets them in to it alone.
+			if lab.SignInServers {
+				fw.Allow = append(fw.Allow, agent.Rule{Port: 443, Proto: "tcp", For: trust.Servers,
+					Reason: "the sign-in page, for apps on the lab's other servers"})
+			}
 			// What the lab's other servers open to the controller alone
 			// (below) is for its Caddy alone: any other service here
 			// would leave from the controller's address too, and could
@@ -172,9 +179,13 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	// A node's web services are reached by the controller's Caddy alone:
 	// the lab's other servers going straight to them would skip its
 	// private routes, limits and pauses.
+	// Serving directly, its own Caddy serves its public ones on loopback.
 	if lab.IsNode() {
 		for _, s := range services {
 			for _, p := range s.Ports {
+				if slices.Contains(s.DirectPorts, p) {
+					continue
+				}
 				fw.Allow = append(fw.Allow, agent.Rule{Port: p, Proto: "tcp", For: trust.Controller,
 					Reason: s.Service + " web (via the controller)"})
 			}

@@ -354,6 +354,10 @@ type LabServers interface {
 	ServerLocation(ctx context.Context, id string) string
 	SetServerLocation(ctx context.Context, id, loc string) error
 	ServerPlace(ctx context.Context, from, host string) (atHome, away bool, unknown []string)
+	// How visitors reach each server's public services: its own Caddy or
+	// the controller's (SPEC.md §10.5, "Serving directly").
+	ServeChoiceOf(ctx context.Context, id string) manager.ServeChoice
+	SetServe(ctx context.Context, id, mode string) error
 }
 
 // BackupPlan is each server's backups (SPEC.md §6.9): the main one, its
@@ -646,6 +650,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	s.serverRoutes(mux)
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/link-address", s.requireOwner(s.linkAddressSubmit))
+	mux.Handle("POST /settings/servers/{server}/serve", s.requireOwner(s.serveSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/put-back", s.requireOwner(s.putBackKeptServerSubmit))

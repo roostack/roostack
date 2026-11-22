@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -260,6 +261,11 @@ type Public struct {
 	// (SPEC.md §10.5). Only Roostack Cloud's relay enforces it, at its
 	// edges, before visitors reach the lab.
 	Countries Countries `yaml:"countries,omitempty"`
+	// Serve is how visitors reach each server's public services, by the
+	// server's ID: ServeDirect (its own Caddy serves them) or
+	// ServeController (the controller's Caddy passes them on). A server
+	// with none takes ServeDefault (SPEC.md §10.5, "Serving directly").
+	Serve map[string]string `yaml:"serve,omitempty"`
 	// Pause is public access the Owner or an Admin paused for the whole
 	// lab, or for every service built with something (SPEC.md §6.16).
 	// One service's own pause is in its instance (PublicPause).
@@ -276,6 +282,22 @@ type Public struct {
 	// controller from Cloud's last answer for each assignment, and sent
 	// to every server, never saved.
 	Refused map[string]string `yaml:"-" json:"refused,omitempty"`
+}
+
+// How visitors reach a server's public services (Public.Serve).
+const (
+	ServeDirect     = "direct"
+	ServeController = "controller"
+)
+
+// ServeDefault is how a server with no choice of its own serves: directly
+// when it has a public address of its own (a cloud server), else through
+// the controller, as servers did before they could serve directly.
+func ServeDefault(hasPublicAddr bool) string {
+	if hasPublicAddr {
+		return ServeDirect
+	}
+	return ServeController
 }
 
 // RefusedChecking is a service in Public.Refused that waits for Roostack
@@ -560,6 +582,16 @@ type Lab struct {
 	// say who a visitor is (a PROXY header), and they count as outside.
 	// Set at run time from the lab's servers.
 	EdgeAddrs []string `yaml:"-"`
+	// Direct are the servers (by ID) whose own Caddy serves their public
+	// routes, worked out by the controller for each apply from Public.Serve
+	// and where each server can be reached (SPEC.md §10.5, "Serving
+	// directly"). Their private routes still go through the controller.
+	Direct []string `yaml:"-"`
+	// SignInServers: an app on a server other than the controller swaps
+	// codes for tokens at the sign-in page itself (single sign-on, SPEC.md
+	// §5.2), over Roostack's network, so the controller's firewall and the
+	// sign-in page let the lab's servers in. Worked out by the controller.
+	SignInServers bool `yaml:"-"`
 	// HomeAddress is where the lab's names point for the home network's
 	// devices (the controller's home address), for a DNS server among
 	// the lab's services to answer them with (SPEC.md §6.5.2); "" on a
@@ -690,6 +722,15 @@ const TestAddressSuffix = ".localhost"
 
 // TestAddress reports whether the lab's address is a test address.
 func (l Lab) TestAddress() bool { return l.DNS.Provider == ProviderTestAddress }
+
+// ServesDirect reports whether server host's own Caddy serves its public
+// routes (Direct). The controller, "" or its own ID, always does.
+func (l Lab) ServesDirect(host string) bool { return host != "" && slices.Contains(l.Direct, host) }
+
+// CaddyHere reports whether this server's own Caddy serves services: the
+// controller's always, another server's while it serves directly (an
+// edge's Caddy only passes visitors on).
+func (l Lab) CaddyHere() bool { return !l.IsNode() || l.ServesDirect(l.NodeID) }
 
 // LocalhostName reports whether name is localhost or a name under it.
 func LocalhostName(name string) bool {
@@ -1033,6 +1074,11 @@ func (l Lab) Validate() error {
 	}
 	if err := l.DomainItself.Validate(); err != nil {
 		errs = append(errs, fmt.Errorf("domain_itself: %w", err))
+	}
+	for id, v := range l.Public.Serve {
+		if v != ServeDirect && v != ServeController {
+			errs = append(errs, fmt.Errorf("public.serve.%s must be %q or %q", id, ServeDirect, ServeController))
+		}
 	}
 	// A test address is only ever a name under .localhost, and such a
 	// name only ever a test address, so Caddy's own certificates can't

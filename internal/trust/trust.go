@@ -50,6 +50,9 @@ var (
 	// ServersRange holds the lab's servers' addresses (the hub gives them
 	// out from 100.96.0.0/24). Never home.
 	ServersRange = netip.MustParsePrefix("100.96.0.0/17")
+	// ControllerAddr is the controller's address in ServersRange: the hub
+	// the lab's other servers dial (labnet).
+	ControllerAddr = netip.MustParseAddr("100.96.0.1")
 	// DevicesRange holds people's own devices on the lab's VPN (SPEC.md
 	// §10.11), on PeopleInterface, or on LabInterface when the server they
 	// connect to passes them on. Never home: a device reaches what's open

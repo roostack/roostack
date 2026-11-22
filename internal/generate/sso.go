@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // Single sign-on (SPEC.md §5.2): what turning it on changes in a
@@ -78,9 +79,9 @@ const (
 // SSOOn reports whether single sign-on is on for a service: the Owner
 // turned it on, or its package requires it (so a new version requiring it
 // needs no switch), its package takes it, and the lab has an address for
-// the sign-in page. Only the controller runs it for now.
+// the sign-in page, which is on the controller wherever the service runs.
 func SSOOn(lab config.Lab, p *pkgspec.Package, in *instance.Instance) bool {
-	return (in.SSO || p.RequiresSSO()) && p.SSO != nil && lab.HasAddress() && !lab.IsNode()
+	return (in.SSO || p.RequiresSSO()) && p.SSO != nil && lab.HasAddress()
 }
 
 // SSOReaches reports whether an app's containers reach the sign-in page:
@@ -94,7 +95,7 @@ func SSOReaches(lab config.Lab, p *pkgspec.Package, in *instance.Instance) bool 
 	if SSOOn(lab, p, in) {
 		return p.SSO.OIDC != nil
 	}
-	return p.SSO != nil && p.SSO.OIDC != nil && len(p.HooksOn(pkgspec.HookSSO)) > 0 && lab.HasAddress() && !lab.IsNode()
+	return p.SSO != nil && p.SSO.OIDC != nil && len(p.HooksOn(pkgspec.HookSSO)) > 0 && lab.HasAddress()
 }
 
 // ContainerHostGateway is the server as its rootless containers see it
@@ -189,16 +190,21 @@ func (g *gen) ssoEnv(name string, env map[string]string) (map[string]string, err
 }
 
 // ssoContainer adds an OIDC app's container its client secret, and the
-// sign-in host in its hosts file, pointing at this server's Caddy as seen
-// from the container: the app swaps codes for tokens there itself
-// (docs/ASSUMPTIONS.md V1).
+// sign-in host in its hosts file, pointing at the controller's Caddy as
+// seen from the container: the app swaps codes for tokens there itself
+// (docs/ASSUMPTIONS.md V1). On the controller that's the server itself;
+// on another server, the controller's address on Roostack's network.
 func (g *gen) ssoContainer(name string, add func(key, value string)) {
 	if !g.ssoReach {
 		return
 	}
 	g.out.SSOReach = true
+	signIn := g.lab.SignInHost() + ":host-gateway"
+	if g.lab.IsNode() {
+		signIn = g.lab.SignInHost() + ":" + trust.ControllerAddr.String()
+	}
 	if !g.sso {
-		add("AddHost", g.lab.SignInHost()+":host-gateway")
+		add("AddHost", signIn)
 		return
 	}
 	secrets := g.pkg.SSO.Secrets[name]
@@ -208,7 +214,7 @@ func (g *gen) ssoContainer(name string, add func(key, value string)) {
 	for _, k := range slices.Sorted(maps.Keys(g.ssoEnvSecrets[name])) {
 		add("Secret", fmt.Sprintf("%s,type=env,target=%s", g.ssoEnvSecrets[name][k], k))
 	}
-	add("AddHost", g.lab.SignInHost()+":host-gateway")
+	add("AddHost", signIn)
 }
 
 // ssoSecretEnv renders the package's secret_env with a marker for the
@@ -244,10 +250,12 @@ func (g *gen) ssoSecretEnv() error {
 	return nil
 }
 
-// ssoSecrets is the app's client secret, made by Roostack.
+// ssoSecrets is the app's client secret, made by Roostack: on the
+// controller, which keeps it for the sign-in page; on another server,
+// handed over by the controller with its assignment (SPEC.md §5.2).
 func (g *gen) ssoSecrets() {
 	if g.sso && g.pkg.SSO.OIDC != nil {
-		g.out.Secrets = append(g.out.Secrets, Secret{Name: SSOSecretName(g.name), Generate: true})
+		g.out.Secrets = append(g.out.Secrets, Secret{Name: SSOSecretName(g.name), Generate: !g.lab.IsNode()})
 	}
 }
 

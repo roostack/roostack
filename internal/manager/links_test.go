@@ -389,3 +389,59 @@ func TestEdgeForwards(t *testing.T) {
 		t.Errorf("taken at the edge: %v %v", e, c)
 	}
 }
+
+// TestServeDirect: a server with a public address serves its public
+// routes itself unless the Owner chose otherwise, and every server's
+// assignment names it; with an edge, everything goes through the
+// controller (SPEC.md §10.5, "Serving directly").
+func TestServeDirect(t *testing.T) {
+	m, home, vps, _ := setUpLinks(t)
+	ctx := context.Background()
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	m.Lab.Domain = "smith.family"
+	sent := func(f *movingServer) []string {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return f.last.Lab.Direct
+	}
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Mode != config.ServeDirect || c.Chosen || c.Why != "" {
+		t.Errorf("the cloud server by default: %+v", c)
+	}
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Mode != config.ServeController || c.Chosen {
+		t.Errorf("the home server by default: %+v", c)
+	}
+	m.Apply()
+	m.Wait()
+	if d := sent(home); !slices.Equal(d, []string{"n-0000000003"}) || !slices.Equal(sent(vps), d) || !slices.Equal(m.Direct(), d) {
+		t.Errorf("direct: home %v, vps %v, manager %v", d, sent(vps), m.Direct())
+	}
+	// The Owner's choice wins.
+	if err := m.SetServe(ctx, "n-0000000003", config.ServeController); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if d := sent(vps); len(d) != 0 || !m.ServeChoiceOf(ctx, "n-0000000003").Chosen {
+		t.Errorf("chosen through the controller: %v", d)
+	}
+	// A home server set to serve directly can't: it has no public address.
+	if err := m.SetServe(ctx, "n-0000000002", config.ServeDirect); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Why == "" || len(sent(home)) != 0 {
+		t.Errorf("a home server set to direct: %+v, sent %v", c, sent(home))
+	}
+	// With an edge, public visitors come through the controller.
+	m.SetServe(ctx, "n-0000000003", config.ServeDirect)
+	m.SetEdge(ctx, "n-0000000003")
+	m.Wait()
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Why == "" || len(sent(vps)) != 0 {
+		t.Errorf("with an edge: %+v, sent %v", c, sent(vps))
+	}
+	if err := m.SetServe(ctx, m.Lab.NodeID, config.ServeDirect); !errors.Is(err, ErrNotFound) {
+		t.Errorf("the controller itself: %v", err)
+	}
+	if err := m.SetServe(ctx, "n-0000000003", "sideways"); err == nil {
+		t.Error("an unknown mode")
+	}
+}

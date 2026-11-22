@@ -292,7 +292,7 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	refused := m.cloudRefused(services)
 	m.refused.Store(&refused)
 	m.sendCloudPublic()
-	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked,
+	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, Name: m.labNow().Name, TestAddress: m.Lab.TestAddress(), NoSharing: pub.NoSharing || !pub.SharingAsked,
 		StatusPage: m.StatusPageOn(), Pause: pause, Refused: refused, DomainItself: m.labNow().DomainItself}
 	devices, people := m.vpnDevices(context.Background(), services)
 	lab.Devices = devices
@@ -304,6 +304,14 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		nodes = append(nodes, r)
 	}
 	infos := m.linkInfos(context.Background())
+	// The servers serving their public routes themselves (direct.go).
+	direct := m.directServers(infos)
+	m.direct.Store(&direct)
+	lab.Direct = direct
+	// Apps on other servers swapping codes for tokens at the sign-in page.
+	lab.SignInServers = slices.ContainsFunc(services, func(s state.Service) bool {
+		return s.Instance.HostOr(m.Lab.NodeID) != m.Lab.NodeID && generate.SSOReaches(m.Lab, s.Package, s.Instance)
+	})
 	// The edge passes public visitors on to the controller's Caddy, which
 	// believes it alone about who they are (SPEC.md §10.5).
 	// The lab's DNS server (SPEC.md §6.5.2): its names point at home for
@@ -333,6 +341,18 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 					a.Secrets = map[string][]byte{}
 				}
 				a.Secrets[k] = v
+			}
+			// An OIDC app's client secret on another server: the
+			// controller's, which the sign-in page checks (sso.go).
+			if n != m.Node && s.Package.SSO != nil && s.Package.SSO.OIDC != nil && generate.SSOOn(m.Lab, s.Package, s.Instance) {
+				if v, err := m.clientSecret(context.Background(), name); err != nil {
+					m.Log.Error("single sign-on's client secret", "service", name, "err", err)
+				} else {
+					if a.Secrets == nil {
+						a.Secrets = map[string][]byte{}
+					}
+					a.Secrets[generate.SSOSecretName(name)] = v
+				}
 			}
 			if slices.Contains(m.setUp, name) {
 				a.SetUp = append(a.SetUp, name)
@@ -817,7 +837,7 @@ func (m *Manager) ServiceFiles(name string) (*ServiceFiles, error) {
 		f.CaddySite = nil
 		for _, r := range m.others() {
 			if r.Identity().ID == in.Host {
-				if proxy, err := generate.ProxySite(m.Lab, p, in, r.Address()); err == nil {
+				if proxy, err := generate.ProxySite(m.labDirect(), p, in, r.Address()); err == nil {
 					f.CaddySite = proxy.CaddySite
 				}
 			}

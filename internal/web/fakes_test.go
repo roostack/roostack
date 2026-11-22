@@ -429,6 +429,8 @@ type fakeServers struct {
 	linkAddrs  map[string]string
 	linkPath   string
 	linkFailed bool
+	// serve is how each server's public services are reached (SetServe).
+	serve map[string]string
 	// kept are the servers' kept copies; nil: Forgejo's old copy on
 	// n-9876543210.
 	kept []manager.KeptCopy
@@ -463,6 +465,24 @@ func (f *fakeServers) SetServerLocation(ctx context.Context, id, loc string) err
 	}
 	f.locations[manager.LocationKey+id] = loc
 	f.ApplyBecause("A server's location changed")
+	return nil
+}
+
+func (f *fakeServers) ServeChoiceOf(_ context.Context, id string) manager.ServeChoice {
+	if m, ok := f.serve[id]; ok {
+		return manager.ServeChoice{Mode: m, Chosen: true}
+	}
+	return manager.ServeChoice{Mode: config.ServeController}
+}
+
+func (f *fakeServers) SetServe(_ context.Context, id, mode string) error {
+	if mode != config.ServeDirect && mode != config.ServeController {
+		return usererr.New("Choose how visitors reach this server's public services.")
+	}
+	if f.serve == nil {
+		f.serve = map[string]string{}
+	}
+	f.serve[id] = mode
 	return nil
 }
 
