@@ -443,6 +443,13 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [ ] Measure on the Linode once released: Home's first view after a quiet spell, Roostack's swap, and `memory.events` (`low` on `roostack.service`, `high` on `roostack-services.slice`)
 - [ ] Later, if needed (docs/MEMORY-PLAN.md E, G): systemd-oomd on the services' slice; disk weights
 
+## Email through Roostack Cloud, and services' email (SPEC §6.13; proposed 2026-11-23)
+
+- [ ] Settings → Email offers Roostack Cloud (linked labs) or your own mail server; Roostack's own email through Cloud, to the lab's confirmed people (Cloud's side: its DESIGN §8)
+  - [ ] The lab reports its people's addresses to Cloud, and the page shows who has confirmed
+- [ ] A local mail server for services, each with its own login, passing mail to Cloud or the Owner's server; refused on the lab, with the reason on the service's page, for someone who isn't a confirmed person when through Cloud
+  - [ ] Choose the library (a dependency, with the maintainer), how containers reach it, and the package field for mail settings; then the registry's packages
+
 ## Keeping services away from Roostack's own user (docs/CONTAINER-ISOLATION-PLAN.md)
 
 - [x] A block of IDs for each service (Option A) prototyped on two VMs: it worked, but each service would keep its own copy of every image it uses, and the change would reach most of Roostack. Deferred by the maintainer (2026-11-21); SPEC §6.10 item 7 says what an escaped container would be
