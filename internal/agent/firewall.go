@@ -617,9 +617,13 @@ func (f Firewall) Ruleset() string {
 }
 
 // output keeps the lab's other servers' ports that trust the controller
-// to its Caddy (CaddyOnly). Connections are refused at once rather than
-// left to time out. While the caddy set is empty or out of date (Caddy is
-// starting), Caddy is refused too: nothing more opens.
+// to its Caddy (CaddyOnly): Caddy's cgroup is let through, then the rest of
+// the roostack user's processes outside system.slice are refused at once
+// rather than left to time out. Two rules, as a socket whose cgroup isn't
+// as deep as Caddy's has no ancestor at that level, and nft doesn't match
+// a "not in the set" on it (docs/ASSUMPTIONS.md J7). While the caddy set
+// is empty or out of date (Caddy is starting), Caddy is refused too:
+// nothing more opens.
 func (f Firewall) output(b *strings.Builder) {
 	if len(f.CaddyOnly) == 0 {
 		return
@@ -628,11 +632,12 @@ func (f Firewall) output(b *strings.Builder) {
 	for i, r := range f.CaddyOnly {
 		ports[i] = r.String()
 	}
+	to := fmt.Sprintf("ip daddr %s tcp dport { %s } meta skuid %d ", trust.ServersRange, strings.Join(ports, ", "), f.RoostackUID)
 	b.WriteString("\n\tchain output {\n")
 	b.WriteString("\t\ttype filter hook output priority filter; policy accept;\n\n")
 	b.WriteString("\t\t# the lab's other servers' web ports, live views and ssh: of the roostack user's services, caddy alone\n")
-	fmt.Fprintf(b, "\t\tip daddr %s tcp dport { %s } meta skuid %d socket cgroupv2 level 1 != \"system.slice\" socket cgroupv2 level %d != @%s reject with tcp reset\n",
-		trust.ServersRange, strings.Join(ports, ", "), f.RoostackUID, caddyCgroupLevel, caddySetName)
+	fmt.Fprintf(b, "\t\t%ssocket cgroupv2 level %d @%s accept\n", to, caddyCgroupLevel, caddySetName)
+	fmt.Fprintf(b, "\t\t%ssocket cgroupv2 level 1 != \"system.slice\" reject with tcp reset\n", to)
 	b.WriteString("\t}\n")
 }
 
