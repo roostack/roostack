@@ -364,7 +364,13 @@ one: see [Move a service](../servers/move.md).
     service's file). Through a cloud server in the lab, its firewall sends
     the port on over WireGuard to the controller, which sends it on to the
     server that runs the service, each with its own address there (nftables
-    DNAT and masquerade).
+    DNAT and masquerade). So the app sees each connection as coming from a
+    lab address in `100.96.0.0/17`, not the visitor's: an app that trusts
+    nearby or private addresses more, such as letting them in without a
+    login, will trust everyone on the internet, and one that blocks an
+    address after wrong passwords will block every visitor at once.
+    CrowdSec and Roostack's rate limits only see web addresses, not extra
+    connections.
 
     **Actions** are package `action` hooks, run with `podman exec` in the
     service's container. Their inputs reach the command only as

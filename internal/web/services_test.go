@@ -247,6 +247,13 @@ func TestServicePortExposure(t *testing.T) {
 	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "connect to <code>") || !strings.Contains(body, "UDP port 31116") {
 		t.Error("a public port doesn't say how it's reached from outside")
 	}
+	// Through an edge, visitors arrive from its address in the lab: the
+	// card says what that means (the security review of 2026-11-19, L3).
+	fm.edge = "vps-sydney"
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "connections come in through vps-sydney") ||
+		!strings.Contains(body, "will see each connection as coming from vps-sydney's address in the lab, not the visitor's") {
+		t.Error("a public port through an edge doesn't say whose address the app sees")
+	}
 }
 
 func TestServiceSetupAndActions(t *testing.T) {
