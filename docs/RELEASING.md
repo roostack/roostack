@@ -46,9 +46,11 @@ does:
 
 1. Change the Containerfile on a branch, build it, and check on a VM that
    a certificate is issued (its header says how).
-2. Push the branch, and run the **Caddy image** workflow on it (Actions →
-   Caddy image → Run workflow, or
-   `gh workflow run caddy-image.yml --ref <branch>`). It runs
+2. Push the branch: the **Caddy image** workflow runs by itself when a
+   branch other than main changes `build/caddy/` (or run it by hand:
+   Actions → Caddy image → Run workflow, or
+   `gh workflow run caddy-image.yml --ref <branch>`, once the workflow is
+   on main). It runs
    `scripts/build-caddy-image.sh` and its summary gives the two lines for
    `caddyimage.go`: the image by digest, and the Containerfile's SHA-256.
 3. Commit them on the branch. Until then a test fails, and a release

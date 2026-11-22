@@ -1,8 +1,10 @@
 # Builds Roostack's Caddy image from build/caddy/Containerfile for amd64
 # and arm64 and publishes it on GHCR (SPEC.md §6.5, docs/RELEASING.md):
 # scripts/build-caddy-image.sh, which prints the image named by digest.
-# Run it by hand (Actions → Caddy image → Run workflow) on the branch that
-# changes the Containerfile, then put what it prints in
+# It runs by itself when a branch other than main pushes a change to
+# build/caddy/ or to this file (GitHub runs a workflow by hand only once
+# it's on the default branch), and by hand (Actions → Caddy image → Run
+# workflow) on any branch. Put what it prints in
 # internal/generate/caddyimage.go on that branch: a test fails until the
 # two agree, and the release workflow checks the image is published.
 #
@@ -14,6 +16,11 @@ name: Caddy image
 
 on:
   workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths:
+      - "build/caddy/**"
+      - ".github/workflows/caddy-image.yml"
 
 permissions:
   contents: read
