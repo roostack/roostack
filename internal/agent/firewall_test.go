@@ -523,3 +523,41 @@ func TestPortForwards(t *testing.T) {
 		}
 	}
 }
+
+// TestCaddyOnlyFirewall: on the controller, the roostack user's services
+// other than Caddy are refused the lab's other servers' web ports, live
+// views and SSH; Roostack itself and other users aren't affected.
+func TestCaddyOnlyFirewall(t *testing.T) {
+	fw := DefaultFirewall()
+	fw.CaddyOnly = []PortRange{{22, 22}, {20000, 29999}, {61208, 61208}}
+	fw.RoostackUID = 999
+	if err := fw.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	rs := fw.Ruleset()
+	for _, want := range []string{
+		"\tset caddy {\n\t\ttypeof socket cgroupv2 level 5\n\t}\n",
+		"type filter hook output priority filter; policy accept;",
+		`ip daddr 100.96.0.0/17 tcp dport { 22, 20000-29999, 61208 } meta skuid 999 socket cgroupv2 level 1 != "system.slice" socket cgroupv2 level 5 != @caddy reject with tcp reset`,
+	} {
+		if !strings.Contains(rs, want) {
+			t.Errorf("missing %q:\n%s", want, rs)
+		}
+	}
+	// The path is never in the ruleset: a missing cgroup would stop it
+	// loading.
+	if strings.Contains(rs, "user.slice") {
+		t.Errorf("a cgroup's path in the ruleset:\n%s", rs)
+	}
+	if rs := DefaultFirewall().Ruleset(); strings.Contains(rs, "chain output") || strings.Contains(rs, "set caddy") {
+		t.Errorf("an output chain without caddy_only:\n%s", rs)
+	}
+	for _, bad := range []PortRange{{0, 22}, {30, 20}, {20000, 70000}} {
+		if (Firewall{SSHFrom: FromLAN, CaddyOnly: []PortRange{bad}}).Validate() == nil {
+			t.Errorf("accepted caddy_only %v", bad)
+		}
+	}
+	if (Firewall{Unchosen: true, CaddyOnly: fw.CaddyOnly}).Validate() == nil {
+		t.Error("accepted caddy_only in an unchosen firewall")
+	}
+}

@@ -308,3 +308,45 @@ func TestDesiredEdgePorts(t *testing.T) {
 		}
 	}
 }
+
+// TestCaddyOnly: what another server opens to the controller alone is for
+// the controller's Caddy alone; nodes keep nothing from their services.
+func TestCaddyOnly(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.OverlayAddr = "100.96.0.1"
+	fw, _ := Desired(lab, nil, Roles{})
+	if !slices.Equal(fw.CaddyOnly, CaddyOnly) || fw.Validate() != nil {
+		t.Errorf("the controller's caddy_only = %v", fw.CaddyOnly)
+	}
+	// Every port a node opens to the controller alone is in it.
+	node := lab
+	node.Role, node.OverlayAddr, node.GlancesHere = config.RoleNode, "100.96.0.2", true
+	nfw, _ := Desired(node, []*generate.Output{{Service: "immich", Ports: []int{config.DefaultRoutePortMin, config.DefaultRoutePortMax}}}, Roles{})
+	if len(nfw.CaddyOnly) != 0 {
+		t.Errorf("a node's caddy_only = %v", nfw.CaddyOnly)
+	}
+	ports := []int{22}
+	for _, r := range nfw.Allow {
+		if r.For == trust.Controller {
+			ports = append(ports, r.Port)
+		}
+	}
+	for _, p := range ports {
+		if !slices.ContainsFunc(CaddyOnly, func(r agent.PortRange) bool { return r.From <= p && p <= r.To }) {
+			t.Errorf("port %d is the controller's alone on a node, but not Caddy's alone on the controller", p)
+		}
+	}
+	// A single server has no other servers to keep.
+	lab.OverlayAddr = ""
+	if fw, _ := Desired(lab, nil, Roles{}); len(fw.CaddyOnly) != 0 {
+		t.Errorf("a single server's caddy_only = %v", fw.CaddyOnly)
+	}
+}
+
+// TestCaddyUnit: the agent knows Caddy's cgroup by the unit's name.
+func TestCaddyUnit(t *testing.T) {
+	if want := "/app.slice/" + generate.CaddyUnit + ".service"; !strings.HasSuffix(agent.CaddyCgroup(999), want) {
+		t.Errorf("Caddy's cgroup %q doesn't end in %q", agent.CaddyCgroup(999), want)
+	}
+}

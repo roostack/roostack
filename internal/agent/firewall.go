@@ -72,6 +72,30 @@ type Firewall struct {
 	// container's published port). The agent works them out itself; a
 	// request can't set them.
 	ForwardOwned []string `json:"-"`
+	// CaddyOnly, on the controller, are the ports on the lab's other
+	// servers that trust the controller's address (their web ports, live
+	// views and SSH): of what runs under the roostack user's own systemd
+	// manager (every service's containers, and jobs started there), only
+	// Caddy reaches them. The agent knows Caddy by its cgroup, which it
+	// keeps in the caddy set (caddyset.go). Roostack itself, in
+	// system.slice, and other users aren't affected.
+	CaddyOnly []PortRange `json:"caddy_only,omitempty"`
+	// RoostackUID is the roostack user's, for CaddyOnly: the agent sets
+	// it; a request can't.
+	RoostackUID int `json:"-"`
+}
+
+// PortRange is the ports From to To, both included.
+type PortRange struct {
+	From int `json:"from"`
+	To   int `json:"to"`
+}
+
+func (r PortRange) String() string {
+	if r.From == r.To {
+		return strconv.Itoa(r.From)
+	}
+	return fmt.Sprintf("%d-%d", r.From, r.To)
 }
 
 // People is what the lab's VPN's devices (trust.DevicesRange) reach on
@@ -210,7 +234,7 @@ func (f Firewall) Validate() error {
 	}
 	if f.Unchosen {
 		if f.SSHFrom != "" || len(f.Allow) > 0 || len(f.Forward) > 0 || len(f.Edges) > 0 || f.JoinPort != 0 ||
-			len(f.Members) > 0 || f.Controller != "" || f.People != nil {
+			len(f.Members) > 0 || f.Controller != "" || f.People != nil || len(f.CaddyOnly) > 0 {
 			errs = append(errs, errors.New("unchosen: only setup_port may be set"))
 		}
 		return errors.Join(errs...)
@@ -285,6 +309,11 @@ func (f Firewall) Validate() error {
 		}
 		if strings.ContainsFunc(r.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
 			errs = append(errs, fmt.Errorf("forward[%d]: invalid characters in reason", i))
+		}
+	}
+	for i, r := range f.CaddyOnly {
+		if r.From < 1 || r.To > 65535 || r.From > r.To {
+			errs = append(errs, fmt.Errorf("caddy_only[%d]: invalid ports %d to %d", i, r.From, r.To))
 		}
 	}
 	return errors.Join(errs...)
@@ -395,6 +424,11 @@ func (f Firewall) Ruleset() string {
 	// adds them, each with its own timeout, and puts them back after a load.
 	fmt.Fprintf(&b, "\tset %s {\n\t\ttype ipv4_addr\n\t\tflags timeout\n\t}\n\n", blockedSet4)
 	fmt.Fprintf(&b, "\tset %s {\n\t\ttype ipv6_addr\n\t\tflags interval, timeout\n\t}\n\n", blockedSet6)
+	if len(f.CaddyOnly) > 0 {
+		// Caddy's cgroup: the agent adds it after a load, and again each
+		// time Caddy starts (caddyset.go).
+		fmt.Fprintf(&b, "\tset %s {\n\t\ttypeof socket cgroupv2 level %d\n\t}\n\n", caddySetName, caddyCgroupLevel)
+	}
 	// Edges reach Caddy only on its edge listener: their connections to
 	// 443 are sent there, so whatever a PROXY header says, they're never
 	// private, and the listener for everyone else believes no header.
@@ -569,9 +603,30 @@ func (f Firewall) Ruleset() string {
 		fmt.Fprintf(&b, "\t\tiifname { %s } drop\n", set)
 	}
 	b.WriteString("\t}\n")
+	f.output(&b)
 	f.postrouting(&b)
 	b.WriteString("}\n")
 	return b.String()
+}
+
+// output keeps the lab's other servers' ports that trust the controller
+// to its Caddy (CaddyOnly). Connections are refused at once rather than
+// left to time out. While the caddy set is empty or out of date (Caddy is
+// starting), Caddy is refused too: nothing more opens.
+func (f Firewall) output(b *strings.Builder) {
+	if len(f.CaddyOnly) == 0 {
+		return
+	}
+	ports := make([]string, len(f.CaddyOnly))
+	for i, r := range f.CaddyOnly {
+		ports[i] = r.String()
+	}
+	b.WriteString("\n\tchain output {\n")
+	b.WriteString("\t\ttype filter hook output priority filter; policy accept;\n\n")
+	b.WriteString("\t\t# the lab's other servers' web ports, live views and ssh: of the roostack user's services, caddy alone\n")
+	fmt.Fprintf(b, "\t\tip daddr %s tcp dport { %s } meta skuid %d socket cgroupv2 level 1 != \"system.slice\" socket cgroupv2 level %d != @%s reject with tcp reset\n",
+		trust.ServersRange, strings.Join(ports, ", "), f.RoostackUID, caddyCgroupLevel, caddySetName)
+	b.WriteString("\t}\n")
 }
 
 // peopleForward writes what the VPN's devices may pass through to: the
@@ -803,8 +858,9 @@ func (h LinuxHost) ApplyFirewall(ruleset string) error {
 	if err := os.MkdirAll(filepath.Dir(h.FirewallFile), 0o755); err != nil {
 		return err
 	}
-	// Loading emptied the sets of blocked SSH guessers.
+	// Loading emptied the sets of blocked SSH guessers, and Caddy's.
 	sshBlocks.reload(time.Now())
+	caddySet.loaded(ruleset)
 	return fsutil.WriteFile(h.FirewallFile, []byte(ruleset), 0o644)
 }
 
@@ -815,6 +871,9 @@ func (h LinuxHost) RestoreFirewall() error {
 	}
 	if out, err := exec.Command("nft", "-f", h.FirewallFile).CombinedOutput(); err != nil {
 		return fmt.Errorf("nft restore: %w: %s", err, out)
+	}
+	if ruleset, err := os.ReadFile(h.FirewallFile); err == nil {
+		caddySet.loaded(string(ruleset))
 	}
 	return nil
 }

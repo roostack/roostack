@@ -140,6 +140,9 @@ type Server struct {
 	Host Host
 	// AllowedUIDs may call the API (root and the roostack user).
 	AllowedUIDs []uint32
+	// RoostackUID is the roostack user's, whose services the controller's
+	// firewall keeps from the lab's other servers (Firewall.CaddyOnly).
+	RoostackUID int
 	Version     string
 	Log         *slog.Logger
 
@@ -175,7 +178,7 @@ func (s *Server) Handler() http.Handler {
 		if err := h.VPNForwardingOff(want); err != nil {
 			return err
 		}
-		fw.ForwardOwned = own
+		fw.ForwardOwned, fw.RoostackUID = own, s.RoostackUID
 		if err := h.ApplyFirewall(fw.Ruleset()); err != nil {
 			return err
 		}

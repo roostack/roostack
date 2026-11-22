@@ -130,6 +130,11 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 			if roles.Hub {
 				fw.JoinPort, fw.Members = labnet.Port, roles.Members
 			}
+			// What the lab's other servers open to the controller alone
+			// (below) is for its Caddy alone: any other service here
+			// would leave from the controller's address too, and could
+			// skip Caddy or claim to be someone a wall let in.
+			fw.CaddyOnly = CaddyOnly
 		}
 	}
 	// The lab's edges reach Caddy on its edge listener only (SPEC.md
@@ -211,6 +216,12 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	}
 	return fw, true
 }
+
+// CaddyOnly are the ports another server opens to the controller alone,
+// for its Caddy (Desired): every service's web port, a live view's
+// Glances, and SSH.
+var CaddyOnly = []agent.PortRange{{From: 22, To: 22}, {From: config.DefaultRoutePortMin, To: config.DefaultRoutePortMax},
+	{From: generate.GlancesPort, To: generate.GlancesPort}}
 
 // WithClosed is fw with public access closed completely, or not (SPEC.md
 // §6.16): Caddy's web ports for the home network only, and everyone else
