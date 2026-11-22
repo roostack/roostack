@@ -347,10 +347,11 @@ type Local struct {
 	// (tests: a package's is at least a minute).
 	scheduledTimeout time.Duration
 
-	// followingBuild: a Caddy image build is being shown (build.go), and
-	// buildPoll how often its log is read (zero: build.go's buildPoll).
-	followingBuild bool
-	buildPoll      time.Duration
+	// followingImage: Caddy's image download is being shown
+	// (caddyimage.go), and imagePoll how often its log is read (zero:
+	// caddyimage.go's imagePoll).
+	followingImage bool
+	imagePoll      time.Duration
 	// installs are new services being installed, step by step (install.go);
 	// installsLoaded, once they've been read from State.
 	installs       map[string]*InstallProgress
@@ -683,17 +684,25 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	} else {
 		r.Log = act
 	}
-	// Caddy's image builds in the background (for minutes the first time):
-	// show it, whether this apply starts it or it was already running when
-	// Roostack restarted (e.g. at the end of the setup wizard).
-	building := (!n.lab(a).IsNode() || a.Edge != nil) && (slices.Contains(plan.BuildUnits, CaddyBuildUnit) || n.caddyBuilding(ctx))
-	if building {
-		n.clearBuildLog(ctx, plan, n.lab(a).Paths.CaddyBuildLog())
+	// Caddy's image downloads in the background: show it, whether this
+	// apply starts it or it was already running when Roostack restarted
+	// (e.g. at the end of the setup wizard).
+	caddyHere := !n.lab(a).IsNode() || a.Edge != nil
+	downloading := caddyHere && (slices.Contains(plan.ImageUnits, CaddyImageUnit) || n.caddyDownloading(ctx))
+	if downloading {
+		n.clearImageLog(ctx, plan, n.lab(a).Paths.CaddyImageLog())
 	}
 	// New services are shown step by step while they install.
-	n.planInstalls(a.Services, desired, plan, building)
+	n.planInstalls(a.Services, desired, plan, downloading)
 	r.Progress = n.installEvent
 	if err := r.Apply(ctx, plan); err != nil {
+		// Caddy didn't start because its image didn't download: say so,
+		// rather than systemd's "a dependency job failed", which stays in
+		// the log.
+		if why := n.caddyImageFailed(ctx, n.lab(a).Paths.CaddyImageLog()); caddyHere && why != "" {
+			act.Printf("%v", err)
+			err = errors.New(why)
+		}
 		n.failInstalls(err)
 		return err
 	}
@@ -703,8 +712,8 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		act.Printf("Config file left as it is: %s", left)
 		n.Log.Warn("config file left as it is", "why", left)
 	}
-	if building {
-		n.followCaddyBuild(n.lab(a).Paths.CaddyBuildLog())
+	if downloading {
+		n.followCaddyImage(n.lab(a).Paths.CaddyImageLog())
 	}
 	// Created secrets live in Podman now; forget the typed-in values.
 	n.mu.Lock()

@@ -117,6 +117,10 @@ type UnitStatus struct {
 	// NRestarts is how often systemd restarted it (Restart=) since it
 	// was last started by hand: a climbing count means it keeps failing.
 	NRestarts int
+	// Result is how it last ended: success, exit-code, or exec-condition
+	// when its ExecCondition= skipped it (Caddy's image unit, when the
+	// image is already here).
+	Result string
 }
 
 // Status returns the state of each unit, in the order given.
@@ -124,7 +128,7 @@ func (m *Manager) Status(ctx context.Context, units ...string) ([]UnitStatus, er
 	if len(units) == 0 {
 		return nil, nil
 	}
-	args := append([]string{"show", "--property=Id,LoadState,ActiveState,SubState,NRestarts"}, units...)
+	args := append([]string{"show", "--property=Id,LoadState,ActiveState,SubState,NRestarts,Result"}, units...)
 	out, err := m.systemctl(ctx, args...)
 	if err != nil {
 		return nil, err
@@ -162,6 +166,8 @@ func parseShow(out []byte) []UnitStatus {
 			cur.SubState = v
 		case "NRestarts":
 			cur.NRestarts, _ = strconv.Atoi(v)
+		case "Result":
+			cur.Result = v
 		}
 	}
 	flush()

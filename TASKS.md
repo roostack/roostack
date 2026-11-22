@@ -13,8 +13,10 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] **1.2 Verify assumptions on Debian 13** (see `docs/ASSUMPTIONS.md`; ⚠️ items first)
   - [ ] A7: Intel GPU (`/dev/dri`) passthrough with `keep-groups`
 - [ ] 🟡 **1.6 Reconciler:** plan/apply, `roostack apply [--dry-run]` (`internal/reconcile`, `internal/state`)
-- [ ] 🟡 **1.7 Proxy:** Caddyfile generation ✅ (checked with real Caddy); Caddy image Containerfile written, not built
-  - [ ] **Soon (the maintainer, 2026-11-07): publish Caddy's image on GHCR** (SPEC §6.5, "A published Caddy image"): built by the Release workflow for amd64 and arm64, named by digest in each release, pulled instead of built, with no fallback. Check first whether the build is reproducible, so that CI can compare it with what's published, and how an existing lab moves over.
+- [ ] 🟡 **1.7 Proxy:** Caddyfile generation ✅ (checked with real Caddy); Caddy's image published on GHCR ✅ (below)
+  - [x] **Publish Caddy's image on GHCR** (the maintainer, 2026-11-07; built 2026-11-22, SPEC §6.5): the Caddy image workflow builds it for amd64 and arm64 (cross-compiled) and prints it by digest, committed in `internal/generate/caddyimage.go`; the release checks it's published from this Containerfile; servers download it through a Quadlet `.image` unit, with no fallback. An upgraded lab's build file is removed.
+  - [ ] **Run the Caddy image workflow for the first time** (the maintainer: it needs the branch on GitHub), commit the digest, and make the `roostack-caddy` package public (docs/RELEASING.md). Until then releases refuse, and development builds need `CADDY_DEV_IMAGE`.
+  - [ ] Check whether the image builds reproducibly (`--timestamp`, and Go's checksum database for the modules), so that anyone could rebuild it and compare digests as `verify-release` does for the packages.
   - [ ] Labs pin Caddy 2.11.4 and Cloud's edge 2.11.7: check whether labs should move up before the first published image
 - [ ] 🟡 **1.8 roostack-agent:** socket API with peer-credential checks; port sysctl; nftables firewall (ruleset checked with `nft -c`)
 - [ ] 🟡 **1.9 Web UI skeleton**

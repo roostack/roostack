@@ -1147,12 +1147,12 @@ func TestStorageOfferedByAnotherServer(t *testing.T) {
 func TestHomeShowsWhatAnApplyDoes(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	log := h.acts().Start(activity.Apply, "Applying changes")
-	log.Step("Starting roostack-caddy: building its image the first time (compiling: several minutes)")
-	if _, body := h.get("/"); !strings.Contains(body, "building its image the first time") {
+	log.Step("Starting Caddy: once its image has downloaded")
+	if _, body := h.get("/"); !strings.Contains(body, "once its image has downloaded") {
 		t.Error("the home page shows what the apply is doing")
 	}
 	log.Finish(nil)
-	if _, body := h.get("/partials/home"); strings.Contains(body, "building its image the first time") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "once its image has downloaded") {
 		t.Error("a finished apply isn't shown")
 	}
 }
@@ -1288,21 +1288,21 @@ func TestLivePartsSkipUnchanged(t *testing.T) {
 	}
 }
 
-// While Caddy's image builds (minutes the first time), the Services page
-// says so, with its log; once it's built, nothing is shown.
-func TestCaddyBuildShown(t *testing.T) {
+// While Caddy's image downloads, the Services page says so, with its log;
+// once it's here, nothing is shown.
+func TestCaddyImageShown(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	if _, body := h.get("/services"); strings.Contains(body, "<h2>Roostack's web proxy</h2>") {
-		t.Error("no build, no notice")
+		t.Error("no download, no notice")
 	}
-	log := h.acts().Start(activity.Build, "Building Roostack's web proxy")
-	log.Printf("STEP 1/2: FROM caddy-builder")
-	if _, body := h.get("/services"); !strings.Contains(body, "<h2>Roostack's web proxy</h2>") || !strings.Contains(body, "STEP 1/2") {
-		t.Error("a running build should be shown with its log")
+	log := h.acts().Start(activity.Build, "Downloading Roostack's web proxy")
+	log.Printf("Copying blob 1f3e done")
+	if _, body := h.get("/services"); !strings.Contains(body, "<h2>Roostack's web proxy</h2>") || !strings.Contains(body, "Copying blob") {
+		t.Error("a running download should be shown with its log")
 	}
 	log.Finish(nil)
 	if _, body := h.get("/services"); strings.Contains(body, "<h2>Roostack's web proxy</h2>") {
-		t.Error("a finished build isn't shown")
+		t.Error("a finished download isn't shown")
 	}
 }
 

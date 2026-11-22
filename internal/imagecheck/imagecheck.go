@@ -2,11 +2,13 @@
 // has builds for: the multi-architecture check run before a pin changes
 // (make check-images, ARM64-PLAN.md 1.3) and by the registry's CI for its
 // index (SPEC.md §8.3.3); and, for the registry's update check (§8.3.8),
-// a repository's tags and the digest a tag points to now. Anonymous pulls
+// a repository's tags and the digest a tag points to now; and, for the
+// release workflow, the labels of Roostack's Caddy image. Anonymous pulls
 // only; no Podman needed.
 package imagecheck
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,6 +43,26 @@ var ErrGone = errors.New("the image is gone from its registry")
 // its platforms as os/architecture. A digest that isn't an index is an error:
 // pins are of the index, so one pin works on every processor.
 func IndexPlatforms(registry, repo, digest string) ([]string, error) {
+	manifests, err := index(registry, repo, digest)
+	if err != nil {
+		return nil, err
+	}
+	var platforms []string
+	for _, m := range manifests {
+		platforms = append(platforms, m.platform)
+	}
+	return platforms, nil
+}
+
+// platformManifest is one platform's image in an index.
+type platformManifest struct {
+	platform string // os/architecture
+	digest   string
+}
+
+// index fetches an image index and returns its platforms' images,
+// leaving out attestations (unknown/unknown).
+func index(registry, repo, digest string) ([]platformManifest, error) {
 	resp, err := ask(http.MethodGet, endpoint(registry, repo)+"/manifests/"+digest)
 	if err != nil {
 		return nil, err
@@ -55,6 +77,7 @@ func IndexPlatforms(registry, repo, digest string) ([]string, error) {
 	var index struct {
 		MediaType string
 		Manifests []struct {
+			Digest   string
 			Platform struct{ OS, Architecture string }
 		}
 	}
@@ -64,13 +87,53 @@ func IndexPlatforms(registry, repo, digest string) ([]string, error) {
 	if len(index.Manifests) == 0 {
 		return nil, fmt.Errorf("not a multi-arch index (%s)", resp.Header.Get("Content-Type"))
 	}
-	var platforms []string
+	var out []platformManifest
 	for _, m := range index.Manifests {
 		if p := m.Platform.OS + "/" + m.Platform.Architecture; p != "unknown/unknown" {
-			platforms = append(platforms, p)
+			out = append(out, platformManifest{platform: p, digest: m.Digest})
 		}
 	}
-	return platforms, nil
+	return out, nil
+}
+
+// Labels returns the labels of each platform's image in a multi-arch
+// image (os/architecture → labels), from each image's configuration: for
+// the release workflow, which checks that Roostack's Caddy image was built
+// from the Containerfile in the source (SPEC.md §6.5).
+func Labels(registry, repo, digest string) (map[string]map[string]string, error) {
+	manifests, err := index(registry, repo, digest)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]map[string]string{}
+	for _, m := range manifests {
+		var manifest struct{ Config struct{ Digest string } }
+		if err := getJSON(endpoint(registry, repo)+"/manifests/"+m.digest, imageAccept, &manifest); err != nil {
+			return nil, fmt.Errorf("%s's image: %w", m.platform, err)
+		}
+		var config struct {
+			Config struct{ Labels map[string]string }
+		}
+		if err := getJSON(endpoint(registry, repo)+"/blobs/"+manifest.Config.Digest, "", &config); err != nil {
+			return nil, fmt.Errorf("%s's configuration: %w", m.platform, err)
+		}
+		out[m.platform] = config.Config.Labels
+	}
+	return out, nil
+}
+
+// getJSON fetches u, accepting accept (the index types when empty), and
+// decodes it into v.
+func getJSON(u, accept string, v any) error {
+	resp, err := askAccept(http.MethodGet, u, accept)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("registry answered %s", resp.Status)
+	}
+	return json.NewDecoder(resp.Body).Decode(v)
 }
 
 // endpoint is a repository's API address: Docker Hub's API isn't at
@@ -92,7 +155,12 @@ var scheme = "https"
 // ask makes a request, logging in anonymously when the registry asks
 // (401 with a Bearer challenge).
 func ask(method, u string) (*http.Response, error) {
-	resp, err := registryDo(method, u, "")
+	return askAccept(method, u, "")
+}
+
+// askAccept is ask accepting other types than an image index.
+func askAccept(method, u, accept string) (*http.Response, error) {
+	resp, err := registryDo(method, u, "", accept)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +170,7 @@ func ask(method, u string) (*http.Response, error) {
 		if err != nil {
 			return nil, err
 		}
-		return registryDo(method, u, token)
+		return registryDo(method, u, token, accept)
 	}
 	return resp, nil
 }
@@ -198,15 +266,20 @@ func ParseRef(s string) (Ref, error) {
 var registryClient = &http.Client{Timeout: 30 * time.Second}
 
 func registryGet(u, token string) (*http.Response, error) {
-	return registryDo(http.MethodGet, u, token)
+	return registryDo(http.MethodGet, u, token, "")
 }
 
-func registryDo(method, u, token string) (*http.Response, error) {
+// The types of one platform's image, for askAccept.
+const imageAccept = "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"
+
+// registryDo makes a request, accepting accept, or an image index when
+// it's empty.
+func registryDo(method, u, token, accept string) (*http.Response, error) {
 	req, err := http.NewRequest(method, u, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json")
+	req.Header.Set("Accept", cmp.Or(accept, "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"))
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}

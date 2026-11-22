@@ -1,0 +1,51 @@
+# Builds Roostack's Caddy image from build/caddy/Containerfile for amd64
+# and arm64 and publishes it on GHCR (SPEC.md §6.5, docs/RELEASING.md):
+# scripts/build-caddy-image.sh, which prints the image named by digest.
+# Run it by hand (Actions → Caddy image → Run workflow) on the branch that
+# changes the Containerfile, then put what it prints in
+# internal/generate/caddyimage.go on that branch: a test fails until the
+# two agree, and the release workflow checks the image is published.
+#
+# The runner's own Podman builds it, without emulation: the Containerfile
+# cross-compiles. GITHUB_TOKEN pushes it, with permission to write this
+# repository's packages and nothing else. The package must be public, so
+# that servers can download it without logging in.
+name: Caddy image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: caddy-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Log in to GHCR
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<<"$TOKEN"
+      - name: Build and push
+        run: |
+          image=$(scripts/build-caddy-image.sh)
+          sha=$(sha256sum build/caddy/Containerfile | cut -d' ' -f1)
+          {
+            echo "Put this in internal/generate/caddyimage.go:"
+            echo '```go'
+            echo "PublishedCaddyImage      = \"$image\""
+            echo "CaddyContainerfileSHA256 = \"$sha\""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

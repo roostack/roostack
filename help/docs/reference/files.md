@@ -33,7 +33,7 @@ Owned by the `roostack` user, and readable only by it (and root).
 | `setup-tls.crt`, `setup-tls.key` | The [setup page](../start/install.md#check-the-setup-pages-certificate)'s self-signed certificate and its key, for the home network during first-run setup; deleted when setup is finished |
 | `caddy/` | The generated web server config: `Caddyfile`, and `sites/<name>.caddy` for each service; the pages it serves as plain files: `status/` (the [public status page](../servers/monitoring.md)) and `domain/` (the [simple page](../settings/domain.md#the-address-on-its-own) at your address on its own) |
 | `caddy-data/` | HTTPS certificates and the certificate account |
-| `caddy-build.log` | The output of the latest build of Roostack's web proxy image (Caddy), shown on the Services page while it runs |
+| `caddy-image.log` | The output of the latest download of Roostack's web proxy image (Caddy), shown on the Services page while it runs |
 | `caddy-logs/` | The web server's access log, while anything is [public](../services/public.md), for CrowdSec |
 | `crowdsec/` | CrowdSec's configuration and database, while anything is public |
 | `labca/` | The lab's own certificate authority, on the controller: it vouches for each server on the lab's network |

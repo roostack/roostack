@@ -54,8 +54,8 @@ var (
 const (
 	// ImageService is an earlier version of a service, or a removed one's.
 	ImageService = "service"
-	// ImageOwn is left from building Roostack's own images, or one of
-	// its own versions no longer used.
+	// ImageOwn is an earlier version of one of Roostack's own images,
+	// such as its web proxy's, or left from building one by hand.
 	ImageOwn = "own"
 )
 
@@ -202,6 +202,13 @@ func (n *Local) namedImages() []quadletImage {
 	return append(n.quadletImages(), n.assignedImages()...)
 }
 
+// isCaddyImage says whether a repository digest is one of Roostack's
+// Caddy images: an earlier version once a release names another.
+func isCaddyImage(repoDigest string) bool {
+	repo, _, _ := strings.Cut(generate.CaddyImage, "@")
+	return strings.HasPrefix(repoDigest, repo+"@")
+}
+
 // matches says whether an image is the one ref names: by its digest when
 // ref has one (a package's pinned image), else by name.
 func (img podmanImage) matches(ref string) bool {
@@ -283,7 +290,8 @@ func (n *Local) CleanUpReport(ctx context.Context) (CleanUpReport, error) {
 			continue
 		}
 		info := ImageInfo{ID: img.ID, Names: img.Names, Size: img.Size, Kind: ImageService}
-		if len(img.Names) == 0 || slices.ContainsFunc(img.Names, func(name string) bool { return strings.HasPrefix(name, "localhost/") }) {
+		if len(img.Names) == 0 || slices.ContainsFunc(img.Names, func(name string) bool { return strings.HasPrefix(name, "localhost/") }) ||
+			slices.ContainsFunc(img.RepoDigests, isCaddyImage) {
 			info.Kind = ImageOwn
 		}
 		// What it was when last named: the latest of its refs seen.

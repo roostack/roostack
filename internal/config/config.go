@@ -198,11 +198,11 @@ func (p Paths) CaddyLocalRoot() string {
 // CrowdSec reads (SPEC.md §6.11).
 func (p Paths) CaddyLogDir() string { return filepath.Join(p.StateDir, "caddy-logs") }
 
-// CaddyBuildLog is the output of the latest build of Roostack's Caddy
+// CaddyImageLog is the output of the latest download of Roostack's Caddy
 // image. The roostack user's units log to the system journal (it's a
-// system user), which Roostack can't read, so the build writes here and
-// the UI shows it while it runs.
-func (p Paths) CaddyBuildLog() string { return filepath.Join(p.StateDir, "caddy-build.log") }
+// system user), which Roostack can't read, so the download writes here
+// and the UI shows it while it runs.
+func (p Paths) CaddyImageLog() string { return filepath.Join(p.StateDir, "caddy-image.log") }
 
 // SetupCertFile and SetupKeyFile are the setup pages' self-signed
 // certificate and its key (0600), made at Roostack's first start and

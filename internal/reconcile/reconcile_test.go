@@ -304,6 +304,26 @@ func TestUnfinishedStartsAgain(t *testing.T) {
 	}
 }
 
+// A lab from before Caddy's image was published has a build file for it,
+// which an upgrade removes, stopping its unit, while Caddy's container
+// changes to the published image (SPEC.md §6.5).
+func TestCaddyBuildFileRemoved(t *testing.T) {
+	e := newEnv(t)
+	e.apply(t, e.desired(t, "vaultwarden"))
+	old := filepath.Join(e.lab.Paths.QuadletDir(), "roostack-caddy.build")
+	if err := os.WriteFile(old, []byte("[Build]\nImageTag=localhost/roostack-caddy:latest\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.systemd.calls = nil
+	plan := e.apply(t, e.desired(t, "vaultwarden"))
+	if !slices.Contains(plan.StopUnits, "roostack-caddy-build.service") {
+		t.Errorf("the build's unit isn't stopped:\n%s", plan)
+	}
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Errorf("the build file is still there: %v", err)
+	}
+}
+
 func TestInstallUpdateRemove(t *testing.T) {
 	e := newEnv(t)
 
@@ -318,17 +338,17 @@ func TestInstallUpdateRemove(t *testing.T) {
 		strings.Contains(n, "sha256") {
 		t.Errorf("vaultwarden's note = %q", n)
 	}
-	if n := plan.StartNotes["roostack-caddy.service"]; !strings.Contains(n, "building its image") {
+	if n := plan.StartNotes["roostack-caddy.service"]; n != "once its image has downloaded" {
 		t.Errorf("caddy's note = %q", n)
 	}
-	// Caddy's image build starts in the background as soon as its file is
-	// written; new services download and start one at a time; a new Caddy
-	// starts last, since its first start waits for that build.
+	// Caddy's image download starts in the background as soon as its file
+	// is written; new services download and start one at a time; a new
+	// Caddy starts last, since its first start waits for that download.
 	if want := []string{"daemon-reload",
 		"set-property roostack-core.slice MemoryLow=96M CPUWeight=200 MemoryHigh=infinity",
 		"set-property roostack-services.slice CPUWeight=100 MemoryHigh=infinity",
 		"set-property roostack.slice MemoryLow=96M MemoryHigh=infinity",
-		"start --no-block roostack-caddy-build.service",
+		"start --no-block roostack-caddy-image.service",
 		"start roostack-vaultwarden-app.service", "reload-or-restart roostack-caddy.service"}; !slices.Equal(e.systemd.calls, want) {
 		t.Errorf("calls %v, want %v", e.systemd.calls, want)
 	}
@@ -358,8 +378,8 @@ func TestInstallUpdateRemove(t *testing.T) {
 	if !plan.Empty() {
 		t.Errorf("second apply should be empty, got:\n%s", plan)
 	}
-	if slices.Contains(e.systemd.calls, "daemon-reload") || slices.Contains(e.systemd.calls, "start --no-block roostack-caddy-build.service") {
-		t.Errorf("unexpected daemon-reload or build on a no-op apply: %v", e.systemd.calls)
+	if slices.Contains(e.systemd.calls, "daemon-reload") || slices.Contains(e.systemd.calls, "start --no-block roostack-caddy-image.service") {
+		t.Errorf("unexpected daemon-reload or download on a no-op apply: %v", e.systemd.calls)
 	}
 
 	// Changing a setting restarts only the affected unit.

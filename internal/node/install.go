@@ -91,9 +91,9 @@ const stageSetup = "setup"
 const stageQueued = "queued"
 
 // planInstalls starts tracking every service this apply installs: one
-// whose containers are all new. buildRunning says Caddy's image is still
-// building, so the web address step will wait for it.
-func (n *Local) planInstalls(services []state.Service, desired reconcile.Desired, plan *reconcile.Plan, buildRunning bool) {
+// whose containers are all new. imageRunning says Caddy's image is still
+// downloading, so the web address step will wait for it.
+func (n *Local) planInstalls(services []state.Service, desired reconcile.Desired, plan *reconcile.Plan, imageRunning bool) {
 	byName := map[string]state.Service{}
 	for _, s := range services {
 		byName[s.Name()] = s
@@ -161,8 +161,8 @@ func (n *Local) planInstalls(services []state.Service, desired reconcile.Desired
 		// the domain step (then nothing is reachable yet).
 		if len(o.Hosts) > 0 && !slices.Contains(plan.Waiting, generate.CaddyUnit+".container") {
 			title := "Making it reachable at its web address"
-			if buildRunning {
-				title = "Waiting for Roostack's web proxy to finish building (first time only; a few minutes)"
+			if imageRunning {
+				title = "Waiting for Roostack's web proxy to finish downloading"
 			}
 			p.Steps = append(p.Steps, InstallStep{Key: reconcile.StageProxy, Title: title})
 		}
@@ -376,10 +376,10 @@ func (n *Local) unfinishedUnits() map[string]bool {
 
 // queuedInstall is shown for a service whose install hasn't begun: it's
 // assigned, but no apply has written its units yet.
-func queuedInstall(buildRunning bool) *InstallProgress {
+func queuedInstall(imageRunning bool) *InstallProgress {
 	title := "Waiting for other changes to finish"
-	if buildRunning {
-		title = "Waiting for Roostack's web proxy to finish building (first time only; a few minutes)"
+	if imageRunning {
+		title = "Waiting for Roostack's web proxy to finish downloading"
 	}
 	return &InstallProgress{Steps: []InstallStep{{Key: stageQueued, Title: title}}, Log: activity.Apply}
 }

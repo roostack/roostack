@@ -35,6 +35,9 @@ unset VERSION
 # never a development build.
 [[ -z ${ROOSTACK_DEV_BUILD:-} ]] || fail "ROOSTACK_DEV_BUILD is set: a release is never a development build"
 [[ -z ${REGISTRY_DEV_KEY:-} ]] || fail "REGISTRY_DEV_KEY is set: a release trusts no development key"
+[[ -z ${CADDY_DEV_IMAGE:-} ]] || fail "CADDY_DEV_IMAGE is set: a release names only the published Caddy image"
+! grep -q 'PublishedCaddyImage *= *"[^"]*@sha256:0\{64\}"' internal/generate/caddyimage.go ||
+    fail "internal/generate/caddyimage.go doesn't name a published Caddy image yet: run the Caddy image workflow first (docs/RELEASING.md)"
 command -v uv >/dev/null || fail "a release includes the help site, which needs uv (https://docs.astral.sh/uv/)"
 command -v dpkg-deb >/dev/null || fail "needs dpkg-deb (Debian or Ubuntu)"
 

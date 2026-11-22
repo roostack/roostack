@@ -72,8 +72,8 @@ func testAddressCmd(args []string) error {
 		if out, err := exec.Command("systemctl", "restart", "roostack").CombinedOutput(); err != nil {
 			return fmt.Errorf("restarting Roostack: %w: %s", err, out)
 		}
-		say("Roostack has restarted, and it's applying the change now. Caddy will start once its image is built, which takes several minutes the first time (%s).",
-			config.Default().Paths.CaddyBuildLog())
+		say("Roostack has restarted, and it's applying the change now. Caddy will start once its image has downloaded (%s).",
+			config.Default().Paths.CaddyImageLog())
 		return nil
 	}
 	if !fromRoot() {
