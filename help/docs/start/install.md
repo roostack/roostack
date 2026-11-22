@@ -261,7 +261,10 @@ Then carry on with [First-run setup](first-run.md).
 
     **What the package installs:** `/usr/bin/roostack` and
     `/usr/bin/roostack-agent`, their systemd units, and the Containerfile for
-    Roostack's Caddy image. The services you can install aren't in it: Roostack
+    Roostack's Caddy image, `/usr/share/roostack/caddy/Containerfile`, so
+    that you can read and rebuild what's in it. Roostack will download that
+    image, already built, from `ghcr.io/roostack/roostack-caddy`, exactly the
+    version its release names. The services you can install aren't in it: Roostack
     gets them from the [service registry](../settings/updates.md#services-you-can-install). It depends on `podman (>= 5.4)`, `passt`, `nftables`,
     `uidmap`, `crun`, `catatonit`, `dbus-user-session`, `restic`,
     `unattended-upgrades`, and `wireguard-tools`.

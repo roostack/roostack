@@ -863,7 +863,7 @@ func TestRoostAcAddress(t *testing.T) {
 	}
 }
 
-// TestEdge: an edge server gets Roostack's Caddy (built the same way) with
+// TestEdge: an edge server gets Roostack's Caddy (the same image) with
 // only TCP 80 and 443, no certificates or DNS logins, and the edge config.
 func TestEdge(t *testing.T) {
 	lab := testLab()
@@ -872,11 +872,11 @@ func TestEdge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Quadlets) != 2 || out.Quadlets[0].Name != CaddyUnit+".container" || out.Quadlets[1].Name != CaddyUnit+".build" {
+	if len(out.Quadlets) != 2 || out.Quadlets[0].Name != CaddyUnit+".container" || out.Quadlets[1].Name != CaddyUnit+".image" {
 		t.Fatalf("quadlets: %+v", out.Quadlets)
 	}
 	c := out.Quadlets[0].Content
-	for _, want := range []string{"PublishPort=80:80\n", "PublishPort=443:443\n", "Network=pasta\n", "Image=" + CaddyUnit + ".build\n"} {
+	for _, want := range []string{"PublishPort=80:80\n", "PublishPort=443:443\n", "Network=pasta\n", "Image=" + CaddyUnit + ".image\n"} {
 		if !strings.Contains(c, want) {
 			t.Errorf("missing %q in\n%s", want, c)
 		}

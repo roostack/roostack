@@ -214,18 +214,18 @@ type Plan struct {
 	// Waiting are Quadlet files left as they are because a secret they
 	// need hasn't been given yet (generate.Secret.Holds).
 	Waiting []string
-	// BuildUnits build images (Quadlet .build files) whose file is new or
-	// changed. They start in the background as soon as they're written, so
-	// a slow first build (Caddy's compiles it: minutes) runs while nothing
-	// needs it yet, e.g. during the setup wizard, whose domain step the
-	// Caddy container waits for.
-	BuildUnits []string
+	// ImageUnits download images (Quadlet .image files) whose file is new
+	// or changed. They start in the background as soon as they're
+	// written, so Caddy's image downloads while nothing needs it yet, e.g.
+	// during the setup wizard, whose domain step the Caddy container waits
+	// for.
+	ImageUnits []string
 	// Pulls are the registry images of new containers, by unit, downloaded
 	// before they start (Reconciler.Pull).
 	Pulls map[string]string
 	// StartNotes say what a new container's first start involves (a
-	// download, or building an image), for the log: starting them can take
-	// minutes, and people should know why.
+	// download, or waiting for Caddy's image), for the log: starting them
+	// can take minutes, and people should know why.
 	StartNotes map[string]string
 	// Configs are config files to write (SPEC.md §8.1), with their secrets
 	// filled in as they're written: the plan never holds a secret.
@@ -285,8 +285,8 @@ func startNote(quadlet string) string {
 		if !ok {
 			continue
 		}
-		if strings.HasSuffix(image, ".build") {
-			return "building its image the first time (compiling: several minutes)"
+		if strings.HasSuffix(image, ".image") {
+			return "once its image has downloaded"
 		}
 		name, _, _ := strings.Cut(image, "@") // without the digest
 		return "downloading " + name + " if it isn't here yet"
@@ -467,7 +467,7 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 			plan.StartNotes = map[string]string{}
 		}
 		plan.StartNotes[unitFor(name)] = note
-		if image := quadletImage(content); image != "" && !strings.HasSuffix(image, ".build") {
+		if image := quadletImage(content); image != "" && !strings.HasSuffix(image, ".image") {
 			if plan.Pulls == nil {
 				plan.Pulls = map[string]string{}
 			}
@@ -485,8 +485,8 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		}
 		plan.Write = append(plan.Write, FileChange{filepath.Join(quadletDir, name), content})
 		plan.DaemonReload = true
-		if strings.HasSuffix(name, ".build") {
-			plan.BuildUnits = append(plan.BuildUnits, unitFor(name))
+		if strings.HasSuffix(name, ".image") {
+			plan.ImageUnits = append(plan.ImageUnits, unitFor(name))
 		}
 		if exists {
 			plan.RestartUnits = append(plan.RestartUnits, unitFor(name))
@@ -730,17 +730,17 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) (err error) {
 	if err := r.Systemd.Restart(ctx, p.RestartUnits...); err != nil {
 		return err
 	}
-	if len(p.BuildUnits) > 0 {
-		log.Step("Building images in the background")
-		log.Printf("%s", strings.Join(p.BuildUnits, " "))
-		if err := r.Systemd.StartNoBlock(ctx, p.BuildUnits...); err != nil {
+	if len(p.ImageUnits) > 0 {
+		log.Step("Downloading images in the background")
+		log.Printf("%s", strings.Join(p.ImageUnits, " "))
+		if err := r.Systemd.StartNoBlock(ctx, p.ImageUnits...); err != nil {
 			return err
 		}
 	}
 	// Running services (a no-op for those already running) first, then new
 	// ones one at a time: download, then start, saying what each involves.
-	// A new Caddy comes last: its first start waits for its image build
-	// (minutes), which new services don't need.
+	// A new Caddy comes last: its first start waits for its image's
+	// download, which new services don't need.
 	var running, fresh []string
 	for _, u := range p.StartUnits {
 		switch _, ok := p.StartNotes[u]; {
@@ -961,9 +961,13 @@ func boolInt(b bool) int {
 }
 
 // isOwnedQuadlet reports whether Roostack manages a file in the Quadlet dir.
+// A .build file is Caddy's image build from before Caddy's image was
+// published (SPEC.md §6.5): Roostack writes none now, so an upgraded lab's
+// is removed.
 func isOwnedQuadlet(name string) bool {
 	return strings.HasPrefix(name, "roostack-") &&
-		(strings.HasSuffix(name, ".container") || strings.HasSuffix(name, ".network") || strings.HasSuffix(name, ".build"))
+		(strings.HasSuffix(name, ".container") || strings.HasSuffix(name, ".network") || strings.HasSuffix(name, ".image") ||
+			strings.HasSuffix(name, ".build"))
 }
 
 // sliceProps are the settings in a slice's [Slice] section, with
@@ -996,6 +1000,9 @@ func isOwnedSlice(name string) bool {
 func unitFor(file string) string {
 	if base, ok := strings.CutSuffix(file, ".network"); ok {
 		return base + "-network.service"
+	}
+	if base, ok := strings.CutSuffix(file, ".image"); ok {
+		return base + "-image.service"
 	}
 	if base, ok := strings.CutSuffix(file, ".build"); ok {
 		return base + "-build.service"

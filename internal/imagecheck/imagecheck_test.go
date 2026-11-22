@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -33,6 +34,19 @@ func registryServer(t *testing.T) string {
 			fmt.Fprint(w, `{"name":"org/app","tags":["1.2"]}`)
 		case r.URL.Path == "/v2/org/app/manifests/1.2" && r.Method == http.MethodHead:
 			w.Header().Set("Docker-Content-Digest", "sha256:"+strings.Repeat("ab", 32))
+		// A multi-arch image with an attestation, each platform's image
+		// (only if asked for: an index is the default), and their
+		// configurations.
+		case r.URL.Path == "/v2/org/app/manifests/sha256:"+strings.Repeat("0a", 32):
+			fmt.Fprint(w, `{"manifests":[{"digest":"sha256:a1","platform":{"os":"linux","architecture":"amd64"}},`+
+				`{"digest":"sha256:a2","platform":{"os":"linux","architecture":"arm64"}},`+
+				`{"digest":"sha256:a3","platform":{"os":"unknown","architecture":"unknown"}}]}`)
+		case strings.HasPrefix(r.URL.Path, "/v2/org/app/manifests/sha256:a") && strings.Contains(r.Header.Get("Accept"), "image.manifest"):
+			fmt.Fprintf(w, `{"config":{"digest":"sha256:c%s"}}`, strings.TrimPrefix(r.URL.Path, "/v2/org/app/manifests/sha256:a"))
+		case r.URL.Path == "/v2/org/app/blobs/sha256:c1":
+			fmt.Fprint(w, `{"architecture":"amd64","config":{"Labels":{"io.example":"one"}}}`)
+		case r.URL.Path == "/v2/org/app/blobs/sha256:c2":
+			fmt.Fprint(w, `{"architecture":"arm64","config":{"Labels":{"io.example":"two"}}}`)
 		default:
 			http.NotFound(w, r)
 		}
@@ -58,6 +72,22 @@ func TestTagsAndDigest(t *testing.T) {
 	}
 	if _, err := TagDigest(host, "org/app", "9.9"); err == nil || !strings.Contains(err.Error(), ErrGone.Error()) {
 		t.Errorf("a missing tag: %v", err)
+	}
+}
+
+// Labels reads each platform's labels from its image's configuration,
+// leaving out attestations.
+func TestLabels(t *testing.T) {
+	host := registryServer(t)
+	labels, err := Labels(host, "org/app", "sha256:"+strings.Repeat("0a", 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]map[string]string{"linux/amd64": {"io.example": "one"}, "linux/arm64": {"io.example": "two"}}; !reflect.DeepEqual(labels, want) {
+		t.Errorf("labels %v, want %v", labels, want)
+	}
+	if _, err := Labels(host, "org/app", "sha256:"+strings.Repeat("0b", 32)); err == nil || !strings.Contains(err.Error(), ErrGone.Error()) {
+		t.Errorf("a missing image: %v", err)
 	}
 }
 

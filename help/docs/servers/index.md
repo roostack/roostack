@@ -140,7 +140,7 @@ service needs:
   each service's last update will be kept for a week and isn't listed.
 - **Data from removed services** and **kept copies**, which have their
   own lists (Services → Removed, data kept, and the server's card).
-- **Roostack's own** leftovers from building its web proxy.
+- **Roostack's own:** earlier versions of its web proxy's image, which nothing uses any more.
 
 **By itself**, which is on unless you turn it off, Roostack will delete
 old versions of services a week after nothing uses them, every night

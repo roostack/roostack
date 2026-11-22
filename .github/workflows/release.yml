@@ -2,7 +2,10 @@
 # (docs/RELEASING.md):
 #
 # 1. check: the tag is on main and is what git describe says, the release
-#    key in packaging/keys is a real one, and govulncheck finds nothing.
+#    key in packaging/keys is a real one, Roostack's Caddy image (named
+#    by digest in internal/generate/caddyimage.go) is published for both
+#    processors from this Containerfile and anyone can download it, and
+#    govulncheck finds nothing.
 # 2. build: scripts/build-release.sh, twice, on two runners in two
 #    folders, in a pinned Debian 13 image: both .debs, both plain
 #    binaries, SHA256SUMS.
@@ -68,6 +71,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
+      # Servers download it rather than build it (SPEC.md §6.5), so a
+      # release that names an image nobody can download would leave them
+      # without Caddy. Asked anonymously, as servers ask.
+      - name: Roostack's Caddy image is published
+        run: ROOSTACK_IMAGE_CHECK=1 go test -count=1 -run '^TestCaddyImagePublished$' -v ./internal/generate/
       - name: govulncheck
         run: go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" ./...
 

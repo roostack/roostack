@@ -55,7 +55,7 @@
   </section>
   <section class="card" id="own">
     <div class="card-head"><h2>Roostack's own</h2><span class="more">{{size .OwnImages.Total}}</span></div>
-    {{if .OwnImages.Images}}<p>What's left from building Roostack's own images, such as its web proxy, before their latest build.</p>
+    {{if .OwnImages.Images}}<p>Earlier versions of Roostack's own images, such as its web proxy's, which nothing uses any more.</p>
     <form method="post" action="/settings/servers/{{.Ref.ID}}/clean-up/remove">
       {{range .OwnImages.IDs}}<input type="hidden" name="id" value="{{.}}">{{end}}
       <button type="submit" class="secondary">Delete them · {{size .OwnImages.Total}}</button>

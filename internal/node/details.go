@@ -199,7 +199,7 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 		// units yet).
 		d.Install = n.installProgress(name)
 		if d.Install == nil && notWritten && n.Units != nil && len(gen.Units) > 0 {
-			d.Install = queuedInstall(lab.CaddyHere() && n.caddyBuilding(ctx))
+			d.Install = queuedInstall(lab.CaddyHere() && n.caddyDownloading(ctx))
 		}
 		if d.Install != nil {
 			d.Status = "installing"
@@ -271,7 +271,7 @@ func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 			b.Detail = "Web addresses and HTTPS certificates for this server's public services, which it serves itself"
 		}
 		if n.Units != nil {
-			if st, err := n.Units.Status(ctx, generate.CaddyUnit+".service", CaddyBuildUnit); err == nil && len(st) == 2 {
+			if st, err := n.Units.Status(ctx, generate.CaddyUnit+".service", CaddyImageUnit); err == nil && len(st) == 2 {
 				b.Status = caddyState(st[0], st[1])
 			}
 		}
@@ -337,15 +337,15 @@ func (n *Local) versionText() string {
 	return " (version " + n.Version + ")"
 }
 
-// caddyState says what Caddy is doing, from its unit and its image's build
-// unit: building its image (minutes the first time), or waiting for the
-// domain step, whose DNS login its container needs, rather than "inactive".
-func caddyState(caddy, build systemd.UnitStatus) string {
+// caddyState says what Caddy is doing, from its unit and its image's
+// unit: downloading its image, or waiting for the domain step, whose DNS
+// login its container needs, rather than "inactive".
+func caddyState(caddy, image systemd.UnitStatus) string {
 	switch {
-	case build.ActiveState == "activating":
-		return "building its image (the first time takes several minutes)"
-	case build.ActiveState == "failed":
-		return "its image didn't build"
+	case image.ActiveState == "activating":
+		return "downloading its image"
+	case image.ActiveState == "failed":
+		return "its image didn't download"
 	case caddy.LoadState == "not-found":
 		return "waiting for your domain"
 	}

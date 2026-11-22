@@ -9,11 +9,21 @@
 # (the multi-arch index, so it works on ARM too), and each plugin by
 # version; Go's checksum database then fixes the rest of the build. To
 # update, change the versions here, build, and check a certificate is
-# issued on a VM.
+# issued on a VM; then publish the image and name it in
+# internal/generate/caddyimage.go (docs/RELEASING.md).
+#
+# Servers download this image, built by Roostack's Caddy image workflow
+# (scripts/build-caddy-image.sh), rather than build it (SPEC.md §6.5). This
+# file is here, and on each server, so that anyone can read and rebuild
+# what's in it. The builder runs on the build machine's own processor
+# ($BUILDPLATFORM) and compiles for the image's ($TARGETARCH), so one
+# machine builds both without emulation; the last stage only copies.
 #
 # Build: podman build -t roostack-caddy build/caddy
-FROM docker.io/library/caddy:2.11.4-builder@sha256:369218c81ca6d6af249981221b3a5c764d886dd5b058f51d144066de13f2418d AS builder
-RUN xcaddy build \
+# Both processors: podman build --platform linux/amd64,linux/arm64 --manifest roostack-caddy build/caddy
+FROM --platform=$BUILDPLATFORM docker.io/library/caddy:2.11.4-builder@sha256:369218c81ca6d6af249981221b3a5c764d886dd5b058f51d144066de13f2418d AS builder
+ARG TARGETOS TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH xcaddy build \
     --with github.com/caddy-dns/cloudflare@v0.2.4 \
     --with github.com/caddy-dns/route53@v1.6.2 \
     --with github.com/caddy-dns/porkbun@v0.3.1 \

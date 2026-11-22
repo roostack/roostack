@@ -16,14 +16,9 @@ import (
 	"roostack.cloud/roostack/internal/trust"
 )
 
-// CaddyImage is Roostack's Caddy build with DNS plugins, built on each
-// server from CaddyBuildDir by a Quadlet build unit (so a new install, or
-// an upgrade that changes the Containerfile, needs no manual step). The
-// Containerfile pins what it's built from; the local tag is the result.
-const CaddyImage = "localhost/roostack-caddy:latest"
-
-// CaddyBuildDir holds the Containerfile (build/caddy in the source,
-// installed by the package).
+// CaddyBuildDir holds the Containerfile CaddyImage is built from
+// (build/caddy in the source, installed by the package), so that anyone
+// can read and rebuild what's in it. Nothing builds it on a server.
 const CaddyBuildDir = "/usr/share/roostack/caddy"
 
 // MySQLInitDir holds the script MySQL and MariaDB containers run as
@@ -134,7 +129,7 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	u.Section("Unit").Add("Description", "Roostack: reverse proxy (Caddy)")
 	cs := u.Section("Container")
 	cs.Add("ContainerName", CaddyUnit)
-	cs.Add("Image", CaddyUnit+".build")
+	cs.Add("Image", CaddyUnit+".image")
 	addTimezone(cs, lab)
 	// Caddy has its own pasta network namespace, not a bridge network:
 	// pasta's port forwarding keeps each visitor's real IP, which the
@@ -211,11 +206,11 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	}
 	out.Quadlets = append(out.Quadlets, File{Name: CaddyUnit + ".container", Content: u.String()})
 
-	build, err := caddyBuild(lab)
+	image, err := caddyImage(lab)
 	if err != nil {
 		return nil, err
 	}
-	out.Quadlets = append(out.Quadlets, build)
+	out.Quadlets = append(out.Quadlets, image)
 
 	mc := caddy.MainConfig{
 		Hosts:         opts.DirectHosts,
@@ -286,25 +281,27 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	return out, nil
 }
 
-// caddyBuild is the Quadlet that builds Roostack's Caddy image (with its
-// plugins) on the server.
-func caddyBuild(lab config.Lab) (File, error) {
+// caddyImage is the Quadlet that downloads Roostack's Caddy image
+// (CaddyImage); Caddy's container waits for it.
+func caddyImage(lab config.Lab) (File, error) {
 	var b quadlet.Unit
-	b.Section("Unit").Add("Description", "Roostack: build the reverse proxy image (Caddy with DNS plugins)")
-	bs := b.Section("Build")
-	bs.Add("ImageTag", CaddyImage)
-	bs.Add("File", CaddyBuildDir+"/Containerfile")
-	bs.Add("SetWorkingDirectory", "file")
-	// The first build compiles Caddy: minutes, not seconds.
+	b.Section("Unit").Add("Description", "Roostack: download the reverse proxy image (Caddy with its plugins)")
+	is := b.Section("Image")
+	is.Add("Image", CaddyImage)
 	bsvc := b.Section("Service")
-	bsvc.Add("TimeoutStartSec", "1800")
-	// Its output goes to a file the UI can show (config.Paths.CaddyBuildLog).
-	bsvc.Add("StandardOutput", "truncate:"+lab.Paths.CaddyBuildLog())
+	// Only when it isn't here: a pull asks the registry even for an image
+	// it has, which fails without the internet, and Caddy would then not
+	// start after a reboot (docs/ASSUMPTIONS.md A10). Skipped, the unit
+	// doesn't fail, and Caddy starts.
+	bsvc.Add("ExecCondition", `/bin/sh -c "! /usr/bin/podman image exists `+CaddyImage+`"`)
+	bsvc.Add("TimeoutStartSec", "900")
+	// Its output goes to a file the UI can show (config.Paths.CaddyImageLog).
+	bsvc.Add("StandardOutput", "truncate:"+lab.Paths.CaddyImageLog())
 	bsvc.Add("StandardError", "inherit")
 	if err := b.Validate(); err != nil {
 		return File{}, err
 	}
-	return File{Name: CaddyUnit + ".build", Content: b.String()}, nil
+	return File{Name: CaddyUnit + ".image", Content: b.String()}, nil
 }
 
 // Edge generates an edge's Caddy (SPEC.md §10.5), on a server that isn't
@@ -323,7 +320,7 @@ func Edge(lab config.Lab, c caddy.EdgeConfig) (*SystemOutput, error) {
 	u.Section("Unit").Add("Description", "Roostack: the lab's edge (Caddy, passing public visitors on)")
 	cs := u.Section("Container")
 	cs.Add("ContainerName", CaddyUnit)
-	cs.Add("Image", CaddyUnit+".build")
+	cs.Add("Image", CaddyUnit+".image")
 	addTimezone(cs, lab)
 	cs.Add("Network", "pasta")
 	cs.Add("PublishPort", "80:80")
@@ -344,12 +341,12 @@ func Edge(lab config.Lab, c caddy.EdgeConfig) (*SystemOutput, error) {
 	if err := u.Validate(); err != nil {
 		return nil, err
 	}
-	build, err := caddyBuild(lab)
+	image, err := caddyImage(lab)
 	if err != nil {
 		return nil, err
 	}
 	return &SystemOutput{
-		Quadlets:  []File{{Name: CaddyUnit + ".container", Content: u.String()}, build},
+		Quadlets:  []File{{Name: CaddyUnit + ".container", Content: u.String()}, image},
 		Caddyfile: File{Name: "Caddyfile", Content: conf},
 		Dirs:      []string{lab.Paths.CaddyDataDir()},
 		Units:     []string{CaddyUnit + ".service"},

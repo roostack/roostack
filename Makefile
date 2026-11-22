@@ -12,6 +12,12 @@ LDFLAGS := -buildid= -X main.version=$(VERSION)
 ifneq ($(REGISTRY_DEV_KEY),)
 LDFLAGS += -X roostack.cloud/roostack/internal/registry.devRootKey=$(REGISTRY_DEV_KEY)
 endif
+# Another Caddy image for a development build (SPEC.md §6.5), such as one
+# built from a changed Containerfile with scripts/build-caddy-image.sh:
+# never for a release.
+ifneq ($(CADDY_DEV_IMAGE),)
+LDFLAGS += -X roostack.cloud/roostack/internal/generate.devCaddyImage=$(CADDY_DEV_IMAGE)
+endif
 
 .PHONY: build help release verify-release test editor-test gate-test golden generated vet caddy-check check-images
 
@@ -88,6 +94,7 @@ caddy-check:
 	ROOSTACK_CADDY_BIN=$(ROOSTACK_CADDY_BIN) go test -run TestCaddyAdapt -v ./internal/caddy/
 
 # Check every pinned image has amd64 and arm64 builds, by asking the
-# registries (ARM64-PLAN.md 1.3). Run after changing a pin.
+# registries (ARM64-PLAN.md 1.3), and that Roostack's Caddy image is
+# published from this Containerfile (SPEC.md §6.5). Run after changing a pin.
 check-images:
-	ROOSTACK_IMAGE_CHECK=1 go test -count=1 -run TestImagesMultiArch -v ./internal/generate/
+	ROOSTACK_IMAGE_CHECK=1 go test -count=1 -run 'TestImagesMultiArch|TestCaddyImagePublished' -v ./internal/generate/

@@ -34,6 +34,38 @@ For the registry's Publish workflow (REGISTRY-KEYS.md, step 9):
 - `ROOSTACK_BINARY_URL`: `https://dl.roostack.cloud/releases/<version>/roostack-<version>-linux-amd64`
 - `ROOSTACK_BINARY_SHA256`: that file's line in the release's `SHA256SUMS`
 
+## Roostack's Caddy image
+
+Servers download Roostack's web proxy, Caddy with its plugins, already
+built (SPEC.md §6.5): `ghcr.io/roostack/roostack-caddy`, built from
+[build/caddy/Containerfile](../build/caddy/Containerfile) for amd64 and
+arm64, and named by digest in
+[internal/generate/caddyimage.go](../internal/generate/caddyimage.go), so
+a release's signature covers it. It changes only when the Containerfile
+does:
+
+1. Change the Containerfile on a branch, build it, and check on a VM that
+   a certificate is issued (its header says how).
+2. Push the branch: the **Caddy image** workflow runs by itself when a
+   branch other than main changes `build/caddy/` (or run it by hand:
+   Actions → Caddy image → Run workflow, or
+   `gh workflow run caddy-image.yml --ref <branch>`, once the workflow is
+   on main). It runs
+   `scripts/build-caddy-image.sh` and its summary gives the two lines for
+   `caddyimage.go`: the image by digest, and the Containerfile's SHA-256.
+3. Commit them on the branch. Until then a test fails, and a release
+   refuses an image that isn't published, for both processors, from this
+   Containerfile (`make check-images` checks the same).
+
+The first time, make the package public: on GitHub, the organisation's
+Packages → `roostack-caddy` → Package settings → Change visibility →
+Public. A package pushed from a private repository starts private, and
+servers download it without logging in. Until the workflow has run once,
+`PublishedCaddyImage` is zeros; a development build names another image
+meanwhile (`make build CADDY_DEV_IMAGE=…`, which also takes one pushed by
+`scripts/build-caddy-image.sh localhost:5000/roostack-caddy` to a registry
+of your own).
+
 ## Making a release
 
 1. Check `main`'s last CI run passed and that TASKS, SPEC, and the help are
@@ -55,7 +87,8 @@ For the registry's Publish workflow (REGISTRY-KEYS.md, step 9):
    runs:
    - **check:** the tag is `vMAJOR.MINOR.PATCH`, `git describe` gives
      exactly it (so one release tag per commit), its commit is on `main`,
-     the release key in `packaging/keys` isn't the placeholder, and
+     the release key in `packaging/keys` isn't the placeholder, Roostack's
+     Caddy image is published as above and anyone can download it, and
      govulncheck finds nothing the code reaches;
    - **build:** `scripts/build-release.sh` twice, on two runners, checked
      out in two different folders;
@@ -84,6 +117,8 @@ A release refuses to be made:
   `REGISTRY_DEV_KEY`);
 - from a checkout with changes, or from a commit the tag doesn't name;
 - while `packaging/keys/roostack-release.asc` is the placeholder;
+- while the Caddy image it names isn't published for both processors from
+  its Containerfile, or with `CADDY_DEV_IMAGE` set;
 - if the two builds differ, or the signature doesn't check.
 
 A tag that fails is deleted and made again once it's fixed

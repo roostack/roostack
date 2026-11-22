@@ -39,6 +39,11 @@
 # the service registry (Makefile; docs/REGISTRY-KEYS.md), for a VM fetching
 # from a registry signed with test keys.
 #
+# CADDY_DEV_IMAGE=registry/name@sha256:… builds Roostack naming another
+# Caddy image (Makefile; SPEC.md §6.5): before the Caddy image workflow
+# has published one, or for a changed Containerfile, pushed by
+# scripts/build-caddy-image.sh to a registry of your own.
+#
 # The VM's architecture follows this machine's (amd64 on a PC, arm64 on an
 # Apple Silicon Mac), so it runs at full speed. ROOSTACK_VM_ARCH=amd64|arm64
 # picks the other one, emulated and slow. A VM keeps the architecture it was
@@ -263,7 +268,8 @@ start() {
 sync_repo() {
     running || { echo "VM is not running" >&2; exit 1; }
     log "Building for linux/$ARCH"
-    GOARCH=$ARCH make -C "$REPO" build ${REGISTRY_DEV_KEY:+REGISTRY_DEV_KEY=$REGISTRY_DEV_KEY} >/dev/null
+    GOARCH=$ARCH make -C "$REPO" build ${REGISTRY_DEV_KEY:+REGISTRY_DEV_KEY=$REGISTRY_DEV_KEY} \
+        ${CADDY_DEV_IMAGE:+CADDY_DEV_IMAGE=$CADDY_DEV_IMAGE} >/dev/null
     log "Copying repo to ~/roostack in the VM"
     # sudo: install leaves a package that root built in dist/.
     vm_ssh 'sudo rm -rf ~/roostack && mkdir -p ~/roostack'
@@ -374,7 +380,7 @@ test-address)
     vm_ssh "sudo roostack test-address $*"
     [[ ${1:-} == -off ]] && exit 0
     # Caddy makes its certificate authority when it first starts, once its
-    # image has been built.
+    # image has downloaded.
     log "Waiting for Caddy's root certificate…"
     for _ in $(seq 1 240); do
         if vm_ssh "sudo cat /var/lib/roostack/caddy-data/caddy/pki/authorities/local/root.crt" >"$VM_DIR/caddy-root.crt" 2>/dev/null; then
