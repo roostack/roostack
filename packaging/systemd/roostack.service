@@ -14,6 +14,14 @@ ExecStart=/usr/bin/roostack serve
 Restart=always
 RestartSec=1
 
+# Memory (SPEC.md §6.1, "Memory"): the kernel takes memory from the
+# services first, so Roostack's pages (and the sign-in page) don't end up
+# in swap; if it must kill something, a service's container goes before
+# Roostack; and on a busy processor, its pages get twice a service's share.
+MemoryLow=256M
+OOMScoreAdjust=-500
+CPUWeight=200
+
 # Sandboxing (SPEC.md §6.1).
 ProtectSystem=strict
 ReadWritePaths=/var/lib/roostack /srv/roostack

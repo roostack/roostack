@@ -285,6 +285,8 @@ func (n *Local) scheduledBlocked(ctx context.Context, s state.Service) string {
 		return title + " is waiting for its data to be brought in"
 	case s.Instance != nil && s.Instance.Held != nil:
 		return title + " is stopped after a restore that didn't finish"
+	case s.Instance != nil && s.Instance.DumpsPending != nil:
+		return title + " is being restored: Roostack is putting its databases back"
 	}
 	if v, err := n.State.Setting(ctx, hookKey(s.Name())); err == nil && v != "" && v != hookDone {
 		return title + " hasn't finished setting up"

@@ -179,9 +179,44 @@ auto-merge and a protected `main` aren't needed for this (a change from the
 first plan). It also regenerates the update from `main` and leaves it for a
 person if the file differs, since an update written before a hand-made revision
 would otherwise undo that revision for labs. Minor, major and `other` updates,
-and community packages, wait for a person. **The repository variable
+and community packages, wait for a person, except a minor that fixes a
+known security problem (below). **The repository variable
 `UPDATES_AUTO_MERGE` must be `true`**; without it, the test still runs and
 nothing merges.
+
+## Security fixes — as built (2026-11-19), the maintainer's request
+
+An update that fixed a security problem waited for a person like any minor:
+Outline 1.13.0 passed its test on 2026-11-15 and was still waiting four
+days later. Now `roostack registry updates` says what each new app version
+fixes (`Update.Fixes`, from `watch.Feeds.Fixes`): the advisories of its
+source on GitHub that affect the old version and not the new, or its
+releases on Codeberg after the old version, up to the new one, whose notes
+list security fixes (REGISTRY-WATCH.md, "Codeberg"). A rebuild is the same
+version, so nothing is looked up. A lookup that fails says so
+(`fixes_unknown`) and the update is still proposed.
+
+- `open-updates.sh` labels such an update **`security`** and lists the
+  problems in its description. One already open that turns out to fix a
+  problem (an advisory published since) gets the label and a comment, and
+  its update test is started again so it can merge.
+- `update-merge.sh` merges a **minor** labelled `security` of an official
+  package once its test and Publish's check have passed. It doesn't trust
+  the label: its own run of `registry updates` on `main` must find a fix
+  for that version again. Majors still wait for a person, as a major can
+  need settings or a migration the test doesn't show.
+
+## Stuck updates — as built (2026-11-19), the maintainer's request
+
+Nothing said when an update stopped: Uptime Kuma 2.5.12, a patch, failed
+its test on 2026-11-17 and sat there. Every hour, after opening pull
+requests, the Updates workflow runs `.github/stuck-updates.sh notify`: an
+update whose test failed, or one that has waited for a person for more
+than three days, is pushed once to the maintainers' phones through ntfy
+(`NTFY_URL`) and labelled `stuck: test failed` or `stuck: waiting` so it
+isn't pushed again (removing the label lets it be pushed again later).
+The weekly security digest ends with the same list
+(`stuck-updates.sh digest`).
 
 **Left for later:** ARM (SPEC §8.3.8 leaves this open), checking that an
 app's own data survives the update, rather than only that the app is healthy,

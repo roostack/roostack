@@ -124,6 +124,10 @@ type Output struct {
 	LibraryUnits   []string
 	// Quadlets go in config.Paths.QuadletDir().
 	Quadlets []File
+	// Slice is its slice (ServiceSliceFile), with its memory limit, which
+	// goes in config.Paths.UserUnitDir(): set by state.Desired, which
+	// knows the other services on the server; nil elsewhere.
+	Slice *File
 	// CaddySite goes in <CaddyDir>/sites/. Nil when the service has no routes.
 	CaddySite *File
 	Secrets   []Secret
@@ -598,7 +602,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	} else {
 		addPassthrough(&u, c.Quadlet)
 	}
-	addServiceSections(&u)
+	g.addServiceSections(&u)
 
 	if err := g.addQuadlet(unit+".container", &u); err != nil {
 		return err
@@ -656,7 +660,7 @@ func (g *gen) postgres(name string, d *pkgspec.Database) error {
 	cs.Add("Label", "io.roostack.service="+svc)
 	cs.Add("Label", "io.roostack.component=db-"+name)
 	addPassthrough(&u, d.Quadlet)
-	addServiceSections(&u)
+	g.addServiceSections(&u)
 
 	if err := g.addQuadlet(unit+".container", &u); err != nil {
 		return err
@@ -720,7 +724,7 @@ func (g *gen) mysql(name string, d *pkgspec.Database) error {
 	cs.Add("Label", "io.roostack.service="+svc)
 	cs.Add("Label", "io.roostack.component=db-"+name)
 	addPassthrough(&u, d.Quadlet)
-	addServiceSections(&u)
+	g.addServiceSections(&u)
 	var schemas []string
 	for _, s := range d.Schemas {
 		schemas = append(schemas, db.Schemas[s])
@@ -791,7 +795,7 @@ func (g *gen) redis(name string, d *pkgspec.Database) error {
 	cs.Add("Label", "io.roostack.service="+svc)
 	cs.Add("Label", "io.roostack.component=db-"+name)
 	addPassthrough(&u, d.Quadlet)
-	addServiceSections(&u)
+	g.addServiceSections(&u)
 
 	if err := g.addQuadlet(unit+".container", &u); err != nil {
 		return err
@@ -1064,9 +1068,10 @@ func dbURLRef(ref string) (string, bool) {
 }
 
 // addServiceSections adds the [Service] and [Install] sections every
-// container shares.
-func addServiceSections(u *quadlet.Unit) {
+// container of the service shares, in the service's slice.
+func (g *gen) addServiceSections(u *quadlet.Unit) {
 	s := u.Section("Service")
+	s.Add("Slice", ServiceSlice(g.name))
 	s.Add("Restart", "always")
 	// Allow time for large image pulls on first start.
 	s.Add("TimeoutStartSec", "900")

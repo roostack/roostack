@@ -17,11 +17,27 @@ approval.
 | CrowdSec's virtual-patch rules (the Hub's index) | A new rule usually means a public exploit; new rules naming something the registry has |
 | EPSS | How likely each problem is to be exploited, to sort them |
 | OSV, for the library versions in `boms/` | Exact matches inside the images |
+| The release notes of packages whose `about.source` is on Codeberg | Forgejo's security fixes (below) |
 
 Not read yet: VulnCheck's list (it needs an account), oss-security,
-projects' own feeds beyond GitHub, and packages whose source isn't on
-GitHub (Forgejo is on Codeberg). Each run's notes say what it couldn't
-read.
+projects' own feeds beyond GitHub and Codeberg, and packages whose source
+is elsewhere. Each run's notes say what it couldn't read.
+
+**Codeberg — as built (2026-11-19), the maintainer's request:** Forgejo,
+which the maintainer's own lab runs on the internet, was a blind spot.
+Codeberg has no security advisories to read (its API answers 404 for
+them, and OSV has nothing for Forgejo), but Forgejo's release notes list
+its security fixes under a "Security bug fixes" entry. For a package
+whose source is on Codeberg (`forgeHosts` in `forge.go`), the watcher
+reads the repository's releases (`/api/v1/repos/<repo>/releases`), follows
+a release whose text only points to its notes file ("See …/15.0.12.md",
+read raw), and takes the entries under any heading or entry naming
+security (`SecurityFixes`). A release since the last run with any is a
+weak match, `codeberg.org/forgejo/forgejo@v15.0.12`, for the registry's
+older versions on the same major line (a release fixes its own line:
+15.0.12 for 15.0.x, 17.0.2 for 17.0.x), since the notes don't say how
+serious each problem is. The update bot reads the same notes to say what
+an update fixes (REGISTRY-UPDATES.md, "Security fixes").
 
 ## What it does with them
 
@@ -32,7 +48,7 @@ read.
   critical and being used in attacks it's **urgent**, and the CI sends a
   push notification through ntfy.
 - **A weaker match** waits in `watch/state.json` for the weekly digest,
-  which `-digest` writes as markdown and then clears.
+  which `-digest` writes as markdown and then clears (below).
 - **Severity** is suggested from the CVSS vector: critical only when
   anyone on the network can use it without an account or anyone's help,
   and it reaches data or the system. The maintainer checks it against how
@@ -41,6 +57,46 @@ read.
   each of its IDs, and published advisories are matched by their CVEs
   and link. The first run looks back 30 days (`-since`), and later runs
   look back to the run before.
+
+## The digest — as built (2026-11-19), the maintainer's request
+
+The digests of 2026-11-09 and 2026-11-16 stayed open with nothing done:
+the second had 439 matches, most needing nothing, such as problems the
+registry's newest versions had fixed since, and DoS bugs in libraries deep
+inside images. Now `-digest` reads the registry as it is that Monday and
+sorts each match (`digest.go`):
+
+- **Needs a decision**, listed: the registry's newest version is still
+  affected, or isn't known to be fixed. One entry for each problem, with a
+  line for each package it concerns, giving the newest affected version and
+  how many older ones.
+- **Already fixed in the registry's newest version**, collapsed: the
+  newest version is outside the advisory's ranges (kept with each match
+  since, as `ranges`), past its fixed version, or its image's bill of
+  materials no longer has the library version (`purl`). Labs that update
+  get the fix.
+- **In the background**, collapsed: a library inside an app's image (a
+  base system's package, or one the app uses), neither critical nor being
+  used in attacks. Only the app's project can update it, and the update
+  bot proposes its new image when it does.
+
+Critical problems and those being used in attacks are always listed,
+wherever they come from. Rebuilt this way, the digest of 2026-11-16 had
+26 problems to decide (21 of them in Kan's image), 103 fixed since and
+235 in the background.
+
+**A mis-paired library, fixed (2026-11-19):** one OSV problem in several
+packages' images was given the library version of whichever image was
+read last, so an entry's title ("… (in node-forge 1.4.0)") and its "from
+OSV, for …" could name another package's library: 46 of the 154 OSV
+entries in the digest of 2026-11-09 named a version their package didn't
+carry. Each match now names its own image's library (`purl`), and a match
+still waiting from before isn't taken as fixed when its affected versions'
+bills of materials don't have its library. Its end lists the update bot's pull requests that
+are stuck (REGISTRY-UPDATES.md, "Stuck updates"), and `fit-digest.sh`
+keeps the collapsed sections whole when it cuts. Considered: leaving out
+the fixed and background matches altogether (they'd be invisible, and one
+might still deserve an advisory for labs on older versions).
 
 ## The workflow in roostack/services
 

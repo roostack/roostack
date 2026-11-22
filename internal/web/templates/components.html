@@ -15,7 +15,7 @@
 {{/* status: a service state (running, starting, stopped, failed, unknown; waiting to be restored, or
      registry-stop: stopped because the registry withdrew its version; held: stopped after a restore that
      didn't finish, with a hint saying so; installing or updating). */}}
-{{define "status"}}<span class="status status-{{.}}">{{if eq . "waiting"}}Waiting to be restored{{else if eq . "registry-stop"}}Stopped by Roostack{{else if eq . "awaiting-data"}}Waiting for its data{{else if eq . "held"}}Stopped{{else}}{{capitalise .}}{{end}}</span>{{if eq . "held"}} <small class="hint">Its restore didn't finish</small>{{end}}{{end}}
+{{define "status"}}<span class="status status-{{.}}">{{if eq . "waiting"}}Waiting to be restored{{else if eq . "registry-stop"}}Stopped by Roostack{{else if eq . "awaiting-data"}}Waiting for its data{{else if eq . "held"}}Stopped{{else if eq . "restoring"}}Being restored{{else}}{{capitalise .}}{{end}}</span>{{if eq . "held"}} <small class="hint">Its restore didn't finish</small>{{end}}{{end}}
 
 {{/* install-steps: a service's install, step by step (node.InstallProgress):
      done, in progress (with how long so far) and still to do. */}}
@@ -63,6 +63,20 @@
 {{define "help"}}<a class="page-help" href="{{.Href}}" target="_blank" rel="noopener">{{icon "help"}}<span class="sr-only">Help: </span>{{.Title}}{{template "new-window"}}</a>{{end}}
 
 {{define "back"}}<a class="back" href="{{.Href}}">← {{.Text}}</a>{{end}}
+
+{{/* passkey-or: "Use your passkey", then "or" before the page's own form
+     (a password and code), for confirming it's them where a passkey
+     stands in for both (passkeys.go). It's given the address the form
+     posts to, which gets the passkey's answer instead. Shown only once
+     passkey.js has run, so the page works without it. */}}
+{{define "passkey-or"}}<div data-passkey-area>
+  <p class="error" role="alert" data-passkey-error hidden></p>
+  <p data-passkey-shown hidden><button type="button" class="passkey-button" data-passkey="/account/passkeys/options/confirm" data-form="passkey-or"
+    data-failed="The passkey didn't work, or you cancelled it. Try again, or use the form below.">{{icon "key"}} Use your passkey</button></p>
+  <form id="passkey-or" method="post" action="{{.}}" hidden></form>
+  <p class="or" data-passkey-shown hidden><span>or</span></p>
+</div>
+<script src="/static/passkey.js" defer></script>{{end}}
 
 {{/* confirm: a form that posts to Action after the browser asks Question.
      The question goes through a data attribute, never into the script,

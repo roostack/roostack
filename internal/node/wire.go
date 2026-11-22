@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
@@ -104,6 +105,9 @@ type LabContext struct {
 	// Resolver, on a server whose own lookups use the lab's DNS server,
 	// is that server, as host:port (SPEC.md §6.5.2); "" elsewhere.
 	Resolver string `json:"resolver,omitempty"`
+	// DNS, on the server that runs Roostack's own DNS server (SPEC.md
+	// §6.5.3), is what it answers; nil elsewhere, where it stops.
+	DNS *labdns.Config `json:"dns,omitempty"`
 }
 
 // WireService is a service's instance and package files.

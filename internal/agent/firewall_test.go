@@ -536,9 +536,9 @@ func TestCaddyOnlyFirewall(t *testing.T) {
 	}
 	rs := fw.Ruleset()
 	for _, want := range []string{
-		"\tset caddy {\n\t\ttypeof socket cgroupv2 level 5\n\t}\n",
+		"\tset caddy {\n\t\ttypeof socket cgroupv2 level 6\n\t}\n",
 		"type filter hook output priority filter; policy accept;",
-		`ip daddr 100.96.0.0/17 tcp dport { 22, 20000-29999, 61208 } meta skuid 999 socket cgroupv2 level 1 != "system.slice" socket cgroupv2 level 5 != @caddy reject with tcp reset`,
+		`ip daddr 100.96.0.0/17 tcp dport { 22, 20000-29999, 61208 } meta skuid 999 socket cgroupv2 level 1 != "system.slice" socket cgroupv2 level 6 != @caddy reject with tcp reset`,
 	} {
 		if !strings.Contains(rs, want) {
 			t.Errorf("missing %q:\n%s", want, rs)

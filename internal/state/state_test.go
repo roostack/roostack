@@ -439,3 +439,52 @@ ports:
 		}
 	}
 }
+
+// Each service gets its slice (generate/slices.go): with a limit of its
+// own only while the services together expect more than the server can
+// give them, or when the Owner chose one.
+func TestMemorySlices(t *testing.T) {
+	lab := newLab(t)
+	dir := lab.Paths.InstancesDir()
+	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-roostack.1\n")
+	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-roostack.1\nmemory_limit: none\n")
+	services, err := LoadServices(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AllocatePorts(services); err != nil {
+		t.Fatal(err)
+	}
+	slice := func(lab config.Lab, name string) string {
+		d, err := Desired(lab, services)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, o := range d.Services {
+			if o.Service == name && o.Slice != nil {
+				return o.Slice.Content
+			}
+		}
+		t.Fatalf("%s has no slice", name)
+		return ""
+	}
+	// Plenty: no limits, so Immich can use what it needs.
+	lab.MemoryTotal = 64_000_000_000
+	if got := slice(lab, "vaultwarden"); strings.Contains(got, "MemoryHigh") {
+		t.Errorf("vaultwarden on a big server:\n%s", got)
+	}
+	// Tight: Vaultwarden is held to twice its 50 MB, at least 256 MB above
+	// it; Immich isn't, by the Owner's choice.
+	lab.MemoryTotal = 2_000_000_000
+	if got := slice(lab, "vaultwarden"); !strings.Contains(got, "MemoryHigh=306000000\n") {
+		t.Errorf("vaultwarden on a small server:\n%s", got)
+	}
+	if got := slice(lab, "immich"); strings.Contains(got, "MemoryHigh") {
+		t.Errorf("immich with no limit chosen:\n%s", got)
+	}
+	// Not known (a manager's check): no limits.
+	lab.MemoryTotal = 0
+	if got := slice(lab, "vaultwarden"); strings.Contains(got, "MemoryHigh") {
+		t.Errorf("vaultwarden with the server's memory unknown:\n%s", got)
+	}
+}

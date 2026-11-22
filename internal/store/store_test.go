@@ -350,7 +350,7 @@ func TestUserManagement(t *testing.T) {
 	// Resetting 2FA turns it off and logs the user out.
 	s.SetTOTP(ctx, mum, "SECRET", 5)
 	s.CreateSessionRemember(ctx, "mum-session", mum, time.Now().Add(time.Hour), false)
-	if err := s.ResetTOTP(ctx, mum); err != nil {
+	if _, err := s.ResetTOTP(ctx, mum); err != nil {
 		t.Fatal(err)
 	}
 	if u, _ := s.UserByID(ctx, mum); u.TOTPSecret != "" || u.TOTPLastStep != 0 {

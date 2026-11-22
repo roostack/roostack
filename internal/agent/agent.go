@@ -129,10 +129,13 @@ type Host interface {
 	UnmountPhotos(service, who string) error
 	// SSHStatus reads what the SSH server does; SetSSHKeysOnly writes or
 	// removes Roostack's drop-in in its configuration (ssh.go);
-	// UnblockSSH lifts a block on a password guesser (sshblocks.go).
+	// UnblockSSH lifts a block on a password guesser (sshblocks.go);
+	// SetSSHCommunity keeps CrowdSec's community blocklist away from SSH
+	// (sshcommunity.go).
 	SSHStatus() (SSHStatus, error)
 	SetSSHKeysOnly(on bool) error
 	UnblockSSH(address string) error
+	SetSSHCommunity(addrs []string) error
 }
 
 // Server is the agent's HTTP API.
@@ -262,6 +265,9 @@ func (s *Server) Handler() http.Handler {
 	}))
 	handle("PUT /v1/ssh", action(s, "set ssh keys only", 4<<10, func(r SSHRequest) error { return h.SetSSHKeysOnly(r.KeysOnly) }))
 	handle("POST /v1/ssh/unblock", action(s, "unblock ssh address", 4<<10, func(r UnblockRequest) error { return h.UnblockSSH(r.Address) }))
+	handle("POST /v1/ssh/community", action(s, "set crowdsec's community blocklist at ssh", 8<<20, func(r CommunityRequest) error {
+		return h.SetSSHCommunity(r.Addresses)
+	}))
 	return s.checkCaller(mux)
 }
 

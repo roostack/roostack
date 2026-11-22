@@ -16,9 +16,15 @@ Compiled into the `roostack` binary or served by it.
 | [Space Grotesk](https://github.com/floriankarsten/space-grotesk) | SIL Open Font License 1.1 | The Space Grotesk Project Authors | The font for headings and figures |
 | [SQLite for Go](https://gitlab.com/cznic/sqlite) | BSD-3-Clause | The Sqlite Authors | Roostack's database (SQLite itself is public domain) (Go: `modernc.org/sqlite`) |
 | [libc, mathutil, memory](https://gitlab.com/cznic) | BSD-3-Clause | The modernc.org Authors | Used by SQLite for Go (Go: `modernc.org/libc`, `modernc.org/mathutil`, `modernc.org/memory`) |
-| [Go crypto and sys](https://go.googlesource.com/crypto) | BSD-3-Clause | The Go Authors | Password hashing (argon2id), and reading SSH keys (Go: `golang.org/x/crypto`, `golang.org/x/sys`) |
+| [Go crypto, net and sys](https://go.googlesource.com/crypto) | BSD-3-Clause | The Go Authors | Password hashing (argon2id), reading SSH keys, and the lab's DNS server (Go: `golang.org/x/crypto`, `golang.org/x/net`, `golang.org/x/sys`) |
 | [YAML for Go](https://github.com/yaml/go-yaml) | MIT and Apache 2.0 | The go-yaml Authors | (Go: `go.yaml.in/yaml/v3`) |
 | [qr](https://pkg.go.dev/rsc.io/qr) | BSD-3-Clause | The Go Authors (Russ Cox) | QR codes for two-factor setup (Go: `rsc.io/qr`) |
+| [go-webauthn](https://github.com/go-webauthn/webauthn) | BSD-3-Clause | The go-webauthn Authors | Passkeys (Go: `github.com/go-webauthn/webauthn`, `github.com/go-webauthn/x`) |
+| [CBOR and float16](https://github.com/fxamacker/cbor) | MIT | Faye Amacker and Montgomery Edwards⁴⁴⁸ | Used by go-webauthn to read what a device sends (Go: `github.com/fxamacker/cbor/v2`, `github.com/x448/float16`) |
+| [go-tpm](https://github.com/google/go-tpm) | Apache 2.0 | Google | Used by go-webauthn (Go: `github.com/google/go-tpm`) |
+| [jwt](https://github.com/golang-jwt/jwt) | MIT | Dave Grijalva and the golang-jwt maintainers | Used by go-webauthn (Go: `github.com/golang-jwt/jwt/v5`) |
+| [mapstructure](https://github.com/go-viper/mapstructure) | MIT | Mitchell Hashimoto and the go-viper maintainers | Used by go-webauthn (Go: `github.com/go-viper/mapstructure/v2`) |
+| [msgp and fwd](https://github.com/tinylib/msgp) | MIT | Philip Hofer | Used by go-webauthn (Go: `github.com/tinylib/msgp`, `github.com/philhofer/fwd`) |
 | [uuid](https://github.com/google/uuid) | BSD-3-Clause | Google | (Go: `github.com/google/uuid`) |
 | [go-humanize](https://github.com/dustin/go-humanize) | MIT | Dustin Sallings | (Go: `github.com/dustin/go-humanize`) |
 | [bigfft](https://github.com/remyoudompheng/bigfft) | BSD-3-Clause | Rémy Oudompheng | (Go: `github.com/remyoudompheng/bigfft`) |

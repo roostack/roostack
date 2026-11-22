@@ -1,7 +1,8 @@
 <!doctype html>
 {{- /* The sign-in page for services, my.<domain> (SPEC.md §5.2): the
-     lab's look (signInLook), no sidebar, no scripts. One page, a section
-     per State. Mock-ups: docs/mockups/sso. */ -}}
+     lab's look (signInLook), no sidebar, and no scripts but passkeys'
+     (passkey.js), without which it still works. One page, a section per
+     State. Mock-ups: docs/mockups/sso and docs/mockups/passkeys. */ -}}
 <html lang="en" data-palette="{{.Look.Palette}}"{{with .Look.Accent}} data-accent="{{.}}"{{end}}{{if eq .Look.Logo "wide"}} data-logo="wide"{{end}}>
 <head>
   <meta charset="utf-8">
@@ -32,35 +33,59 @@
         {{end}}
 
         {{if eq .State "sign-in"}}
+        <div data-passkey-area>
         <h1>Sign in</h1>
         {{template "signin-to" .}}
         {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+        {{if .PasskeysWork}}
+        <p class="error" role="alert" data-passkey-error hidden></p>
+        <div data-passkey-shown hidden>
+          <p><button type="button" class="wide passkey-button" data-passkey="/sign-in/passkey/options" data-form="passkey-sign-in"
+            data-failed="The passkey didn't work, or you cancelled it. Try again, or sign in with your password.">{{icon "key"}} Sign in with a passkey</button></p>
+          <p class="or"><span>or</span></p>
+        </div>
+        <form id="passkey-sign-in" method="post" action="/sign-in/passkey" hidden>
+          <input type="hidden" name="next" value="{{.Next}}">
+          <input type="hidden" name="remember" data-copy="remember">
+        </form>
+        {{end}}
         <form method="post" action="/sign-in">
           <input type="hidden" name="next" value="{{.Next}}">
           <label>Username or email
-            <input name="username" value="{{.Username}}" autocomplete="username" autocapitalize="off" required autofocus>
+            <input name="username" value="{{.Username}}" autocapitalize="off" required autofocus{{if .PasskeysWork}} autocomplete="username webauthn"
+              data-passkey-autofill="/sign-in/passkey/options?mediation=conditional" data-form="passkey-sign-in"{{else}} autocomplete="username"{{end}}>
           </label>
           <label>Password
             <input name="password" type="password" autocomplete="current-password" required>
           </label>
-          <label class="check"><input type="checkbox" name="remember"{{if .Remember}} checked{{end}}>
+          <label class="check"><input type="checkbox" name="remember" id="remember"{{if .Remember}} checked{{end}}>
             <span>Keep me signed in<small>On this device, for 30 days. Untick it on a computer other people use.</small></span></label>
-          <button type="submit" class="wide">Sign in</button>
+          <button type="submit" class="wide{{if .PasskeysWork}} secondary{{end}}">Sign in</button>
         </form>
+        </div>
         <p class="hint">Forgotten your password? Ask {{.Owner}}, who looks after {{.LabName}}.</p>
 
         {{else if eq .State "code"}}
+        <div data-passkey-area>
         <h1>One more step</h1>
         {{template "signin-to" .}}
         {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-        <form method="post" action="/sign-in/code">
+        {{if .Passkey}}
+        <p class="error" role="alert" data-passkey-error hidden></p>
+        <p data-passkey-shown hidden><button type="button" class="wide passkey-button" data-passkey="/sign-in/passkey/options/second"
+          data-form="passkey-second" data-failed="The passkey didn't work, or you cancelled it.{{if .Code}} Try again, or enter your code.{{else}} Try again.{{end}}">{{icon "key"}} Use your passkey</button></p>
+        <form id="passkey-second" method="post" action="/sign-in/code" hidden><input type="hidden" name="next" value="{{.Next}}"></form>
+        {{if .Code}}<p class="or" data-passkey-shown hidden><span>or</span></p>{{end}}
+        {{end}}
+        {{if .Code}}<form method="post" action="/sign-in/code">
           <input type="hidden" name="next" value="{{.Next}}">
           <label>Code from your authenticator app
-            <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required autofocus>
+            <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required{{if not .Passkey}} autofocus{{end}}>
           </label>
-          <button type="submit" class="wide">Continue</button>
-        </form>
+          <button type="submit" class="wide{{if .Passkey}} secondary{{end}}">Continue</button>
+        </form>{{end}}
         <p class="hint">Lost your phone? Ask {{.Owner}}, who can turn two-factor off for you.</p>
+        </div>
 
         {{else if eq .State "confirm"}}
         <h1>Confirm it's you</h1>
@@ -68,17 +93,30 @@
         {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
         <p>{{if .Away}}You've been away from Roostack's pages for a while. {{end}}They can change the whole lab, so they ask again
           after a while without use. Your other services will stay signed in.</p>
+        <div data-passkey-area>
+        {{if .Passkey}}
+        <p class="error" role="alert" data-passkey-error hidden></p>
+        <p data-passkey-shown hidden><button type="button" class="wide passkey-button" data-passkey="/account/passkeys/options/confirm"
+          data-form="passkey-confirm" data-failed="The passkey didn't work, or you cancelled it. Try again, or use the box below.">{{icon "key"}} Use your passkey</button></p>
+        <form id="passkey-confirm" method="post" action="/roostack/confirm" hidden>
+          <input type="hidden" name="state" value="{{.Trip}}">
+          <input type="hidden" name="next" value="{{.Next}}">
+          {{if .Again}}<input type="hidden" name="again" value="1">{{end}}
+        </form>
+        <p class="or" data-passkey-shown hidden><span>or</span></p>
+        {{end}}
         <form method="post" action="/roostack/confirm">
           <input type="hidden" name="state" value="{{.Trip}}">
           <input type="hidden" name="next" value="{{.Next}}">
           {{if .Again}}<input type="hidden" name="again" value="1">{{end}}
           {{if .Code}}<label>Code from your authenticator app
-            <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required autofocus>
+            <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required{{if not .Passkey}} autofocus{{end}}>
           </label>{{else}}<label>Password
-            <input name="password" type="password" autocomplete="current-password" required autofocus>
+            <input name="password" type="password" autocomplete="current-password" required{{if not .Passkey}} autofocus{{end}}>
           </label>{{end}}
-          <button type="submit" class="wide">Continue</button>
+          <button type="submit" class="wide{{if .Passkey}} secondary{{end}}">Continue</button>
         </form>
+        </div>
         {{with .User}}<form method="post" action="/sign-out" class="signin-who"><span class="hint">Signed in as <strong>{{.Username}}</strong></span>
           <button type="submit" class="quiet">Not you? Sign out</button></form>{{end}}
 
@@ -131,6 +169,7 @@
       </details>
     </main>
   </div>
+  {{if or .PasskeysWork .Passkey}}<script src="/static/passkey.js" defer></script>{{end}}
 </body>
 </html>
 

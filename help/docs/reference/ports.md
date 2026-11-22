@@ -13,6 +13,7 @@ Roostack's firewall (nftables) blocks everything that isn't listed here.
 | 51821/udp | Other labs storing backups here (WireGuard), on the server offering the space | Anyone, so other labs can connect |
 | Your choice | A service's [extra connections](../services/settings.md#extra-connections), such as git over SSH | Your home network |
 | 53/udp, 53/tcp | DNS, while a service such as Pi-hole uses it: the firewall sends it to the service's own port (5053) | Your home network, and the VPN devices you let reach the service; never the internet |
+| 53/udp, 53/tcp | DNS, on the server running [Roostack's own DNS server](../settings/domain.md#roostacks-own-dns-server): the firewall sends it to port 5055 | Your home network and every VPN device; never the internet |
 | 8443/tcp | The [setup page](../start/install.md#when-its-installed), over HTTPS, only until first-run setup is finished | Your home network |
 
 Services are private, so while "anyone" can reach port 443, a service

@@ -111,6 +111,10 @@
       blocked in the last day (an IPv6 address with its <code>/64</code>), in the firewall's <code>ssh_blocked4</code> and
       <code>ssh_blocked6</code> sets, which lift each block by themselves. Never blocked: your home network, the lab's servers and VPN
       devices, and any address that logged in over SSH in the last day.</dd>{{end}}
+    {{if .SSHD.Community}}<dt>Community's list</dt>
+    <dd>{{count .SSHD.Community}} addresses on CrowdSec's community blocklist can't reach SSH either, in the firewall's
+      <code>ssh_community4</code> and <code>ssh_community6</code> sets (the controller sends the list every quarter of an hour; each
+      address will stay six hours unless a newer list replaces it).</dd>{{end}}
   </dl>
 </details>
 {{end}}

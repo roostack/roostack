@@ -87,6 +87,9 @@ func (s *Server) SignInHandler() http.Handler {
 	mux.HandleFunc("GET /sign-in", s.signInPage)
 	mux.HandleFunc("POST /sign-in", s.signInSubmit)
 	mux.HandleFunc("POST /sign-in/code", s.signInCode)
+	mux.HandleFunc("POST /sign-in/passkey", s.signInPasskey)
+	mux.HandleFunc("POST /sign-in/passkey/options", s.passkeyLoginBegin)
+	mux.HandleFunc("POST /sign-in/passkey/options/second", s.signInPasskeyOptions)
 	mux.HandleFunc(sso.PathSignOut, s.signOut)
 	mux.HandleFunc("GET /look/{part}", s.lookFile)
 	mux.HandleFunc("GET /look/app/{name}", s.lookApp)
@@ -95,10 +98,11 @@ func (s *Server) SignInHandler() http.Handler {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
-		// No scripts at all. No form-action: after signing in, the browser
-		// is redirected on to the app's address, which form-action would
-		// block in some browsers.
-		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'none'; style-src 'self'; img-src 'self' data:; "+
+		// No scripts but Roostack's own file for passkeys (passkey.js). No
+		// form-action: after signing in, the browser is redirected on to
+		// the app's address, which form-action would block in some
+		// browsers.
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "+
 			"frame-ancestors 'none'; base-uri 'none'")
 		// Forward auth: Caddy asks with the walled service's own address.
 		if r.URL.Path == sso.PathCheck {
@@ -191,6 +195,10 @@ type signInView struct {
 	// that it's the trip's second try (pagesTripInfo).
 	Trip              string
 	Code, Away, Again bool
+	// PasskeysWork offers a passkey on the sign-in step (passkeys.go), and
+	// Passkey offers theirs on the step after a password and the confirm
+	// step; both only where passkeys can work.
+	PasskeysWork, Passkey bool
 	// After signing out, where an app asked to go back to and which app
 	// (OIDC's post_logout_redirect_uri and client_id), on the step asking
 	// whether to sign out.
@@ -213,6 +221,8 @@ func (s *Server) renderSignIn(w http.ResponseWriter, r *http.Request, status int
 	v.Look = s.signInLook(r.Context())
 	v.Owner = s.ownerName(r.Context())
 	v.RoostackURL = "https://" + s.UIHost
+	v.PasskeysWork = v.State == "sign-in" && s.passkeysWork(r)
+	v.Passkey = v.Passkey && s.passkeysWork(r)
 	if v.App == "" && v.Next != "" {
 		v.App, v.AppLogo = s.appFor(v.Next)
 	}
@@ -430,7 +440,7 @@ func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case u.MustChangePassword:
 		blocked = "You have a temporary password. Choose your own on Roostack's pages first, then sign in here with it."
-	case u.TOTPSecret == "" && s.signInNeedsTwoFactor(ctx, u):
+	case !u.HasSecondFactor() && s.signInNeedsTwoFactor(ctx, u):
 		blocked = "Your account needs two-factor authentication. Turn it on on Roostack's pages first, then sign in here."
 	}
 	trip, toPages := pagesTripFrom(next)
@@ -438,14 +448,16 @@ func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderSignIn(w, r, http.StatusForbidden, signInView{State: "blocked", Next: next, Error: blocked})
 		return
 	}
-	if blocked != "" && u.TOTPSecret == "" {
+	second := s.secondStep(u, s.signInNeedsTwoFactor(ctx, u))
+	if blocked != "" && !second {
 		// On the way to Roostack's pages: they go on there for that step
 		// alone, as Roostack's own login would let them.
 		s.handOffPages(w, r, u, nil, trip, " (Roostack's pages only, until they've done what the sign-in page asks)")
 		return
 	}
-	if u.TOTPSecret != "" {
-		if until := authkit.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); time.Now().Before(until) {
+	if second {
+		// A passkey still works while codes are locked.
+		if until := authkit.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); u.TOTPSecret != "" && u.Passkeys == 0 && time.Now().Before(until) {
 			again(http.StatusTooManyRequests, lockedMessage(until))
 			return
 		}
@@ -458,10 +470,53 @@ func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 			pagesOnly: blocked != ""}, time.Now().Add(pendingDuration))
 		http.SetCookie(w, &http.Cookie{Name: signInPendingCookie, Value: token, Path: "/sign-in", MaxAge: int(pendingDuration.Seconds()),
 			HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})
-		s.renderSignIn(w, r, http.StatusOK, signInView{State: "code", Next: next})
+		s.renderSignIn(w, r, http.StatusOK, signInView{State: "code", Next: next, Code: u.TOTPSecret != "", Passkey: u.Passkeys > 0})
 		return
 	}
 	s.startSignIn(w, r, u, remember, next, "")
+}
+
+// signInPasskey signs in with a passkey alone. It meets two-factor, so
+// only a temporary password still turns someone away (signInSubmit).
+func (s *Server) signInPasskey(w http.ResponseWriter, r *http.Request) {
+	next := safeNext(r.FormValue("next"))
+	remember := r.FormValue("remember") == "on"
+	u, ok := s.finishPasskeyLogin(w, r)
+	if !ok {
+		time.Sleep(failedLoginDelay)
+		s.renderSignIn(w, r, http.StatusUnauthorized, signInView{State: "sign-in", Next: next, Error: passkeyFailed, Remember: remember})
+		return
+	}
+	if u.MustChangePassword {
+		if trip, ok := pagesTripFrom(next); ok {
+			s.handOffPages(w, r, u, nil, trip, " with a passkey (Roostack's pages only, until they've done what the sign-in page asks)")
+			return
+		}
+		s.renderSignIn(w, r, http.StatusForbidden, signInView{State: "blocked", Next: next,
+			Error: "You have a temporary password. Choose your own on Roostack's pages first, then sign in here with it."})
+		return
+	}
+	s.startSignIn(w, r, u, remember, next, "with a passkey")
+}
+
+// signInPasskeyOptions starts the step after a password with a passkey.
+func (s *Server) signInPasskeyOptions(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie(signInPendingCookie)
+	if err != nil {
+		passkeyBeginError(w, http.StatusBadRequest, "That took too long. Please sign in again.")
+		return
+	}
+	p, ok := s.pending.get(pendingSignIn + authkit.HashToken(c.Value))
+	if !ok {
+		passkeyBeginError(w, http.StatusBadRequest, "That took too long. Please sign in again.")
+		return
+	}
+	u, err := s.Store.UserByID(r.Context(), p.userID)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.passkeySecondBegin(w, r, u)
 }
 
 // signInNeedsTwoFactor: as for Roostack's own pages (Owners always,
@@ -489,37 +544,46 @@ func (s *Server) signInCode(w http.ResponseWriter, r *http.Request) {
 			Remember: s.signInRememberDefault(r.Context())})
 		return
 	}
-	res, until, err := s.checkCode(r.Context(), p.userID, r.FormValue("code"))
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	if res != codeOK {
-		time.Sleep(failedLoginDelay)
-		if res == codeLocked {
-			s.pending.delete(key)
-			s.renderSignIn(w, r, http.StatusTooManyRequests, signInView{State: "sign-in", Next: next, Error: lockedMessage(until)})
-			return
-		}
-		msg := "That code didn't work. Check your authenticator app and try again."
-		if res == codeUsed {
-			msg = usedCodeMessage
-		}
-		s.renderSignIn(w, r, http.StatusUnauthorized, signInView{State: "code", Next: next, Error: msg})
-		return
-	}
-	s.pending.delete(key)
-	http.SetCookie(w, &http.Cookie{Name: signInPendingCookie, Value: "", Path: "/sign-in", MaxAge: -1, HttpOnly: true})
 	u, err := s.Store.UserByID(r.Context(), p.userID)
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
+	how := "with two-factor code"
+	again := signInView{State: "code", Next: next, Code: u.TOTPSecret != "", Passkey: u.Passkeys > 0}
+	if hasPasskeyAnswer(r) {
+		if !s.checkPasskeyOf(w, r, u, ceremonySecond) {
+			time.Sleep(failedLoginDelay)
+			again.Error = passkeyFailed
+			s.renderSignIn(w, r, http.StatusUnauthorized, again)
+			return
+		}
+		how = "with a passkey"
+	} else {
+		res, until, err := s.checkCode(r.Context(), p.userID, r.FormValue("code"))
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+		if res != codeOK {
+			time.Sleep(failedLoginDelay)
+			if res == codeLocked {
+				s.pending.delete(key)
+				s.renderSignIn(w, r, http.StatusTooManyRequests, signInView{State: "sign-in", Next: next, Error: lockedMessage(until)})
+				return
+			}
+			again.Error = codeMessage(res, until)
+			s.renderSignIn(w, r, http.StatusUnauthorized, again)
+			return
+		}
+	}
+	s.pending.delete(key)
+	http.SetCookie(w, &http.Cookie{Name: signInPendingCookie, Value: "", Path: "/sign-in", MaxAge: -1, HttpOnly: true})
 	if trip, ok := pagesTripFrom(next); ok && p.pagesOnly {
-		s.handOffPages(w, r, u, nil, trip, " with two-factor code (Roostack's pages only)")
+		s.handOffPages(w, r, u, nil, trip, " "+how+" (Roostack's pages only)")
 		return
 	}
-	s.startSignIn(w, r, u, p.remember, next, "with two-factor code")
+	s.startSignIn(w, r, u, p.remember, next, how)
 }
 
 // startSignIn signs someone in on the sign-in page and goes on to next.

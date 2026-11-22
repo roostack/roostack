@@ -118,34 +118,3 @@ func code(vs []string) string {
 	}
 	return strings.Join(out, ", ")
 }
-
-// Digest is the weekly digest's markdown, of the weaker matches waiting
-// (State.Pending), most likely to be exploited first; empty when there
-// are none.
-func Digest(pending []Finding, now time.Time) string {
-	if len(pending) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "Weaker matches found by `roostack registry watch` up to %s, for a maintainer to look through. "+
-		"Write an advisory for any that matters (or ask for one to be drafted), and close this issue when done.\n\n", now.Format(time.DateOnly))
-	for _, f := range pending {
-		fmt.Fprintf(&b, "- **[%s](%s)** %s\n", f.ID, f.Link, f.Title)
-		what := f.Concerns
-		if f.Package != "" {
-			what = "`" + f.Package + "`"
-			if len(f.Affected) > 0 {
-				what += " " + code(f.Affected)
-			}
-		}
-		fmt.Fprintf(&b, "  - %s, from %s. Suggested severity %s", nonEmpty(what, "unknown"), f.Source, f.Severity)
-		if f.Exploited {
-			b.WriteString(", being used in attacks")
-		}
-		if f.EPSS > 0 {
-			fmt.Fprintf(&b, ", EPSS %s%%", strconv.FormatFloat(f.EPSS*100, 'f', 1, 64))
-		}
-		fmt.Fprintf(&b, ". Only in the digest because %s.\n", f.Weak)
-	}
-	return b.String()
-}

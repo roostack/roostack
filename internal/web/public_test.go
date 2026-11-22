@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -496,5 +497,68 @@ func TestServiceSubpagesMarkTheService(t *testing.T) {
 		if !strings.Contains(body, `<a class="nav-sub" href="/services/vaultwarden">`) || strings.Contains(body, `href="/services/vaultwarden" aria-current`) {
 			t.Errorf("%s: the sidebar doesn't list Vaultwarden unmarked", path)
 		}
+	}
+}
+
+// What CrowdSec has stopped (SPEC.md §6.10 item 4): Public access loads a
+// card with the attacks it blocked, the requests AppSec refused and the
+// community's list over 30 days, the newest attacks listed; asked once
+// for five minutes; with sharing off, the list is off; CrowdSec not
+// answering says so.
+func TestProtectionCard(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	now := time.Now()
+	asked := 0
+	h.server.Attacks = func(_ context.Context, since time.Duration) (public.Attacks, error) {
+		asked++
+		if since != 30*24*time.Hour {
+			t.Errorf("asked about %v", since)
+		}
+		return public.Attacks{Alerts: 9, Addresses: 4, Blocked: 7, Latest: []public.Attack{
+			{At: now, From: "203.0.113.10", Country: "DE", Kind: "http-probing", Blocked: true},
+			{At: now.Add(-time.Hour), From: "198.51.100.4", Kind: "http-bad-user-agent"}}}, nil
+	}
+	h.server.Blocks = func(context.Context, time.Duration) ([]public.Block, error) {
+		return make([]public.Block, 3), nil
+	}
+	h.server.Community = func() (int, time.Time) { return 4167, now }
+	fm.sharingAsked, fm.share = true, true
+
+	_, body := h.get("/partials/protection")
+	for _, want := range []string{"What CrowdSec has stopped", "<dt>Attacks blocked</dt><dd>7</dd>", "from 4 addresses in 30 days",
+		"<dt>Known exploits refused</dt><dd>3</dd>", "<dd>4,167</dd>", "<code>203.0.113.10</code> <span class=\"hint\">DE</span>",
+		"<code>http-bad-user-agent</code>", "No: noted only", "can't reach SSH either", "ssh_community4"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the card should show %q:\n%s", want, body)
+		}
+	}
+	if h.get("/partials/protection"); asked != 1 {
+		t.Errorf("CrowdSec asked %d times: the answer is kept for five minutes", asked)
+	}
+
+	// Sharing off: no list.
+	fm.share = false
+	if _, body := h.get("/partials/protection"); !strings.Contains(body, "You chose not to share") || strings.Contains(body, "4,167") ||
+		strings.Contains(body, "can't reach SSH either") {
+		t.Errorf("sharing off:\n%s", body)
+	}
+
+	// CrowdSec not answering: said, and not kept.
+	h.server.protect = protectionCache{}
+	h.server.Attacks = func(context.Context, time.Duration) (public.Attacks, error) {
+		return public.Attacks{}, errors.New("no container")
+	}
+	if _, body := h.get("/partials/protection"); !strings.Contains(body, "CrowdSec didn") || strings.Contains(body, "Attacks blocked") {
+		t.Errorf("CrowdSec not answering:\n%s", body)
+	}
+	if !h.server.protect.at.IsZero() {
+		t.Error("kept an answer CrowdSec didn't give")
+	}
+
+	// The page loads it while anything is public.
+	fm.Access("vaultwarden")
+	fm.access[0].Public = true
+	if _, body := h.get("/settings/public"); !strings.Contains(body, `hx-get="/partials/protection"`) {
+		t.Error("Public access doesn't load the card")
 	}
 }

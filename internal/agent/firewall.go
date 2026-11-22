@@ -429,6 +429,10 @@ func (f Firewall) Ruleset() string {
 		// time Caddy starts (caddyset.go).
 		fmt.Fprintf(&b, "\tset %s {\n\t\ttypeof socket cgroupv2 level %d\n\t}\n\n", caddySetName, caddyCgroupLevel)
 	}
+	// CrowdSec's community blocklist, kept away from SSH too
+	// (sshcommunity.go): the agent fills them from the daemon's list.
+	fmt.Fprintf(&b, "\tset %s {\n\t\ttype ipv4_addr\n\t\tflags interval, timeout\n\t}\n\n", communitySet4)
+	fmt.Fprintf(&b, "\tset %s {\n\t\ttype ipv6_addr\n\t\tflags interval, timeout\n\t}\n\n", communitySet6)
 	// Edges reach Caddy only on its edge listener: their connections to
 	// 443 are sent there, so whatever a PROXY header says, they're never
 	// private, and the listener for everyone else believes no header.
@@ -522,7 +526,10 @@ func (f Firewall) Ruleset() string {
 	if f.SSHFrom != FromOff {
 		b.WriteString("\t\t# ssh password guessers, blocked for a while\n")
 		fmt.Fprintf(&b, "\t\tip saddr @%s tcp dport 22 drop\n", blockedSet4)
-		fmt.Fprintf(&b, "\t\tip6 saddr @%s tcp dport 22 drop\n\n", blockedSet6)
+		fmt.Fprintf(&b, "\t\tip6 saddr @%s tcp dport 22 drop\n", blockedSet6)
+		b.WriteString("\t\t# and addresses on crowdsec's community blocklist\n")
+		fmt.Fprintf(&b, "\t\tip saddr @%s tcp dport 22 drop\n", communitySet4)
+		fmt.Fprintf(&b, "\t\tip6 saddr @%s tcp dport 22 drop\n\n", communitySet6)
 	}
 	rules := slices.DeleteFunc(slices.Clone(f.Allow), func(r Rule) bool {
 		return r.For == trust.Guests || r.For == trust.Servers || r.For == trust.Controller || r.For == trust.Edge

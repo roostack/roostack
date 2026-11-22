@@ -50,7 +50,17 @@ open: it will move on to the login page when it's done. Large backups can
 take a while. Log in as before.
 
 After that, Roostack will set your services up again and put their
-databases back; the home page will say so while it's happening.
+databases back, and the home page will say so while it's happening. Each
+service will say **Being restored** until its databases are back, and
+will start then, so nobody can use it while it's still empty.
+
+- **A service you'd turned off** will stay off, and Roostack will put its
+  databases back when you turn it on.
+- **A service whose databases don't load** will stay stopped, and its page
+  will say what went wrong and offer to restore it again.
+- **A service Roostack found no backup of** will stay stopped too, rather
+  than start empty. The restore's log names it at the end, and its page
+  offers restoring it from a backup that has it, or starting it as new.
 
 ??? note "If it wasn't you: an email about your recovery key"
 
@@ -116,7 +126,10 @@ say it was removed, and it will no longer back up into your lab's storage.
     `service=<name>`), and nothing outside those places and each
     service's own folders. It puts the database in place at the next start, then
     applies the lab, and each service's database is loaded from its dump
-    once its containers are set up again.
+    once its containers are set up again. Until then only its database
+    containers run (`dumps_pending` in its file in
+    `/var/lib/roostack/services/`), and backups keep the dumps already in
+    its folder rather than dumping its empty databases over them.
 
     A restored lab keeps its WireGuard keys and certificate authority, so
     its other servers and the labs it shares storage with still recognise

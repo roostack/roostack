@@ -213,7 +213,13 @@
   </details>
 </section>
 {{end}}
-<section class="card section">
+{{if .Hosts}}
+<section class="card section" id="protection" hx-get="/partials/protection" hx-trigger="load" hx-swap="outerHTML" hx-disinherit="*">
+  <h2>What CrowdSec has stopped</h2>
+  <p class="hint"><span class="spinner" aria-hidden="true"></span> Asking CrowdSec…</p>
+</section>
+{{end}}
+<section class="card section" id="sharing">
   <h2>Sharing attack reports</h2>
   <p>While anything is public, CrowdSec can share the attacks it sees with its community: only attackers' addresses and what they
     tried, never anything about you or your people. In return, addresses others have seen attacking will be blocked before they try.</p>

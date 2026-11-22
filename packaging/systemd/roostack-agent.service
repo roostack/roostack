@@ -7,6 +7,10 @@ Wants=network-online.target
 [Service]
 ExecStart=/usr/bin/roostack-agent
 Restart=on-failure
+# Memory (SPEC.md §6.1, "Memory"): kept in memory ahead of the services,
+# and never killed before one of their containers.
+MemoryLow=64M
+OOMScoreAdjust=-500
 # Its socket, /run/roostack-agent/agent.sock, the last OS updates' log
 # (os-updates.log), and each interface's own forwarding setting while the
 # lab's VPN has it on (forwarding-<interface>, internal/agent/wireguard.go).

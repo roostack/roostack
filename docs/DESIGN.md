@@ -225,6 +225,7 @@ Template components are called as functions; everything else is plain HTML with 
 | To do elsewhere | `ol.todo-list` (each with its `copyBox`), `ul.plain.will-list` (an icon each) | What the person does on another machine and what Roostack will do |
 | Rows that stack | `table.list.stack-phone` (a `small` second line in a cell, `tr.row-muted`) | A table list whose rows are blocks on phones |
 | Kept copy's actions | `.kept-actions` | Put back… and Delete on a kept copy |
+| Passkey, or the form | `button.passkey-button[data-passkey]` (with `{{icon "key"}}`), `p.or`, `[data-passkey-shown]`, `[data-passkey-error]`; `{{template "passkey-or" ACTION}}` before a password-and-code form | A passkey offered above the password or code it stands in for, with "or" between (2026-11-20, mock-ups in docs/mockups/passkeys). Hidden until `passkey.js` has run, so a page without scripts shows only its form; the form below it turns `.secondary` |
 
 ### The package editor's own styles
 

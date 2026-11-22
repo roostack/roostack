@@ -464,6 +464,29 @@ var migrations = []string{
 	ALTER TABLE vpn_devices ADD COLUMN internet INTEGER NOT NULL DEFAULT 0;
 	UPDATE vpn_devices SET home = (reach = 'home'), internet = (reach = 'everything');
 	ALTER TABLE vpn_devices DROP COLUMN reach`,
+	// 43 (2026-11-20): passkeys (SPEC.md §5, "Passkeys"). Each person's go
+	// with them. credential is go-webauthn's record of it as JSON: its
+	// public key (the device keeps the private one), counter and flags.
+	// rp_id is the lab's domain when it was made, since a passkey only
+	// works there. passkey_handle is the random ID devices know a person
+	// by, made with their first passkey.
+	`ALTER TABLE users ADD COLUMN passkey_handle BLOB;
+	CREATE UNIQUE INDEX users_passkey_handle ON users(passkey_handle);
+	CREATE TABLE passkeys (
+		id INTEGER PRIMARY KEY,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		credential_id BLOB NOT NULL UNIQUE,
+		credential TEXT NOT NULL,
+		rp_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		created_at INTEGER NOT NULL,
+		last_used_at INTEGER NOT NULL DEFAULT 0
+	)`,
+	// 44 (2026-11-22): the DNS server each VPN device's file named when
+	// it was last made ("" for none), so that Settings → VPN can say
+	// which devices have files from before the lab's DNS server changed
+	// (SPEC.md §6.5.3).
+	`ALTER TABLE vpn_devices ADD COLUMN dns TEXT NOT NULL DEFAULT ''`,
 }
 
 // Open opens (creating if needed) and migrates the database.

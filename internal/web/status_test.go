@@ -11,6 +11,11 @@ func TestServiceStatus(t *testing.T) {
 	}{
 		{ServiceFacts{Reported: StatusUnknown}, StatusUnknown},
 		{ServiceFacts{Reported: "running"}, "running"},
+		// Its databases being put back after a lab restore; turned off, it
+		// waits until it's turned on.
+		{ServiceFacts{Reported: "stopped", Restoring: true}, StatusRestoring},
+		{ServiceFacts{Reported: StatusUnknown, Restoring: true, Off: true}, StatusOff},
+		{ServiceFacts{Reported: "stopped", Restoring: true, Held: true}, StatusHeld},
 		{ServiceFacts{Reported: "running", Stopped: true}, StatusRegistryStop},
 		{ServiceFacts{Reported: "running", Stopped: true, Updating: true}, StatusUpdating},
 		{ServiceFacts{Reported: "stopped", AwaitingData: true, Updating: true}, StatusAwaitingData},

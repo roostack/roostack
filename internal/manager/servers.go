@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/sleep"
@@ -104,6 +105,21 @@ func (m *Manager) others() []RemoteServer {
 		return nil
 	}
 	return m.Others()
+}
+
+// ServerSettings are the settings of this server and of each other one
+// that answers, by server ID.
+func (m *Manager) ServerSettings() map[string]node.Settings {
+	out := map[string]node.Settings{}
+	if s := m.Node.Settings(); s != nil {
+		out[m.Lab.NodeID] = s
+	}
+	for _, r := range m.others() {
+		if s := r.Settings(); s != nil {
+			out[r.Identity().ID] = s
+		}
+	}
+	return out
 }
 
 // node returns the server with a node ID, or nil.
@@ -321,6 +337,16 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		lab.HomeAddress = m.vpnHomeAddress()
 	}
 	resolver := m.resolverOf(m.labNow().Resolver, services, infos)
+	// Roostack's own DNS server, on the server running it (SPEC.md
+	// §6.5.3).
+	var labDNS *labdns.Config
+	// Not before first-run setup has chosen the firewall, which then
+	// keeps port 53 to the home network and the VPN.
+	if resolver.Own && resolver.OwnServer != "" && m.labNow().Firewall.SSH != "" {
+		names := m.withStatusPage()
+		names.GlancesSites = glancesSites
+		labDNS = labDNSConfig(names, services, lab.HomeAddress, resolver.Choice.Fallback)
+	}
 	edge, edgeAddrs := m.edgeFor(infos)
 	lab.EdgeAddrs = append(edgeAddrs, m.relayFor(services)...)
 	// It sends services' public ports on too.
@@ -334,6 +360,9 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		}
 		a := node.Assignment{Services: m.onNode(services, id), Lab: lab, Reason: reason, CaddyFirst: caddyFirst && n == m.Node}
 		a.Lab.Resolver = resolverFor(resolver, id)
+		if id == resolver.OwnServer {
+			a.Lab.DNS = labDNS
+		}
 		for _, s := range a.Services {
 			name := s.Name()
 			for k, v := range m.secrets[name] {

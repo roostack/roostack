@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/kept"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/labrestore"
 	"roostack.cloud/roostack/internal/mail"
@@ -64,6 +65,10 @@ type fakeManager struct {
 
 	// serviceNode, if set, is the server services run on (else this one).
 	serviceNode node.Node
+	// memory is every service's memory figures (nil: none), and
+	// memoryLimits the choices made of their limits.
+	memory       *manager.ServiceMemory
+	memoryLimits map[string]string
 }
 
 func (f *fakeManager) NodeFor(string) node.Node {
@@ -115,6 +120,28 @@ func (f *fakeManager) SetTitle(_ context.Context, name, title string) error {
 	return nil
 }
 
+func (f *fakeManager) ServiceMemory(_ context.Context, name string) (*manager.ServiceMemory, error) {
+	if f.memory == nil {
+		return nil, manager.ErrNotFound
+	}
+	m := *f.memory
+	m.Choice = f.memoryLimits[name]
+	return &m, nil
+}
+
+func (f *fakeManager) SetMemoryLimit(_ context.Context, name, limit string) error {
+	if limit != "" && limit != instance.MemoryNoLimit {
+		if b, err := pkgspec.ParseMemory(limit); err != nil || b < manager.MinMemoryLimit {
+			return &usererr.Error{Msg: "Enter a size of at least 100 MB, such as 800 MB or 1.5 GB."}
+		}
+	}
+	if f.memoryLimits == nil {
+		f.memoryLimits = map[string]string{}
+	}
+	f.memoryLimits[name] = limit
+	return nil
+}
+
 func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns {
 	items, _ := f.BuiltIns(ctx)
 	return []manager.ServerBuiltIns{{Server: "nuc", Items: items}}
@@ -123,7 +150,11 @@ func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns 
 // fakeCatalog is the catalog and the installed services (ServiceCatalog).
 type fakeCatalog struct {
 	resolver manager.Resolver
-	portHost string
+	// dnsStatus is how Roostack's own DNS server is doing, and dnsSeen the
+	// check tokens it was asked for.
+	dnsStatus labdns.Status
+	dnsSeen   map[string]bool
+	portHost  string
 	// env are services' extra environment variables, and envValues the
 	// secret values last given (SetEnv).
 	env       map[string][]instance.EnvVar
@@ -406,6 +437,21 @@ func (f *fakeCatalog) SetPortExposure(_ context.Context, name, port string, publ
 func (f *fakeCatalog) PortHost(string) string { return f.portHost }
 
 func (f *fakeCatalog) Resolver(context.Context) manager.Resolver { return f.resolver }
+func (f *fakeCatalog) LabDNSStatus(context.Context) (labdns.Status, error) {
+	if !f.resolver.Own {
+		return labdns.Status{}, manager.ErrNoLabDNS
+	}
+	return f.dnsStatus, nil
+}
+func (f *fakeCatalog) LabDNSCheck(_ context.Context, token string) (bool, error) {
+	if !f.resolver.Own {
+		return false, manager.ErrNoLabDNS
+	}
+	return f.dnsSeen[token], nil
+}
+func (f *fakeCatalog) LabDNSInUse(context.Context) bool {
+	return f.resolver.Own && f.resolver.OwnServer != ""
+}
 func (f *fakeCatalog) SetResolver(_ context.Context, c config.Resolver) error {
 	f.resolver.Choice = c
 	return nil
@@ -1298,6 +1344,7 @@ type fakeNode struct {
 	// left is removed services' data on it (none when nil), and
 	// deletedLeft the names whose data was deleted.
 	cleanUp     *fakeCleanUp
+	labDNS      node.LabDNS
 	leftMu      sync.Mutex
 	left        []node.LeftService
 	deletedLeft []string
@@ -1331,6 +1378,9 @@ func (f *fakeCleanUp) RemoveImages(_ context.Context, ids []string) (node.Remove
 	}
 	return out, nil
 }
+
+// LabDNS is Roostack's own DNS server on it, when the test gives it one.
+func (f *fakeNode) LabDNS() node.LabDNS { return f.labDNS }
 
 // CleanUp is the server's images, when the test gives it some.
 func (f *fakeNode) CleanUp() node.CleanUp {
@@ -1862,6 +1912,8 @@ func (f *fakeSetup) UnblockSSH(_ context.Context, address string) error {
 	f.sshd.Blocked = slices.DeleteFunc(f.sshd.Blocked, func(b agent.SSHBlock) bool { return b.Address == address })
 	return nil
 }
+
+func (f *fakeSetup) SetSSHCommunity(context.Context, []string) error { return nil }
 
 func (f *fakeSetup) SetSSH(_ context.Context, c node.SSHChange) error {
 	if c.Choice == "off" && len(f.clients) > 0 && !c.Confirmed {

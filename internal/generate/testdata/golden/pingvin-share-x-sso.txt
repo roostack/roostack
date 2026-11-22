@@ -30,6 +30,7 @@ User=1000:1000
 UserNS=keep-id:uid=1000,gid=1000
 
 [Service]
+Slice=roostack-services-pingvin_share_x.slice
 Restart=always
 TimeoutStartSec=900
 

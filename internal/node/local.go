@@ -23,6 +23,7 @@ import (
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/state"
@@ -101,6 +102,8 @@ type Node interface {
 	Processor() Processor
 	// Photos migrates photos into its Immich (photos.go).
 	Photos() Photos
+	// LabDNS is Roostack's own DNS server there (labdns.go).
+	LabDNS() LabDNS
 }
 
 // Capability is one of n's capabilities, named by a method expression
@@ -229,6 +232,9 @@ type Local struct {
 	// Firewall applies the host firewall through roostack-agent after each
 	// apply. Nil leaves the firewall alone.
 	Firewall FirewallApplier
+	// DNSClient asks Roostack's own DNS server on this server (SPEC.md
+	// §6.5.3), on its socket.
+	DNSClient labdns.Client
 	// Resolver sets the DNS server this server's own lookups use, when
 	// the Owner chose the lab's (SPEC.md §6.5.2). Nil leaves it alone.
 	Resolver ResolverSetter
@@ -236,6 +242,8 @@ type Local struct {
 	// whether it has been since Roostack started.
 	resolverSet  string
 	resolverDone bool
+	// labDNSOn: Roostack's own DNS server runs here (labdns.go).
+	labDNSOn bool
 	// Units reads systemd unit states, for ServiceStates (optional).
 	Units UnitStatuser
 	// Launch runs commands as the roostack user outside Roostack's sandbox, for
@@ -767,6 +775,9 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		}
 		n.resolverSet, n.resolverDone = want, true
 	}
+	if err := n.applyLabDNS(n.lab(a).Paths.LabDNSNames(), a.Lab.DNS, act.Printf); err != nil {
+		return fmt.Errorf("setting up Roostack's own DNS server: %w", err)
+	}
 	if a.Links != nil && n.Links != nil {
 		act.Step("Updating direct links to other servers")
 		for _, p := range a.Links.Peers {
@@ -864,12 +875,16 @@ func (n *Local) lab(a Assignment) config.Lab {
 	lab.Direct, lab.SignInServers = a.Lab.Direct, a.Lab.SignInServers
 	lab.EdgeAddrs = a.Lab.EdgeAddrs
 	lab.HomeAddress = a.Lab.HomeAddress
+	lab.LabDNSHere = a.Lab.DNS != nil
 	lab.Monitoring.StatusPage = a.Lab.StatusPage
 	lab.Public.Pause = a.Lab.Pause
 	lab.Public.Refused = a.Lab.Refused
 	lab.DomainItself = a.Lab.DomainItself
 	lab.Devices = a.Lab.Devices
 	lab.GlancesHere, lab.GlancesBind, lab.GlancesSites = a.Glances != "", a.Glances, a.Lab.GlancesSites
+	if m, err := n.MemoryInfo(context.Background()); err == nil {
+		lab.MemoryTotal = m.Total
+	}
 	return lab
 }
 

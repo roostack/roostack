@@ -16,6 +16,7 @@
   <p>Your backups are encrypted with your recovery key. Anyone who has it and can get at your backups can read them, so
     Roostack will check it's you first.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .Passkey}}{{template "passkey-or" "/backups/recovery-key"}}{{end}}
   <form method="post" action="/backups/recovery-key">
     <label>Your password
       <input name="password" type="password" autocomplete="current-password" required autofocus>

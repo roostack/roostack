@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/trust"
 )
 
@@ -346,8 +347,9 @@ func TestCaddyOnly(t *testing.T) {
 
 // TestCaddyUnit: the agent knows Caddy's cgroup by the unit's name.
 func TestCaddyUnit(t *testing.T) {
-	if want := "/app.slice/" + generate.CaddyUnit + ".service"; !strings.HasSuffix(agent.CaddyCgroup(999), want) {
-		t.Errorf("Caddy's cgroup %q doesn't end in %q", agent.CaddyCgroup(999), want)
+	want := "user.slice/user-999.slice/user@999.service/" + generate.RoostackSlice + "/" + generate.CoreSlice + "/" + generate.CaddyUnit + ".service"
+	if agent.CaddyCgroup(999) != want {
+		t.Errorf("Caddy's cgroup %q, want %q", agent.CaddyCgroup(999), want)
 	}
 }
 
@@ -381,5 +383,34 @@ func TestSignInServers(t *testing.T) {
 	}
 	if !strings.Contains(fw.Ruleset(), `iifname "roostack" ip saddr 100.96.0.0/17 tcp dport 443 accept`) {
 		t.Errorf("ruleset:\n%s", fw.Ruleset())
+	}
+}
+
+// TestDesiredLabDNS: where Roostack's own DNS server runs, port 53 is sent
+// on to it for the home network and every VPN device, and nowhere else
+// (SPEC.md §6.5.3).
+func TestDesiredLabDNS(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.Devices.All = []string{"100.96.128.2", "100.96.128.3"}
+	fw, _ := Desired(lab, nil, Roles{})
+	if slices.ContainsFunc(fw.Allow, func(r agent.Rule) bool { return r.From == 53 }) {
+		t.Errorf("port 53 without the DNS server here: %+v", fw.Allow)
+	}
+	lab.LabDNSHere = true
+	fw, _ = Desired(lab, nil, Roles{})
+	for _, proto := range []string{"udp", "tcp"} {
+		want := agent.Rule{Port: labdns.Port, Proto: proto, For: trust.Home, Reason: "roostack dns", From: 53}
+		if !slices.Contains(fw.Allow, want) {
+			t.Errorf("%s rule missing: %+v", proto, fw.Allow)
+		}
+		if fw.People == nil || !slices.ContainsFunc(fw.People.Rules, func(r agent.DeviceRule) bool {
+			return r.Port == labdns.Port && r.Proto == proto && r.From == 53 && slices.Equal(r.Devices, lab.Devices.All)
+		}) {
+			t.Errorf("%s rule for devices missing: %+v", proto, fw.People)
+		}
+	}
+	if err := fw.Validate(); err != nil {
+		t.Error(err)
 	}
 }

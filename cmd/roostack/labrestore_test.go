@@ -7,6 +7,7 @@ import (
 
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/state"
 )
@@ -39,5 +40,46 @@ func TestUnfinishedRestoreIsFresh(t *testing.T) {
 	}
 	if filepath.Dir(backup.RestoreStartedFile(lab.Paths)) != dir {
 		t.Error("the marker is in the state folder")
+	}
+}
+
+// Services waiting for a lab restore to load their dumps, and turned-off
+// ones, are told apart from the rest; and a backup keeps the dumps of a
+// service whose databases aren't what they should be, rather than dumping
+// them empty over the good ones.
+func TestDumpsWaitingAndKept(t *testing.T) {
+	dir := t.TempDir()
+	lab := config.Lab{Paths: config.Paths{StateDir: dir}}
+	if err := os.MkdirAll(lab.Paths.InstancesDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	restored := &instance.Restored{Backup: "backup:n1@abc"}
+	for name, in := range map[string]*instance.Instance{
+		"forgejo": {Package: "forgejo", DumpsPending: restored},
+		"seafile": {Package: "seafile", DumpsPending: restored, Off: &config.Pause{By: "sam"}},
+		"outline": {Package: "outline"},
+		"memos":   {Package: "memos", Held: &instance.Hold{Error: "no"}},
+	} {
+		if err := in.Save(state.InstanceFile(lab, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := dumpsWaiting(lab)
+	if len(got) != 1 || !got["forgejo"] {
+		t.Errorf("waiting: %v, want forgejo alone (seafile is turned off)", got)
+	}
+
+	step := []generate.PrepareStep{{Type: "postgres", Container: "db"}}
+	var services []state.Service
+	var outs []*generate.Output
+	for _, name := range []string{"forgejo", "outline", "memos"} {
+		in, _ := instance.Load(state.InstanceFile(lab, name))
+		services = append(services, state.Service{Instance: in})
+		outs = append(outs, &generate.Output{Service: name, Backup: generate.BackupPlan{Prepare: step}})
+	}
+	keepDumps(services, outs)
+	if outs[0].Backup.Prepare != nil || outs[1].Backup.Prepare == nil || outs[2].Backup.Prepare != nil {
+		t.Errorf("dumped: forgejo %v, outline %v, memos %v; want outline alone",
+			outs[0].Backup.Prepare != nil, outs[1].Backup.Prepare != nil, outs[2].Backup.Prepare != nil)
 	}
 }

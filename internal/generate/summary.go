@@ -203,13 +203,12 @@ func (g *gen) parts() ([]Part, []string, error) {
 // settings: Summary.Memory without generating its files, for adding up
 // what a server's installed services expect (SPEC.md §8.3.4).
 func ExpectedMemory(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (int64, error) {
+	total, _, err := MemoryFigure(lab, p, in)
+	return total, err
+}
+
+// memoryParts are what would run, with what each expects.
+func memoryParts(lab config.Lab, p *pkgspec.Package, in *instance.Instance) ([]Part, error) {
 	parts, _, err := newGen(lab, p, in, CaddyHostLoopback).parts()
-	if err != nil {
-		return 0, err
-	}
-	var total int64
-	for _, part := range parts {
-		total += part.Memory
-	}
-	return total, nil
+	return parts, err
 }

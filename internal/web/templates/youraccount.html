@@ -41,6 +41,7 @@
       {{with .Done}}{{notice "ok" .}}{{end}}
 
       {{if .TwoFactor}}{{template "acct-two-factor" .}}
+      {{else if .PasskeyAdd}}{{template "acct-passkey-add" .}}
       {{else if eq .Tab "services"}}{{template "acct-services" .}}
       {{else if eq .Tab "account"}}{{template "acct-account" .}}
       {{else if eq .Tab "security"}}{{template "acct-security" .}}
@@ -84,7 +85,28 @@
   <a href="{{.}}">{{icon "import"}}<span><strong>Migrate your photos into Immich</strong>
     <small>From Google Photos or a folder.</small></span></a>
 </div>{{end}}
+{{with .DNSCheck}}{{template "acct-dns-check" .}}{{end}}
 <p class="hint">{{if not .Until.IsZero}}Signed in on this device until {{date .Until}}. {{end}}<a href="{{.SignedInHref}}">Where you're signed in</a></p>
+{{end}}
+
+{{define "acct-dns-check"}}
+{{/* Whether this device uses the lab's DNS (SPEC.md §6.5.3, dnscheck.go):
+     the picture's name is one nobody has asked for before, so loading it
+     tells Roostack's own DNS server whether this device asks it.
+     dnscheck.js shows the answer; without it, Check this device does. */}}
+<section class="card acct-dns" data-dns-check="{{.Result}}">
+  <img src="{{.Image}}" alt="" width="1" height="1" class="sr-only" data-dns-image>
+  <p data-dns="checking" hidden>Checking whether this device is using the lab's DNS…</p>
+  <p data-dns="yes"{{if ne .State "yes"}} hidden{{end}}>{{icon "check"}} This device is using the lab's DNS, so it will reach each service
+    straight from home.</p>
+  <div data-dns="no"{{if ne .State "no"}} hidden{{end}}>
+    <p>This device isn't using the lab's DNS yet, so some services may go the long way round, and parts of them kept to home may not open.</p>
+    {{with .Addr}}<p class="hint">To use it, set this device's DNS server to <code>{{.}}</code>, or ask whoever looks after the lab to set it in
+      your router, which will set it for every device at home.</p>{{end}}
+  </div>
+  <p data-dns="link"{{if .State}} hidden{{end}}><a href="{{.Result}}">Check whether this device is using the lab's DNS</a></p>
+</section>
+<script src="/static/dnscheck.js" defer></script>
 {{end}}
 
 {{define "acct-account"}}
@@ -136,11 +158,49 @@
     <button type="submit">Change password</button>
   </form></details>
 </section>
+<section class="card" id="passkeys">
+  <div class="card-head"><h2>Passkeys</h2>{{with .Passkeys}}<span class="pill pill-ok">{{len .}}</span>{{else}}<span class="pill">None</span>{{end}}</div>
+  {{with .Passkeys}}
+  <p>You can sign in with any of these instead of your password and a code.</p>
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Passkey</th><th class="hide-phone">Added</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {{range .}}<tr>
+        <td>{{.Name}}<small class="hint"> · {{if .Synced}}synced across your devices{{else}}on this device only{{end}}</small>
+          {{with .OtherDomain}}<small class="passkey-old">Made for {{.}}, so it won't work since the lab's address changed: remove it and add a new one.</small>{{end}}</td>
+        <td class="hide-phone">{{date .Added}}</td>
+        <td>{{if .LastUsed.IsZero}}Never{{else}}{{when .LastUsed}}{{end}}</td>
+        <td>{{if .Only}}<span class="hint" title="It's your only way to meet the two-factor you need">Your only one</span>{{else}}
+          <form method="post" action="/account/passkeys/{{.ID}}/remove"><button type="submit" class="table-action quiet">Remove</button></form>{{end}}</td>
+      </tr>{{end}}
+    </tbody>
+  </table></div>
+  {{if and (eq (len .) 1) (not $.User.TOTPSecret)}}<p class="passkey-warn">If you lose this device, you'll need your password and
+    {{if eq $.User.Role "owner"}}the server's command line{{else}}{{$.Owner}}{{end}} to get back in. Add a second passkey or an authenticator app.</p>{{end}}
+  {{else}}
+  <p>A passkey will let you sign in with your fingerprint, your face, or your device's PIN instead of your password and a code. It only
+    works on {{with .LabName}}{{.}}'s{{else}}the lab's{{end}} own pages, so a fake sign-in page can't steal it.</p>
+  {{end}}
+  {{if .PasskeysWork}}<p><a class="button secondary" href="/account/passkeys/add">{{icon "key"}} Add a passkey…</a></p>
+  {{else}}<p class="hint">Passkeys only work at the lab's address{{with .SignInHost}}, <a href="https://{{.}}/account/security">{{.}}</a>{{end}}.</p>{{end}}
+  <details class="acct-tech"><summary>How passkeys work here</summary>
+    <p>A passkey is a pair of keys: your device keeps the private one, and Roostack keeps only the public one, in its database
+      (<code>/var/lib/roostack/roostack.db</code>, table <code>passkeys</code>). It's made for the lab's domain, and Roostack will accept it
+      on its sign-in page and its own pages only. Your device checks it's you each time, with your fingerprint, face, or PIN, so a passkey
+      is both steps of signing in. Through the SSH tunnel, or before the lab has a domain, browsers won't use passkeys, so your password
+      and code stay.</p>
+  </details>
+</section>
 <section class="card" id="two-factor">
   <div class="card-head"><h2>Two-factor</h2>{{if .User.TOTPSecret}}<span class="pill pill-ok">On</span>{{else}}<span class="pill">Off</span>{{end}}</div>
   {{if .User.TOTPSecret}}
-  <p>Signing in asks for a code from your authenticator app as well as your password.{{if eq .User.Role "owner"}} As the Owner, you need it.{{end}}</p>
+  <p>Signing in with your password asks for a code from your authenticator app as well.{{if .TwoFactorRequired}}
+    {{if eq .User.Role "owner"}}As the Owner{{else}}As an Admin{{end}}, you need two-factor: a passkey, or this.{{end}}</p>
   <p><a class="button secondary" href="/account/two-factor">Use a new authenticator app…</a></p>
+  {{else if and .Passkeys .TwoFactorRequired}}
+  <p>Your passkey meets the two-factor you need. An authenticator app as well will let you sign in with your password and a code where
+    passkeys can't be used, such as through the SSH tunnel.</p>
+  <p><a class="button secondary" href="/account/two-factor">Turn on two-factor…</a></p>
   {{else}}
   <p>With two-factor, signing in will ask for a code from an app on your phone as well as your password, which protects your account if
     your password is ever stolen.{{if .TwoFactorRequired}} Roostack's pages can be reached from the internet, so as an Admin you need it.{{end}}</p>
@@ -165,6 +225,43 @@
   <p class="hint">Signing out here will end your access to the services that use the sign-in page straight away. Apps that keep their own
     sign-in, such as Immich, will stay signed in until you sign out there too.</p>
 </section>
+{{end}}
+
+{{define "acct-passkey-add"}}
+<section class="card" data-passkey-area>
+  {{if not .PasskeyAdd.Confirmed}}
+  <h2>Confirm it's you</h2>
+  <p>A passkey will let whoever has it into your account, so Roostack will check it's you before adding one.</p>
+  {{if .User.Passkeys}}
+  <p class="error" role="alert" data-passkey-error hidden></p>
+  <p data-passkey-shown hidden><button type="button" class="passkey-button" data-passkey="/account/passkeys/options/confirm" data-form="passkey-add-confirm"
+    data-failed="The passkey didn't work, or you cancelled it. Try again, or use your password.">{{icon "key"}} Use a passkey you already have</button></p>
+  <form id="passkey-add-confirm" method="post" action="/account/passkeys/confirm" hidden></form>
+  <p class="or" data-passkey-shown hidden><span>or</span></p>
+  {{end}}
+  <form method="post" action="/account/passkeys/confirm">
+    <label>Password <input name="current" type="password" autocomplete="current-password" required{{if not .User.Passkeys}} autofocus{{end}}></label>
+    {{if .User.TOTPSecret}}<label>Code from your authenticator app
+      <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required></label>{{end}}
+    <button type="submit" class="secondary">Continue</button>
+    <a href="/account/security">Cancel</a>
+  </form>
+  {{else}}
+  <h2>Name it, then save it on your device</h2>
+  <p class="error" role="alert" data-passkey-error hidden></p>
+  <form id="passkey-add" method="post" action="/account/passkeys/add">
+    <label>Name <input name="name" value="{{.PasskeyAdd.Name}}" maxlength="60" required>
+      <small>So you can tell your passkeys apart, such as the device or password manager it's in.</small></label>
+  </form>
+  <p><button type="button" data-passkey="/account/passkeys/options/add" data-create data-form="passkey-add"
+    data-failed="Your device didn't make a passkey, or you cancelled it. Try again.">{{icon "key"}} Save passkey</button>
+    <a class="button secondary" href="/account/security">Cancel</a></p>
+  <p class="hint">Your browser or phone will ask you to confirm, with your fingerprint, face, or PIN. Roostack will email you that a passkey
+    was added, so you'll know if it wasn't you.</p>
+  <noscript><p class="error">Adding a passkey needs JavaScript, which is off in this browser.</p></noscript>
+  {{end}}
+</section>
+<script src="/static/passkey.js" defer></script>
 {{end}}
 
 {{define "acct-two-factor"}}
@@ -236,7 +333,7 @@
 {{end}}
 {{else if .Form}}{{with .Form}}
 <section class="card">
-  <form method="post" action="{{if .ID}}/account/devices/{{.ID}}{{else}}/account/devices{{end}}">
+  <form method="post" action="{{if .ID}}/account/devices/{{.ID}}{{else}}/account/devices{{end}}" id="device-form">
     <label>Name <input name="name" value="{{.Name}}" maxlength="60" required{{if not .ID}} autofocus{{end}}>
       <small>So you'll know it in the list, such as "Alex's phone".</small></label>
     <fieldset>
@@ -259,11 +356,18 @@
       {{if .CanSSH}}<label class="check"><input type="checkbox" name="ssh" value="yes"{{if .SSH}} checked{{end}}>
         <span>SSH to the lab's servers<small>Only the Owner can tick this. Who can log in to each server is still up to Remote access.</small></span></label>{{end}}
     </fieldset>{{end}}
+    {{if .Passkey}}<div data-passkey-area>
+      <p class="error" role="alert" data-passkey-error hidden></p>
+      <p data-passkey-shown hidden><button type="button" class="passkey-button" data-passkey="/account/passkeys/options/confirm" data-form="device-form"
+        data-failed="The passkey didn't work, or you cancelled it. Try again, or enter your code.">{{icon "key"}} {{if .ID}}Save{{else}}Add the device{{end}} with your passkey</button></p>
+      <p class="or" data-passkey-shown hidden><span>or</span></p>
+    </div>{{end}}
     {{if .NeedCode}}<label>Your two-factor code <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" class="acct-code" required>
       <small>To check it's you, since this page can be reached from anywhere.</small></label>{{end}}
-    <button type="submit">{{if .ID}}Save{{else}}Add the device{{end}}</button>
+    <button type="submit"{{if .Passkey}} class="secondary"{{end}}>{{if .ID}}Save{{else}}Add the device{{end}}</button>
     <a class="button secondary" href="/account/devices">Cancel</a>
   </form>
+  {{if .Passkey}}<script src="/static/passkey.js" defer></script>{{end}}
   {{if .ID}}<form method="post" action="/account/devices/{{.ID}}/remove" class="acct-remove">
     <button type="submit" class="outline-danger">Remove this device</button></form>{{end}}
 </section>

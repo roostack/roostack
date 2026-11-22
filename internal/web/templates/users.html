@@ -57,9 +57,9 @@
         <form method="post" action="/users/{{.ID}}/reset-password">
           <button type="submit" class="secondary">Give a new temporary password</button>
         </form>
-        {{if .TOTPSecret}}
+        {{if .HasSecondFactor}}
         <form method="post" action="/users/{{.ID}}/reset-2fa">
-          <button type="submit" class="secondary">Turn off two-factor (lost phone)</button>
+          <button type="submit" class="secondary">Turn off two-factor{{if .Passkeys}} and remove passkeys{{end}} (lost phone)</button>
         </form>
         {{end}}
         {{confirm (printf "/users/%d/remove" .ID) (printf "Remove %s? They will no longer be able to log in." .Username)

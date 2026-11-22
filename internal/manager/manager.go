@@ -81,6 +81,10 @@ type Manager struct {
 	// it will apply them (optional): the domain itself's simple page lists
 	// some of their addresses (SPEC.md §5.3).
 	Applying func()
+	// LoadDumps is told a service a lab restore put back has been turned
+	// on, so its databases' dumps can be loaded now (instance.DumpsPending,
+	// labrestore; optional).
+	LoadDumps func()
 
 	// Services: the newest index the controller has fetched from the
 	// service registry (registry.Fetcher.Index; nil before the first),
@@ -964,6 +968,10 @@ func (m *Manager) SetOff(ctx context.Context, name string, off bool, by string) 
 		return err
 	}
 	m.startApplyLocked(map[bool]string{true: "Turning " + title + " off", false: "Turning " + title + " on"}[off])
+	if !off && in.DumpsPending != nil && m.LoadDumps != nil {
+		// Only its databases start: its app waits for their dumps.
+		m.LoadDumps()
+	}
 	return nil
 }
 

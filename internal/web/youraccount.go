@@ -67,6 +67,7 @@ func (s *Server) acctRoutes(mux *http.ServeMux, with func(acctHandler) http.Hand
 	mux.Handle("POST /account/two-factor", with(s.acctTwoFactorSubmit))
 	mux.Handle("POST /account/sign-out", with(s.acctSignOutSubmit))
 	mux.Handle("POST /account/sign-out-others", with(s.acctSignOutOthersSubmit))
+	mux.Handle("GET /account/dns-check", with(s.acctDNSCheck))
 	mux.Handle("GET /account/notifications", with(s.acctNotifications))
 	mux.Handle("POST /account/notifications", with(s.acctNotificationsSubmit))
 	mux.Handle("GET /account/devices", with(s.acctDevicesPage))
@@ -75,6 +76,12 @@ func (s *Server) acctRoutes(mux *http.ServeMux, with func(acctHandler) http.Hand
 	mux.Handle("GET /account/devices/{id}", with(s.acctDeviceChange))
 	mux.Handle("POST /account/devices/{id}", with(s.acctDeviceChangeSubmit))
 	mux.Handle("POST /account/devices/{id}/remove", with(s.acctDeviceRemove))
+	mux.Handle("GET /account/passkeys/add", with(s.passkeyAdd))
+	mux.Handle("POST /account/passkeys/add", with(s.passkeyAddSubmit))
+	mux.Handle("POST /account/passkeys/confirm", with(s.passkeyAddConfirm))
+	mux.Handle("POST /account/passkeys/options/confirm", with(s.passkeyConfirmBegin))
+	mux.Handle("POST /account/passkeys/options/add", with(s.passkeyRegisterBegin))
+	mux.Handle("POST /account/passkeys/{id}/remove", with(s.passkeyRemove))
 }
 
 // signInAcct is Your account at my.<domain>: someone not signed in there
@@ -129,7 +136,7 @@ func (s *Server) acctHome(r *http.Request) string {
 // else (middleware.go's require): a new password, two-factor, or the
 // Owner's email address.
 func (s *Server) acctFirst(u *store.User) bool {
-	return u.MustChangePassword || ownerNeedsEmail(u) || (u.TOTPSecret == "" && s.twoFactorRequired(u))
+	return u.MustChangePassword || ownerNeedsEmail(u) || (!u.HasSecondFactor() && s.twoFactorRequired(u))
 }
 
 // acctPagesRoutes adds Your account to Roostack's own address, with its
@@ -172,6 +179,8 @@ type acctView struct {
 	RunLab, Photos string
 	Until          time.Time
 	SignedInHref   string
+	// DNSCheck is whether this device uses the lab's DNS (dnscheck.go).
+	DNSCheck *dnsCheck
 
 	// Account.
 	Name, Email string
@@ -186,6 +195,14 @@ type acctView struct {
 	TwoFactorRequired bool
 	// Temporary: they're using a temporary password.
 	Temporary bool
+	// Passkeys are theirs (passkeys.go); PasskeysWork says passkeys can
+	// work where they are (the lab's address over HTTPS); PasskeyAdd is
+	// the page adding one.
+	Passkeys     []acctPasskey
+	PasskeysWork bool
+	PasskeyAdd   *acctPasskeyAdd
+	// SignInHost is my.<domain>, where passkeys work.
+	SignInHost string
 
 	// Two-factor: a new key being set up; Change: replacing one that's on.
 	TwoFactor *acctTwoFactor
@@ -250,6 +267,13 @@ func (s *Server) renderAcct(w http.ResponseWriter, r *http.Request, a *acct, sta
 // acctServices is the Services tab: the services someone can use, Roostack's
 // pages for Owners and Admins, and the photo migration when it applies.
 func (s *Server) acctServices(w http.ResponseWriter, r *http.Request, a *acct) {
+	v := s.acctServicesView(r, a)
+	allowCheckImage(w, v.DNSCheck)
+	s.renderAcct(w, r, a, http.StatusOK, v)
+}
+
+// acctServicesView is the Services tab's view.
+func (s *Server) acctServicesView(r *http.Request, a *acct) acctView {
 	v := acctView{Tab: "services", Title: "Your services", Apps: s.usableApps(r, a), SignedInHref: "/account/security#signed-in"}
 	if a.SignIn {
 		v.Until = a.Expires
@@ -266,7 +290,8 @@ func (s *Server) acctServices(w http.ResponseWriter, r *http.Request, a *acct) {
 			v.Photos = "https://" + s.UIHost + "/immich-photos"
 		}
 	}
-	s.renderAcct(w, r, a, http.StatusOK, v)
+	v.DNSCheck = s.dnsCheckFor(r)
+	return v
 }
 
 // usableApps are the services a's person can open: those with single
@@ -429,14 +454,22 @@ func (s *Server) acctSecurity(w http.ResponseWriter, r *http.Request, a *acct) {
 		v.Done = "Signed out on that device."
 	case "signed-out-others":
 		v.Done = "Signed out everywhere else."
+	case "passkey-added":
+		v.Done = "Passkey added. You can sign in with it from now on."
+	case "passkey-removed":
+		v.Done = "Passkey removed."
 	}
 	s.renderAcct(w, r, a, http.StatusOK, v)
 }
 
 func (s *Server) acctSecurityView(r *http.Request, a *acct) (acctView, error) {
 	v := acctView{Tab: "security", Title: "Security", TwoFactorRequired: s.twoFactorRequired(a.User),
-		Temporary: a.User.MustChangePassword, Action: withQuery("/account/password", nextQuery(r))}
+		Temporary: a.User.MustChangePassword, Action: withQuery("/account/password", nextQuery(r)),
+		PasskeysWork: s.passkeysWork(r), SignInHost: s.SignInHost}
 	var err error
+	if v.Passkeys, err = s.acctPasskeys(r.Context(), a.User); err != nil {
+		return v, err
+	}
 	v.Sessions, err = s.acctSessions(r, a)
 	return v, err
 }

@@ -43,6 +43,12 @@ type Finding struct {
 	Affected      []string `json:"affected,omitempty"`
 	Fixed         string   `json:"fixed,omitempty"`
 	FixedUpstream string   `json:"fixed_upstream,omitempty"`
+	// Ranges are the app versions affected, as a GitHub advisory writes
+	// them, and Purl the library version an image carries (from OSV): so
+	// the digest can tell whether the registry's newest version is still
+	// affected, even when it came after the problem was found.
+	Ranges []string `json:"ranges,omitempty"`
+	Purl   string   `json:"purl,omitempty"`
 	// Concerns says what it may concern when it isn't a package version
 	// exactly (a built-with name, one of Roostack's parts).
 	Concerns string `json:"concerns,omitempty"`
@@ -221,7 +227,11 @@ func (w *Watcher) Run(ctx context.Context) (*Result, error) {
 	// Each package's own advisories, on GitHub.
 	for _, p := range w.Repo.Packages {
 		if p.Repo == "" {
-			note("%s: its source (%s) isn't on GitHub, so its own advisories aren't read", p.Title, nonEmpty(p.Source, "none given"))
+			if host, repo := ForgeRepo(p.Source); host != "" {
+				found = append(found, w.fromForge(ctx, &p, host, repo, cutoff, note)...)
+				continue
+			}
+			note("%s: its source (%s) isn't on GitHub or Codeberg, so its own advisories aren't read", p.Title, nonEmpty(p.Source, "none given"))
 			continue
 		}
 		advs, err := w.Feeds.RepoAdvisories(ctx, p.Repo)
@@ -362,6 +372,7 @@ func (w *Watcher) fromGHSA(a GHSA, p *Package, cutoff time.Time) (Finding, bool)
 			continue
 		}
 		ranged = true
+		f.Ranges = append(f.Ranges, v.Range)
 		for _, ver := range p.Versions {
 			if InRange(Upstream(ver), v.Range) && !slices.Contains(f.Affected, ver) {
 				f.Affected = append(f.Affected, ver)
@@ -409,7 +420,7 @@ func (w *Watcher) fromBOMs(ctx context.Context, cutoff time.Time, note func(stri
 		return nil
 	}
 	affects := map[string]map[string][]string{} // vuln → package → versions
-	carried := map[string]string{}              // vuln → a package URL carrying it
+	carried := map[string]map[string]string{}   // vuln → package → a package URL carrying it
 	for key, ps := range w.Repo.BOMs {
 		pkg, ver, _ := strings.Cut(key, " ")
 		for _, purl := range ps {
@@ -418,7 +429,10 @@ func (w *Watcher) fromBOMs(ctx context.Context, cutoff time.Time, note func(stri
 					affects[id] = map[string][]string{}
 				}
 				affects[id][pkg] = append(affects[id][pkg], ver)
-				carried[id] = purl
+				if carried[id] == nil {
+					carried[id] = map[string]string{}
+				}
+				carried[id][pkg] = purl
 			}
 		}
 	}
@@ -453,9 +467,10 @@ func (w *Watcher) fromBOMs(ctx context.Context, cutoff time.Time, note func(stri
 			if p != nil {
 				title = p.Title
 			}
-			f := Finding{ID: id, Aliases: v.Aliases, Source: "OSV, for " + carried[id] + " in its image", Package: pkg,
-				Title: title + ": " + nonEmpty(strings.TrimSpace(v.Summary), id) + " (in " + libName(carried[id]) + ")",
-				Link:  "https://osv.dev/vulnerability/" + id, Signals: sig, Found: w.Now()}
+			purl := carried[id][pkg]
+			f := Finding{ID: id, Aliases: v.Aliases, Source: "OSV, for " + purl + " in its image", Package: pkg,
+				Title: title + ": " + nonEmpty(strings.TrimSpace(v.Summary), id) + " (in " + libName(purl) + ")",
+				Link:  "https://osv.dev/vulnerability/" + id, Purl: purl, Signals: sig, Found: w.Now()}
 			f.Affected = affects[id][pkg]
 			slices.SortFunc(f.Affected, pkgspec.CompareVersions)
 			f.Affected = slices.Compact(f.Affected)
@@ -463,7 +478,7 @@ func (w *Watcher) fromBOMs(ctx context.Context, cutoff time.Time, note func(stri
 				for _, r := range aff.Ranges {
 					for _, e := range r.Events {
 						if fx := e["fixed"]; fx != "" {
-							lib, _, _ := strings.Cut(libName(carried[id]), " ")
+							lib, _, _ := strings.Cut(libName(purl), " ")
 							f.FixedUpstream = lib + " " + fx
 						}
 					}

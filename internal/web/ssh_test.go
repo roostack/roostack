@@ -101,6 +101,14 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 			t.Errorf("remote access page missing %q", want)
 		}
 	}
+	// CrowdSec's community list at SSH: counted in the details.
+	if strings.Contains(body, "<dt>Community's list</dt>") {
+		t.Error("the community's list shown before any came")
+	}
+	fs.sshd.Community = 4172
+	if _, body := h.get("/settings/remote-access"); !strings.Contains(body, "4,172 addresses on CrowdSec's community blocklist can't reach SSH either") {
+		t.Error("the remote access page doesn't count the community's list")
+	}
 	if code, _ := h.post("/settings/remote-access/unblock", url.Values{"address": {"203.0.113.9"}}, h.srv.URL); code >= 400 {
 		t.Fatalf("unblock: %d", code)
 	}

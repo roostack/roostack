@@ -56,3 +56,4 @@ func (Base) Linked() node.Linked       { return nil }
 func (Base) GuestHost() node.GuestHost { return nil }
 func (Base) Processor() node.Processor { return nil }
 func (Base) Photos() node.Photos       { return nil }
+func (Base) LabDNS() node.LabDNS       { return nil }

@@ -39,7 +39,13 @@ type User struct {
 	// needed (EnsureSSOID).
 	SSOID     string
 	CreatedAt time.Time
+	// Passkeys is how many passkeys they have (passkeys.go).
+	Passkeys int
 }
+
+// HasSecondFactor reports whether u can meet two-factor: an authenticator
+// app, or a passkey, which the device only opens for them (SPEC.md §5).
+func (u *User) HasSecondFactor() bool { return u.TOTPSecret != "" || u.Passkeys > 0 }
 
 // SetAccent saves a user's accent colour (the caller checks it exists).
 func (s *Store) SetAccent(ctx context.Context, userID int64, accent string) error {
@@ -108,18 +114,24 @@ func (s *Store) lastOwnerCheck(ctx context.Context, res sql.Result, userID int64
 	return ErrLastOwner
 }
 
-// ResetTOTP turns off a user's two-factor authentication (a lost phone)
-// and logs them out everywhere. Owners must set it up again at next login.
-func (s *Store) ResetTOTP(ctx context.Context, userID int64) error {
+// ResetTOTP turns off a user's two-factor authentication and removes their
+// passkeys (a lost phone), and logs them out everywhere. Owners must set it
+// up again at next login. It returns how many passkeys it removed.
+func (s *Store) ResetTOTP(ctx context.Context, userID int64) (int, error) {
 	res, err := s.db.ExecContext(ctx, `UPDATE users SET totp_secret = '', totp_last_step = 0, totp_failures = 0, totp_failed_at = 0 WHERE id = ?`, userID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
+	res, err = s.db.ExecContext(ctx, `DELETE FROM passkeys WHERE user_id = ?`, userID)
+	if err != nil {
+		return 0, err
+	}
+	removed, _ := res.RowsAffected()
 	_, err = s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)
-	return err
+	return int(removed), err
 }
 
 // Themes a user can choose.
@@ -282,7 +294,8 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string, temporar
 }
 
 const userColumns = `users.id, users.username, users.password_hash, users.role,
-	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.email, users.notify, users.name, users.sso_id, users.created_at`
+	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.email, users.notify, users.name, users.sso_id, users.created_at,
+	(SELECT COUNT(*) FROM passkeys WHERE passkeys.user_id = users.id)`
 
 // UserByID looks up an account.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
@@ -328,7 +341,7 @@ func scanUser(row scanner) (*User, error) {
 	var u User
 	var created, failedAt int64
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,
-		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &u.Email, &u.Notify, &u.Name, &u.SSOID, &created)
+		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &u.Email, &u.Notify, &u.Name, &u.SSOID, &created, &u.Passkeys)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

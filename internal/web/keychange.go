@@ -41,7 +41,7 @@ func (s *Server) renderKeyChange(w http.ResponseWriter, r *http.Request, status 
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	s.render(w, "backups-key-change", map[string]any{"User": currentUser(r), "Change": k, "Error": msg})
+	s.render(w, "backups-key-change", map[string]any{"User": currentUser(r), "Change": k, "Error": msg, "Passkey": s.passkeyOffered(r, currentUser(r))})
 }
 
 // keyChangeSubmit checks it's the Owner, makes the new key if there isn't

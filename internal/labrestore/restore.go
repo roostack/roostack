@@ -88,10 +88,21 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 	if err != nil {
 		return err
 	}
+	var missing []string
 	for _, name := range services {
 		snap, err := repo.ServiceSnapshot(ctx, name, "")
 		if err != nil {
+			// Started without its files, it would set itself up empty, and
+			// its next backup would save that: it's held stopped instead,
+			// for the Owner to restore from another backup or start anyway
+			// (SPEC.md §6.9), and the restore says so at the end.
 			log.Printf("%s: %v", name, err)
+			if err := setInstance(paths, name, func(in *instance.Instance) {
+				in.Held = &instance.Hold{NoBackup: true, Error: err.Error(), At: time.Now()}
+			}); err != nil {
+				return err
+			}
+			missing = append(missing, name)
 			continue
 		}
 		// A service's backup holds only its own folders (generate's
@@ -110,6 +121,20 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 		if err := restorePaths(ctx, paths, repo, *snap, log); err != nil {
 			return err
 		}
+		// Its databases are loaded from their dumps in step 3; until then
+		// only they run.
+		if err := setInstance(paths, name, func(in *instance.Instance) {
+			in.DumpsPending = &instance.Restored{Backup: "backup:" + fd.ServerID + "@" + snap.ID, Taken: snap.Time}
+		}); err != nil {
+			return err
+		}
+	}
+	switch {
+	case len(missing) == 1:
+		log.Step("%s wasn't restored, as Roostack found no backup of it, so it will stay stopped until you choose what to do on its page", missing[0])
+	case len(missing) > 1:
+		log.Step("%s weren't restored, as Roostack found no backup of them, so they'll stay stopped until you choose what to do on their pages",
+			strings.Join(missing, ", "))
 	}
 	if _, err := os.Stat(backup.StateDumpFile(paths)); err != nil {
 		return fmt.Errorf("the backup has no copy of Roostack's database: %w", err)
@@ -202,6 +227,17 @@ func hostedServices(paths config.Paths, serverID string) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// setInstance changes a restored service's instance file.
+func setInstance(paths config.Paths, name string, change func(*instance.Instance)) error {
+	file := filepath.Join(paths.InstancesDir(), name+".yaml")
+	in, err := instance.Load(file)
+	if err != nil {
+		return err
+	}
+	change(in)
+	return in.Save(file)
 }
 
 // StartFromBackup finishes step 2 if a restore is in progress: the

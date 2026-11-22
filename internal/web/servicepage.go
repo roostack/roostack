@@ -246,8 +246,21 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			}
 		}
 	}
+	if u := s.serviceUse(name); u != nil && u.Held && u.Limit > 0 {
+		data["MemoryHeld"] = u
+	}
 	if data["EditSettings"] == true {
 		page = "service-settings"
+		if data["Memory"] == nil {
+			if v := s.memoryCard(r, name, "", "", ""); v != nil {
+				data["Memory"] = v
+			}
+		}
+		if v, ok := data["Memory"].(*memoryView); ok && v != nil {
+			v.Title = data["Service"].(ServiceView).Title
+		} else {
+			delete(data, "Memory")
+		}
 		// A form that came back keeps what was chosen.
 		if sub, ok := data["Submitted"].(url.Values); ok {
 			if c, ok := data["Libraries"].(manager.ServiceLibraryChoice); ok && sub.Get("libraries_chosen") != "" {

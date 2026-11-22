@@ -8,7 +8,8 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"slices"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"roostack.cloud/roostack/cloudapi"
@@ -18,6 +19,7 @@ import (
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/fsutil"
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labrestore"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/state"
@@ -159,31 +161,65 @@ func (l *labRestorer) Running() bool {
 // Progress is the restore's log.
 func (l *labRestorer) Progress() (activity.Snapshot, bool) { return l.acts.Latest(activity.LabRestore) }
 
-// finishLabRestore puts the services' databases back after a lab restore
-// (labrestore step 3), once the first apply has set the services up
-// again: each service is stopped, its databases loaded from their dumps,
-// and started. A failure is logged and retried at the next start.
+// finishLabRestore puts back the databases of the services a lab restore
+// put back (labrestore step 3, instance.DumpsPending), once an apply has
+// set them up with only their databases running: each is loaded from its
+// dumps, then the app starts (Manager.DumpsLoaded). One that's turned off
+// waits until it's turned on, which runs this again (Manager.LoadDumps).
+// One whose databases don't load is held stopped (SPEC.md §6.9) while the
+// others carry on.
 func finishLabRestore(lab config.Lab, coord *maintenance.Coordinator, restorer *backup.Restorer, services serverServices,
-	wait func(), acts *activity.Registry, log *slog.Logger) {
-	if _, ok := labrestore.Pending(lab.Paths); !ok {
+	wait func(), loaded func(name string, err error) error, acts *activity.Registry, log *slog.Logger) {
+	_, restoring := labrestore.Pending(lab.Paths)
+	if !restoring && len(dumpsWaiting(lab)) == 0 {
 		return
 	}
 	wait()
 	coord.Submit(maintenance.Job{Name: "lab-restore", Run: func(ctx context.Context, h *maintenance.Handle) error {
 		h.SetInterruptible(false)
+		if len(dumpsWaiting(lab)) == 0 {
+			// Already loaded, by a job submitted before this one ran.
+			return labrestore.Done(lab.Paths)
+		}
 		alog := acts.Start(activity.LabRestore, "Putting the services' databases back")
-		err := loadAllDumps(ctx, restorer, services, alog)
+		err := loadAllDumps(ctx, restorer, services, loaded, lab, alog)
 		alog.Finish(err)
 		if err != nil {
 			log.Error("finishing the lab restore", "err", err)
-			return err
 		}
-		log.Info("lab restore finished")
-		return labrestore.Done(lab.Paths)
+		// What's left waits in each service's instance file, so the lab
+		// restore itself is over.
+		if derr := labrestore.Done(lab.Paths); derr != nil {
+			return derr
+		}
+		return err
 	}})
 }
 
-func loadAllDumps(ctx context.Context, restorer *backup.Restorer, services serverServices, alog *activity.Log) error {
+// dumpsWaiting lists the services whose databases wait to be loaded now:
+// those a lab restore put back that aren't turned off. The instance files
+// say, rather than the server's assignment, which an apply may not have
+// caught up with yet.
+func dumpsWaiting(lab config.Lab) map[string]bool {
+	files, err := filepath.Glob(filepath.Join(lab.Paths.InstancesDir(), "*.yaml"))
+	if err != nil {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, f := range files {
+		in, err := instance.Load(f)
+		if err == nil && in.DumpsPending != nil && in.Off == nil && in.HostOr(lab.NodeID) == lab.NodeID {
+			out[strings.TrimSuffix(filepath.Base(f), ".yaml")] = true
+		}
+	}
+	return out
+}
+
+// loadAllDumps loads each waiting service's databases and starts it, or
+// holds it stopped if they don't load. It goes on to the others after a
+// failure, and returns every failure.
+func loadAllDumps(ctx context.Context, restorer *backup.Restorer, services serverServices, loaded func(name string, err error) error,
+	controller config.Lab, alog *activity.Log) error {
 	lab, svcs, err := services()
 	if err != nil {
 		return err
@@ -192,21 +228,27 @@ func loadAllDumps(ctx context.Context, restorer *backup.Restorer, services serve
 	if err != nil {
 		return err
 	}
+	waiting := dumpsWaiting(controller)
 	units := systemd.New()
+	var errs []error
 	for _, svc := range d.Services {
-		if len(svc.Backup.Prepare) == 0 {
+		if !waiting[svc.Service] {
 			continue
 		}
 		alog.Step("%s", svc.Service)
-		if err := units.Stop(ctx, svc.Units...); err != nil {
-			return fmt.Errorf("stopping %s: %w", svc.Service, err)
+		// Only its databases run (state.Output), so nothing uses them
+		// while they're loaded.
+		err := units.Stop(ctx, svc.Units...)
+		if err == nil {
+			err = restorer.LoadDumps(ctx, svc)
 		}
-		if err := restorer.LoadDumps(ctx, svc); err != nil {
-			return fmt.Errorf("%s's database: %w", svc.Service, err)
+		if err != nil {
+			alog.Printf("%s's databases didn't load, so Roostack will keep it stopped until you choose what to do on its page: %v", svc.Service, err)
+			errs = append(errs, fmt.Errorf("%s's database: %w", svc.Service, err))
 		}
-		if err := units.Start(ctx, slices.Clone(svc.Units)...); err != nil {
-			return fmt.Errorf("starting %s: %w", svc.Service, err)
+		if lerr := loaded(svc.Service, err); lerr != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", svc.Service, lerr))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }

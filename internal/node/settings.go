@@ -40,6 +40,10 @@ type Settings interface {
 	// UnblockSSH lets an address that guessed too many passwords reach SSH
 	// again at once (SSHAccess.SSHD.Blocked).
 	UnblockSSH(ctx context.Context, address string) error
+	// SetSSHCommunity keeps CrowdSec's community blocklist (addresses and
+	// ranges) away from SSH, replacing the list sent before; the
+	// controller sends it while its CrowdSec has one (SPEC.md §6.10 item 3).
+	SetSSHCommunity(ctx context.Context, addrs []string) error
 	SetRestartPolicy(ctx context.Context, mode string, hour int) error
 	// RestartPolicy is when the server may restart after updates.
 	RestartPolicy(ctx context.Context) (mode string, hour int, err error)
@@ -133,6 +137,7 @@ type SSHServer interface {
 	SSHStatus(ctx context.Context) (agent.SSHStatus, error)
 	SetSSHKeysOnly(ctx context.Context, on bool) error
 	UnblockSSH(ctx context.Context, address string) error
+	SetSSHCommunity(ctx context.Context, addrs []string) error
 }
 
 // sshCache is how long a read of the SSH server's state is used for pages
@@ -331,6 +336,13 @@ func (h *HostSettings) UnblockSSH(ctx context.Context, address string) error {
 	h.sshGen++
 	h.mu.Unlock()
 	return err
+}
+
+func (h *HostSettings) SetSSHCommunity(ctx context.Context, addrs []string) error {
+	if h.SSHServer == nil {
+		return nil // nothing to keep them away from
+	}
+	return h.SSHServer.SetSSHCommunity(ctx, addrs)
 }
 
 func (h *HostSettings) RestartPolicy(_ context.Context) (string, int, error) {

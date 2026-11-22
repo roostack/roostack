@@ -380,12 +380,12 @@ func (s *Server) pagesConfirm(ctx context.Context, sess sso.Session) bool {
 
 func (s *Server) confirmView(r *http.Request, sess sso.Session, trip pagesTripInfo, msg string) signInView {
 	return signInView{State: "confirm", User: sess.User, Trip: trip.state, Next: trip.next, Again: trip.again, Error: msg,
-		Code: sess.User.TOTPSecret != "", Away: r.FormValue("away") == "1",
+		Code: sess.User.TOTPSecret != "", Passkey: sess.User.Passkeys > 0, Away: r.FormValue("away") == "1",
 		App: "Roostack", AppLogo: "/static/favicon.svg"}
 }
 
-// signInConfirm is that step: the code from their authenticator app, or
-// their password if they have no two-factor.
+// signInConfirm is that step: a passkey, the code from their
+// authenticator app, or their password if they have neither.
 func (s *Server) signInConfirm(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	r.ParseForm()
@@ -405,7 +405,15 @@ func (s *Server) signInConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 	u := sess.User
 	how := " (confirmed with a two-factor code)"
-	if u.TOTPSecret != "" {
+	if hasPasskeyAnswer(r) {
+		if !s.checkPasskeyOf(w, r, u, ceremonyConfirm) {
+			time.Sleep(failedLoginDelay)
+			s.renderSignIn(w, r, http.StatusUnauthorized, s.confirmView(r, sess, trip,
+				"The passkey didn't work, or you cancelled it. Try again, or use the box below."))
+			return
+		}
+		how = " (confirmed with a passkey)"
+	} else if u.TOTPSecret != "" {
 		res, until, err := s.checkCode(ctx, u.ID, r.FormValue("code"))
 		if err != nil {
 			s.serverError(w, err)

@@ -24,6 +24,7 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/editor"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
@@ -167,6 +168,11 @@ type Server struct {
 	stepUps   stepUpFailures
 	// passwordTries counts wrong passwords for each username typed.
 	passwordTries passwordTries
+	// ceremonies are passkey challenges, keyed by their cookie's hash, and
+	// addConfirmed the sessions that have just confirmed it's them for
+	// adding a passkey (passkeys.go).
+	ceremonies   expiring[string, *passkeyCeremony]
+	addConfirmed expiring[string, struct{}]
 	// codeMu makes two-factor checks run one at a time (checkCode).
 	codeMu     sync.Mutex
 	issues     serverIssues
@@ -278,6 +284,10 @@ type ServiceCatalog interface {
 	ServiceFiles(name string) (*manager.ServiceFiles, error)
 	// SetTitle changes what people call a service (never its name).
 	SetTitle(ctx context.Context, name, title string) error
+	// ServiceMemory and SetMemoryLimit are a service's memory figures and
+	// the choice of its limit (SPEC.md §6.1, "Memory").
+	ServiceMemory(ctx context.Context, name string) (*manager.ServiceMemory, error)
+	SetMemoryLimit(ctx context.Context, name, limit string) error
 	// SetOff turns a service off for a while, or on again (SPEC.md §6.3.5).
 	SetOff(ctx context.Context, name string, off bool, by string) error
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
@@ -312,6 +322,11 @@ type ServiceCatalog interface {
 	// Resolver and SetResolver are the lab's DNS server (SPEC.md §6.5.2).
 	Resolver(ctx context.Context) manager.Resolver
 	SetResolver(ctx context.Context, choice config.Resolver) error
+	// Roostack's own DNS server: how it's doing, and Your account's check
+	// (SPEC.md §6.5.3).
+	LabDNSStatus(ctx context.Context) (labdns.Status, error)
+	LabDNSCheck(ctx context.Context, token string) (bool, error)
+	LabDNSInUse(ctx context.Context) bool
 	PortHost(name string) string
 	CurrentSettings(name string) (map[string]any, string, error)
 	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
@@ -531,6 +546,10 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 	if s.help, err = newHelpSite(helpFS); err != nil {
 		return nil, err
 	}
+	shared, err := sharedParts()
+	if err != nil {
+		return nil, err
+	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "local-editor", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "services-updates", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account-appearance", "users", "about",
@@ -538,8 +557,7 @@ func NewServer(st *store.Store, log *slog.Logger, services func(context.Context)
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check", "monitoring-server",
 		"import", "import-folders", "photos", "photos-home", "photos-folders", "pause", "pause-close"} {
-		t, err := template.New("layout.html").Funcs(templateFuncs()).ParseFS(templateFS,
-			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
+		t, err := parsePage(page, shared)
 		if err != nil {
 			return nil, err
 		}
@@ -583,6 +601,9 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.loginSubmit)
 	mux.HandleFunc("POST /login/totp", s.loginTOTP)
+	mux.HandleFunc("POST /login/passkey", s.loginPasskey)
+	mux.HandleFunc("POST /login/passkey/options", s.passkeyLoginBegin)
+	mux.HandleFunc("POST /login/passkey/options/second", s.loginPasskeyOptions)
 	mux.HandleFunc("POST /logout", s.logout)
 	mux.HandleFunc("GET "+pathPagesStart, s.pagesStart)
 	mux.HandleFunc("GET "+pathPagesCallback, s.pagesCallback)
@@ -714,6 +735,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /settings/public/relay-resume", s.requireOwner(s.publicRelayResume))
 	// Visitors through the relay: Owners on Public access, Admins on their own page.
 	mux.Handle("GET /partials/relay-stats", s.require(auth.ManageServices, s.relayStatsPart))
+	mux.Handle("GET /partials/protection", s.require(auth.ManageServices, s.protectionPart))
 	mux.Handle("GET /visitors", s.require(auth.ManageServices, s.visitorsPage))
 	mux.Handle("POST /settings/public/countries/open", s.requireOwner(s.publicCountriesOpen))
 	mux.Handle("POST /services/{name}/move", s.requireOwner(s.moveSubmit))
@@ -844,6 +866,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /services/{name}/scheduled/{hook}/run", s.require(auth.ManageServices, s.scheduledSubmit))
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
 	mux.Handle("POST /services/{name}/title", s.require(auth.ManageServices, s.titleSubmit))
+	mux.Handle("POST /services/{name}/memory", s.require(auth.ManageServices, s.memorySubmit))
 	mux.Handle("POST /services/{name}/update", s.require(auth.ManageServices, s.updateSubmit))
 	mux.Handle("POST /services/{name}/updates", s.require(auth.ManageServices, s.updatePolicySubmit))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))

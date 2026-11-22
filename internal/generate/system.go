@@ -46,7 +46,10 @@ type SystemOutput struct {
 	Quadlets  []File
 	Caddyfile File // goes in config.Paths.CaddyDir()
 	// Files are other files, Name being the full path.
-	Files   []File
+	Files []File
+	// Slices go in config.Paths.UserUnitDir(): Caddy's, and the one for
+	// all the services (slices.go).
+	Slices  []File
 	Secrets []Secret
 	Dirs    []string
 	Units   []string
@@ -108,7 +111,7 @@ type SystemOptions struct {
 // SystemWith is System with everything the services ask for.
 func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	public := opts.Public || opts.SignInPublic || lab.DomainPublic()
-	out := &SystemOutput{}
+	out := &SystemOutput{Slices: systemSlices(lab.MemoryTotal)}
 	if lab.GlancesHere {
 		// A live view of this server (SPEC.md §6.15.1), on any server.
 		if err := glances(lab, out); err != nil {
@@ -195,6 +198,10 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	cs.Add("Label", "io.roostack.service=_system")
 	cs.Add("Label", "io.roostack.component=caddy")
 	svc := u.Section("Service")
+	svc.Add("Slice", CoreSlice)
+	// The user manager gives its units 200; 100 is as low as it lets one
+	// go, so the kernel picks a service's container before Caddy.
+	svc.Add("OOMScoreAdjust", "100")
 	svc.Add("ExecReload", "/usr/bin/podman exec "+CaddyUnit+" caddy reload --config /etc/caddy/Caddyfile")
 	svc.Add("Restart", "always")
 	svc.Add("TimeoutStartSec", "900")
@@ -326,6 +333,10 @@ func Edge(lab config.Lab, c caddy.EdgeConfig) (*SystemOutput, error) {
 	cs.Add("Label", "io.roostack.service=_system")
 	cs.Add("Label", "io.roostack.component=edge")
 	svc := u.Section("Service")
+	svc.Add("Slice", CoreSlice)
+	// The user manager gives its units 200; 100 is as low as it lets one
+	// go, so the kernel picks a service's container before Caddy.
+	svc.Add("OOMScoreAdjust", "100")
 	svc.Add("ExecReload", "/usr/bin/podman exec "+CaddyUnit+" caddy reload --config /etc/caddy/Caddyfile")
 	svc.Add("Restart", "always")
 	svc.Add("TimeoutStartSec", "900")
@@ -430,6 +441,7 @@ func crowdSec(lab config.Lab, out *SystemOutput) error {
 	cs.Add("Label", "io.roostack.service=_system")
 	cs.Add("Label", "io.roostack.component=crowdsec")
 	svc := u.Section("Service")
+	svc.Add("Slice", ServicesSlice) // with the services: Caddy carries on without it
 	svc.Add("Restart", "always")
 	// The first start downloads the image and the Hub's collections.
 	svc.Add("TimeoutStartSec", "900")
@@ -486,6 +498,7 @@ func glances(lab config.Lab, out *SystemOutput) error {
 	cs.Add("Label", "io.roostack.service=_system")
 	cs.Add("Label", "io.roostack.component=glances")
 	svc := u.Section("Service")
+	svc.Add("Slice", ServicesSlice)
 	svc.Add("Restart", "always")
 	// The first start downloads the image.
 	svc.Add("TimeoutStartSec", "900")

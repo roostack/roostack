@@ -62,7 +62,9 @@ type fakeFeeds struct {
 	vpatches   map[string]string // rule → its label
 	osv        map[string][]string
 	vulns      map[string]string
-	asked      []string
+	// forge is what the Forgejo host answers, by path.
+	forge map[string]string
+	asked []string
 }
 
 func (f *fakeFeeds) serve(t *testing.T) Feeds {
@@ -118,12 +120,15 @@ func (f *fakeFeeds) serve(t *testing.T) Feeds {
 			json.NewEncoder(w).Encode(map[string]any{"results": results})
 		case strings.HasPrefix(r.URL.Path, "/v1/vulns/"):
 			io.WriteString(w, f.vulns[strings.TrimPrefix(r.URL.Path, "/v1/vulns/")])
+		case f.forge[r.URL.Path] != "":
+			io.WriteString(w, f.forge[r.URL.Path])
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	t.Cleanup(srv.Close)
-	return Feeds{HTTP: srv.Client(), GitHubAPI: srv.URL, OSVAPI: srv.URL, KEVURL: srv.URL + "/kev", EPSSAPI: srv.URL + "/epss", HubIndex: srv.URL + "/hub"}
+	return Feeds{HTTP: srv.Client(), GitHubAPI: srv.URL, OSVAPI: srv.URL, KEVURL: srv.URL + "/kev", EPSSAPI: srv.URL + "/epss", HubIndex: srv.URL + "/hub",
+		ForgeURL: srv.URL}
 }
 
 // testRepo is a registry checkout with Vaultwarden at 1.34.3 and 1.34.4,
@@ -218,7 +223,7 @@ func TestWatch(t *testing.T) {
 		t.Error("an old advisory was looked at")
 	}
 	notes := strings.Join(res.Notes, "\n")
-	for _, want := range []string{"Forgejo: its source (https://codeberg.org/forgejo/forgejo) isn't on GitHub", "Roostack: roostack/roostack's advisories couldn't be read",
+	for _, want := range []string{"Forgejo: its releases on codeberg.org couldn't be read", "Roostack: roostack/roostack's advisories couldn't be read",
 		"No bills of materials yet"} {
 		if !strings.Contains(notes, want) {
 			t.Errorf("notes lack %q:\n%s", want, notes)
@@ -246,13 +251,13 @@ func TestWatch(t *testing.T) {
 			t.Errorf("by name: %+v", f)
 		}
 	}
-	md := Digest(st.Pending, now)
+	md := Digest(st.Pending, repo, now)
 	for _, want := range []string{"[GHSA-dddd-eeee-ffff]", "[CVE-2026-22222]", "[crowdsecurity/vpatch-CVE-2026-33333]", "being used in attacks", "Only in the digest because"} {
 		if !strings.Contains(md, want) {
 			t.Errorf("the digest lacks %q:\n%s", want, md)
 		}
 	}
-	if Digest(nil, now) != "" {
+	if Digest(nil, repo, now) != "" {
 		t.Error("an empty digest")
 	}
 }
@@ -292,6 +297,49 @@ func TestWatchBOMs(t *testing.T) {
 	}
 	if _, err := registry.Build(registry.BuildOptions{Repo: dir, Out: t.TempDir(), Now: now}); err != nil {
 		t.Errorf("the registry's build refused the draft: %v", err)
+	}
+}
+
+// TestWatchBOMsPerPackage: one OSV problem in two packages' images, each
+// carrying its own version of the library, is a match for each that names
+// its own library version. The digests of 2026-11-09 and 2026-11-16 named
+// whichever image was read last for all of them (46 of the 154 OSV
+// entries in the first named a version their package didn't carry).
+func TestWatchBOMsPerPackage(t *testing.T) {
+	now := time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
+	dir := testRepo(t)
+	vw, fj := "pkg:npm/node-forge@1.3.0", "pkg:npm/node-forge@1.4.0"
+	for _, b := range []struct{ pkg, ver, image, purl string }{
+		{"vaultwarden", "1.34.3-roostack.1", "docker.io/vaultwarden/server:1.34.3@sha256:aa", vw},
+		{"forgejo", "15.0.9-roostack.1", "codeberg.org/forgejo/forgejo:15.0.9-rootless@sha256:bb", fj},
+	} {
+		path := filepath.Join(dir, BOMFile(b.pkg, b.ver, b.image))
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		os.WriteFile(path, []byte(`{"image":"`+b.image+`","artifacts":[{"purl":"`+b.purl+`"}]}`), 0o644)
+	}
+	vuln, _ := json.Marshal(map[string]any{"id": "GHSA-rhr8-3pm8-cq29", "summary": "ASN.1 resource exhaustion", "published": now.Add(-time.Hour),
+		"affected": []map[string]any{{"ranges": []map[string]any{{"events": []map[string]string{{"introduced": "0"}, {"fixed": "1.4.1"}}}}}}})
+	ff := &fakeFeeds{advisories: map[string]string{"dani-garcia/vaultwarden": "[]"},
+		osv: map[string][]string{vw: {"GHSA-rhr8-3pm8-cq29"}, fj: {"GHSA-rhr8-3pm8-cq29"}}, vulns: map[string]string{"GHSA-rhr8-3pm8-cq29": string(vuln)}}
+	repo, err := ReadRepo(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := &Watcher{Repo: repo, Feeds: ff.serve(t), State: &State{Seen: map[string]string{}}, Now: func() time.Time { return now }}
+	res, err := w.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]Finding{}
+	for _, f := range res.Weak {
+		got[f.Package] = f
+	}
+	for pkg, purl := range map[string]string{"vaultwarden": vw, "forgejo": fj} {
+		f := got[pkg]
+		lib := strings.Replace(strings.TrimPrefix(purl, "pkg:npm/"), "@", " ", 1)
+		if f.Purl != purl || !strings.Contains(f.Source, purl) || !strings.HasSuffix(f.Title, "(in "+lib+")") {
+			t.Errorf("%s: %+v", pkg, f)
+		}
 	}
 }
 

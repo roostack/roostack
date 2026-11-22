@@ -77,6 +77,7 @@
         <p class="hint">Saving will restart {{.Service.Title}} when its address, settings, or libraries change, and it will be unavailable for a moment.</p>
       </form>
     </section>
+    {{with .Memory}}{{template "memory-card" .}}{{end}}
     <section class="card" id="name">
       <div class="card-head"><h2>Name</h2></div>
       {{with .TitleError}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -91,6 +92,51 @@
     {{with .Env}}{{template "env-card" .}}{{end}}
   </div>
 </div>
+{{end}}
+
+{{/* How much memory it may use (SPEC.md §6.1, "Memory"): what it uses, its
+     limit and why, and the choice of another. Saving changes only its
+     slice, so it doesn't restart. */}}
+{{define "memory-card"}}
+<section class="card" id="memory">
+  <div class="card-head"><h2>Memory</h2></div>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if and .Use .Use.Held .Use.Limit}}{{notice "warn" (printf "%s is using all the memory it's allowed (%s), so its server is slowing it down. If it's slow, allow it more." .Title (size .Use.Limit))}}{{end}}
+  <p>{{with .Use}}It's using {{size .Memory}}{{if .Swap}}, and {{size .Swap}} more is in swap, on the disk{{end}}. {{end}}
+    {{- if .Figure}}Its package expects {{if .Known}}about{{else}}at least{{end}} {{size .Figure}}.{{else}}Its package doesn't say how much it needs.{{end}}</p>
+  <p class="hint">
+    {{- if eq .Choice ""}}
+      {{- if .Auto}}Roostack is holding it to {{size .Auto}}, twice what its package expects or 256 MB more if that's larger, as the services on {{.Server}} together expect
+        more memory than it can give them. Past that, the server will slow it down rather than stop it.
+      {{- else if not .Known}}Roostack isn't limiting it on its own, as its package doesn't say what all its parts need.
+      {{- else}}Roostack isn't limiting it on its own, as {{.Server}} has room for what every service on it expects. If it runs short,
+        Roostack will hold each service to twice what its package expects.{{end}}
+    {{- else if eq .Choice "none"}}You've chosen no limit, so it can use whatever it needs.
+    {{- else}}You've chosen a limit of {{.Choice}}: past it, the server will slow it down rather than stop it.{{end}}
+    {{- if .Cap}} All the services on {{.Server}} together may use {{size .Cap}} of its {{size .Total}}, so the rest stays for the system and Roostack.{{end}}</p>
+  <form method="post" action="/services/{{.Name}}/memory">
+    <div class="seg-group">
+      <p class="field-label">Limit</p>
+      {{segmented "memory" "Memory limit" .Mode (choice "auto" "Automatic") (choice "limit" "A limit") (choice "none" "No limit")}}
+      <p class="seg-panel hint seg-hint" data-seg="1">Roostack will choose, and will hold it to a limit only when its server runs short.</p>
+      <div class="seg-panel" data-seg="2">
+        <label>Slow it down past
+          <input name="memory_size" value="{{.Size}}" placeholder="{{.Placeholder}}" inputmode="decimal" autocapitalize="off" spellcheck="false">
+          <small>A size in MB or GB, such as 800 MB or 1.5 GB.</small></label>
+      </div>
+      <p class="seg-panel hint seg-hint" data-seg="3">It will use whatever it needs, up to what all the services together may use.</p>
+    </div>
+    <button type="submit" class="secondary">Save memory limit</button>
+    <p class="hint">Saving won't restart it.</p>
+  </form>
+  <details class="technical"><summary>Details</summary>
+    <p class="hint">Each service runs in a slice of its own, <code>roostack-services-{{.Name}}.slice</code> in
+      <code>~/.config/systemd/user</code> in the roostack user's home (a hyphen in its name is written <code>_</code>), and a limit is that
+      slice's <code>MemoryHigh</code>: past it, the kernel reclaims the service's memory and moves it to swap, which slows it down but never
+      stops it. All the services share <code>roostack-services.slice</code>, and Caddy has <code>roostack-core.slice</code>, which the kernel
+      takes memory from last.</p>
+  </details>
+</section>
 {{end}}
 
 {{/* Its extra environment variables, for the Owner (SPEC.md §8.1, "Extra

@@ -34,6 +34,10 @@ const (
 var subdomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 // Instance is the user's desired state for one installed service.
+// MemoryNoLimit is Instance.MemoryLimit for a service the Owner lets use
+// whatever memory it needs.
+const MemoryNoLimit = "none"
+
 type Instance struct {
 	// Name is the service's ID: its units, secrets, data folders, backups
 	// and address in the UI are named after it, and it never changes. Empty
@@ -71,6 +75,12 @@ type Instance struct {
 	// (SPEC.md §6.9, "A restore that didn't finish"): only its databases
 	// run, until the Owner chooses what to do. Nil when it isn't held.
 	Held *Hold `yaml:"held,omitempty"`
+	// DumpsPending: a lab restore put its files back from this backup, and
+	// its databases' dumps among them still wait to be loaded (labrestore,
+	// step 3). Only its databases run until they are, so the app never
+	// starts on empty ones; while it's turned off, they wait until it's
+	// turned on. Nil when nothing waits.
+	DumpsPending *Restored `yaml:"dumps_pending,omitempty"`
 	// Local: installed from a package the Owner added themselves, not one
 	// from the service registry, so its pages say "Your own" (SPEC.md
 	// §8.3.4). Recorded here because the lab's copy of the package is the
@@ -80,6 +90,11 @@ type Instance struct {
 	// firewall) for this service's public addresses, after a warning
 	// (SPEC.md §6.10 item 4). Only the Owner can: a package has no say.
 	NoWAF bool `yaml:"no_waf,omitempty"`
+	// MemoryLimit is the Owner's choice of how much memory the service may
+	// use before the kernel slows it down (SPEC.md §6.1, "Memory"): a size
+	// ("1.5 GB"), MemoryNoLimit, or empty for Roostack to choose
+	// (generate.MemoryLimit).
+	MemoryLimit string `yaml:"memory_limit,omitempty"`
 	// PublicPause: the Owner or an Admin paused this service's public
 	// access (SPEC.md §6.16): visitors from outside get a page saying it's
 	// closed for a while, until someone lifts it. The lab's own pauses
@@ -203,6 +218,16 @@ type Hold struct {
 	// MovedFrom is the server a move through a backup came from, when its
 	// databases didn't load here and moving it back failed too.
 	MovedFrom string `yaml:"moved_from,omitempty"`
+	// NoBackup: a lab restore found no backup of it, so it came back with
+	// neither its files nor its databases (Error says why).
+	NoBackup bool `yaml:"no_backup,omitempty"`
+}
+
+// Restored is the backup a lab restore put a service back from
+// (Instance.DumpsPending), as a hold names it (Hold.Backup, Hold.Taken).
+type Restored struct {
+	Backup string    `yaml:"backup"`
+	Taken  time.Time `yaml:"taken"`
 }
 
 // RouteOverride holds user changes to a package route. Empty fields keep the

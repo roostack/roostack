@@ -105,6 +105,7 @@ func (s *Server) linkedNotMember(ctx context.Context, hash string, u *store.User
 func (s *Server) renderLogin(w http.ResponseWriter, r *http.Request, data map[string]any) {
 	data["OfferRemember"] = s.offerRemember(r.Context())
 	data["SignInPage"] = s.pagesSignIn(r)
+	data["PasskeysWork"] = s.passkeysWork(r)
 	if r.URL.Query().Get("expired") == "1" && data["Error"] == nil {
 		data["Expired"] = int(s.idleLimit(r.Context()).Minutes())
 	}

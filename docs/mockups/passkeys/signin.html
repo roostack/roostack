@@ -1,0 +1,91 @@
+<!doctype html><html lang="en" data-palette="teal" data-states="sign-in:Sign in,autofill:Passkey in autofill,second:After a password,confirm:Confirm (idle limit),failed:Didn't work,tunnel:Through the SSH tunnel">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Smiths' lab (mock-up)</title>
+  <link rel="icon" href="../../../internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../../internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/app.css">
+  <link rel="stylesheet" href="../your-account/mock.css">
+  <link rel="stylesheet" href="../sso/mock.css">
+  <link rel="stylesheet" href="mock.css">
+</head>
+<body class="signin-body">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="bare">
+    <main class="page signin-page">
+      <section class="card narrow signin-card">
+        <div class="signin-brand brand-mark-name">
+          <span class="with-logo"><svg class="lab-logo" viewBox="0 0 64 64" role="img" aria-label="Smiths' lab logo"><rect width="64" height="64" rx="16" fill="#c2410c"/><path d="M14 33 32 17l18 16" fill="none" stroke="#fff7ed" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 30v16h24V30" fill="none" stroke="#fff7ed" stroke-width="4.5" stroke-linejoin="round"/><path d="M32 43.5c-4.5-3-7-5.3-7-8a3.6 3.6 0 0 1 7-1.4 3.6 3.6 0 0 1 7 1.4c0 2.7-2.5 5-7 8z" fill="#fff7ed"/></svg></span><span class="with-hen"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg></span>
+          <strong>Smiths' lab</strong>
+        </div>
+
+        <div data-state="sign-in autofill failed">
+          <h1>Sign in</h1>
+          <p class="signin-to">to continue to <strong>Mealie</strong></p>
+          <p class="error" role="alert" data-state="failed">The passkey didn't work, or you cancelled it. Try again, or sign in with your password.</p>
+          <p class="mock-new"><button type="button" class="wide passkey-button" onclick="location.search='?s=autofill'"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l2.5 2.5M14 9l2 2"/></svg> Sign in with a passkey</button></p>
+          <p class="or"><span>or</span></p>
+          <form onsubmit="event.preventDefault(); location.search='?s=second'">
+            <label>Username or email
+              <input name="username" autocomplete="username webauthn" required>
+            </label>
+            <div class="mock-autofill mock-new" data-state="autofill"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l2.5 2.5M14 9l2 2"/></svg><span><strong>sam</strong><small>Passkey · iCloud Keychain</small></span></div>
+            <label>Password
+              <input name="password" type="password" autocomplete="current-password" required>
+            </label>
+            <label class="check"><input type="checkbox" checked>
+              <span>Keep me signed in<small>On this device, for 30 days. Untick it on a computer other people use.</small></span></label>
+            <button type="submit" class="wide secondary">Sign in</button>
+          </form>
+          <p class="hint">Forgotten your password? Ask Sam, who looks after Smiths' lab.</p>
+        </div>
+
+        <div data-state="second">
+          <h1>One more step</h1>
+          <p class="signin-to">to continue to <strong>Mealie</strong></p>
+          <p class="mock-new"><button type="button" class="wide passkey-button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l2.5 2.5M14 9l2 2"/></svg> Use your passkey</button></p>
+          <p class="or"><span>or</span></p>
+          <form onsubmit="event.preventDefault()">
+            <label>Code from your authenticator app
+              <input inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" required>
+            </label>
+            <button type="submit" class="wide secondary">Continue</button>
+          </form>
+          <p class="hint">Lost your phone? Ask Sam, who can turn two-factor off for you.</p>
+        </div>
+
+        <div data-state="confirm">
+          <h1>Confirm it's you</h1>
+          <p class="signin-to">to continue to <strong>Roostack</strong></p>
+          <p>You've been away from Roostack's pages for a while. They can change the whole lab, so they ask again after a while without use.
+            Your other services will stay signed in.</p>
+          <p class="mock-new"><button type="button" class="wide passkey-button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l2.5 2.5M14 9l2 2"/></svg> Use your passkey</button></p>
+          <p class="or"><span>or</span></p>
+          <form onsubmit="event.preventDefault()">
+            <label>Code from your authenticator app
+              <input inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" required>
+            </label>
+            <button type="submit" class="wide secondary">Continue</button>
+          </form>
+        </div>
+
+        <div data-state="tunnel">
+          <h1>Log in</h1>
+          <p class="signin-to">to Roostack, through the SSH tunnel</p>
+          <form onsubmit="event.preventDefault()">
+            <label>Username <input autocomplete="username" required></label>
+            <label>Password <input type="password" autocomplete="current-password" required></label>
+            <button type="submit" class="wide">Log in</button>
+          </form>
+          <p class="hint mock-new">Passkeys only work at the lab's address, <code>roost.lab.grahamhq.com</code>, so here you'll need your password
+            and code.</p>
+        </div>
+      </section>
+      <p class="signin-foot hint">Smiths' lab runs on <a href="#">Roostack</a></p>
+    </main>
+  </div>
+  <script src="mock.js"></script>
+</body>
+</html>

@@ -33,7 +33,7 @@ func TestCaddySet(t *testing.T) {
 	}
 	// The controller's: filled at once, then only when Caddy's cgroup is
 	// made again.
-	ruleset := "table inet roostack {\n\tset caddy {\n\t\ttypeof socket cgroupv2 level 5\n\t}\n}\n"
+	ruleset := "table inet roostack {\n\tset caddy {\n\t\ttypeof socket cgroupv2 level 6\n\t}\n}\n"
 	c.loaded(ruleset)
 	c.check()
 	if !slices.Equal(ran, []string{add}) {

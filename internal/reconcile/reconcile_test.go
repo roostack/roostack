@@ -46,6 +46,9 @@ func (f *fakeSystemd) Stop(_ context.Context, u ...string) error { return f.reco
 func (f *fakeSystemd) ReloadOrRestart(_ context.Context, u ...string) error {
 	return f.record("reload-or-restart", u)
 }
+func (f *fakeSystemd) SetProperty(_ context.Context, unit string, props ...string) error {
+	return f.record("set-property", append([]string{unit}, props...))
+}
 
 type fakeSecrets struct{ values map[string][]byte }
 
@@ -321,7 +324,11 @@ func TestInstallUpdateRemove(t *testing.T) {
 	// Caddy's image build starts in the background as soon as its file is
 	// written; new services download and start one at a time; a new Caddy
 	// starts last, since its first start waits for that build.
-	if want := []string{"daemon-reload", "start --no-block roostack-caddy-build.service",
+	if want := []string{"daemon-reload",
+		"set-property roostack-core.slice MemoryLow=96M CPUWeight=200 MemoryHigh=infinity",
+		"set-property roostack-services.slice CPUWeight=100 MemoryHigh=infinity",
+		"set-property roostack.slice MemoryLow=96M MemoryHigh=infinity",
+		"start --no-block roostack-caddy-build.service",
 		"start roostack-vaultwarden-app.service", "reload-or-restart roostack-caddy.service"}; !slices.Equal(e.systemd.calls, want) {
 		t.Errorf("calls %v, want %v", e.systemd.calls, want)
 	}
@@ -632,5 +639,51 @@ func TestStartSettles(t *testing.T) {
 		if (err != nil) != c.wantErr {
 			t.Errorf("%s: err %v", c.state, err)
 		}
+	}
+}
+
+// Slices (generate/slices.go) are written to the roostack user's unit
+// folder with a reload and no restart, changed the same way, and removed
+// with their service; a slice of someone else's is left alone.
+func TestSlices(t *testing.T) {
+	e := newEnv(t)
+	sys, err := generate.System(e.lab, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := e.lab.Paths.UserUnitDir()
+	os.MkdirAll(dir, 0o750)
+	os.WriteFile(filepath.Join(dir, "mine.slice"), []byte("someone else's"), 0o644)
+	svc := generate.ServiceSliceFile("forgejo", 0)
+	plan := e.apply(t, Desired{System: sys, Services: []*generate.Output{{Service: "forgejo", Slice: &svc}}})
+	if !plan.DaemonReload || len(plan.RestartUnits) != 0 {
+		t.Errorf("first apply:\n%s", plan)
+	}
+	for _, name := range []string{generate.CoreSlice, generate.ServicesSlice, "roostack-services-forgejo.slice"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	svc = generate.ServiceSliceFile("forgejo", 600_000_000)
+	plan = e.apply(t, Desired{System: sys, Services: []*generate.Output{{Service: "forgejo", Slice: &svc}}})
+	if !plan.DaemonReload || len(plan.RestartUnits) != 0 || len(plan.Write) != 1 {
+		t.Errorf("a new limit:\n%s", plan)
+	}
+	if !slices.Contains(e.systemd.calls, "set-property roostack-services-forgejo.slice MemoryHigh=600000000") {
+		t.Errorf("the new limit isn't set on the running slice: %v", e.systemd.calls)
+	}
+	svc = generate.ServiceSliceFile("forgejo", 0)
+	e.apply(t, Desired{System: sys, Services: []*generate.Output{{Service: "forgejo", Slice: &svc}}})
+	if !slices.Contains(e.systemd.calls, "set-property roostack-services-forgejo.slice MemoryHigh=infinity") {
+		t.Errorf("the limit taken away isn't taken off the running slice: %v", e.systemd.calls)
+	}
+	if plan := e.apply(t, Desired{System: sys}); len(plan.Remove) != 1 || !plan.DaemonReload {
+		t.Errorf("the service gone:\n%s", plan)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "roostack-services-forgejo.slice")); err == nil {
+		t.Error("its slice is still there")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "mine.slice")); err != nil {
+		t.Errorf("someone else's slice: %v", err)
 	}
 }

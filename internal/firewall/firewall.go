@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/trust"
@@ -89,6 +90,17 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 			if devices := lab.Devices.Services[s.Service]; to == trust.Home && len(devices) > 0 {
 				people.Rules = append(people.Rules, agent.DeviceRule{Port: hp.Port, Proto: hp.Protocol, Devices: devices,
 					Reason: s.Service + " " + hp.Name, From: hp.Outside})
+			}
+		}
+	}
+	// Roostack's own DNS server (SPEC.md §6.5.3): port 53 for the home
+	// network and every VPN device, sent on to its port.
+	if lab.LabDNSHere {
+		for _, proto := range []string{"udp", "tcp"} {
+			fw.Allow = append(fw.Allow, agent.Rule{Port: labdns.Port, Proto: proto, For: trust.Home, Reason: "roostack dns", From: 53})
+			if len(lab.Devices.All) > 0 {
+				people.Rules = append(people.Rules, agent.DeviceRule{Port: labdns.Port, Proto: proto, Devices: lab.Devices.All,
+					Reason: "roostack dns", From: 53})
 			}
 		}
 	}

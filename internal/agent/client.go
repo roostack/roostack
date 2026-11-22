@@ -320,6 +320,12 @@ func (c *Client) SSHStatus(ctx context.Context) (SSHStatus, error) {
 	return st, nil
 }
 
+// SetSSHCommunity keeps CrowdSec's community blocklist away from SSH,
+// replacing the list sent before.
+func (c *Client) SetSSHCommunity(ctx context.Context, addrs []string) error {
+	return c.call(ctx, http.MethodPost, "/v1/ssh/community", CommunityRequest{Addresses: addrs}, nil)
+}
+
 // UnblockSSH lets a blocked address reach SSH again at once.
 func (c *Client) UnblockSSH(ctx context.Context, address string) error {
 	return c.call(ctx, http.MethodPost, "/v1/ssh/unblock", UnblockRequest{Address: address}, nil)

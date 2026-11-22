@@ -21,20 +21,23 @@
   {{end}}
 </section>
 {{with .Resolver}}
-{{/* The lab's DNS server for its devices and servers (SPEC.md §6.5.2). */}}
+{{/* The lab's DNS server for its devices and servers (SPEC.md §6.5.2), by
+     default Roostack's own (§6.5.3). */}}
 <section class="card section" id="resolver">
   <h2>DNS for your devices</h2>
-  <p class="hint">A DNS server finds the address of each name a device looks up, and one such as Pi-hole can leave out ads and trackers
-    while it does. The lab's VPN devices will use the one chosen here wherever they are, and so will the servers you tick.
-    For the other devices at home, set it in your router as the DNS server it gives out.</p>
+  <p class="hint">A DNS server finds the address of each name a device looks up. The lab's VPN devices will use the one chosen here
+    wherever they are, and so will the servers you tick. For the other devices at home, set it in your router as the DNS server it gives out.</p>
   {{$use := or .Choice.Use "auto"}}
   <form method="post" action="/settings/resolver" x-data="{ use: '{{$use}}' }">
     <fieldset>
       <legend>Which DNS server</legend>
+      <label class="check"><input type="radio" name="use" value="roostack" x-model="use"{{if eq $use "roostack"}} checked{{end}}>
+        <span>Roostack's own <span class="pill">Recommended</span>
+          <small>It sends your devices straight to the server that runs each service, and passes every other name on to your usual DNS.</small></span></label>
       <label class="check"><input type="radio" name="use" value="auto" x-model="use"{{if eq $use "auto"}} checked{{end}}>
         <span>A DNS server among your services, such as Pi-hole
           <small>{{with .Service}}Now {{.Title}}{{with $.Resolver.Addr}}, at <code>{{.}}</code>{{end}}{{with $.Resolver.Why}}, but it can't be used: {{.}}{{end}}.
-            {{- else}}There isn't one yet, so each device will use its own until you install one.{{end}}</small></span></label>
+            {{- else}}There isn't one yet, so Roostack's own is answering until you install one, which can leave out ads and trackers too.{{end}}</small></span></label>
       <label class="check"><input type="radio" name="use" value="provider" x-model="use"{{if eq $use "provider"}} checked{{end}}>
         <span>Each device's own<small>Usually your internet provider's, through your router. Roostack will leave them alone.</small></span></label>
       <label class="check"><input type="radio" name="use" value="address" x-model="use"{{if eq $use "address"}} checked{{end}}>
@@ -43,13 +46,49 @@
         <label>Its address<input name="address" value="{{.Choice.Address}}" inputmode="decimal" autocomplete="off" placeholder="192.168.1.2"></label>
       </div>
     </fieldset>
+    {{if .Own}}
+    <fieldset>
+      <legend>Roostack's own DNS server</legend>
+      {{if .OwnServer}}
+      <p>It's answering on {{.OwnServerName}}{{with .Addr}} at <code>{{.}}</code>{{end}}{{range .Addrs6}} and <code>{{.}}</code>{{end}}
+        {{- with $.LabDNSErr}}, but it isn't answering yet: {{.}}{{else}}{{with $.LabDNS}}, and {{.Devices}} {{if eq .Devices 1}}device{{else}}devices{{end}}
+        at home asked it something this week{{end}}{{end}}.</p>
+      {{with .Addr}}<p class="hint">To use it at home, open your router's settings, find those for the home network (often called LAN or DHCP), and
+        set the first DNS server to <code>{{.}}</code> and the second to <code>9.9.9.9</code>.
+        {{- with $.Resolver.Addrs6}} If it gives out a DNS server for IPv6 too, set that to <code>{{index . 0}}</code>.{{end}} {{help "settings/domain#roostacks-own-dns-server" "Setting up your router"}}</p>{{end}}
+      {{else}}
+      <p class="hint">Roostack's own can't answer yet: {{.Why}}.</p>
+      {{end}}
+      {{if .Homes}}
+      <label>The server at home that runs it
+        <select name="dns_server">{{range .Homes}}<option value="{{.ID}}"{{if eq .ID $.Resolver.OwnServer}} selected{{end}}>{{.Name}} ({{.Addr}})</option>{{end}}</select></label>
+      <p class="hint">Your lab's controller is on the internet, so a server at home answers for the home network.</p>
+      {{end}}
+      <label>A public DNS server for when your network has none
+        <input name="fallback" value="{{.Choice.Fallback}}" inputmode="decimal" autocomplete="off" placeholder="9.9.9.9"></label>
+      <p class="hint">Roostack's own will ask it only if your home network gives no other DNS server it can pass names on to
+        {{- with $.LabDNS}}{{if .Fallback}}, as it does now since {{.Why}}{{end}}{{end}}.</p>
+      <details class="technical"><summary>Technical details</summary>
+        {{with $.LabDNS}}{{with .Upstreams}}<p>It passes other names on to <code>{{join . ", "}}</code>.</p>{{end}}{{end}}
+        <p>It's the <code>roostack-dns</code> service on {{or .OwnServerName "the server running it"}}, and its log is
+          <code>journalctl -u roostack-dns</code>. The firewall sends port 53 (UDP and TCP) from the home network and the lab's VPN to its
+          port {{labDNSPort}}. It reads the names it answers from <code>/var/lib/roostack/dns/names.json</code>, and it answers
+          <code>AAAA</code> and <code>HTTPS</code> questions for them with nothing.</p>
+        {{if .Names}}<p>The names it answers itself:</p>
+        <ul>{{range $name, $addr := .Names}}<li><code>{{$name}}</code> → <code>{{$addr}}</code></li>{{end}}</ul>
+        {{else}}<p>It answers no names itself yet, so it passes every name on.</p>{{end}}
+      </details>
+    </fieldset>
+    {{end}}
     {{with $.ResolverServers}}
     <fieldset>
       <legend>Servers that use it too</legend>
-      {{range .}}<label class="check"><input type="checkbox" name="server" value="{{.ID}}"{{if has $.Resolver.Choice.Servers .ID}} checked{{end}}><span>{{.Name}}</span></label>{{end}}
-      <p class="hint">Only worth it for a server whose own lookups should leave out ads too. It will ask this DNS server first, and keep its own
-        for when it doesn't answer. It will also trust it for every name it looks up, including the time servers it sets its clock
-        from, so tick a server only if you trust this DNS server as much as the server itself.</p>
+      {{range .}}{{if and $.Resolver.Own (eq .ID $.Resolver.OwnServer)}}<label class="check"><input type="checkbox" disabled><span>{{.Name}}
+        <small>It runs Roostack's own DNS server, so it keeps its own.</small></span></label>
+      {{- else}}<label class="check"><input type="checkbox" name="server" value="{{.ID}}"{{if has $.Resolver.Choice.Servers .ID}} checked{{end}}><span>{{.Name}}</span></label>{{end}}{{end}}
+      <p class="hint">Only worth it for a server whose own lookups should leave out ads too, or reach the lab's services directly. It will ask
+        this DNS server first, and keep its own for when it doesn't answer. It will also trust it for every name it looks up, including
+        the time servers it sets its clock from, so tick a server only if you trust this DNS server as much as the server itself.</p>
     </fieldset>
     {{end}}
     <p class="hint">A device's file names the DNS server only if the device can reach it, so download it again to pick up a change.

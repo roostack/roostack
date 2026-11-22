@@ -25,6 +25,8 @@ type Feeds struct {
 	KEVURL      string
 	EPSSAPI     string
 	HubIndex    string
+	// ForgeURL, in tests, stands in for every Forgejo host (forge.go).
+	ForgeURL string
 }
 
 // DefaultFeeds are the real sources.

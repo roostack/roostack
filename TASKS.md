@@ -422,7 +422,44 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [ ] Services on another server: the controller makes the client secret and sends it in the assignment; `AddHost` to the controller over WireGuard; Caddy lets the lab's servers reach the sign-in page
 - [ ] Removing a service: delete its `service_access` rows (`internal/web/services.go`, left alone while the package editor changes it)
 - [ ] Check on a lab with a real address: a real certificate, the sign-in page public (CrowdSec, AppSec, the login limit, its DNS record), and a backup and restore keeping the signing key (docs/ASSUMPTIONS.md V6)
-- [ ] Later (SPEC §5.2): passkeys (`go-webauthn`, to agree), single sign-out (back-channel logout), signing-key rotation, choosing an app's admins per service
+- [ ] Later (SPEC §5.2): single sign-out (back-channel logout), signing-key rotation, choosing an app's admins per service
 
 - K5: setup-code approach for first-run setup (add to SPEC?)
 - roost.ac must go on the Public Suffix List before people get subdomains there (so browsers keep one lab's cookies away from another's); the request takes weeks, so file it early (SPEC §6.6)
+
+## Memory (SPEC §6.1, "Memory"; built 2026-11-21)
+
+- [x] **How much the services leave:** 200 MB and a tenth of the server's memory, between 300 and 600 MB (the maintainer, 2026-11-21). `generate.MemoryKept`
+- [ ] **Roostack, Caddy, and CrowdSec use less memory,** so that 400 MB kept is enough on a 2 GB server, where Roostack's protection was still broken through now and then (SPEC §6.1, "Memory", "Tried on a 2 GB VM"). On the Linode (0.1.10, 2026-11-21) Roostack held 182 MB of its own, CrowdSec 52 MB, and Caddy's group 50 MB. Profiled on a 2 GB VM with six services (2026-11-21):
+  - [x] Every page parsed all the shared templates: 58 MB, now 13 MB (each page gets the parts it calls). A fresh Roostack holds 32 MB rather than 88 MB.
+  - [x] The checks every minute parsed every service's package again; the lab's copies are now kept parsed (`state.packageCache`), handed out as deep copies.
+  - [ ] Each password check holds 64 MiB: the maintainer kept 64 MiB, with a few checks at once (`authkit.SetMaxChecks`, on the security review's branch, not merged yet).
+  - [ ] Caddy's own Go heap is 5 MB (so `GOMEMLIMIT` wouldn't help); most of its group is Podman's pasta, 29 MB, and on the Linode pasta and rootlessport came to about 65 MB. Whether Caddy could use the host's network instead: later (the maintainer, 2026-11-21).
+  - [ ] Measure on the Linode once released.
+- [ ] Measure on the Linode once released: Home's first view after a quiet spell, Roostack's swap, and `memory.events` (`low` on `roostack.service`, `high` on `roostack-services.slice`)
+- [ ] Later, if needed (docs/MEMORY-PLAN.md E, G): systemd-oomd on the services' slice; disk weights
+
+## Keeping services away from Roostack's own user (docs/CONTAINER-ISOLATION-PLAN.md)
+
+- [x] A block of IDs for each service (Option A) prototyped on two VMs: it worked, but each service would keep its own copy of every image it uses, and the change would reach most of Roostack. Deferred by the maintainer (2026-11-21); SPEC §6.10 item 7 says what an escaped container would be
+- [ ] Go through the hardening list (Option 0) together: `NoNewPrivileges` for every container, fewer capabilities, read-only root filesystems per package, whether a needed kernel restart is visible, and whether a container can reach Roostack's listeners on the host
+
+## Roostack's own DNS server (SPEC §6.5.3; decided 2026-11-22)
+
+Phase 1, before direct serving's phase 2 (built 2026-11-22; each step tested before the next):
+
+- [x] `internal/labdns` on `golang.org/x/net/dns/dnsmessage` (agreed 2026-11-22): the lab's names answered (`A` with the serving server's home address, `AAAA` and `HTTPS` empty), everything else passed on as it came, NXDOMAIN for `use-application-dns.net`, UDP and TCP on 5055, recursion refused outside the home network and the VPN range, check names noted for a minute and distinct home addresses counted for 7 days, a Unix socket for the daemon; unit tests and a fuzz test on the parsing
+- [x] `roostack dns` and `roostack-dns.service` in the Debian package, sandboxed tighter than the daemon (the names file and its socket only), started only on the server chosen to run it
+- [x] The names file (`/var/lib/roostack/dns/names.json`) from the list Caddy's sites come from, with the old address's names; the upstreams from `/run/systemd/resolve/resolv.conf` (else `/etc/resolv.conf`) without the server's own addresses, the probe for a router sending questions back, Quad9 or the Owner's address otherwise
+- [x] `config.ResolverRoostack`, automatic meaning Roostack's own when no DNS service is installed; `resolverOf` for it; the server running it (the controller at home, else a home node the Owner chooses); Servers that use it too can't tick that server
+- [x] On a node: the names with its assignment, its own firewall rules, the lab API for the check and the count
+- [x] Firewall: 53 → 5055, UDP and TCP, for `trust.Home` and every VPN device (`agent.People`), IPv4 and the server's `fc00::/7` addresses
+- [x] Settings → Where it is and DNS: Roostack's own first, its addresses, server, upstream, devices this week, and Details (names, file, log); Settings → VPN: devices whose files are from before the change
+- [x] The check on Your account → Services: a hidden picture from `check-<token>.<domain>` (the CSP's `img-src` for that host), `dnscheck.js` asking for the answer, a link that does the same without scripts
+- [x] Help: what it does, the router steps (LAN/DHCP, not WAN; a public second server; IPv6; a reserved address), when the router can't
+- [x] Checked on a VM with a network namespace as a home device and one as a VPN device: answers, passing on, refused from outside, the loop guard, the check in the browser (desktop and phone width)
+
+Later:
+
+- [ ] With direct serving's phase 1: the Needs attention note (a cloud node's public route with parts kept private, no home device on the lab's DNS for 7 days), and the controller's Caddy keeping a site for each route a cloud node serves directly
+- [ ] With direct serving's phase 2: per-name answers with a home node's address, and per-name lines in Pi-hole's and AdGuard Home's templates

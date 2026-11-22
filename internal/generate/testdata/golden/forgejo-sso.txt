@@ -31,6 +31,7 @@ Label=io.roostack.service=forgejo
 Label=io.roostack.component=db-main
 
 [Service]
+Slice=roostack-services-forgejo.slice
 Restart=always
 TimeoutStartSec=900
 
@@ -75,6 +76,7 @@ Label=io.roostack.component=app
 User=1000:1000
 
 [Service]
+Slice=roostack-services-forgejo.slice
 Restart=always
 TimeoutStartSec=900
 

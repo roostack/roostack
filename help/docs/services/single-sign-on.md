@@ -129,6 +129,35 @@ can be reached from the internet).
 Someone with a temporary password will choose their own on Roostack's pages
 first.
 
+### Passkeys
+
+Anyone can add a **passkey** on Your account → **Security**: their
+fingerprint, their face, or their device's PIN will then sign them in
+without a password or code. **Sign in with a passkey** is above the
+username box, and the browser offers it in the username box too. A
+passkey only works on the lab's own pages, so a fake sign-in page can't
+steal it, and it counts as two-factor on its own, since the device checks
+it's them each time. Roostack will also accept it instead of a code
+wherever it asks someone to confirm it's them, such as before showing the
+recovery key.
+
+Adding one asks for the person's password and code first (or a passkey
+they already have), and Roostack will email them that one was added. The
+password and code keep working too, and they're needed where passkeys
+can't work: through the SSH tunnel, and before the lab has an address.
+
+??? note "For technical users"
+    Roostack keeps only each passkey's public key, in its database
+    (`/var/lib/roostack/roostack.db`, table `passkeys`), with the domain
+    it was made for. Passkeys are made for the lab's domain (the relying
+    party ID), so one works at `my.` and `roost.`, and Roostack accepts
+    them at those two addresses only, never at an app's. It asks the
+    device to verify the person every time and doesn't ask which make of
+    device made one (no attestation). If the lab's domain changes, passkeys
+    made for the old one stop working: people sign in with their password
+    and code, and add new ones. Roostack uses
+    [go-webauthn](https://github.com/go-webauthn/webauthn).
+
 **Signing out** of the sign-in page will end access to services behind it
 at once, and to Roostack's own pages. Apps that keep their own sign-in
 (Mealie, say) will stay signed in until you sign out there too.

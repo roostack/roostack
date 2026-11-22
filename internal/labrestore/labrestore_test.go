@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/backup/restictest"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/nodeid"
 )
@@ -85,6 +86,8 @@ func TestFindAndRestoreALab(t *testing.T) {
 	// that server's backups).
 	write(t, filepath.Join(paths.InstancesDir(), "vaultwarden.yaml"), "package: vaultwarden\n")
 	write(t, filepath.Join(paths.InstancesDir(), "photos.yaml"), "package: photos\nhost: n-1111111111\n")
+	// Notes runs here too, but none of the backups has it.
+	write(t, filepath.Join(paths.InstancesDir(), "notes.yaml"), "package: notes\n")
 	photos := filepath.Join(paths.ServicesDir, "photos")
 	write(t, filepath.Join(photos, "old.jpg"), "from before it moved")
 	for _, r := range []*backup.Repo{old, other, forged} {
@@ -240,6 +243,24 @@ func TestFindAndRestoreALab(t *testing.T) {
 	}
 	if _, err := os.Stat(photos); !os.IsNotExist(err) {
 		t.Error("a service on another server was restored here")
+	}
+	// Vaultwarden's databases wait for their dumps to be loaded (step 3),
+	// naming the backup they came from; Notes, with no backup, is held
+	// stopped, and the restore says so at the end.
+	vw, err := instance.Load(filepath.Join(paths.InstancesDir(), "vaultwarden.yaml"))
+	if err != nil || vw.DumpsPending == nil || !strings.HasPrefix(vw.DumpsPending.Backup, "backup:"+id.ID+"@") ||
+		vw.DumpsPending.Taken.IsZero() || vw.Held != nil {
+		t.Errorf("vaultwarden after the restore: %+v %v", vw, err)
+	}
+	notes, err := instance.Load(filepath.Join(paths.InstancesDir(), "notes.yaml"))
+	if err != nil || notes.Held == nil || !notes.Held.NoBackup || notes.DumpsPending != nil {
+		t.Errorf("a service with no backup: %+v %v", notes, err)
+	}
+	if ph, _ := instance.Load(filepath.Join(paths.InstancesDir(), "photos.yaml")); ph.DumpsPending != nil || ph.Held != nil {
+		t.Errorf("a service on another server: %+v", ph)
+	}
+	if lines := strings.Join(log.Snapshot().Lines, "\n"); !strings.Contains(lines, "notes wasn't restored, as Roostack found no backup of it") {
+		t.Errorf("the restore doesn't name the service it couldn't restore:\n%s", lines)
 	}
 	if got, _ := nodeid.LoadOrCreate(paths.StateDir); got.ID != id.ID {
 		t.Errorf("the restored server is %s, want the old server's identity", got.ID)

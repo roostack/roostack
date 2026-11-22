@@ -27,6 +27,9 @@ type VPNDevice struct {
 	// it reaches SSH (an Owner's).
 	Pages, SSH bool
 	Created    time.Time
+	// DNS is the DNS server its file named when it was last made, "" for
+	// none (SPEC.md §6.5.3).
+	DNS string
 }
 
 // ErrDeviceLimit means the person has as many devices as the Owner allows.
@@ -36,12 +39,12 @@ var ErrDeviceLimit = errors.New("that's as many devices as the lab allows each p
 // devices get the ones after it (trust.DevicesRange).
 var vpnServerAddress = netip.MustParseAddr("100.96.128.1")
 
-const vpnDeviceColumns = `d.id, d.user_id, u.username, u.role, d.name, d.public_key, d.address, d.home, d.internet, d.pages, d.ssh, d.created_at`
+const vpnDeviceColumns = `d.id, d.user_id, u.username, u.role, d.name, d.public_key, d.address, d.home, d.internet, d.pages, d.ssh, d.created_at, d.dns`
 
 func scanVPNDevice(row scanner) (VPNDevice, error) {
 	var d VPNDevice
 	var created int64
-	err := row.Scan(&d.ID, &d.UserID, &d.Username, &d.Role, &d.Name, &d.PublicKey, &d.Address, &d.Home, &d.Internet, &d.Pages, &d.SSH, &created)
+	err := row.Scan(&d.ID, &d.UserID, &d.Username, &d.Role, &d.Name, &d.PublicKey, &d.Address, &d.Home, &d.Internet, &d.Pages, &d.SSH, &created, &d.DNS)
 	d.Created = time.Unix(created, 0)
 	return d, err
 }
@@ -136,5 +139,12 @@ func (s *Store) SetVPNDevice(ctx context.Context, d VPNDevice) error {
 // DeleteVPNDevice removes a device.
 func (s *Store) DeleteVPNDevice(ctx context.Context, id int64) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM vpn_devices WHERE id = ?`, id)
+	return err
+}
+
+// SetVPNDeviceDNS notes the DNS server a device's new file names ("" for
+// none).
+func (s *Store) SetVPNDeviceDNS(ctx context.Context, id int64, dns string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE vpn_devices SET dns = ? WHERE id = ?`, dns, id)
 	return err
 }

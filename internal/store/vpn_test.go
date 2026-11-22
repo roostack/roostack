@@ -49,6 +49,12 @@ func TestVPNDevices(t *testing.T) {
 	if got, _ := s.VPNDevice(ctx, c.ID); !got.SSH || !got.Home || !got.Internet || got.Role != "owner" {
 		t.Errorf("changed: %+v", got)
 	}
+	if err := s.SetVPNDeviceDNS(ctx, c.ID, "192.168.1.5"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.VPNDevice(ctx, c.ID); got.DNS != "192.168.1.5" || !got.SSH {
+		t.Errorf("its file's DNS server: %+v", got)
+	}
 	if list, _ := s.UserVPNDevices(ctx, sam); len(list) != 1 {
 		t.Errorf("sam's: %+v", list)
 	}

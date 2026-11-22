@@ -68,11 +68,16 @@ func user(args []string) error {
 		} else if err != nil {
 			return err
 		}
-		if err := st.ResetTOTP(ctx, u.ID); err != nil {
+		removed, err := st.ResetTOTP(ctx, u.ID)
+		if err != nil {
 			return err
 		}
-		st.Audit(ctx, nil, "2FA reset", name+" via command line")
-		fmt.Printf("Two-factor authentication is off for %s, and they have been logged out everywhere.\n", name)
+		detail := ""
+		if removed > 0 {
+			detail = fmt.Sprintf(" and %d passkey(s) removed", removed)
+		}
+		st.Audit(ctx, nil, "2FA reset", name+detail+" via command line")
+		fmt.Printf("Two-factor authentication is off for %s, %d passkey(s) removed, and they have been logged out everywhere.\n", name, removed)
 		if u.Role == auth.RoleOwner {
 			fmt.Println("As an Owner, they'll set it up again when they next log in.")
 		}

@@ -1,16 +1,29 @@
-{{define "title"}}Two-factor code{{end}}
+{{define "title"}}{{if .Code}}Two-factor code{{else}}Your passkey{{end}}{{end}}
 {{define "content"}}
-<section class="card narrow">
-  <h1>Enter your code</h1>
-  <p>Open your authenticator app and enter the 6-digit code for Roostack.</p>
+<section class="card narrow" data-passkey-area>
+  <h1>{{if and .Code .Passkey}}One more step{{else if .Code}}Enter your code{{else}}Use your passkey{{end}}</h1>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .Passkey}}
+  <p class="error" role="alert" data-passkey-error hidden></p>
+  <p data-passkey-shown hidden><button type="button" class="wide passkey-button" data-passkey="/login/passkey/options/second" data-form="passkey-second"
+    data-failed="The passkey didn't work, or you cancelled it.{{if .Code}} Try again, or enter your code.{{else}} Try again.{{end}}">{{icon "key"}} Use your passkey</button></p>
+  <form id="passkey-second" method="post" action="/login/totp" hidden></form>
+  {{if .Code}}<p class="or" data-passkey-shown hidden><span>or</span></p>{{end}}
+  {{else if and .NoPasskeyHere (not .Code)}}
+  <p>Passkeys only work at the lab's address, <code>{{.UIHost}}</code>, and you have no authenticator app, so you can't log in here.
+    <a href="/help/trouble/locked-out/" target="_blank" rel="noopener">Getting back in{{template "new-window"}}</a>.</p>
+  {{end}}
+  {{if .Code}}
+  <p>Open your authenticator app and enter the 6-digit code for Roostack.</p>
   <form method="post" action="/login/totp">
     <label>Code
-      <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required autofocus>
+      <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required{{if not .Passkey}} autofocus{{end}}>
     </label>
-    <button type="submit">Continue</button>
+    <button type="submit"{{if .Passkey}} class="secondary"{{end}}>Continue</button>
   </form>
+  {{end}}
 </section>
+{{if .Passkey}}<script src="/static/passkey.js" defer></script>{{end}}
 {{end}}
 
 {{define "page-help"}}{{help "trouble/locked-out#you-lost-your-phone-two-factor" "Lost your phone?"}}{{end}}

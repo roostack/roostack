@@ -92,6 +92,11 @@ type SSHStatus struct {
 	// Blocked are the addresses that can't reach SSH for now, after too
 	// many wrong passwords (sshblocks.go).
 	Blocked []SSHBlock `json:"blocked,omitempty"`
+	// Community is how many addresses and ranges on CrowdSec's community
+	// blocklist can't reach SSH, as the list came at CommunityAt
+	// (sshcommunity.go); none while no list has come.
+	Community   int64     `json:"community,omitempty"`
+	CommunityAt time.Time `json:"community_at,omitzero"`
 	// Error says why it couldn't all be read (a broken configuration makes
 	// `sshd -T` fail); what was read is still there.
 	Error string `json:"error,omitempty"`
@@ -129,6 +134,8 @@ func (h LinuxHost) SSHStatus() (SSHStatus, error) {
 	guesses, addrs, counted := sshGuesses.day(time.Now())
 	st.Guesses, st.GuessAddresses, st.GuessesCounted = int64(guesses), int64(addrs), counted
 	st.Blocked = sshBlocks.list(time.Now())
+	n, at := sshBlocks.communityCount(time.Now())
+	st.Community, st.CommunityAt = int64(n), at
 	st.Sudoers = slices.DeleteFunc(groupMembers("sudo"), func(name string) bool { return name == "root" })
 	if _, err := os.Stat(SSHDropIn); err == nil {
 		st.KeysOnly = true

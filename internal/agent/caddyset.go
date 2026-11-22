@@ -23,12 +23,15 @@ import (
 
 const (
 	caddySetName = "caddy"
-	// caddyUnit is Caddy's systemd unit, as Roostack names it
-	// (generate.CaddyUnit, which a test checks).
-	caddyUnit = "roostack-caddy"
+	// caddyUnit is Caddy's systemd unit, and caddySlices the slices it
+	// runs in under the roostack user's manager, as Roostack names them
+	// (generate.CaddyUnit, RoostackSlice and CoreSlice, which a test
+	// checks).
+	caddyUnit   = "roostack-caddy"
+	caddySlices = "roostack.slice/roostack-core.slice"
 	// caddyCgroupLevel is how deep Caddy's unit is in the cgroup tree
 	// (CaddyCgroup): its pasta and container are below it.
-	caddyCgroupLevel = 5
+	caddyCgroupLevel = 6
 	// caddyCheckEvery is how often the agent looks for Caddy's cgroup
 	// being made again: for up to that long after Caddy starts, it can't
 	// reach the lab's other servers.
@@ -38,7 +41,7 @@ const (
 // CaddyCgroup is Caddy's unit's cgroup under the roostack user's systemd
 // manager, relative to the cgroup root.
 func CaddyCgroup(uid int) string {
-	return fmt.Sprintf("user.slice/user-%d.slice/user@%d.service/app.slice/%s.service", uid, uid, caddyUnit)
+	return fmt.Sprintf("user.slice/user-%d.slice/user@%d.service/%s/%s.service", uid, uid, caddySlices, caddyUnit)
 }
 
 var caddySet = &caddyCgroup{root: "/sys/fs/cgroup", stat: cgroupID, nft: runNft}

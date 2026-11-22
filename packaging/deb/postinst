@@ -64,10 +64,35 @@ ReadWritePaths=/run/user/$uid
 BindPaths=/run/user/$uid
 CONF
 
+# The roostack user's manager keeps memory for Caddy (SPEC.md §6.1,
+# "Memory"): the kernel honours a slice's MemoryLow only as far as every
+# one above it has as much, and these two have the UID in their names.
+# user.slice's is in /usr/lib/systemd/system/user.slice.d.
+install -d "/etc/systemd/system/user-$uid.slice.d" "/etc/systemd/system/user@$uid.service.d"
+cat > "/etc/systemd/system/user-$uid.slice.d/roostack-memory.conf" <<CONF
+# Written by the roostack package: memory kept for Caddy, in the roostack
+# user's manager (SPEC.md §6.1, "Memory").
+[Slice]
+MemoryLow=96M
+CONF
+cat > "/etc/systemd/system/user@$uid.service.d/roostack-memory.conf" <<CONF
+# Written by the roostack package: memory kept for Caddy, in the roostack
+# user's manager (SPEC.md §6.1, "Memory").
+[Service]
+MemoryLow=96M
+CONF
+
 systemctl daemon-reload
+# zswap now rather than at the next boot (/usr/lib/tmpfiles.d/
+# roostack-zswap.conf; SPEC.md §6.1, "Memory").
+systemd-tmpfiles --create roostack-zswap.conf >/dev/null 2>&1 || true
 # The services' containers wait at boot until the server has its address
 # (docs/ASSUMPTIONS.md C11).
 systemctl enable roostack-wait-online.service roostack-agent.service roostack.service >/dev/null
+# Roostack's own DNS server starts on the server Roostack chooses, when it
+# writes the names file (SPEC.md §6.5.3).
+systemctl enable --now roostack-dns.path >/dev/null
+systemctl try-restart roostack-dns.service
 systemctl restart roostack-agent.service
 systemctl restart roostack.service
 

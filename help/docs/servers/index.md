@@ -26,6 +26,29 @@ than the server has, the home page says so in a warning, and the Servers
 page shows the part in swap as a striped stretch of each server's memory
 bar. More memory, or fewer services on that server, is the cure.
 
+Roostack keeps a share of each server's memory for itself and the
+system, so its pages, the sign-in page, and the web addresses stay quick
+whatever the services do: the services together may use all of the
+server's memory but 400 MB. Past that, the server slows them down rather
+than stopping them. When the services on a server would together need
+more than that, Roostack also holds each one to about twice what its
+package expects, and its page says when it's being slowed down. You can
+choose another limit, or none, on its settings page, under
+[Memory](../services/settings.md#memory).
+
+??? note "For technical users"
+    Roostack runs Caddy in `roostack-core.slice` (`MemoryLow=96M`), and
+    the services in `roostack-services.slice` with `MemoryHigh` at the
+    server's memory less 400 MB, each in its own
+    `roostack-services-<name>.slice`, all in
+    `/var/lib/roostack/home/.config/systemd/user/`. `roostack.service`
+    and `roostack-agent.service` have `MemoryLow` (256 MB and 64 MB) and
+    `OOMScoreAdjust=-500`. Limits are `MemoryHigh`, never `MemoryMax`:
+    the kernel reclaims a service's memory and moves it to swap rather
+    than killing it. Roostack's package also turns zswap on
+    (`/usr/lib/tmpfiles.d/roostack-zswap.conf`), so memory moved to swap
+    is first kept compressed in memory.
+
 - [Add a server](add.md)
 - [Move a service](move.md) to another server
 - [When a server is gone](gone.md): bring its services back elsewhere

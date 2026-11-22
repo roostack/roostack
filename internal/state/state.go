@@ -41,7 +41,8 @@ type Stop struct {
 // Output is what runs of a service on its server: generate.Service's, but
 // only its network and databases while Roostack has stopped it (SPEC.md
 // §8.3.4), it waits for its data to be brought in (SPEC.md §8.4) or it's
-// held after a restore that didn't finish (SPEC.md §6.9), and only its
+// held after a restore that didn't finish (SPEC.md §6.9) or its databases
+// wait to be loaded after a lab restore (labrestore), and only its
 // network and its address's "turned off" page while someone has turned
 // it off (SPEC.md §6.3.5).
 func Output(lab config.Lab, s Service) (*generate.Output, error) {
@@ -67,6 +68,10 @@ func trim(out *generate.Output, s Service) {
 	case s.Instance != nil && s.Instance.Held != nil:
 		// Its databases run, so they can be loaded again (SPEC.md §6.9,
 		// "A restore that didn't finish").
+		generate.Stop(out, s.Package, true)
+	case s.Instance != nil && s.Instance.DumpsPending != nil:
+		// Its databases run, empty until a lab restore's last step loads
+		// their dumps; then the app starts (labrestore).
 		generate.Stop(out, s.Package, true)
 	}
 }
@@ -157,12 +162,19 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	// (SPEC.md §5.3).
 	first := map[string]string{}
 	lab.SharedLibraries = SharedLibraries(lab, services)
+	tight := MemoryTight(lab, services)
 	for _, s := range services {
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
+		limit, err := generate.MemoryLimit(lab, s.Package, s.Instance, tight)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: memory limit: %w", s.Name(), err))
+		}
+		slice := generate.ServiceSliceFile(s.Name(), limit)
+		out.Slice = &slice
 		// A stopped service keeps its names and ports, so nothing else takes
 		// them while it's stopped.
 		for _, h := range out.Hosts {
@@ -197,7 +209,7 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		d.Services = append(d.Services, out)
 	}
 	for _, s := range proxied {
-		if s.Stop != nil || (s.Instance != nil && (s.Instance.AwaitingData || s.Instance.Held != nil)) {
+		if s.Stop != nil || (s.Instance != nil && (s.Instance.AwaitingData || s.Instance.Held != nil || s.Instance.DumpsPending != nil)) {
 			continue // its server has stopped it: nothing to pass on
 		}
 		out, err := generate.ProxySite(lab, s.Package, s.Instance, s.Addr)
@@ -239,6 +251,27 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	}
 	d.System = sys
 	return d, errors.Join(errs...)
+}
+
+// MemoryTight says whether the services on this server together expect
+// more memory than they may use (generate.ServicesMemory), which is when
+// each is held to its own automatic limit (generate.MemoryLimit). A
+// service that's turned off uses none.
+func MemoryTight(lab config.Lab, services []Service) bool {
+	can := generate.ServicesMemory(lab.MemoryTotal)
+	if can == 0 {
+		return false
+	}
+	var expected int64
+	for _, s := range services {
+		if s.Instance.Off != nil {
+			continue
+		}
+		if mem, err := generate.ExpectedMemory(lab, s.Package, s.Instance); err == nil {
+			expected += mem
+		}
+	}
+	return expected > can
 }
 
 // HostInUseError is a web address (hostname) that another service, or

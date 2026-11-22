@@ -39,6 +39,7 @@
     Roostack will change every backup to open with the new key, and the old one will stop working.</p>
   {{notice "warn" "This will protect you if only the key leaked. If someone may also have copied your backups themselves, they could still read those copies with the old key, and a new key alone won't stop that."}}
   {{if .Change}}<p><strong>A new key was made, but you haven't confirmed saving it.</strong> Enter your password and a code to see it again.</p>{{end}}
+  {{if .Passkey}}{{template "passkey-or" "/backups/recovery-key/change"}}{{end}}
   <form method="post" action="/backups/recovery-key/change">
     <label>Your password
       <input name="password" type="password" autocomplete="current-password" required autofocus>

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
@@ -52,6 +53,7 @@ func (f *fakeSystemd) Stop(_ context.Context, u ...string) error    { return f.r
 func (f *fakeSystemd) ReloadOrRestart(_ context.Context, u ...string) error {
 	return f.rec("reload-or-restart", u)
 }
+func (f *fakeSystemd) SetProperty(context.Context, string, ...string) error { return nil }
 
 type fakeSecrets struct {
 	mu     sync.Mutex
@@ -232,6 +234,52 @@ func TestInstallAndRemove(t *testing.T) {
 	if _, err := os.Stat(container); err != nil {
 		t.Errorf("turned on, its container's file isn't back: %v", err)
 	}
+
+	// After a lab restore, turned off: turned on, only its databases run
+	// and its dumps are loaded; then its app starts (labrestore).
+	file := state.InstanceFile(m.Lab, "vaultwarden")
+	vw, _ := instance.Load(file)
+	taken := time.Now().Add(-time.Hour)
+	vw.DumpsPending = &instance.Restored{Backup: "backup:n1@abc", Taken: taken}
+	vw.Off = &config.Pause{Since: time.Now(), By: "sam"}
+	vw.Save(file)
+	loads := 0
+	m.LoadDumps = func() { loads++ }
+	if err := m.SetOff(ctx, "vaultwarden", false, "sam"); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if _, err := os.Stat(container); !os.IsNotExist(err) || loads != 1 {
+		t.Errorf("turned on with its dumps waiting: the app's file is there (%v), or %d loads asked for", err, loads)
+	}
+	if err := m.DumpsLoaded("vaultwarden", nil); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if vw, _ := instance.Load(file); vw.DumpsPending != nil || vw.Held != nil {
+		t.Errorf("its dumps loaded: %+v", vw)
+	}
+	if _, err := os.Stat(container); err != nil {
+		t.Errorf("its dumps loaded, its app's file isn't back: %v", err)
+	}
+	// Dumps that don't load: held stopped, with the backup they came from.
+	vw, _ = instance.Load(file)
+	vw.DumpsPending = &instance.Restored{Backup: "backup:n1@abc", Taken: taken}
+	vw.Save(file)
+	if err := m.DumpsLoaded("vaultwarden", errors.New("pg_restore failed")); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if vw, _ := instance.Load(file); vw.DumpsPending != nil || vw.Held == nil || vw.Held.Backup != "backup:n1@abc" ||
+		!vw.Held.Taken.Equal(taken) || vw.Held.Error != "pg_restore failed" {
+		t.Errorf("its dumps didn't load: %+v", vw)
+	}
+	if _, err := os.Stat(container); !os.IsNotExist(err) {
+		t.Error("held, its app's file is still there")
+	}
+	vw, _ = instance.Load(file)
+	vw.Held = nil
+	vw.Save(file)
 
 	// Remove keeps the data.
 	os.MkdirAll(filepath.Join(m.Lab.Paths.ServicesDir, "vaultwarden", "data"), 0o755)
