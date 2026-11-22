@@ -24,6 +24,7 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/editor"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
@@ -319,6 +320,11 @@ type ServiceCatalog interface {
 	// Resolver and SetResolver are the lab's DNS server (SPEC.md §6.5.2).
 	Resolver(ctx context.Context) manager.Resolver
 	SetResolver(ctx context.Context, choice config.Resolver) error
+	// Roostack's own DNS server: how it's doing, and Your account's check
+	// (SPEC.md §6.5.3).
+	LabDNSStatus(ctx context.Context) (labdns.Status, error)
+	LabDNSCheck(ctx context.Context, token string) (bool, error)
+	LabDNSInUse(ctx context.Context) bool
 	PortHost(name string) string
 	CurrentSettings(name string) (map[string]any, string, error)
 	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error

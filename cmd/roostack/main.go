@@ -77,6 +77,8 @@ func run(cmd string, args []string) error {
 		return backupHelper(args)
 	case "wait-online": // internal: roostack-wait-online.service
 		return waitOnline(args)
+	case "dns": // internal: roostack-dns.service
+		return dnsCmd(args)
 	case "render":
 		return render(args)
 	case "validate":

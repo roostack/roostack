@@ -1,0 +1,12 @@
+[Unit]
+Description=Roostack's DNS server for home and VPN devices, while it's wanted here
+Documentation=file:///usr/share/doc/roostack/ARCHITECTURE.md
+
+# Roostack writes the names file only on the server chosen to answer the
+# lab's DNS (SPEC.md §6.5.3), and deletes it elsewhere; the DNS server
+# stops by itself once it's gone.
+[Path]
+PathExists=/var/lib/roostack/dns/names.json
+
+[Install]
+WantedBy=multi-user.target

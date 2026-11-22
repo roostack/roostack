@@ -89,6 +89,10 @@ systemd-tmpfiles --create roostack-zswap.conf >/dev/null 2>&1 || true
 # The services' containers wait at boot until the server has its address
 # (docs/ASSUMPTIONS.md C11).
 systemctl enable roostack-wait-online.service roostack-agent.service roostack.service >/dev/null
+# Roostack's own DNS server starts on the server Roostack chooses, when it
+# writes the names file (SPEC.md §6.5.3).
+systemctl enable --now roostack-dns.path >/dev/null
+systemctl try-restart roostack-dns.service
 systemctl restart roostack-agent.service
 systemctl restart roostack.service
 

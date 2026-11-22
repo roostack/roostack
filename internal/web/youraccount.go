@@ -66,6 +66,7 @@ func (s *Server) acctRoutes(mux *http.ServeMux, with func(acctHandler) http.Hand
 	mux.Handle("POST /account/two-factor", with(s.acctTwoFactorSubmit))
 	mux.Handle("POST /account/sign-out", with(s.acctSignOutSubmit))
 	mux.Handle("POST /account/sign-out-others", with(s.acctSignOutOthersSubmit))
+	mux.Handle("GET /account/dns-check", with(s.acctDNSCheck))
 	mux.Handle("GET /account/notifications", with(s.acctNotifications))
 	mux.Handle("POST /account/notifications", with(s.acctNotificationsSubmit))
 	mux.Handle("GET /account/devices", with(s.acctDevicesPage))
@@ -177,6 +178,8 @@ type acctView struct {
 	RunLab, Photos string
 	Until          time.Time
 	SignedInHref   string
+	// DNSCheck is whether this device uses the lab's DNS (dnscheck.go).
+	DNSCheck *dnsCheck
 
 	// Account.
 	Name, Email string
@@ -263,6 +266,13 @@ func (s *Server) renderAcct(w http.ResponseWriter, r *http.Request, a *acct, sta
 // acctServices is the Services tab: the services someone can use, Roostack's
 // pages for Owners and Admins, and the photo migration when it applies.
 func (s *Server) acctServices(w http.ResponseWriter, r *http.Request, a *acct) {
+	v := s.acctServicesView(r, a)
+	allowCheckImage(w, v.DNSCheck)
+	s.renderAcct(w, r, a, http.StatusOK, v)
+}
+
+// acctServicesView is the Services tab's view.
+func (s *Server) acctServicesView(r *http.Request, a *acct) acctView {
 	v := acctView{Tab: "services", Title: "Your services", Apps: s.usableApps(r, a), SignedInHref: "/account/security#signed-in"}
 	if a.SignIn {
 		v.Until = a.Expires
@@ -279,7 +289,8 @@ func (s *Server) acctServices(w http.ResponseWriter, r *http.Request, a *acct) {
 			v.Photos = "https://" + s.UIHost + "/immich-photos"
 		}
 	}
-	s.renderAcct(w, r, a, http.StatusOK, v)
+	v.DNSCheck = s.dnsCheckFor(r)
+	return v
 }
 
 // usableApps are the services a's person can open: those with single

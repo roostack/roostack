@@ -482,6 +482,11 @@ var migrations = []string{
 		created_at INTEGER NOT NULL,
 		last_used_at INTEGER NOT NULL DEFAULT 0
 	)`,
+	// 44 (2026-11-22): the DNS server each VPN device's file named when
+	// it was last made ("" for none), so that Settings → VPN can say
+	// which devices have files from before the lab's DNS server changed
+	// (SPEC.md §6.5.3).
+	`ALTER TABLE vpn_devices ADD COLUMN dns TEXT NOT NULL DEFAULT ''`,
 }
 
 // Open opens (creating if needed) and migrates the database.

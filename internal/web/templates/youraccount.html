@@ -85,7 +85,28 @@
   <a href="{{.}}">{{icon "import"}}<span><strong>Migrate your photos into Immich</strong>
     <small>From Google Photos or a folder.</small></span></a>
 </div>{{end}}
+{{with .DNSCheck}}{{template "acct-dns-check" .}}{{end}}
 <p class="hint">{{if not .Until.IsZero}}Signed in on this device until {{date .Until}}. {{end}}<a href="{{.SignedInHref}}">Where you're signed in</a></p>
+{{end}}
+
+{{define "acct-dns-check"}}
+{{/* Whether this device uses the lab's DNS (SPEC.md §6.5.3, dnscheck.go):
+     the picture's name is one nobody has asked for before, so loading it
+     tells Roostack's own DNS server whether this device asks it.
+     dnscheck.js shows the answer; without it, Check this device does. */}}
+<section class="card acct-dns" data-dns-check="{{.Result}}">
+  <img src="{{.Image}}" alt="" width="1" height="1" class="sr-only" data-dns-image>
+  <p data-dns="checking" hidden>Checking whether this device is using the lab's DNS…</p>
+  <p data-dns="yes"{{if ne .State "yes"}} hidden{{end}}>{{icon "check"}} This device is using the lab's DNS, so it will reach each service
+    straight from home.</p>
+  <div data-dns="no"{{if ne .State "no"}} hidden{{end}}>
+    <p>This device isn't using the lab's DNS yet, so some services may go the long way round, and parts of them kept to home may not open.</p>
+    {{with .Addr}}<p class="hint">To use it, set this device's DNS server to <code>{{.}}</code>, or ask whoever looks after the lab to set it in
+      your router, which will set it for every device at home.</p>{{end}}
+  </div>
+  <p data-dns="link"{{if .State}} hidden{{end}}><a href="{{.Result}}">Check whether this device is using the lab's DNS</a></p>
+</section>
+<script src="/static/dnscheck.js" defer></script>
 {{end}}
 
 {{define "acct-account"}}

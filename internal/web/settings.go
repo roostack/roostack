@@ -356,7 +356,13 @@ func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {
 	data := s.pageData(r)
 	data["DNS"] = s.dnsView(r)
 	data["NetworkForm"] = s.networkForm(r, false)
-	data["Resolver"] = s.Manager.Resolver(r.Context())
+	resolver := s.Manager.Resolver(r.Context())
+	data["Resolver"] = resolver
+	if resolver.Own && resolver.OwnServer != "" {
+		// How Roostack's own DNS server is doing (SPEC.md §6.5.3).
+		st, err := s.Manager.LabDNSStatus(r.Context())
+		data["LabDNS"], data["LabDNSErr"] = st, err
+	}
 	if servers, err := s.Manager.Servers(); err == nil {
 		data["ResolverServers"] = servers
 	}

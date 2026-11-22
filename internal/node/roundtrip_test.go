@@ -21,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/kept"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/store"
@@ -183,6 +184,19 @@ func (f rtNode) Linked() Linked       { return f }
 func (f rtNode) GuestHost() GuestHost { return f }
 func (f rtNode) Processor() Processor { return f }
 func (f rtNode) Photos() Photos       { return nil }
+func (f rtNode) LabDNS() LabDNS       { return f }
+
+// LabDNS.
+var rtDNSStatus = labdns.Status{Upstreams: []string{"192.168.1.1"}, Devices: 3, Since: time.Unix(1700000000, 0).UTC()}
+
+func (f rtNode) LabDNSStatus(context.Context) (labdns.Status, error) {
+	f.rec("LabDNSStatus")
+	return rtDNSStatus, nil
+}
+func (f rtNode) LabDNSSeen(_ context.Context, name string) (bool, error) {
+	f.rec("LabDNSSeen", name)
+	return true, nil
+}
 
 // Processor, Linked.
 func (f rtNode) Arch() string { f.rec("Arch"); return "arm64" }
@@ -773,6 +787,8 @@ func TestRoundTrip(t *testing.T) {
 		{"DiskSpaces", func() (any, error) { return r.DiskSpaces(ctx) }, []rtCall{call("DiskSpaces")}, rtDisks},
 		{"MemoryInfo", func() (any, error) { return r.MemoryInfo(ctx) }, []rtCall{call("MemoryInfo")}, rtMemory},
 		{"Usage", func() (any, error) { return r.Usage(ctx) }, []rtCall{call("Usage")}, rtUsage},
+		{"LabDNSStatus", func() (any, error) { return r.LabDNSStatus(ctx) }, []rtCall{call("LabDNSStatus")}, rtDNSStatus},
+		{"LabDNSSeen", func() (any, error) { return r.LabDNSSeen(ctx, "check-ab.lab.example.com") }, []rtCall{call("LabDNSSeen", "check-ab.lab.example.com")}, true},
 		{"LeftDataDirs", func() (any, error) { return r.LeftDataDirs(ctx, "immich") }, []rtCall{call("LeftDataDirs", "immich")}, []string{"/srv/old"}},
 		{"LeftServices", func() (any, error) { return r.LeftServices(ctx) }, []rtCall{call("LeftServices")}, rtLeft},
 		{"CleanUpReport", func() (any, error) { return r.CleanUpReport(ctx) }, []rtCall{call("CleanUpReport")}, rtCleanUp},
@@ -860,7 +876,7 @@ func TestRoundTrip(t *testing.T) {
 	local := map[string]bool{"Identity": true, "Address": true, "Close": true, "Pending": true, "SetUpWaiting": true, "DataDirs": true,
 		"Backups": true, "Restores": true, "Updates": true, "Settings": true, "Media": true, "Imports": true,
 		"Mover": true, "Updater": true, "Disks": true, "Memory": true, "LeftData": true, "CleanUp": true, "History": true,
-		"Linked": true, "GuestHost": true, "Processor": true, "Photos": true,
+		"Linked": true, "GuestHost": true, "Processor": true, "Photos": true, "LabDNS": true,
 		// From the server's status, as Linked's are.
 		"VPNStatus": true, "Vitals": true}
 	for prefix, v := range map[string]any{"": r, "Backups.": remoteBackups{}, "Restores.": remoteRestores{},
@@ -898,6 +914,7 @@ func (bareNode) History() History     { return nil }
 func (bareNode) Linked() Linked       { return nil }
 func (bareNode) GuestHost() GuestHost { return nil }
 func (bareNode) Processor() Processor { return nil }
+func (bareNode) LabDNS() LabDNS       { return nil }
 func (bareNode) Photos() Photos       { return nil }
 
 // A server without a capability answers "not found" to each of its
@@ -976,6 +993,7 @@ func TestRoundTripWithout(t *testing.T) {
 		"DiskSpaces":     func() error { _, err := r.DiskSpaces(ctx); return err },
 		"MemoryInfo":     func() error { _, err := r.MemoryInfo(ctx); return err },
 		"Usage":          func() error { _, err := r.Usage(ctx); return err },
+		"LabDNSStatus":   func() error { _, err := r.LabDNSStatus(ctx); return err },
 		"LeftDataDirs":   func() error { _, err := r.LeftDataDirs(ctx, "immich"); return err },
 		"DeleteLeftData": func() error { return r.DeleteLeftData(ctx, "immich") },
 		"CleanUpReport":  func() error { _, err := r.CleanUpReport(ctx); return err },

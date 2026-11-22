@@ -4,9 +4,11 @@ import (
 	"cmp"
 	"context"
 	"html"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
+	"roostack.cloud/roostack/internal/labdns"
 	"strconv"
 	"strings"
 	"testing"
@@ -275,5 +277,80 @@ func TestResolverCard(t *testing.T) {
 	h, _ = loggedIn(t, auth.RoleAdmin)
 	if code, _ := h.post("/settings/resolver", url.Values{"use": {"provider"}}, h.srv.URL); code == http.StatusOK {
 		t.Error("an Admin chose the lab's DNS server")
+	}
+}
+
+// TestResolverCardOwn: Roostack's own DNS server is offered first, the
+// card says where it's answering and how many devices use it, how to set
+// the router up, the names it answers, and that the server running it
+// keeps its own lookups (SPEC.md §6.5.3).
+func TestResolverCardOwn(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.resolver = manager.Resolver{Own: true, OwnServer: "n-1", OwnServerName: "server-1", Addr: "192.168.1.5",
+		Names: map[string]string{"photos.lab.example.com": "192.168.1.5"}}
+	fm.dnsStatus = labdns.Status{Upstreams: []string{"192.168.1.1"}, Devices: 6}
+	_, body := h.get("/settings/home-network")
+	for _, want := range []string{`value="roostack"`, "Recommended", "It's answering on server-1 at <code>192.168.1.5</code>",
+		"6 devices", "set the first DNS server to <code>192.168.1.5</code>", "<code>192.168.1.1</code>",
+		"<code>photos.lab.example.com</code> → <code>192.168.1.5</code>", "so Roostack's own is answering until you install one"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("card lacks %q", want)
+		}
+	}
+	h.post("/settings/resolver", url.Values{"use": {"roostack"}, "fallback": {"1.1.1.1"}, "dns_server": {"n-2"}}, h.srv.URL)
+	if c := fm.resolver.Choice; c.Use != "roostack" || c.Fallback != "1.1.1.1" || c.Server != "n-2" {
+		t.Errorf("saved %+v", c)
+	}
+	fm.resolver = manager.Resolver{Own: true, Why: "none of the lab's servers is on a home network",
+		Homes: nil, Choice: config.Resolver{Use: "roostack"}}
+	if _, body := h.get("/settings/home-network"); !strings.Contains(body, "Roostack's own can't answer yet: none of the lab&#39;s servers is on a home network.") {
+		t.Errorf("no server for it:\n%s", body)
+	}
+}
+
+// TestDNSCheck: Your account's Services tab loads a picture from a name
+// nobody has asked before and asks Roostack's own DNS server whether it
+// was asked for it (SPEC.md §6.5.3).
+func TestDNSCheck(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleMember)
+	if _, body := h.get("/account/services"); strings.Contains(body, "data-dns-check") {
+		t.Error("a check while Roostack's own DNS server isn't the lab's")
+	}
+	fm.resolver = manager.Resolver{Own: true, OwnServer: "n-1", Addr: "192.168.1.5"}
+	resp, err := h.client.Get(h.srv.URL + "/account/services")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	body := string(b)
+	m := regexp.MustCompile(`https://check-([0-9a-f]{12})\.lab\.example\.com/dns-check\.svg`).FindStringSubmatch(body)
+	if m == nil {
+		t.Fatalf("no check's picture:\n%s", body)
+	}
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "img-src https://check-"+m[1]+".lab.example.com 'self'") {
+		t.Errorf("the CSP doesn't let the picture load: %s", csp)
+	}
+	token := m[1]
+	_, j := h.get("/account/dns-check?t=" + token + "&json=1")
+	if !strings.Contains(j, `"seen":false`) || !strings.Contains(j, `"known":true`) {
+		t.Errorf("not asked yet: %s", j)
+	}
+	fm.dnsSeen = map[string]bool{token: true}
+	if _, j := h.get("/account/dns-check?t=" + token + "&json=1"); !strings.Contains(j, `"seen":true`) {
+		t.Errorf("asked: %s", j)
+	}
+	// Without scripts, the page of its own says so.
+	if _, body := h.get("/account/dns-check?t=" + token); !strings.Contains(body, "This device is using the lab's DNS") ||
+		strings.Contains(body, `data-dns="yes" hidden`) {
+		t.Errorf("the answer's page:\n%s", body)
+	}
+	fm.dnsSeen = nil
+	if _, body := h.get("/account/dns-check?t=" + token); !strings.Contains(body, `data-dns="no">`) ||
+		!strings.Contains(body, "set this device's DNS server to <code>192.168.1.5</code>") {
+		t.Errorf("not using it:\n%s", body)
+	}
+	if code, _ := h.get("/account/dns-check?t=../x"); code != http.StatusBadRequest {
+		t.Errorf("a made-up token: %d", code)
 	}
 }

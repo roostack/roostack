@@ -108,6 +108,11 @@ func (p Paths) LabFile() string { return filepath.Join(p.StateDir, "lab.yaml") }
 // DatabaseFile is Roostack's SQLite database.
 func (p Paths) DatabaseFile() string { return filepath.Join(p.StateDir, "roostack.db") }
 
+// LabDNSNames is the names file for Roostack's own DNS server (SPEC.md
+// §6.5.3), on the server that runs it; roostack-dns.path starts the DNS
+// server while it's there (labdns.NamesFile, the default).
+func (p Paths) LabDNSNames() string { return filepath.Join(p.StateDir, "dns", "names.json") }
+
 // SetupTokenFile holds the first-run setup code (0600), deleted once the
 // Owner exists (docs/ASSUMPTIONS.md K5).
 func (p Paths) SetupTokenFile() string { return filepath.Join(p.StateDir, "setup-token") }
@@ -571,6 +576,10 @@ type Lab struct {
 	// the lab's services to answer them with (SPEC.md §6.5.2); "" on a
 	// lab on the internet. Set at run time by the controller.
 	HomeAddress string `yaml:"-"`
+	// LabDNSHere: Roostack's own DNS server runs on this server (SPEC.md
+	// §6.5.3), so the firewall sends the home network's and the VPN
+	// devices' port 53 to it. Set at run time from the assignment.
+	LabDNSHere bool `yaml:"-"`
 	// Devices are the lab's VPN devices as the controller works them out
 	// for each apply (SPEC.md §10.11): never in lab.yaml.
 	Devices Devices `yaml:"-"`
@@ -776,13 +785,23 @@ type Resolver struct {
 	Address string `yaml:"address,omitempty"`
 	// Servers are the lab's servers, by ID, whose own lookups use it too.
 	Servers []string `yaml:"servers,omitempty"`
+	// Server is the server at home that runs Roostack's own DNS server
+	// on a lab whose controller is in the cloud (SPEC.md §6.5.3), by ID;
+	// "" is the first at home by name.
+	Server string `yaml:"server,omitempty"`
+	// Fallback is the DNS server Roostack's own passes questions to when
+	// the server's network gives none it can use; "" is Quad9's.
+	Fallback string `yaml:"fallback,omitempty"`
 }
 
 // Which DNS server the lab uses (Resolver.Use).
 const (
 	// ResolverAuto: a DNS server among the lab's services (Pi-hole), once
-	// there is one, else the provider's.
+	// there is one, else Roostack's own.
 	ResolverAuto = "auto"
+	// ResolverRoostack: Roostack's own (SPEC.md §6.5.3), even with a DNS
+	// service installed.
+	ResolverRoostack = "roostack"
 	// ResolverProvider: whatever each device and server has already,
 	// usually the internet provider's, through the router.
 	ResolverProvider = "provider"

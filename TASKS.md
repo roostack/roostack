@@ -446,18 +446,18 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 
 ## Roostack's own DNS server (SPEC §6.5.3; decided 2026-11-22)
 
-Phase 1, before direct serving's phase 2 (each step tested before the next):
+Phase 1, before direct serving's phase 2 (built 2026-11-22; each step tested before the next):
 
-- [ ] `internal/labdns` on `golang.org/x/net/dns/dnsmessage` (agreed 2026-11-22): the lab's names answered (`A` with the serving server's home address, `AAAA` and `HTTPS` empty), everything else passed on as it came, NXDOMAIN for `use-application-dns.net`, UDP and TCP on 5055, recursion refused outside the home network and the VPN range, check names noted for a minute and distinct home addresses counted for 7 days, a Unix socket for the daemon; unit tests and a fuzz test on the parsing
-- [ ] `roostack dns` and `roostack-dns.service` in the Debian package, sandboxed tighter than the daemon (the names file and its socket only), started only on the server chosen to run it
-- [ ] The names file (`/var/lib/roostack/dns/names.json`) from the list Caddy's sites come from, with the old address's names; the upstreams from `/run/systemd/resolve/resolv.conf` (else `/etc/resolv.conf`) without the server's own addresses, the probe for a router sending questions back, Quad9 or the Owner's address otherwise
-- [ ] `config.ResolverRoostack`, automatic meaning Roostack's own when no DNS service is installed; `resolverOf` for it; the server running it (the controller at home, else a home node the Owner chooses); Servers that use it too can't tick that server
-- [ ] On a node: the names with its assignment, its own firewall rules, the lab API for the check and the count
-- [ ] Firewall: 53 → 5055, UDP and TCP, for `trust.Home` and every VPN device (`agent.People`), IPv4 and the server's `fc00::/7` addresses
-- [ ] Settings → Where it is and DNS: Roostack's own first, its addresses, server, upstream, devices this week, and Details (names, file, log); Settings → VPN: devices whose files are from before the change
-- [ ] The check on Your account → Services: Caddy answers 204 on `check-<token>.<domain>`, a script file with the CSP's `connect-src` for that host, **Check this device** without scripts
-- [ ] Help: what it does, the router steps (LAN/DHCP, not WAN; a public second server; IPv6; a reserved address), when the router can't
-- [ ] Checked on a VM with a network namespace as a home device and one as a VPN device: answers, passing on, refused from outside, the loop guard, the check in the browser (desktop and phone width)
+- [x] `internal/labdns` on `golang.org/x/net/dns/dnsmessage` (agreed 2026-11-22): the lab's names answered (`A` with the serving server's home address, `AAAA` and `HTTPS` empty), everything else passed on as it came, NXDOMAIN for `use-application-dns.net`, UDP and TCP on 5055, recursion refused outside the home network and the VPN range, check names noted for a minute and distinct home addresses counted for 7 days, a Unix socket for the daemon; unit tests and a fuzz test on the parsing
+- [x] `roostack dns` and `roostack-dns.service` in the Debian package, sandboxed tighter than the daemon (the names file and its socket only), started only on the server chosen to run it
+- [x] The names file (`/var/lib/roostack/dns/names.json`) from the list Caddy's sites come from, with the old address's names; the upstreams from `/run/systemd/resolve/resolv.conf` (else `/etc/resolv.conf`) without the server's own addresses, the probe for a router sending questions back, Quad9 or the Owner's address otherwise
+- [x] `config.ResolverRoostack`, automatic meaning Roostack's own when no DNS service is installed; `resolverOf` for it; the server running it (the controller at home, else a home node the Owner chooses); Servers that use it too can't tick that server
+- [x] On a node: the names with its assignment, its own firewall rules, the lab API for the check and the count
+- [x] Firewall: 53 → 5055, UDP and TCP, for `trust.Home` and every VPN device (`agent.People`), IPv4 and the server's `fc00::/7` addresses
+- [x] Settings → Where it is and DNS: Roostack's own first, its addresses, server, upstream, devices this week, and Details (names, file, log); Settings → VPN: devices whose files are from before the change
+- [x] The check on Your account → Services: a hidden picture from `check-<token>.<domain>` (the CSP's `img-src` for that host), `dnscheck.js` asking for the answer, a link that does the same without scripts
+- [x] Help: what it does, the router steps (LAN/DHCP, not WAN; a public second server; IPv6; a reserved address), when the router can't
+- [x] Checked on a VM with a network namespace as a home device and one as a VPN device: answers, passing on, refused from outside, the loop guard, the check in the browser (desktop and phone width)
 
 Later:
 

@@ -78,6 +78,9 @@ type deviceRow struct {
 	LastConnected         string
 	// Stale: it hasn't connected for vpnStaleAfter; Never: it never has.
 	Stale, Never bool
+	// OldDNS: its file names another DNS server than the lab's now
+	// (SPEC.md §6.5.3).
+	OldDNS bool
 }
 
 // deviceForm adds or changes a device.
@@ -409,8 +412,14 @@ func (s *Server) showDeviceSettings(w http.ResponseWriter, r *http.Request, a *a
 		s.serverError(w, err)
 		return
 	}
-	file, err := s.deviceConfig(r.Context(), d, private)
+	file, dns, err := s.deviceConfig(r.Context(), d, private)
 	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	// So that Settings → VPN can say when the lab's DNS server has
+	// changed since (SPEC.md §6.5.3).
+	if err := s.Store.SetVPNDeviceDNS(r.Context(), d.ID, dns); err != nil {
 		s.serverError(w, err)
 		return
 	}
@@ -428,13 +437,32 @@ func (s *Server) showDeviceSettings(w http.ResponseWriter, r *http.Request, a *a
 // deviceConfig is a device's settings, a WireGuard configuration: its
 // key and address, and the server it connects to, with what it sends
 // through it (AllowedIPs, SPEC.md §10.11). The lab's names point at one
-// address, so the lab only is just that address.
-func (s *Server) deviceConfig(ctx context.Context, d store.VPNDevice, private string) (string, error) {
+// address, so the lab only is just that address. dns is the DNS server
+// it names, "" for none.
+func (s *Server) deviceConfig(ctx context.Context, d store.VPNDevice, private string) (file, dns string, err error) {
 	way := s.VPN.VPNWay(ctx)
 	lab := s.labAddress(way)
 	if way.PublicKey == "" || lab == "" {
-		return "", errors.New("the lab's VPN isn't ready")
+		return "", "", errors.New("the lab's VPN isn't ready")
 	}
+	allowed := deviceAllowed(way, lab, d)
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s on %s's VPN, made by Roostack\n", d.Name, s.labName())
+	fmt.Fprintf(&b, "[Interface]\nPrivateKey = %s\nAddress = %s/32\n", private, d.Address)
+	if dns = s.VPN.DeviceDNS(ctx, d.UserID, allowed); dns != "" {
+		// The lab's DNS server, Roostack's own or one such as Pi-hole,
+		// wherever the device is.
+		fmt.Fprintf(&b, "DNS = %s\n", dns)
+	}
+	b.WriteString("\n")
+	fmt.Fprintf(&b, "[Peer]\nPublicKey = %s\nEndpoint = %s\nAllowedIPs = %s\nPersistentKeepalive = 25\n",
+		way.PublicKey, way.Endpoint, strings.Join(allowed, ", "))
+	return b.String(), dns, nil
+}
+
+// deviceAllowed is what a device sends through the VPN (AllowedIPs):
+// lab, the address the lab's names point at, and what else it reaches.
+func deviceAllowed(way manager.VPNWay, lab string, d store.VPNDevice) []string {
 	allowed := []string{lab + "/32"}
 	if d.Home {
 		allowed = append(allowed, way.HomeNetworks...)
@@ -448,17 +476,7 @@ func (s *Server) deviceConfig(ctx context.Context, d store.VPNDevice, private st
 		// The lab's servers, at their addresses on Roostack's network.
 		allowed = append(allowed, trust.ServersRange.String())
 	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "# %s on %s's VPN, made by Roostack\n", d.Name, s.labName())
-	fmt.Fprintf(&b, "[Interface]\nPrivateKey = %s\nAddress = %s/32\n", private, d.Address)
-	if dns := s.VPN.DeviceDNS(ctx, d.UserID, allowed); dns != "" {
-		// The lab's DNS server, such as Pi-hole, wherever the device is.
-		fmt.Fprintf(&b, "DNS = %s\n", dns)
-	}
-	b.WriteString("\n")
-	fmt.Fprintf(&b, "[Peer]\nPublicKey = %s\nEndpoint = %s\nAllowedIPs = %s\nPersistentKeepalive = 25\n",
-		way.PublicKey, way.Endpoint, strings.Join(allowed, ", "))
-	return b.String(), nil
+	return allowed
 }
 
 // labAddress is where the lab's names point (its wildcard record, as the
@@ -529,7 +547,9 @@ type settingsVPN struct {
 	// Limit is the form's limit ("" for none).
 	Limit   string
 	Devices []deviceRow
-	People  int
+	// OldDNS: some device needs new settings for the lab's DNS server.
+	OldDNS bool
+	People int
 	// Domain: the lab has an address, which devices connect to.
 	Domain bool
 	Saved  string
@@ -547,6 +567,12 @@ func (s *Server) settingsVPNData(r *http.Request) (map[string]any, *settingsVPN,
 		return nil, nil, err
 	}
 	v.Devices = deviceRows(list, v.Way, time.Now())
+	if lab := s.labAddress(v.Way); lab != "" {
+		for i, d := range list {
+			v.Devices[i].OldDNS = s.VPN.DeviceDNS(r.Context(), d.UserID, deviceAllowed(v.Way, lab, d)) != d.DNS
+			v.OldDNS = v.OldDNS || v.Devices[i].OldDNS
+		}
+	}
 	people := map[int64]bool{}
 	for _, d := range list {
 		people[d.UserID] = true
