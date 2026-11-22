@@ -190,7 +190,8 @@ type Manager struct {
 	ClientSecrets SecretKeeper
 	// direct are the servers serving their public routes themselves as
 	// the last assignment worked them out (direct.go).
-	direct atomic.Pointer[[]string]
+	direct     atomic.Pointer[[]string]
+	directHome atomic.Pointer[map[string]string]
 
 	// registryWG is RegistryChanged's background updates still running
 	// (withdrawals.go), so Wait covers them too.

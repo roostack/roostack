@@ -562,6 +562,13 @@ type MainConfig struct {
 	// DNSDirective is then empty, or Caddy's own authority on a test
 	// address.
 	Hosts []string
+	// HomeHosts, on a server serving directly at home, are the names of
+	// its private routes, which nobody outside reaches: each gets its own
+	// site, with a certificate from a DNS challenge that the server's
+	// Roostack passes on to the controller at HomeDNS, as an acme-dns
+	// server (or Caddy's own authority on a test address).
+	HomeHosts []string
+	HomeDNS   string
 	// DNSDirective (with CertResolvers) is the tls "dns ..." directive for the DNS-01 challenge
 	// (from internal/dns); it may span several lines.
 	DNSDirective string
@@ -683,14 +690,18 @@ var AdminLoginPaths = []string{"/login", "/backups/recovery-key", "/account/pass
 
 // Main renders the main Caddyfile.
 func Main(c MainConfig) (string, error) {
-	if strings.TrimSpace(c.DNSDirective) == "" && len(c.Hosts) == 0 {
+	direct := len(c.Hosts)+len(c.HomeHosts) > 0
+	if strings.TrimSpace(c.DNSDirective) == "" && !direct {
 		return "", errors.New("caddy: no DNS provider configured")
 	}
-	if len(c.Hosts) > 0 && (c.AdminUpstream != "" || c.SignIn != nil || c.DomainItself != nil || len(c.Glances) > 0 ||
+	if len(c.HomeHosts) > 0 && strings.TrimSpace(c.DNSDirective) == "" && (c.HomeDNS == "" || unsafe(c.HomeDNS, "")) {
+		return "", errors.New("caddy: no DNS challenge for the private names")
+	}
+	if direct && (c.AdminUpstream != "" || c.SignIn != nil || c.DomainItself != nil || len(c.Glances) > 0 ||
 		c.StatusPage || len(c.EdgeFrom) > 0 || c.OldDomain != "") {
 		return "", errors.New("caddy: a server serving directly serves its services alone")
 	}
-	for _, h := range c.Hosts {
+	for _, h := range append(slices.Clone(c.Hosts), c.HomeHosts...) {
 		if h == "" || unsafe(h, "") || !strings.HasSuffix(h, "."+c.Domain) {
 			return "", fmt.Errorf("caddy: invalid host %q", h)
 		}
@@ -744,6 +755,28 @@ func Main(c MainConfig) (string, error) {
 	if c.OldDomain != "" && (unsafe(c.OldDomain, "") || strings.TrimSpace(c.OldDNSDirective) == "") {
 		return "", fmt.Errorf("caddy: invalid old address %q", c.OldDomain)
 	}
+	if direct {
+		// A server serving directly: its public names in one site, with
+		// certificates from Let's Encrypt's own challenges, and each of
+		// its private names in one of its own.
+		if len(c.Hosts) > 0 {
+			if err := site(&b, c, c.Domain, c.DNSDirective, "", false); err != nil {
+				return "", err
+			}
+		}
+		for _, h := range c.HomeHosts {
+			one := c
+			one.Hosts = []string{h}
+			directive := c.DNSDirective
+			if strings.TrimSpace(directive) == "" {
+				directive = homeChallenge(h, c.HomeDNS)
+			}
+			if err := site(&b, one, c.Domain, directive, "", false); err != nil {
+				return "", err
+			}
+		}
+		return b.String(), nil
+	}
 	// The sites again on the edge listener, if there are edges.
 	for _, edge := range []bool{false, true} {
 		if edge && len(c.EdgeFrom) == 0 {
@@ -762,6 +795,13 @@ func Main(c MainConfig) (string, error) {
 		}
 	}
 	return b.String(), nil
+}
+
+// homeChallenge is the DNS challenge for a private name a server at home
+// serves: acme-dns's, at server, which takes the name as its subdomain.
+// Only the server's own Caddy reaches server, so the login is a fixed one.
+func homeChallenge(host, server string) string {
+	return fmt.Sprintf("dns acmedns {\n\tusername \"roostack\"\n\tpassword \"roostack\"\n\tsubdomain %q\n\tserver_url %q\n}", host, server)
 }
 
 // site writes one wildcard site block for domain, with Roostack's pages
@@ -788,7 +828,7 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge 
 	}
 	switch {
 	case len(c.Hosts) > 0:
-		fmt.Fprintf(b, "# This server's own public services (SPEC.md §10.5, \"Serving directly\").\n%s {\n", strings.Join(c.Hosts, ", "))
+		fmt.Fprintf(b, "# This server's own services (SPEC.md §10.5, \"Serving directly\").\n%s {\n", strings.Join(c.Hosts, ", "))
 	case bare != nil:
 		fmt.Fprintf(b, "*.%s%s, %s%s {\n", domain, port, domain, port)
 	default:

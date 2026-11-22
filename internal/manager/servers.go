@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -321,9 +322,10 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	}
 	infos := m.linkInfos(context.Background())
 	// The servers serving their public routes themselves (direct.go).
-	direct := m.directServers(infos)
+	direct, directHome := m.directServers(context.Background(), infos)
 	m.direct.Store(&direct)
-	lab.Direct = direct
+	m.directHome.Store(&directHome)
+	lab.Direct, lab.DirectHome = direct, slices.Sorted(maps.Keys(directHome))
 	// Apps on other servers swapping codes for tokens at the sign-in page.
 	lab.SignInServers = slices.ContainsFunc(services, func(s state.Service) bool {
 		return s.Instance.HostOr(m.Lab.NodeID) != m.Lab.NodeID && generate.SSOReaches(m.Lab, s.Package, s.Instance)
@@ -345,7 +347,7 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	if resolver.Own && resolver.OwnServer != "" && m.labNow().Firewall.SSH != "" {
 		names := m.withStatusPage()
 		names.GlancesSites = glancesSites
-		labDNS = labDNSConfig(names, services, lab.HomeAddress, resolver.Choice.Fallback)
+		labDNS = labDNSConfig(names, services, lab.HomeAddress, m.homeNames(m.labNow()), resolver.Choice.Fallback)
 	}
 	edge, edgeAddrs := m.edgeFor(infos)
 	lab.EdgeAddrs = append(edgeAddrs, m.relayFor(services)...)

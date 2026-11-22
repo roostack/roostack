@@ -86,15 +86,15 @@ func (m *Manager) Resolver(ctx context.Context) Resolver {
 		m.Log.Error("listing services for the lab's DNS server", "err", err)
 	}
 	m.mu.Lock()
-	choice := m.labNow().Resolver
+	now := m.labNow()
 	m.mu.Unlock()
-	r := m.resolverOf(choice, services, m.linkInfos(ctx))
+	r := m.resolverOf(now.Resolver, services, m.linkInfos(ctx))
 	if r.Own && r.OwnServer != "" {
 		home := ""
 		if !m.Lab.OnInternet() {
 			home = m.vpnHomeAddress()
 		}
-		r.Names = labDNSConfig(m.withStatusPage(), services, home, "").Names
+		r.Names = labDNSConfig(m.withStatusPage(), services, home, m.homeNames(now), "").Names
 	}
 	return r
 }

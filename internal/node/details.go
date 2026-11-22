@@ -218,7 +218,7 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 		for i, host := range gen.Hosts {
 			if i < len(gen.Ports) {
 				addr := "127.0.0.1"
-				if lab.IsNode() && !slices.Contains(gen.DirectPorts, gen.Ports[i]) {
+				if lab.IsNode() {
 					addr = lab.OverlayAddr
 				}
 				d.Routes = append(d.Routes, host+" → "+addr+":"+itoa(gen.Ports[i]))

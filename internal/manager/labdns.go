@@ -81,11 +81,13 @@ func (m *Manager) dnsHomes(infos map[string]linkInfo) []DNSHome {
 }
 
 // labDNSConfig is what Roostack's own DNS server answers: each of the
-// lab's names with the controller's home address while it's at home. A
-// home node serving names directly will answer its own (direct serving's
-// phase 2); with the controller in the cloud, the public records already
-// point at it, so every name is passed on.
-func labDNSConfig(lab config.Lab, services []state.Service, homeAddr, fallback string) *labdns.Config {
+// lab's names with the controller's home address while it's at home, and
+// those a server at home serves itself (direct serving's phase 2, atHome)
+// with that server's; with the controller in the cloud, the public records
+// already point at it, so every name is passed on. A name a cloud server
+// serves directly is answered with the controller's too, which passes it
+// on, so home devices reach its private parts.
+func labDNSConfig(lab config.Lab, services []state.Service, homeAddr string, atHome map[string]string, fallback string) *labdns.Config {
 	c := &labdns.Config{Domain: lab.Domain, Fallback: fallback}
 	if homeAddr == "" || lab.OnInternet() {
 		return c
@@ -93,7 +95,7 @@ func labDNSConfig(lab config.Lab, services []state.Service, homeAddr, fallback s
 	c.CheckAddr = homeAddr
 	c.Names = map[string]string{}
 	for _, n := range labDNSNames(lab, services) {
-		c.Names[n] = homeAddr
+		c.Names[n] = cmp.Or(atHome[n], homeAddr)
 	}
 	return c
 }

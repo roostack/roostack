@@ -691,3 +691,38 @@ func TestRouteRejectsOddSpaces(t *testing.T) {
 		}
 	}
 }
+
+// A server serving directly: its public names share a site with Let's
+// Encrypt's own challenges, and each private name served at home has its
+// own with a DNS challenge through its Roostack (SPEC.md §10.5).
+func TestMainServedDirectly(t *testing.T) {
+	c := MainConfig{Domain: "smith.family", Hosts: []string{"git.smith.family"}, HomeHosts: []string{"wiki.smith.family"},
+		HomeDNS: "http://169.254.1.3:8483"}
+	out, err := Main(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"\ngit.smith.family {\n", "\nwiki.smith.family {\n", "dns acmedns {", `subdomain "wiki.smith.family"`,
+		`server_url "http://169.254.1.3:8483"`, "resolvers "} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Count(out, "dns acmedns") != 1 || strings.Contains(out, "*.smith.family") {
+		t.Errorf("only the private name has a DNS challenge, and no wildcard:\n%s", out)
+	}
+	for _, bad := range []MainConfig{
+		{Domain: "smith.family", HomeHosts: []string{"wiki.smith.family"}},
+		{Domain: "smith.family", Hosts: []string{"git.other.family"}},
+		{Domain: "smith.family", Hosts: []string{"git.smith.family"}, AdminUpstream: "169.254.1.3:8480"},
+	} {
+		if _, err := Main(bad); err == nil {
+			t.Errorf("accepted %+v", bad)
+		}
+	}
+	// On a test address, Caddy's own authority signs them all.
+	c.DNSDirective = "issuer internal"
+	if out, _ := Main(c); strings.Contains(out, "acmedns") || strings.Count(out, "issuer internal") != 2 {
+		t.Errorf("a test address:\n%s", out)
+	}
+}

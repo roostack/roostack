@@ -70,6 +70,9 @@ type LabContext struct {
 	// Direct are the servers serving their public routes themselves
 	// (config.Lab).
 	Direct []string `json:"direct,omitempty"`
+	// DirectHome are the servers serving their private routes at home too
+	// (config.Lab).
+	DirectHome []string `json:"direct_home,omitempty"`
 	// SignInServers: an app on another server reaches the sign-in page
 	// (config.Lab), for the controller.
 	SignInServers bool `json:"sign_in_servers,omitempty"`

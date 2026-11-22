@@ -353,16 +353,17 @@ func TestCaddyUnit(t *testing.T) {
 	}
 }
 
-// TestDirectPorts: a route its own Caddy serves, serving directly, needs
-// no port open to the controller (SPEC.md §10.5).
+// TestDirectPorts: a route its own Caddy serves, serving directly, stays
+// open to the controller, which passes it on too (SPEC.md §10.5).
 func TestDirectPorts(t *testing.T) {
 	lab := config.Default()
 	lab.Firewall.SSH = config.SSHFromLAN
-	lab.Role, lab.OverlayAddr = config.RoleNode, "100.96.0.2"
-	fw, _ := Desired(lab, []*generate.Output{{Service: "immich", Ports: []int{20001, 20002}, DirectPorts: []int{20002}}}, Roles{})
-	if !slices.ContainsFunc(fw.Allow, func(r agent.Rule) bool { return r.Port == 20001 && r.For == trust.Controller }) ||
-		slices.ContainsFunc(fw.Allow, func(r agent.Rule) bool { return r.Port == 20002 }) {
-		t.Errorf("a node's web ports: %+v", fw.Allow)
+	lab.Role, lab.OverlayAddr, lab.Direct = config.RoleNode, "100.96.0.2", []string{"n-4a3b2faab3"}
+	fw, _ := Desired(lab, []*generate.Output{{Service: "immich", Ports: []int{20001, 20002}, DirectHosts: []string{"photos.smith.family"}}}, Roles{})
+	for _, p := range []int{20001, 20002} {
+		if !slices.ContainsFunc(fw.Allow, func(r agent.Rule) bool { return r.Port == p && r.For == trust.Controller }) {
+			t.Errorf("port %d for the controller: %+v", p, fw.Allow)
+		}
 	}
 }
 

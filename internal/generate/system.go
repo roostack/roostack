@@ -99,8 +99,10 @@ type SystemOptions struct {
 	FirstHosts map[string]string
 	// DirectHosts, on a server other than the controller, are the names
 	// its own Caddy serves (Output.DirectHosts): while there are any, it
-	// runs Caddy and CrowdSec for them (SPEC.md §10.5).
-	DirectHosts []string
+	// runs Caddy and CrowdSec for them (SPEC.md §10.5). HomeHosts are those
+	// of its private routes, whose certificates come from DNS challenges
+	// through the controller.
+	DirectHosts, HomeHosts []string
 }
 
 // SystemWith is System with everything the services ask for.
@@ -118,6 +120,12 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	direct := lab.IsNode()
 	if direct && len(opts.DirectHosts) == 0 {
 		return out, nil
+	}
+	var publicHosts []string
+	for _, h := range opts.DirectHosts {
+		if !slices.Contains(opts.HomeHosts, h) {
+			publicHosts = append(publicHosts, h)
+		}
 	}
 	if !lab.HasAddress() {
 		// No address yet: Caddy has nothing to serve, so it doesn't run
@@ -213,7 +221,8 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	out.Quadlets = append(out.Quadlets, image)
 
 	mc := caddy.MainConfig{
-		Hosts:         opts.DirectHosts,
+		Hosts:         publicHosts,
+		HomeHosts:     opts.HomeHosts,
 		Domain:        lab.Domain,
 		Email:         lab.Email,
 		DNSDirective:  directive,
@@ -233,6 +242,7 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 		mc.AdminUpstream, mc.AdminPublic, mc.StatusPage, mc.EdgeFrom = "", false, false, nil
 		mc.PrivateFrom = caddy.ThisServerOnly(lab.HostIP, CaddyHostLoopback)
 		mc.PagesDevices, mc.AllDevices = nil, nil
+		mc.HomeDNS = fmt.Sprintf("http://%s:%d", CaddyHostLoopback, config.ChallengePort)
 	}
 	for _, g := range lab.GlancesSites {
 		if direct {

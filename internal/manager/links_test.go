@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -404,7 +405,7 @@ func TestServeDirect(t *testing.T) {
 		defer f.mu.Unlock()
 		return f.last.Lab.Direct
 	}
-	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Mode != config.ServeDirect || c.Chosen || c.Why != "" {
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Mode != config.ServeDirect || c.Chosen || !c.Public || c.Private {
 		t.Errorf("the cloud server by default: %+v", c)
 	}
 	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Mode != config.ServeController || c.Chosen {
@@ -428,14 +429,14 @@ func TestServeDirect(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Why == "" || len(sent(home)) != 0 {
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Public || c.Why == "" || len(sent(home)) != 0 {
 		t.Errorf("a home server set to direct: %+v, sent %v", c, sent(home))
 	}
 	// With an edge, public visitors come through the controller.
 	m.SetServe(ctx, "n-0000000003", config.ServeDirect)
 	m.SetEdge(ctx, "n-0000000003")
 	m.Wait()
-	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Why == "" || len(sent(vps)) != 0 {
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Public || c.Why == "" || len(sent(vps)) != 0 {
 		t.Errorf("with an edge: %+v, sent %v", c, sent(vps))
 	}
 	if err := m.SetServe(ctx, m.Lab.NodeID, config.ServeDirect); !errors.Is(err, ErrNotFound) {
@@ -443,5 +444,65 @@ func TestServeDirect(t *testing.T) {
 	}
 	if err := m.SetServe(ctx, "n-0000000003", "sideways"); err == nil {
 		t.Error("an unknown mode")
+	}
+}
+
+// TestServeAtHome: a server set to serve directly, at home on the
+// controller's network, serves its private routes too; elsewhere, or with
+// records Roostack doesn't manage, it doesn't, and says why (SPEC.md
+// §10.5, "Serving directly").
+func TestServeAtHome(t *testing.T) {
+	m, home, _, kv := setUpLinks(t)
+	ctx := context.Background()
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	m.Lab.Domain, m.Lab.DNS.ManageRecords = "smith.family", true
+	was := homeAddrs
+	homeAddrs = func() []string { return []string{"192.168.1.5"} }
+	t.Cleanup(func() { homeAddrs = was })
+	if err := m.SetServe(ctx, "n-0000000002", config.ServeDirect); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Private || !strings.Contains(c.Why, "set Where to At home") {
+		t.Errorf("where it is unknown: %+v", c)
+	}
+	kv[LocationKey+"n-0000000002"] = LocationHome
+	home.home = []string{"10.0.0.7"}
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Private || !strings.Contains(c.Why, "same home network") {
+		t.Errorf("on another network: %+v", c)
+	}
+	home.home = []string{"192.168.1.5", "192.168.1.10"}
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); !c.Private || c.Public || !strings.Contains(c.Why, "public services will go through") {
+		t.Errorf("at home: %+v", c)
+	}
+	m.Apply()
+	m.Wait()
+	home.mu.Lock()
+	sent := home.last.Lab.DirectHome
+	home.mu.Unlock()
+	if !slices.Equal(sent, []string{"n-0000000002"}) || m.DirectHome()["n-0000000002"] != "192.168.1.10" {
+		t.Errorf("sent %v, addresses %v", sent, m.DirectHome())
+	}
+	m.mu.Lock()
+	m.saveLab(func(l *config.Lab) { l.DNS.ManageRecords = false })
+	m.mu.Unlock()
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Private || !strings.Contains(c.Why, "DNS records") {
+		t.Errorf("records not managed: %+v", c)
+	}
+}
+
+func TestHomeAddrIn(t *testing.T) {
+	for _, tc := range []struct {
+		addrs, own []string
+		want       string
+	}{
+		{[]string{"192.168.1.10"}, []string{"192.168.1.5"}, "192.168.1.10"},
+		{[]string{"10.0.2.15"}, []string{"10.0.2.15"}, ""},
+		{[]string{"192.168.2.10"}, []string{"192.168.1.5"}, ""},
+		{[]string{"fe80::1", "192.168.1.9"}, []string{"192.168.1.5"}, "192.168.1.9"},
+	} {
+		if got := homeAddrIn(tc.addrs, tc.own); got != tc.want {
+			t.Errorf("homeAddrIn(%v, %v) = %q, want %q", tc.addrs, tc.own, got, tc.want)
+		}
 	}
 }

@@ -143,12 +143,13 @@ type Output struct {
 	Hosts []string
 	// Ports are the host loopback ports its routes are published on.
 	Ports []int
-	// DirectHosts and DirectPorts are its routes that its server's own
-	// Caddy serves on a server other than the controller: its public
-	// routes, while that server serves directly (config.Lab.Direct). The
-	// rest go through the controller's Caddy.
-	DirectHosts []string
-	DirectPorts []int
+	// DirectHosts are its routes' names that its server's own Caddy
+	// serves, on a server other than the controller serving directly: its
+	// public routes with a public address of its own (config.Lab.Direct),
+	// and its private ones on the home network (DirectHome), which are
+	// HomeHosts too, as their certificates come from a DNS challenge. The
+	// controller's Caddy passes every route on as well.
+	DirectHosts, HomeHosts []string
 	// HostPorts are the package ports published on every host address,
 	// which the firewall must let in.
 	HostPorts []HostPort
@@ -264,9 +265,9 @@ func Service(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Output
 	if err := g.run(); err != nil {
 		return nil, fmt.Errorf("%s: %w", in.ID(), err)
 	}
-	if lab.IsNode() && !g.direct {
+	if lab.IsNode() && !g.direct && !g.home {
 		// The controller's Caddy serves a node's routes (ProxySite);
-		// serving directly, the node's own serves its public ones.
+		// serving directly, the node's own serves some of them too.
 		g.out.CaddySite = nil
 	}
 	return g.out, nil
@@ -275,8 +276,8 @@ func Service(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Output
 // ProxySite generates only the Caddy site for a service running on
 // another server (SPEC.md §10.5): the controller's Caddy forwards its
 // routes over Roostack's network to addr, where that server publishes them.
-// A server serving directly serves its public routes itself, so they're
-// left out (gen.servedHere).
+// It passes them all on, those a server serving directly serves itself too
+// (for devices whose DNS points them at the controller).
 func ProxySite(lab config.Lab, p *pkgspec.Package, in *instance.Instance, addr string) (*Output, error) {
 	if err := in.Validate(p); err != nil {
 		return nil, err
@@ -306,6 +307,7 @@ func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream 
 		paused:  Paused(lab, p, in),
 		refused: lab.Public.Refused[in.ID()] != "",
 		direct:  lab.ServesDirect(in.Host),
+		home:    lab.ServesHome(in.Host),
 	}
 }
 
@@ -343,10 +345,10 @@ type gen struct {
 	// sso: single sign-on is on (SSOOn); ssoReach: its containers reach
 	// the sign-in page (SSOReaches).
 	sso, ssoReach bool
-	// direct: its server, not the controller, serves its public routes
-	// (config.Lab.ServesDirect); proxy: this is the controller's site for
-	// its routes that go through it (ProxySite).
-	direct, proxy bool
+	// direct and home: its server's own Caddy serves its public routes
+	// (config.Lab.ServesDirect), or its private ones (ServesHome); proxy:
+	// this is the controller's site for its routes (ProxySite).
+	direct, home, proxy bool
 	// ssoEnvSecrets are each container's secret_env secrets: variable →
 	// the Podman secret's name (ssoSecretEnv).
 	ssoEnvSecrets map[string]map[string]string
@@ -462,7 +464,9 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 		if port == 0 {
 			return fmt.Errorf("routes.%s: no host port allocated (run roostack apply)", rn)
 		}
-		cs.Add("PublishPort", fmt.Sprintf("%s:%d:%d", g.publishAddr(rn), port, r.Port))
+		for _, addr := range g.publishAddrs(rn) {
+			cs.Add("PublishPort", fmt.Sprintf("%s:%d:%d", addr, port, r.Port))
+		}
 	}
 	for _, pn := range slices.Sorted(maps.Keys(g.pkg.Ports)) {
 		pp, pc := g.pkg.Ports[pn], g.ctx.Ports[pn]
@@ -590,7 +594,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 			r := g.pkg.Routes[rn]
 			if r.Container == name && r.Port == c.Health.HTTP.Port {
 				g.out.Checks = append(g.out.Checks, HealthCheck{Container: unit,
-					HTTP: fmt.Sprintf("http://%s%s", net.JoinHostPort(g.publishAddr(rn), strconv.Itoa(g.ctx.Routes[rn].Port)), c.Health.HTTP.Path)})
+					HTTP: fmt.Sprintf("http://%s%s", net.JoinHostPort(g.publishAddrs(rn)[0], strconv.Itoa(g.ctx.Routes[rn].Port)), c.Health.HTTP.Path)})
 				break
 			}
 		}
@@ -823,21 +827,32 @@ func (g *gen) caddySite() error {
 		}
 		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		public := rc.Exposure == pkgspec.ExposurePublic && !g.refused
-		if direct := g.servedDirectly(name); direct {
+		if g.sso && g.pkg.SSORoute() == name {
+			g.out.SSO = true
+			// The sign-in page is public for the services that need it
+			// from outside, which a paused one doesn't.
+			g.out.SSOPublic = public && !g.paused
+		}
+		own := g.lab.IsNode() && !g.proxy // its own server's Caddy
+		if g.servedDirectly(name) {
 			g.out.DirectHosts = append(g.out.DirectHosts, rc.Host)
-			g.out.DirectPorts = append(g.out.DirectPorts, rc.Port)
-			if g.proxy {
-				continue // its server's own Caddy serves it
+			if !public {
+				g.out.HomeHosts = append(g.out.HomeHosts, rc.Host)
 			}
-		} else if g.direct && !g.proxy {
-			continue // the controller's Caddy serves it
+		} else if own {
+			continue // the controller's Caddy alone serves it
 		}
 		g.out.Monitors = append(g.out.Monitors, g.routeMonitor(name, r, rc.Host, public))
 		privateFrom := PrivateFrom(g.lab)
-		if g.direct && !g.proxy {
-			// On a server serving directly, a public route's private
-			// parts are for this server itself alone: home devices reach
-			// it from outside, the home's public address (SPEC.md §10.5).
+		switch {
+		case own && g.home:
+			// On the home network, it sees home devices' own addresses.
+			privateFrom = caddy.PrivateRanges
+		case own:
+			// A cloud server's own Caddy: a public route's private parts
+			// are for the server itself alone, as home devices reach it
+			// from outside, the home's public address; through the
+			// controller (the lab's DNS), they reach them (SPEC.md §10.5).
 			privateFrom = caddy.ThisServerOnly(g.lab.HostIP, CaddyHostLoopback)
 		}
 		cr := caddy.Route{
@@ -857,12 +872,6 @@ func (g *gen) caddySite() error {
 			Wall:           g.ssoWall(name),
 			Off:            g.inst.Off != nil,
 		}
-		if g.sso && g.pkg.SSORoute() == name {
-			g.out.SSO = true
-			// The sign-in page is public for the services that need it
-			// from outside, which a paused one doesn't.
-			g.out.SSOPublic = !cr.Private && !g.paused
-		}
 		if !cr.Private {
 			// The package's private paths stay home-only unless the Owner
 			// opened them (SPEC.md §6.11).
@@ -876,7 +885,7 @@ func (g *gen) caddySite() error {
 			cr.Blocked = g.paused
 			// The check link reaches the UI on the Caddy server (internal/public),
 			// which a server serving directly hasn't got.
-			if !g.direct || g.proxy {
+			if !own {
 				cr.CheckUpstream = fmt.Sprintf("%s:%d", CaddyHostLoopback, g.lab.UIPort)
 			}
 			g.out.Public = true
@@ -894,26 +903,34 @@ func (g *gen) caddySite() error {
 	return nil
 }
 
-// publishAddr is where route name's port is published on the host. Routed
-// containers are published on the host's loopback only; Caddy reaches them
-// through pasta's loopback mapping (SPEC.md §6.5). A node publishes them on
-// its address on Roostack's network instead, for the controller's Caddy
-// (the firewall lets only the controller in), apart from those its own
-// Caddy serves when it serves directly.
-func (g *gen) publishAddr(name string) string {
-	if g.lab.IsNode() && !g.servedDirectly(name) {
-		return g.lab.OverlayAddr
+// publishAddrs are where route name's port is published on the host.
+// Routed containers are published on the host's loopback only; Caddy
+// reaches them through pasta's loopback mapping (SPEC.md §6.5). A node
+// publishes them on its address on Roostack's network instead, for the
+// controller's Caddy (the firewall lets only the controller in), and on
+// loopback too for those its own Caddy serves when it serves directly.
+func (g *gen) publishAddrs(name string) []string {
+	switch {
+	case !g.lab.IsNode():
+		return []string{"127.0.0.1"}
+	case g.servedDirectly(name):
+		return []string{g.lab.OverlayAddr, "127.0.0.1"}
 	}
-	return "127.0.0.1"
+	return []string{g.lab.OverlayAddr}
 }
 
 // servedDirectly reports whether route name is served by its server's own
-// Caddy rather than the controller's: a public route on a server serving
-// directly. The node and the controller each work it out the same way, so
-// one serves what the other leaves out.
+// Caddy too: a public route on a server serving its public routes
+// directly, or a private one on a server serving them at home.
 func (g *gen) servedDirectly(name string) bool {
 	rc, ok := g.ctx.Routes[name]
-	return g.direct && ok && rc.Exposure == pkgspec.ExposurePublic && !g.refused && g.lab.HasAddress()
+	if !ok || !g.lab.HasAddress() {
+		return false
+	}
+	if rc.Exposure == pkgspec.ExposurePublic && !g.refused {
+		return g.direct
+	}
+	return g.home
 }
 
 // routeMonitor is how monitoring checks a route (SPEC.md §6.15).

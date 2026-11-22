@@ -188,6 +188,9 @@ type controller struct {
 	crowdSecUp func(ctx context.Context) bool
 	hub        *labnet.Hub
 	guestHub   *labnet.GuestHub
+	// records is the lab's DNS records once wireDNS has made them (nil
+	// with none), for the DNS challenges of servers serving at home.
+	records atomic.Pointer[dnsrecords.Manager]
 }
 
 // run wires the controller, then serves the web UI until ctx ends. The
@@ -632,11 +635,21 @@ func (c *controller) wireBackups() {
 	mgr.Drives = c.agent
 }
 
+// setChallenge sets a DNS challenge's record through the lab's DNS
+// records, for a server serving its private routes at home.
+func (c *controller) setChallenge(ctx context.Context, host, value string) error {
+	recs := c.records.Load()
+	if recs == nil {
+		return errors.New("this lab's DNS records aren't managed by Roostack")
+	}
+	return recs.SetChallenge(ctx, host, value)
+}
+
 // serveLabAPI serves the lab API to the lab's servers (controllerAPI), and
 // keeps this server's own lab certificate renewed.
 func (c *controller) serveLabAPI() {
 	stateDir := c.lab.Paths.StateDir
-	go labnet.Serve(c.ctx, stateDir, controllerAPI(c.hub, c.guestHub, c.mgr, c.storageKeys, c.srv.SignInHandler()), c.log)
+	go labnet.Serve(c.ctx, stateDir, controllerAPI(c.hub, c.guestHub, c.mgr, c.storageKeys, c.srv.SignInHandler(), c.setChallenge), c.log)
 	go labnet.KeepRenewed(c.ctx, labnet.Identity{Dir: labnet.IdentityDir(stateDir)}, c.id.ID, c.hub.RenewSelf, c.log)
 }
 
@@ -869,6 +882,7 @@ func (c *controller) wireDNS() {
 				}
 			},
 		}
+		c.records.Store(recs)
 		c.wiz.RemoveOldRecords = recs.RemoveOld
 		if records {
 			go recs.Run(c.ctx, 30*time.Minute)

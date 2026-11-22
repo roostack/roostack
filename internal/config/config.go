@@ -60,6 +60,12 @@ const (
 	// listener of its own, so nothing reaching it can reach Roostack's own
 	// pages. Caddy reaches it like the UI.
 	SignInPort = 8482
+	// ChallengePort, on a server serving private routes directly at home,
+	// is where its Roostack takes its Caddy's DNS challenges on the host's
+	// loopback, as an acme-dns server, and passes them on to the
+	// controller (SPEC.md §10.5, "Serving directly"). Caddy reaches it like
+	// the sign-in listener.
+	ChallengePort = 8483
 )
 
 // Paths are the filesystem locations Roostack reads and writes.
@@ -598,6 +604,10 @@ type Lab struct {
 	// and where each server can be reached (SPEC.md §10.5, "Serving
 	// directly"). Their private routes still go through the controller.
 	Direct []string `yaml:"-"`
+	// DirectHome are the servers (by ID) whose own Caddy also serves their
+	// private routes, being on the controller's home network, worked out
+	// with Direct (direct serving's phase 2).
+	DirectHome []string `yaml:"-"`
 	// SignInServers: an app on a server other than the controller swaps
 	// codes for tokens at the sign-in page itself (single sign-on, SPEC.md
 	// §5.2), over Roostack's network, so the controller's firewall and the
@@ -746,10 +756,16 @@ func (l Lab) TestAddress() bool { return l.DNS.Provider == ProviderTestAddress }
 // routes (Direct). The controller, "" or its own ID, always does.
 func (l Lab) ServesDirect(host string) bool { return host != "" && slices.Contains(l.Direct, host) }
 
+// ServesHome reports whether server host's own Caddy serves its private
+// routes too, on the home network (DirectHome).
+func (l Lab) ServesHome(host string) bool { return host != "" && slices.Contains(l.DirectHome, host) }
+
 // CaddyHere reports whether this server's own Caddy serves services: the
-// controller's always, another server's while it serves directly (an
+// controller's always, another server's while it serves some directly (an
 // edge's Caddy only passes visitors on).
-func (l Lab) CaddyHere() bool { return !l.IsNode() || l.ServesDirect(l.NodeID) }
+func (l Lab) CaddyHere() bool {
+	return !l.IsNode() || l.ServesDirect(l.NodeID) || l.ServesHome(l.NodeID)
+}
 
 // LocalhostName reports whether name is localhost or a name under it.
 func LocalhostName(name string) bool {

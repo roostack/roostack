@@ -242,8 +242,10 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		// What its own Caddy serves, serving directly (SPEC.md §10.5).
 		for _, o := range d.Services {
 			opts.DirectHosts = append(opts.DirectHosts, o.DirectHosts...)
+			opts.HomeHosts = append(opts.HomeHosts, o.HomeHosts...)
 		}
 		slices.Sort(opts.DirectHosts)
+		slices.Sort(opts.HomeHosts)
 	}
 	sys, err := generate.SystemWith(lab, opts)
 	if err != nil {

@@ -142,7 +142,7 @@ func TestLabDNSNames(t *testing.T) {
 	}
 	lab := m.Lab
 	lab.Monitoring.StatusPage = true
-	c := labDNSConfig(lab, services, "192.168.1.5", "")
+	c := labDNSConfig(lab, services, "192.168.1.5", nil, "")
 	d := lab.Domain
 	for _, n := range []string{"roost." + d, "my." + d, "status." + d, "git." + d} {
 		if c.Names[n] != "192.168.1.5" {
@@ -153,10 +153,15 @@ func TestLabDNSNames(t *testing.T) {
 		t.Errorf("names %v, check %q", c.Names, c.CheckAddr)
 	}
 	lab.OldAddress = &config.OldAddress{Domain: "old.example.net", Until: time.Now().Add(time.Hour)}
-	if c := labDNSConfig(lab, services, "192.168.1.5", ""); c.Names["git.old.example.net"] != "192.168.1.5" || c.Names["roost.old.example.net"] == "" {
+	if c := labDNSConfig(lab, services, "192.168.1.5", nil, ""); c.Names["git.old.example.net"] != "192.168.1.5" || c.Names["roost.old.example.net"] == "" {
 		t.Errorf("the old address's names: %v", c.Names)
 	}
-	if c := labDNSConfig(lab, services, "", "1.1.1.1"); len(c.Names) != 0 || c.Fallback != "1.1.1.1" {
+	if c := labDNSConfig(lab, services, "", nil, "1.1.1.1"); len(c.Names) != 0 || c.Fallback != "1.1.1.1" {
 		t.Errorf("no home address: %+v", c)
+	}
+	// A name a server at home serves itself is its address (direct
+	// serving's phase 2); the rest stay the controller's.
+	if c := labDNSConfig(lab, services, "192.168.1.5", map[string]string{"git." + d: "192.168.1.10"}, ""); c.Names["git."+d] != "192.168.1.10" || c.Names["roost."+d] != "192.168.1.5" {
+		t.Errorf("served at home: %v", c.Names)
 	}
 }

@@ -81,17 +81,20 @@
       <small>Where this server is located{{if not $loc}} (not set yet){{end}}.</small>
     </dd>
     {{if not .Controller}}{{with index $.Serve .ID}}
-    <dt>{{icon "network"}}Public services</dt>
+    <dt>{{icon "network"}}Services</dt>
     <dd>
       <form method="post" action="/settings/servers/{{$m.ID}}/serve" class="inline-form">
         <label class="check"><input type="radio" name="serve" value="direct"{{if eq .Mode "direct"}} checked{{end}} required><span>Served by {{$m.Name}} itself</span></label>
         <label class="check"><input type="radio" name="serve" value="controller"{{if eq .Mode "controller"}} checked{{end}}><span>Through the server that runs the lab</span></label>
         <button type="submit" class="secondary">Save</button>
       </form>
-      <small>How visitors reach the public services on {{$m.Name}}{{if not .Chosen}} (Roostack's choice for it){{end}}.
-        Served by {{$m.Name}} itself, they'll come straight to it, with its own certificates and CrowdSec, rather than
-        through the server that runs the lab; its private services will still go through that server.</small>
-      {{with .Why}}<p class="hint">{{.}}</p>{{end}}
+      <small>How visitors reach the services on {{$m.Name}}{{if not .Chosen}} (Roostack's choice for it){{end}}.
+        Served by {{$m.Name}} itself, they'll come straight to it with its own certificates: its public services when it has
+        an address of its own on the internet, and its private ones when it's on your home network. The server that runs the
+        lab will still pass them on for devices that go to it.</small>
+      {{if eq .Mode "direct"}}<p class="hint">{{if and .Public .Private}}{{$m.Name}} is serving its public and private services itself.
+        {{- else if .Public}}{{$m.Name}} is serving its public services itself.
+        {{- else if .Private}}{{$m.Name}} is serving its private services itself.{{end}} {{.Why}}</p>{{end}}
     </dd>
     {{end}}
     <dt>{{icon "server"}}Direct links</dt>

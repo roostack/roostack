@@ -881,7 +881,7 @@ func (n *Local) lab(a Assignment) config.Lab {
 			lab.DNS.Provider = config.ProviderTestAddress
 		}
 	}
-	lab.Direct, lab.SignInServers = a.Lab.Direct, a.Lab.SignInServers
+	lab.Direct, lab.DirectHome, lab.SignInServers = a.Lab.Direct, a.Lab.DirectHome, a.Lab.SignInServers
 	lab.EdgeAddrs = a.Lab.EdgeAddrs
 	lab.HomeAddress = a.Lab.HomeAddress
 	lab.LabDNSHere = a.Lab.DNS != nil

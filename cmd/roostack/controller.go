@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -33,7 +35,8 @@ import (
 // Roostack Cloud backup's short-lived keys (storageKeys: nil without
 // Cloud), each server getting only its own folder's.
 func controllerAPI(hub *labnet.Hub, guestHub *labnet.GuestHub, mgr *manager.Manager,
-	storageKeys func(ctx context.Context, server string) (cloudapi.StorageKeys, error), wall http.Handler) http.Handler {
+	storageKeys func(ctx context.Context, server string) (cloudapi.StorageKeys, error), wall http.Handler,
+	challenge func(ctx context.Context, host, value string) error) http.Handler {
 	api := http.NewServeMux()
 	api.Handle("POST /v1/join", hub.JoinHandler())
 	// A server fetches its assignment when it starts (SPEC.md §10.3).
@@ -88,6 +91,24 @@ func controllerAPI(hub *labnet.Hub, guestHub *labnet.GuestHub, mgr *manager.Mana
 		in.Host, in.URL.Path, in.URL.RawPath = host, path, ""
 		in.Header.Del(labnet.WallHostHeader)
 		wall.ServeHTTP(w, in)
+	})))
+	// A server serving its private routes at home has its Caddy's DNS
+	// challenges set (an acme-dns update, relayed): only for those names.
+	api.Handle("POST "+labnet.PathChallenge, hub.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var u labnet.ChallengeUpdate
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&u); err != nil {
+			labnet.WriteError(w, http.StatusBadRequest, err)
+			return
+		}
+		if !slices.Contains(mgr.HomeHostsOn(labnet.Caller(r)), u.Subdomain) {
+			labnet.WriteError(w, http.StatusForbidden, errors.New("not a name this server serves at home"))
+			return
+		}
+		if err := challenge(r.Context(), u.Subdomain, u.TXT); err != nil {
+			labnet.WriteError(w, http.StatusBadGateway, err)
+			return
+		}
+		labnet.WriteJSON(w, http.StatusOK, map[string]string{"txt": u.TXT})
 	})))
 	// Guests' requests, forwarded by the server offering storage for others.
 	guestAPI := http.StripPrefix("/v1/guest-api", guestHub.Handler())
