@@ -726,3 +726,41 @@ func TestMainServedDirectly(t *testing.T) {
 		t.Errorf("a test address:\n%s", out)
 	}
 }
+
+// The edge passes the names a server serves itself straight to it, and
+// the rest to the controller (SPEC.md §10.5, "Serving directly").
+func TestEdgeDirect(t *testing.T) {
+	out, err := Edge(EdgeConfig{Hosts: []string{"git.smith.family", "photos.smith.family"}, Upstream: "100.96.0.1:443",
+		Direct: map[string][]string{"100.96.0.2:443": {"photos.smith.family"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"@direct1 tls sni photos.smith.family", "upstream 100.96.0.2:443", "@public tls sni git.smith.family",
+		"upstream 100.96.0.1:443", "http://git.smith.family, http://photos.smith.family"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Index(out, "@direct1") > strings.Index(out, "@public") {
+		t.Errorf("a server's own names come first:\n%s", out)
+	}
+	if _, err := Edge(EdgeConfig{Hosts: []string{"git.smith.family"}, Upstream: "100.96.0.1:443",
+		Direct: map[string][]string{"100.96.0.2:443": {"other.smith.family"}}}); err == nil {
+		t.Error("a direct name that isn't public")
+	}
+}
+
+// A server serving directly behind the lab's edge serves its public
+// names on the edge listener too, believing only the edge's PROXY header.
+func TestMainDirectThroughEdge(t *testing.T) {
+	out, err := Main(MainConfig{Domain: "smith.family", Hosts: []string{"photos.smith.family"}, EdgeFrom: []string{"100.96.0.3/32"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"servers :8474", "allow 100.96.0.3/32", "\nphotos.smith.family {\n", "\nphotos.smith.family:8474 {\n",
+		"vars " + EdgeVar + " yes"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+}

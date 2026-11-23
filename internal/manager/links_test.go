@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/store/storetest"
@@ -432,12 +434,12 @@ func TestServeDirect(t *testing.T) {
 	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Public || c.Why == "" || len(sent(home)) != 0 {
 		t.Errorf("a home server set to direct: %+v, sent %v", c, sent(home))
 	}
-	// With an edge, public visitors come through the controller.
+	// The edge itself passes visitors on rather than serving directly.
 	m.SetServe(ctx, "n-0000000003", config.ServeDirect)
 	m.SetEdge(ctx, "n-0000000003")
 	m.Wait()
-	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Public || c.Why == "" || len(sent(vps)) != 0 {
-		t.Errorf("with an edge: %+v, sent %v", c, sent(vps))
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Public || c.Why == "" || slices.Contains(sent(vps), "n-0000000003") {
+		t.Errorf("the edge itself: %+v, sent %v", c, sent(vps))
 	}
 	if err := m.SetServe(ctx, m.Lab.NodeID, config.ServeDirect); !errors.Is(err, ErrNotFound) {
 		t.Errorf("the controller itself: %v", err)
@@ -504,5 +506,69 @@ func TestHomeAddrIn(t *testing.T) {
 		if got := homeAddrIn(tc.addrs, tc.own); got != tc.want {
 			t.Errorf("homeAddrIn(%v, %v) = %q, want %q", tc.addrs, tc.own, got, tc.want)
 		}
+	}
+}
+
+// TestServeThroughEdge: with the lab's edge as the way in, a cloud server
+// still serves its public names itself, the edge itself doesn't, and a
+// home server set to serve directly gets a link of its own with the edge,
+// which passes its names straight to it (SPEC.md §10.5).
+func TestServeThroughEdge(t *testing.T) {
+	m, home, vps, _ := setUpLinks(t)
+	ctx := context.Background()
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	m.Lab.Domain = "smith.family"
+	m.Registry = &fakeRegistry{peers: map[string]labnet.Peer{
+		"n-0000000002": {PublicKey: homeKey, Addr: "100.96.0.2"},
+		"n-0000000003": {PublicKey: vpsKey, Addr: "100.96.0.3", Seen: "203.0.113.7:43122"},
+		"n-0000000004": {PublicKey: "cloudKey", Addr: "100.96.0.4", Seen: "198.51.100.9:43122"},
+	}}
+	if err := m.SetEdge(ctx, "n-0000000003"); err != nil {
+		t.Fatal(err)
+	}
+	if c := m.ServeChoiceOf(ctx, "n-0000000004"); !c.Public {
+		t.Errorf("a cloud server with an edge: %+v", c)
+	}
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Public || !strings.Contains(c.Why, "edge") {
+		t.Errorf("the edge itself: %+v", c)
+	}
+	if err := m.SetServe(ctx, "n-0000000002", config.ServeDirect); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	l := m.linksFor(ctx, m.linkInfos(ctx), "n-0000000002")
+	if l == nil || len(l.Peers) != 1 || l.Peers[0].Endpoint != "203.0.113.7:51820" {
+		t.Fatalf("the home server's link to the edge: %+v", l)
+	}
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); !c.Public {
+		t.Errorf("a home server linked to the edge: %+v", c)
+	}
+	home.mu.Lock()
+	direct := home.last.Lab.Direct
+	home.mu.Unlock()
+	vps.mu.Lock()
+	edge := vps.last.Edge
+	vps.mu.Unlock()
+	if !slices.Contains(direct, "n-0000000002") || edge == nil {
+		t.Errorf("sent direct %v, edge %+v", direct, edge)
+	}
+	// Forgejo on the home server, public: the edge passes its name
+	// straight to the home server's Caddy.
+	services, err := state.LoadServices(m.Lab)
+	if err != nil || len(services) != 1 {
+		t.Fatal(services, err)
+	}
+	r := services[0].Instance.Routes["web"]
+	r.Exposure = pkgspec.ExposurePublic
+	services[0].Instance.Routes["web"], services[0].Instance.SettingUp = r, false
+	lab := m.labNow()
+	lab.Direct = direct
+	if got := m.edgeDirect(lab, services, m.linkInfos(ctx)); len(got["100.96.0.2:443"]) != 1 || len(got) != 1 {
+		t.Errorf("the edge's names for the home server: %v", got)
+	}
+	// The link didn't connect: through the controller, saying why.
+	m.Settings.SetSetting(ctx, linkFailedKey+pairKey("n-0000000002", "n-0000000003"), strconv.FormatInt(time.Now().Unix(), 10))
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Public || !strings.Contains(c.Why, "UDP 51820") {
+		t.Errorf("a link that didn't connect: %+v", c)
 	}
 }

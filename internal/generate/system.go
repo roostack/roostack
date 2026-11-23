@@ -150,7 +150,7 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	cs.Add("PublishPort", "80:80")
 	cs.Add("PublishPort", "443:443")
 	cs.Add("PublishPort", "443:443/udp") // HTTP/3
-	if len(lab.EdgeAddrs) > 0 && !direct {
+	if len(lab.EdgeAddrs) > 0 {
 		// The edges' own listener (caddy.EdgePort); the firewall lets only
 		// the edges reach it.
 		cs.Add("PublishPort", fmt.Sprintf("%d:%d", caddy.EdgePort, caddy.EdgePort))
@@ -239,7 +239,7 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	}
 	if direct {
 		// Its services alone (caddy.MainConfig.Hosts).
-		mc.AdminUpstream, mc.AdminPublic, mc.StatusPage, mc.EdgeFrom = "", false, false, nil
+		mc.AdminUpstream, mc.AdminPublic, mc.StatusPage = "", false, false
 		mc.PrivateFrom = caddy.ThisServerOnly(lab.HostIP, CaddyHostLoopback)
 		mc.PagesDevices, mc.AllDevices = nil, nil
 		mc.HomeDNS = fmt.Sprintf("http://%s:%d", CaddyHostLoopback, config.ChallengePort)

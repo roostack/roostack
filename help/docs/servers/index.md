@@ -73,6 +73,14 @@ on that server's card under **Servers**, in **Services**:
     its visitors through your home's internet connection and back. It also
     runs its own protection (CrowdSec), and Roostack will point their DNS
     records at it. This is Roostack's choice for a cloud server.
+  - Its **public** services through your lab's edge
+    ([Through a cloud server](../services/public.md#through-a-cloud-server-without-touching-your-router)),
+    when it has no address of its own on the internet: the edge will pass
+    their visitors straight to it rather than through the server that runs
+    the lab. It needs to reach the edge's WireGuard port, UDP 51820, which
+    you may have to allow in the edge's firewall at its provider; until it
+    can, the card says so and its public services go through the server
+    that runs the lab.
   - Its **private** services, when it's on your home network, the same one
     as the server that runs the lab: your devices at home reach it
     directly. Set **Where** to **At home** on its card for this.

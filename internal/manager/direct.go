@@ -46,17 +46,17 @@ func (m *Manager) ServeChoiceOf(ctx context.Context, id string) ServeChoice {
 
 func (m *Manager) serveChoice(ctx context.Context, lab config.Lab, infos map[string]linkInfo, id string) ServeChoice {
 	addr := directAddr(infos[id].Peer)
-	c := ServeChoice{Mode: config.ServeDefault(addr != "")}
-	if v, ok := lab.Public.Serve[id]; ok {
-		c.Mode, c.Chosen = v, true
-	}
+	c := ServeChoice{Mode: serveMode(lab, id, addr)}
+	_, c.Chosen = lab.Public.Serve[id]
 	if c.Mode != config.ServeDirect {
 		return c
 	}
-	pub := directProblem(lab, addr)
+	pub := directProblem(lab, id, addr, addr == "" && lab.Public.Edge != "" && m.LinkPath(ctx, id, lab.Public.Edge) == PathDirect)
 	home := homeProblem(lab, m.homeAddrOf(ctx, lab, infos, id), m.setting(ctx, LocationKey+id))
 	c.Public, c.Private = pub == "", home == ""
 	switch {
+	case id == lab.Public.Edge:
+		c.Private, c.Why = false, pub
 	case c.Public && c.Private:
 	case c.Public:
 		c.Why = home
@@ -76,16 +76,31 @@ func (m *Manager) serveChoice(ctx context.Context, lab config.Lab, infos map[str
 // addresses are all private, can try it.
 var directAddr = publicAddr
 
-// directProblem says why a server set to serve directly can't serve its
-// public routes, in a sentence, or "" if it can: only a server with a
-// public address of its own does, and with an edge or Roostack Cloud as
-// the way in, every public name goes through the controller.
-func directProblem(lab config.Lab, addr string) string {
+// serveMode is how server id serves, with addr its public address: the
+// Owner's choice, else config.ServeDefault.
+func serveMode(lab config.Lab, id, addr string) string {
+	if v, ok := lab.Public.Serve[id]; ok {
+		return v
+	}
+	return config.ServeDefault(addr != "")
+}
+
+// directProblem says why server id, set to serve directly, can't serve its
+// public routes, in a sentence, or "" if it can: a server with a public
+// address of its own does, and with the lab's edge as the way in, so does
+// one the edge has a link of their own to (edgeLinked), which passes its
+// names straight to it. Through Roostack Cloud, every public name goes
+// through the controller, and the edge itself only passes visitors on.
+func directProblem(lab config.Lab, id, addr string, edgeLinked bool) string {
 	switch {
 	case !lab.HasAddress():
 		return "Your lab has no address yet, so there's nothing to serve."
-	case lab.Public.Edge != "":
-		return "Public visitors come in through your lab's edge, which passes them on to the server that runs the lab, so this server's public services will go through it too."
+	case id == lab.Public.Edge:
+		return "It's your lab's edge, which passes public visitors on to the servers that serve them, so its own public services will go through the server that runs the lab."
+	case lab.Public.Edge != "" && addr == "" && !edgeLinked:
+		return "Your lab's edge can't reach it directly yet, so its public services will go through the server that runs the lab. It reaches the edge's WireGuard port, UDP 51820, which may need allowing in the edge's firewall at its provider."
+	case lab.Public.Edge != "" && addr == "":
+		return ""
 	case throughCloud(lab):
 		return "Public visitors come in through Roostack Cloud, which passes them on to the server that runs the lab, so this server's public services will go through it too."
 	case addr == "":
@@ -355,5 +370,27 @@ func (m *Manager) HomeHostsOn(server string) []string {
 			out = append(out, proxy.HomeHosts...)
 		}
 	}
+	return out
+}
+
+// edgeLinked are the servers the lab's edge has links of their own to, or
+// should: set to serve directly, without a public address of their own, so
+// that the edge passes their public names straight to them (SPEC.md
+// §10.5, "Serving directly"). None without an edge, or through Roostack
+// Cloud.
+func (m *Manager) edgeLinked(ctx context.Context) []string {
+	lab := m.labNow()
+	edge := lab.Public.Edge
+	if edge == "" || throughCloud(lab) || !lab.HasAddress() {
+		return nil
+	}
+	var out []string
+	for id, info := range m.linkInfos(ctx) {
+		addr := directAddr(info.Peer)
+		if id != edge && id != m.Lab.NodeID && addr == "" && serveMode(lab, id, addr) == config.ServeDirect {
+			out = append(out, id)
+		}
+	}
+	slices.Sort(out)
 	return out
 }

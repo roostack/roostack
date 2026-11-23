@@ -45,13 +45,17 @@ func (m *Manager) EdgeServers(ctx context.Context) []EdgeServer {
 		if id == m.Lab.NodeID {
 			continue
 		}
-		if a := publicAddr(info.Peer); a != "" {
+		if a := edgeAddr(info.Peer); a != "" {
 			out = append(out, EdgeServer{ID: id, Name: cmp.Or(names[id], id), Address: a})
 		}
 	}
 	slices.SortFunc(out, func(a, b EdgeServer) int { return strings.Compare(a.Name, b.Name) })
 	return out
 }
+
+// edgeAddr is a server's address for the lab's edge: its public address
+// (publicAddr). A test build (devdirect) may take others.
+var edgeAddr = publicAddr
 
 // publicAddr is a server's public IPv4 address, if it has one: where the
 // controller dials it (an address, or a name it resolves to), else where
@@ -189,9 +193,52 @@ func (m *Manager) edgeForwards(lab config.Lab, services []state.Service, infos m
 // edgeConfig is the edge's Caddy config: the lab's public names (with
 // their old ones while those still work), passed on to the controller's
 // Caddy on Roostack's network.
-func edgeConfig(lab config.Lab, services []state.Service) *caddy.EdgeConfig {
-	return &caddy.EdgeConfig{Hosts: publicHostsOf(lab, services, true),
+// Names a server without a public address serves itself go straight to
+// its Caddy over their link (direct, SPEC.md §10.5, "Serving directly").
+func edgeConfig(lab config.Lab, services []state.Service, direct map[string][]string) *caddy.EdgeConfig {
+	c := &caddy.EdgeConfig{Hosts: publicHostsOf(lab, services, true),
 		Upstream: net.JoinHostPort(labnet.ControllerAddr.String(), strconv.Itoa(443))}
+	for up, hosts := range direct {
+		for _, h := range hosts {
+			if slices.Contains(c.Hosts, h) {
+				if c.Direct == nil {
+					c.Direct = map[string][]string{}
+				}
+				c.Direct[up] = append(c.Direct[up], h)
+			}
+		}
+	}
+	return c
+}
+
+// edgeDirect are the public names the lab's edge passes straight to the
+// servers that serve them, by each server's Caddy on Roostack's network:
+// those of servers serving directly without a public address of their
+// own, which only do while their link with the edge is in place
+// (directProblem). lab has Direct as this apply works it out.
+func (m *Manager) edgeDirect(lab config.Lab, services []state.Service, infos map[string]linkInfo) map[string][]string {
+	if lab.Public.Edge == "" {
+		return nil
+	}
+	out := map[string][]string{}
+	for _, s := range services {
+		host := s.Instance.Host
+		info, ok := infos[host]
+		if !ok || info.Addr == "" || !lab.ServesDirect(host) || directAddr(info.Peer) != "" || s.Stop != nil || s.Instance.Off != nil {
+			continue
+		}
+		proxy, err := generate.ProxySite(lab, s.Package, s.Instance, info.Addr)
+		if err != nil {
+			continue
+		}
+		up := net.JoinHostPort(info.Addr, strconv.Itoa(443))
+		for _, h := range proxy.DirectHosts {
+			if !slices.Contains(proxy.HomeHosts, h) {
+				out[up] = append(out[up], h)
+			}
+		}
+	}
+	return out
 }
 
 // publicHostsOf lists the public names of services, sorted, with each

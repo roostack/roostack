@@ -410,7 +410,9 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 			a.Links.PassesOn = devices.Elsewhere && id == m.VPNElsewhere()
 		}
 		if id == edge {
-			a.Edge, a.PortForwards = edgeConfig(m.withStatusPage(), services), atEdge
+			names := m.withStatusPage()
+			names.Direct, names.DirectHome, names.Public.Edge = lab.Direct, lab.DirectHome, edge
+			a.Edge, a.PortForwards = edgeConfig(names, services, m.edgeDirect(names, services, infos)), atEdge
 			if a.Links != nil && len(atEdge) > 0 {
 				// Roostack's network's interface forwards the answers.
 				a.Links.PassesOn = true
