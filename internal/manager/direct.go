@@ -55,8 +55,6 @@ func (m *Manager) serveChoice(ctx context.Context, lab config.Lab, infos map[str
 	home := homeProblem(lab, m.homeAddrOf(ctx, lab, infos, id), m.setting(ctx, LocationKey+id))
 	c.Public, c.Private = pub == "", home == ""
 	switch {
-	case id == lab.Public.Edge:
-		c.Private, c.Why = false, pub
 	case c.Public && c.Private:
 	case c.Public:
 		c.Why = home
@@ -90,13 +88,11 @@ func serveMode(lab config.Lab, id, addr string) string {
 // address of its own does, and with the lab's edge as the way in, so does
 // one the edge has a link of their own to (edgeLinked), which passes its
 // names straight to it. Through Roostack Cloud, every public name goes
-// through the controller, and the edge itself only passes visitors on.
+// through the controller.
 func directProblem(lab config.Lab, id, addr string, edgeLinked bool) string {
 	switch {
 	case !lab.HasAddress():
 		return "Your lab has no address yet, so there's nothing to serve."
-	case id == lab.Public.Edge:
-		return "It's your lab's edge, which passes public visitors on to the servers that serve them, so its own public services will go through the server that runs the lab."
 	case lab.Public.Edge != "" && addr == "" && !edgeLinked:
 		return "Your lab's edge can't reach it directly yet, so its public services will go through the server that runs the lab. It reaches the edge's WireGuard port, UDP 51820, which may need allowing in the edge's firewall at its provider."
 	case lab.Public.Edge != "" && addr == "":

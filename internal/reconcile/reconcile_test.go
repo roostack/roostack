@@ -707,3 +707,27 @@ func TestSlices(t *testing.T) {
 		t.Errorf("someone else's slice: %v", err)
 	}
 }
+
+// When the same apply changes Caddy's own unit (its secrets), the running
+// Caddy isn't asked to check files written for the one that will start:
+// it would refuse CrowdSec without the key it's about to get.
+func TestCaddyCheckSkippedForNewUnit(t *testing.T) {
+	e := newEnv(t)
+	e.apply(t, e.desired(t))
+	asked := false
+	e.r.CheckCaddy = func(context.Context, string) error {
+		asked = true
+		return &CaddyRefused{Reason: "crowdsec API key must not be empty"}
+	}
+	p := &Plan{Write: []FileChange{
+		{Path: filepath.Join(e.lab.Paths.QuadletDir(), generate.CaddyUnit+".container"), Content: "[Container]\n"},
+		{Path: filepath.Join(e.lab.Paths.CaddyDir(), "Caddyfile"), Content: "{\n}\n"},
+	}}
+	var said []string
+	if err := e.r.checkCaddy(context.Background(), p, func(f string, a ...any) { said = append(said, fmt.Sprintf(f, a...)) }); err != nil || asked {
+		t.Errorf("checked anyway: %v, asked %v", err, asked)
+	}
+	if len(said) != 1 || !strings.Contains(said[0], "start again") {
+		t.Errorf("the log: %q", said)
+	}
+}

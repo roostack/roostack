@@ -659,17 +659,6 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	}
 	// Media libraries, and services' views of them, before services start.
 	n.applyLibraries(ctx, act, a, desired)
-	if a.Edge != nil && n.lab(a).IsNode() {
-		// Nodes have no Caddy of their own: the edge's is the system's.
-		edge, err := generate.Edge(n.lab(a), *a.Edge)
-		if err != nil {
-			return err
-		}
-		desired.System.Quadlets = append(desired.System.Quadlets, edge.Quadlets...)
-		desired.System.Caddyfile = edge.Caddyfile
-		desired.System.Dirs = append(desired.System.Dirs, edge.Dirs...)
-		desired.System.Units = append(desired.System.Units, edge.Units...)
-	}
 	r := *n.Reconciler
 	r.UserSecret = n.userSecret
 	// Changes to web addresses applied at once since this apply began
@@ -695,7 +684,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	// Caddy's image downloads in the background: show it, whether this
 	// apply starts it or it was already running when Roostack restarted
 	// (e.g. at the end of the setup wizard).
-	caddyHere := n.lab(a).CaddyHere() || a.Edge != nil
+	caddyHere := n.lab(a).CaddyHere()
 	downloading := caddyHere && (slices.Contains(plan.ImageUnits, CaddyImageUnit) || n.caddyDownloading(ctx))
 	if downloading {
 		n.clearImageLog(ctx, plan, n.lab(a).Paths.CaddyImageLog())
@@ -882,6 +871,9 @@ func (n *Local) lab(a Assignment) config.Lab {
 		}
 	}
 	lab.Direct, lab.DirectHome, lab.SignInServers = a.Lab.Direct, a.Lab.DirectHome, a.Lab.SignInServers
+	if lab.IsNode() {
+		lab.Pass = a.Edge
+	}
 	lab.EdgeAddrs = a.Lab.EdgeAddrs
 	lab.HomeAddress = a.Lab.HomeAddress
 	lab.LabDNSHere = a.Lab.DNS != nil

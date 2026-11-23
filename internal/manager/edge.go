@@ -135,7 +135,9 @@ func (m *Manager) edgeFor(infos map[string]linkInfo) (id string, addrs []string)
 // edgeForwards are the services' public ports the lab's edge sends on,
 // with the same numbers (SPEC.md §10.5): at the edge, to the controller,
 // and at the controller, on to the server that runs the service when
-// that's another one (the edge has a route to the controller alone).
+// that's another one; or, for a server serving directly over a link of
+// its own with the edge, straight to it (lab.Direct). A cloud server
+// serving directly takes its own at its own address.
 // lab carries the lab's pauses, advisories' too: a paused service's
 // ports are home only. A port the edge uses itself, or that another
 // service sends on first (by name), isn't sent on, and the log says so.
@@ -166,6 +168,10 @@ func (m *Manager) edgeForwards(lab config.Lab, services []state.Service, infos m
 				continue // a server not in the lab's network yet
 			}
 		}
+		linked := host != m.Lab.NodeID && lab.ServesDirect(host)
+		if linked && directAddr(infos[host].Peer) != "" {
+			continue // a cloud server serving directly, at its own address
+		}
 		ports := generate.ResolvePorts(s.Package, s.Instance)
 		for _, name := range slices.Sorted(maps.Keys(ports)) {
 			pc := ports[name]
@@ -179,6 +185,10 @@ func (m *Manager) edgeForwards(lab config.Lab, services []state.Service, infos m
 				continue
 			}
 			taken[key(pc.HostPort, pc.Protocol)] = s.Name()
+			if linked {
+				atEdge = append(atEdge, agent.PortForward{Port: pc.HostPort, Proto: pc.Protocol, To: to, Reason: reason})
+				continue
+			}
 			atEdge = append(atEdge, agent.PortForward{Port: pc.HostPort, Proto: pc.Protocol,
 				To: labnet.ControllerAddr.String(), Reason: reason})
 			if host != m.Lab.NodeID {
@@ -195,9 +205,14 @@ func (m *Manager) edgeForwards(lab config.Lab, services []state.Service, infos m
 // Caddy on Roostack's network.
 // Names a server without a public address serves itself go straight to
 // its Caddy over their link (direct, SPEC.md §10.5, "Serving directly").
-func edgeConfig(lab config.Lab, services []state.Service, direct map[string][]string) *caddy.EdgeConfig {
-	c := &caddy.EdgeConfig{Hosts: publicHostsOf(lab, services, true),
-		Upstream: net.JoinHostPort(labnet.ControllerAddr.String(), strconv.Itoa(443))}
+// The names the way in serves itself (own) aren't passed on.
+func edgeConfig(lab config.Lab, services []state.Service, direct map[string][]string, own []string) *caddy.EdgeConfig {
+	c := &caddy.EdgeConfig{Upstream: net.JoinHostPort(labnet.ControllerAddr.String(), strconv.Itoa(443))}
+	for _, h := range publicHostsOf(lab, services, true) {
+		if !slices.Contains(own, h) {
+			c.Hosts = append(c.Hosts, h)
+		}
+	}
 	for up, hosts := range direct {
 		for _, h := range hosts {
 			if slices.Contains(c.Hosts, h) {
@@ -209,6 +224,24 @@ func edgeConfig(lab config.Lab, services []state.Service, direct map[string][]st
 		}
 	}
 	return c
+}
+
+// ownNames are the public names server serves itself, serving directly.
+func ownNames(lab config.Lab, services []state.Service, server string) []string {
+	var out []string
+	for _, s := range services {
+		if s.Instance.Host != server || !lab.ServesDirect(server) || s.Stop != nil || s.Instance.Off != nil {
+			continue
+		}
+		if proxy, err := generate.ProxySite(lab, s.Package, s.Instance, ""); err == nil {
+			for _, h := range proxy.DirectHosts {
+				if !slices.Contains(proxy.HomeHosts, h) {
+					out = append(out, h)
+				}
+			}
+		}
+	}
+	return out
 }
 
 // edgeDirect are the public names the lab's edge passes straight to the

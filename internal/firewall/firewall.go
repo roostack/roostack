@@ -168,15 +168,20 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	// controller, which takes them from the edge, and sends on those of a
 	// service on another server, which takes them from the controller.
 	fw.PortForwards = roles.PortForwards
+	// Another server takes them from the controller, or straight from the
+	// edge when it serves directly over a link of its own with it.
 	if edgeHere := slices.Contains(fw.Edges, lab.OverlayAddr); len(fw.Edges) > 0 && !edgeHere {
-		from := trust.Edge
+		from := []trust.Class{trust.Edge}
 		if lab.IsNode() {
-			from = trust.Controller
+			from = []trust.Class{trust.Controller, trust.Edge}
 		}
 		for _, s := range services {
 			for _, hp := range s.HostPorts {
-				if hp.Exposure == pkgspec.ExposurePublic {
-					fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, For: from,
+				if hp.Exposure != pkgspec.ExposurePublic {
+					continue
+				}
+				for _, f := range from {
+					fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, For: f,
 						Reason: s.Service + " " + hp.Name})
 				}
 			}

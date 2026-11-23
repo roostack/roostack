@@ -354,6 +354,7 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	// It sends services' public ports on too.
 	paused := m.labNow()
 	paused.Public.Pause = pause
+	paused.Direct = direct
 	atEdge, atController := m.edgeForwards(paused, services, infos, edge)
 	for _, n := range nodes {
 		id := n.Identity().ID
@@ -412,7 +413,7 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		if id == edge {
 			names := m.withStatusPage()
 			names.Direct, names.DirectHome, names.Public.Edge = lab.Direct, lab.DirectHome, edge
-			a.Edge, a.PortForwards = edgeConfig(names, services, m.edgeDirect(names, services, infos)), atEdge
+			a.Edge, a.PortForwards = edgeConfig(names, services, m.edgeDirect(names, services, infos), ownNames(names, services, edge)), atEdge
 			if a.Links != nil && len(atEdge) > 0 {
 				// Roostack's network's interface forwards the answers.
 				a.Links.PassesOn = true

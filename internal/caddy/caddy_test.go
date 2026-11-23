@@ -280,29 +280,30 @@ func TestCaddyAdapt(t *testing.T) {
 // TestEdge: the edge passes its public names through to the controller
 // with a PROXY header, redirects plain HTTP for them, and nothing else
 // (the config itself checked with Caddy: docs/ASSUMPTIONS.md Q11).
-func TestEdge(t *testing.T) {
-	out, err := Edge(EdgeConfig{Hosts: []string{"photos.smith.family", "vault.smith.family"}, Upstream: "100.96.0.1:443"})
+func TestWayInPass(t *testing.T) {
+	out, err := Main(MainConfig{Domain: "smith.family", Pass: &EdgeConfig{Hosts: []string{"photos.smith.family", "vault.smith.family"},
+		Upstream: "100.96.0.1:443"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"\tauto_https off\n",
-		"\t\t\t@public tls sni photos.smith.family vault.smith.family\n",
-		"\t\t\t\t\tproxy_protocol v2\n\t\t\t\t\tupstream 100.96.0.1:443\n",
+		"\tservers :443 {\n\t\tlistener_wrappers {\n\t\t\tlayer4 {\n",
+		"\t\t\t\t@passed tls sni photos.smith.family vault.smith.family\n",
+		"\t\t\t\t\t\tproxy_protocol v2\n\t\t\t\t\t\tupstream 100.96.0.1:443\n",
+		"\t\t\t}\n\t\t\ttls\n\t\t}\n",
 		"http://photos.smith.family, http://vault.smith.family {\n\tredir https://{host}{uri} 308\n}\n",
-		"http:// {\n\tabort\n}\n",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in\n%s", want, out)
 		}
 	}
 	// Nothing public yet: nothing passed on.
-	if out, _ := Edge(EdgeConfig{Upstream: "100.96.0.1:443"}); strings.Contains(out, "layer4") || strings.Contains(out, "redir") {
+	if out, _ := Main(MainConfig{Domain: "smith.family", Pass: &EdgeConfig{Upstream: "100.96.0.1:443"}}); strings.Contains(out, "layer4") || strings.Contains(out, "redir") {
 		t.Errorf("no names:\n%s", out)
 	}
 	for _, bad := range []EdgeConfig{{Hosts: []string{"a b"}, Upstream: "100.96.0.1:443"}, {Hosts: []string{"*.x"}, Upstream: "100.96.0.1:443"},
 		{Hosts: []string{"a.x"}, Upstream: "nowhere"}} {
-		if _, err := Edge(bad); err == nil {
+		if _, err := Main(MainConfig{Domain: "smith.family", Pass: &bad}); err == nil {
 			t.Errorf("accepted %+v", bad)
 		}
 	}
@@ -727,25 +728,26 @@ func TestMainServedDirectly(t *testing.T) {
 	}
 }
 
-// The edge passes the names a server serves itself straight to it, and
-// the rest to the controller (SPEC.md §10.5, "Serving directly").
+// A way in serves its own names, passes the names another server serves
+// itself straight to it, and the rest to the controller (SPEC.md §10.5).
 func TestEdgeDirect(t *testing.T) {
-	out, err := Edge(EdgeConfig{Hosts: []string{"git.smith.family", "photos.smith.family"}, Upstream: "100.96.0.1:443",
-		Direct: map[string][]string{"100.96.0.2:443": {"photos.smith.family"}}})
+	out, err := Main(MainConfig{Domain: "smith.family", Hosts: []string{"wiki.smith.family"}, Pass: &EdgeConfig{
+		Hosts: []string{"git.smith.family", "photos.smith.family"}, Upstream: "100.96.0.1:443",
+		Direct: map[string][]string{"100.96.0.2:443": {"photos.smith.family"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"@direct1 tls sni photos.smith.family", "upstream 100.96.0.2:443", "@public tls sni git.smith.family",
-		"upstream 100.96.0.1:443", "http://git.smith.family, http://photos.smith.family"} {
+	for _, want := range []string{"@direct1 tls sni photos.smith.family", "upstream 100.96.0.2:443", "@passed tls sni git.smith.family",
+		"upstream 100.96.0.1:443", "\nwiki.smith.family {\n"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q:\n%s", want, out)
 		}
 	}
-	if strings.Index(out, "@direct1") > strings.Index(out, "@public") {
-		t.Errorf("a server's own names come first:\n%s", out)
+	if strings.Index(out, "@direct1") > strings.Index(out, "@passed") || strings.Contains(out, "sni wiki") {
+		t.Errorf("a server's own names come first, and the way in's own aren't passed on:\n%s", out)
 	}
-	if _, err := Edge(EdgeConfig{Hosts: []string{"git.smith.family"}, Upstream: "100.96.0.1:443",
-		Direct: map[string][]string{"100.96.0.2:443": {"other.smith.family"}}}); err == nil {
+	if _, err := Main(MainConfig{Domain: "smith.family", Pass: &EdgeConfig{Hosts: []string{"git.smith.family"}, Upstream: "100.96.0.1:443",
+		Direct: map[string][]string{"100.96.0.2:443": {"other.smith.family"}}}}); err == nil {
 		t.Error("a direct name that isn't public")
 	}
 }

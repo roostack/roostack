@@ -281,11 +281,13 @@ func TestDesiredEdgePorts(t *testing.T) {
 	for _, c := range []struct {
 		name, role, addr string
 		roles            Roles
-		want             trust.Class
+		want             []trust.Class
 	}{
-		{"controller", "", "100.96.0.1", Roles{PortForwards: forwards}, trust.Edge},
-		{"server at home", config.RoleNode, "100.96.0.2", Roles{}, trust.Controller},
-		{"the edge", config.RoleNode, "100.96.0.3", Roles{}, ""},
+		{"controller", "", "100.96.0.1", Roles{PortForwards: forwards}, []trust.Class{trust.Edge}},
+		// From the controller, or straight from the edge when it serves
+		// directly over a link of its own with it.
+		{"server at home", config.RoleNode, "100.96.0.2", Roles{}, []trust.Class{trust.Controller, trust.Edge}},
+		{"the edge", config.RoleNode, "100.96.0.3", Roles{}, nil},
 	} {
 		lab.Role, lab.OverlayAddr = c.role, c.addr
 		fw, _ := Desired(lab, services, c.roles)
@@ -301,7 +303,7 @@ func TestDesiredEdgePorts(t *testing.T) {
 				t.Errorf("%s: a home-only port is sent on: %+v", c.name, r)
 			}
 		}
-		if want := []trust.Class{c.want}; c.want == "" && len(from) > 0 || c.want != "" && !slices.Equal(from, want) {
+		if !slices.Equal(from, c.want) {
 			t.Errorf("%s: 31116 for %v, want %v", c.name, from, c.want)
 		}
 		if !slices.Equal(fw.PortForwards, c.roles.PortForwards) {

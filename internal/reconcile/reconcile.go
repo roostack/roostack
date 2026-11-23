@@ -843,6 +843,15 @@ func (r *Reconciler) checkCaddy(ctx context.Context, p *Plan, logf func(string, 
 	if r.CheckCaddy == nil {
 		return nil
 	}
+	// Caddy's own unit changing (its secrets, such as CrowdSec's key when
+	// the first service goes public): the running Caddy can't judge files
+	// written for the one that will start.
+	for _, f := range p.Write {
+		if filepath.Base(f.Path) == generate.CaddyUnit+".container" {
+			logf("Caddy will start again with its new settings, so Roostack will apply its files without asking the running one to check them")
+			return nil
+		}
+	}
 	dir := r.Paths.CaddyDir()
 	sites := r.Paths.CaddySitesDir()
 	files, err := readOwned(sites, func(n string) bool { return strings.HasSuffix(n, ".caddy") })

@@ -20,6 +20,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/fsutil"
 )
 
@@ -608,6 +609,10 @@ type Lab struct {
 	// private routes, being on the controller's home network, worked out
 	// with Direct (direct serving's phase 2).
 	DirectHome []string `yaml:"-"`
+	// Pass, on a server that's the lab's way in for servers that can't be
+	// reached directly, is what its Caddy passes on to other servers
+	// (SPEC.md §10.5, "Ways in"). From the assignment, never in lab.yaml.
+	Pass *caddy.EdgeConfig `yaml:"-"`
 	// SignInServers: an app on a server other than the controller swaps
 	// codes for tokens at the sign-in page itself (single sign-on, SPEC.md
 	// §5.2), over Roostack's network, so the controller's firewall and the
@@ -760,11 +765,11 @@ func (l Lab) ServesDirect(host string) bool { return host != "" && slices.Contai
 // routes too, on the home network (DirectHome).
 func (l Lab) ServesHome(host string) bool { return host != "" && slices.Contains(l.DirectHome, host) }
 
-// CaddyHere reports whether this server's own Caddy serves services: the
-// controller's always, another server's while it serves some directly (an
-// edge's Caddy only passes visitors on).
+// CaddyHere reports whether this server runs Caddy: the controller always,
+// another server while it serves some of its services directly, or passes
+// visitors on as the lab's way in (Pass).
 func (l Lab) CaddyHere() bool {
-	return !l.IsNode() || l.ServesDirect(l.NodeID) || l.ServesHome(l.NodeID)
+	return !l.IsNode() || l.ServesDirect(l.NodeID) || l.ServesHome(l.NodeID) || l.Pass != nil
 }
 
 // LocalhostName reports whether name is localhost or a name under it.

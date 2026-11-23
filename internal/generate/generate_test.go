@@ -867,8 +867,8 @@ func TestRoostAcAddress(t *testing.T) {
 // only TCP 80 and 443, no certificates or DNS logins, and the edge config.
 func TestEdge(t *testing.T) {
 	lab := testLab()
-	lab.Role = config.RoleNode
-	out, err := Edge(lab, caddy.EdgeConfig{Hosts: []string{"photos.lab.example.com"}, Upstream: "100.96.0.1:443"})
+	lab.Role, lab.Pass = config.RoleNode, &caddy.EdgeConfig{Hosts: []string{"photos.lab.example.com"}, Upstream: "100.96.0.1:443"}
+	out, err := SystemWith(lab, SystemOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -876,15 +876,14 @@ func TestEdge(t *testing.T) {
 		t.Fatalf("quadlets: %+v", out.Quadlets)
 	}
 	c := out.Quadlets[0].Content
-	for _, want := range []string{"PublishPort=80:80\n", "PublishPort=443:443\n", "Network=pasta\n", "Image=" + CaddyUnit + ".image\n"} {
+	for _, want := range []string{"PublishPort=80:80\n", "PublishPort=443:443\n", "Image=" + CaddyUnit + ".image\n"} {
 		if !strings.Contains(c, want) {
 			t.Errorf("missing %q in\n%s", want, c)
 		}
 	}
-	for _, not := range []string{"/udp", "Secret=", "map-host-loopback"} {
-		if strings.Contains(c, not) {
-			t.Errorf("has %q:\n%s", not, c)
-		}
+	// It decrypts nothing, so it has no DNS login and no CrowdSec.
+	if strings.Contains(c, "Secret=") || slices.Contains(out.Units, CrowdSecUnit+".service") {
+		t.Errorf("a way in passing visitors on alone:\n%s", c)
 	}
 	if !strings.Contains(out.Caddyfile.Content, "tls sni photos.lab.example.com") || len(out.Secrets) != 0 {
 		t.Errorf("caddyfile:\n%s", out.Caddyfile.Content)

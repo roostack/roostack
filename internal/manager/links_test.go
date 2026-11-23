@@ -368,6 +368,14 @@ func TestEdgeForwards(t *testing.T) {
 	if want := []agent.PortForward{{Port: 2222, Proto: "tcp", To: "100.96.0.2", FromEdge: true, Reason: "forgejo ssh"}}; !slices.Equal(c, want) {
 		t.Errorf("at the controller: %v", c)
 	}
+	// Its server serving directly over a link of its own with the edge:
+	// straight to it, and nothing at the controller (SPEC.md §10.5).
+	linked := m.Lab
+	linked.Direct = []string{"n-0000000002"}
+	e, c = m.edgeForwards(linked, services, infos, "n-0000000003")
+	if want := []agent.PortForward{{Port: 2222, Proto: "tcp", To: "100.96.0.2", Reason: "forgejo ssh"}}; !slices.Equal(e, want) || len(c) != 0 {
+		t.Errorf("serving directly through the edge: %v %v", e, c)
+	}
 	// On the controller, the edge sends it there and that's all.
 	s.Instance.Host = m.Lab.NodeID
 	if e, c := forwards(); len(e) != 1 || len(c) != 0 {
@@ -395,8 +403,8 @@ func TestEdgeForwards(t *testing.T) {
 
 // TestServeDirect: a server with a public address serves its public
 // routes itself unless the Owner chose otherwise, and every server's
-// assignment names it; with an edge, everything goes through the
-// controller (SPEC.md §10.5, "Serving directly").
+// assignment names it, the way in's too (SPEC.md §10.5, "Serving
+// directly").
 func TestServeDirect(t *testing.T) {
 	m, home, vps, _ := setUpLinks(t)
 	ctx := context.Background()
@@ -434,12 +442,12 @@ func TestServeDirect(t *testing.T) {
 	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Public || c.Why == "" || len(sent(home)) != 0 {
 		t.Errorf("a home server set to direct: %+v, sent %v", c, sent(home))
 	}
-	// The edge itself passes visitors on rather than serving directly.
+	// The way in serves its own public names directly too.
 	m.SetServe(ctx, "n-0000000003", config.ServeDirect)
 	m.SetEdge(ctx, "n-0000000003")
 	m.Wait()
-	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Public || c.Why == "" || slices.Contains(sent(vps), "n-0000000003") {
-		t.Errorf("the edge itself: %+v, sent %v", c, sent(vps))
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); !c.Public || !slices.Contains(sent(vps), "n-0000000003") {
+		t.Errorf("the way in itself: %+v, sent %v", c, sent(vps))
 	}
 	if err := m.SetServe(ctx, m.Lab.NodeID, config.ServeDirect); !errors.Is(err, ErrNotFound) {
 		t.Errorf("the controller itself: %v", err)
@@ -509,10 +517,10 @@ func TestHomeAddrIn(t *testing.T) {
 	}
 }
 
-// TestServeThroughEdge: with the lab's edge as the way in, a cloud server
-// still serves its public names itself, the edge itself doesn't, and a
-// home server set to serve directly gets a link of its own with the edge,
-// which passes its names straight to it (SPEC.md §10.5).
+// TestServeThroughEdge: with a cloud server as the way in, a cloud server
+// still serves its public names itself, the way in too, and a home server
+// set to serve directly gets a link of its own with the way in, which
+// passes its names straight to it (SPEC.md §10.5, "Ways in").
 func TestServeThroughEdge(t *testing.T) {
 	m, home, vps, _ := setUpLinks(t)
 	ctx := context.Background()
@@ -529,8 +537,8 @@ func TestServeThroughEdge(t *testing.T) {
 	if c := m.ServeChoiceOf(ctx, "n-0000000004"); !c.Public {
 		t.Errorf("a cloud server with an edge: %+v", c)
 	}
-	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Public || !strings.Contains(c.Why, "edge") {
-		t.Errorf("the edge itself: %+v", c)
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); !c.Public {
+		t.Errorf("the way in itself: %+v", c)
 	}
 	if err := m.SetServe(ctx, "n-0000000002", config.ServeDirect); err != nil {
 		t.Fatal(err)
