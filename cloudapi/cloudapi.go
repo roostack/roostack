@@ -425,7 +425,35 @@ type RelayRequest struct {
 	// alone reports. A Cloud from before it ignores it: the lab's firewall
 	// refuses the relay's visitors anyway.
 	Pause bool `json:"pause,omitempty"`
+	// Servers are the lab's servers other than the controller that serve
+	// public names themselves (Roostack's SPEC.md §10.5, "Serving
+	// directly"), each with a relay tunnel of its own: the edges pass
+	// each one's Hosts to it, and every other name to the controller
+	// (PublicKey). Each of a server's Hosts is in Hosts too, so a Cloud
+	// from before it, which ignores it, passes them all to the
+	// controller. At most MaxRelayServers.
+	Servers []RelayServer `json:"servers,omitempty"`
 }
+
+// RelayServer is a server's relay tunnel: its ID in the lab (as
+// StorageRequest.Server), its WireGuard key on the relay network, made on
+// the server, and the names the edges pass to it. Hosts is empty until
+// its tunnel has connected, so its names go to the controller while it
+// joins.
+type RelayServer struct {
+	ID        string   `json:"id"`
+	PublicKey string   `json:"public_key"`
+	Hosts     []string `json:"hosts,omitempty"`
+}
+
+// RelayServerAddr is a server's address on the relay network (Relay.Servers).
+type RelayServerAddr struct {
+	ID   string `json:"id"`
+	Addr string `json:"addr"`
+}
+
+// MaxRelayServers is the most servers a lab's relay request lists.
+const MaxRelayServers = 10
 
 // RelayDomain is how the lab's own domain stands: the TXT record that
 // proves it's the lab's (ProofName, e.g. _roostack.lab.example.com, with
@@ -589,6 +617,9 @@ type Relay struct {
 	Names []NameStatus `json:"names,omitempty"`
 	// Registry is as in News.
 	Registry int64 `json:"registry,omitempty"`
+	// Servers are the relay addresses of the servers in the request's
+	// Servers (with Prefix, as Addr). A Cloud from before it sends none.
+	Servers []RelayServerAddr `json:"servers,omitempty"`
 }
 
 // News is what a linked lab hears from Cloud every few minutes (Roostack's

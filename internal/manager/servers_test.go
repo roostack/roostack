@@ -39,6 +39,8 @@ type fakeRemote struct {
 	handshakes map[string]int64
 	// backups are its backups' results, if set (quarantine_test.go).
 	backups node.Backups
+	// relay is its tunnel to Roostack Cloud's relay (nil: none).
+	relay *agent.WireGuardStatus
 	// arch is its processor ("": it doesn't say; arch_test.go).
 	arch string
 	// setup is what it says of every service's install hooks
@@ -56,6 +58,17 @@ func (f *fakeRemote) Arch() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.arch
+}
+
+// RelayStatus is its own tunnel to Roostack Cloud's relay, if set
+// (relayservers_test.go).
+func (f *fakeRemote) RelayStatus(context.Context) (agent.WireGuardStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.relay == nil {
+		return agent.WireGuardStatus{}, nil
+	}
+	return *f.relay, nil
 }
 
 func (f *fakeRemote) Close() { f.closed = true }

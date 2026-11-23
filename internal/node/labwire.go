@@ -99,6 +99,13 @@ func (s *Server) labRoutes(handle handleFunc) {
 				w.VPN = &st
 			}
 		}
+		if v, ok := n.(interface {
+			RelayStatus(context.Context) (agent.WireGuardStatus, error)
+		}); ok {
+			if st, err := v.RelayStatus(r.Context()); err == nil && st.Configured {
+				w.Relay = &st
+			}
+		}
 		return w, nil
 	})
 	handle("PUT "+assignmentPath, func(r *http.Request) (any, error) {

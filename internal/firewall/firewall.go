@@ -47,6 +47,9 @@ type Roles struct {
 	// VPN: the lab's VPN's devices connect to this server (SPEC.md
 	// §10.11), and their traffic may go on from here.
 	VPN bool
+	// Relayed: this server's public names come in through Roostack
+	// Cloud's relay, over its own tunnel (agent.Firewall.Relayed).
+	Relayed bool
 	// PortForwards are the public ports this server sends on to another,
 	// on the lab's edge and the controller (SPEC.md §10.5).
 	PortForwards []agent.PortForward
@@ -73,6 +76,7 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	}
 	fw = agent.DefaultFirewall()
 	fw.SetupPort = roles.SetupPort
+	fw.Relayed = roles.Relayed && lab.IsNode()
 	defer func() { fw = WithClosed(fw, lab.Public.Pause.Closed != nil) }()
 	fw.SSHFrom = map[string]string{config.SSHFromLAN: agent.FromLAN, config.SSHFromAny: agent.FromAny,
 		config.SSHOff: agent.FromOff}[ssh]
@@ -249,7 +253,8 @@ var CaddyOnly = []agent.PortRange{{From: 22, To: 22}, {From: config.DefaultRoute
 
 // WithClosed is fw with public access closed completely, or not (SPEC.md
 // §6.16): Caddy's web ports for the home network only, and everyone else
-// refused (agent.Firewall.Closed). A server applies it on its own as soon
+// refused (agent.Firewall.Closed). A relayed server's web ports are for
+// the home network only either way (agent.Firewall.Relayed). A server applies it on its own as soon
 // as a closing arrives, to the firewall it last applied, rather than wait
 // for the apply's other changes (node.Local).
 func WithClosed(fw agent.Firewall, closed bool) agent.Firewall {
@@ -260,7 +265,7 @@ func WithClosed(fw agent.Firewall, closed bool) agent.Firewall {
 	fw.Allow = slices.Clone(fw.Allow)
 	for i, r := range fw.Allow {
 		if web := r.Port == 80 && r.Proto == "tcp" || r.Port == 443; web && (r.For == trust.Anyone || r.For == trust.Home) {
-			fw.Allow[i].For = map[bool]trust.Class{true: trust.Home, false: trust.Anyone}[closed]
+			fw.Allow[i].For = map[bool]trust.Class{true: trust.Home, false: trust.Anyone}[closed || fw.Relayed]
 		}
 	}
 	return fw

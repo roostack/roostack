@@ -537,6 +537,67 @@ func TestRelayEdgesChanged(t *testing.T) {
 	}
 }
 
+// TestRelayServers: the lab's servers' tunnels go with every relay
+// request; Cloud's addresses for them make the lab apply, and give each
+// server its own tunnel (a placeholder and no peers until then); a
+// refresh asks again when the servers have changed (a key reported, a
+// tunnel connected), and only then.
+func TestRelayServers(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	s.WireGuard = &fakeWG{}
+	applied := make(chan struct{}, 4)
+	s.EdgesChanged = func() { applied <- struct{}{} }
+	ctx := context.Background()
+	link(t, f, s, "")
+	if wg := s.ServerTunnel("n-2"); wg.Address != placeholderAddr || len(wg.Peers) != 0 || wg.Interface != agent.RelayInterface {
+		t.Errorf("before Cloud's answer: %+v", wg)
+	}
+	key := "c2VydmVyMXNlcnZlcjFzZXJ2ZXIxc2VydmVyMXNlcnY="
+	servers := []cloudapi.RelayServer{{ID: "n-2", PublicKey: key}}
+	s.RelayServers = func(context.Context) []cloudapi.RelayServer { return servers }
+	hosts := []string{"photos.smiths.roost.test", "smiths.roost.test"}
+	if err := s.Relay(ctx, hosts, config.Countries{}, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range f.Relayed {
+		if len(rel.Servers) != 1 || rel.Servers[0].PublicKey != key || len(rel.Servers[0].Hosts) != 0 {
+			t.Errorf("Cloud was asked %+v", rel.Servers)
+		}
+	}
+	select {
+	case <-applied:
+	case <-time.After(5 * time.Second):
+		t.Error("the lab didn't apply the servers' addresses")
+	}
+	wg := s.ServerTunnel("n-2")
+	if wg.Address != "100.81.2.1/16" || len(wg.Peers) != 1 || wg.Peers[0].Endpoint != "198.51.100.10:51830" || wg.Peers[0].Keepalive != 25 {
+		t.Errorf("the server's tunnel: %+v", wg)
+	}
+	// Nothing new: a refresh only asks how the relay stands.
+	asked := f.Relayed
+	f.Relayed = map[string]cloudapi.RelayRequest{}
+	for id, rel := range asked {
+		f.Relayed[id] = rel
+	}
+	before := fmt.Sprint(f.Relayed)
+	if err := s.refreshRelay(ctx); err != nil || fmt.Sprint(f.Relayed) != before {
+		t.Errorf("a refresh with nothing new: %v", err)
+	}
+	// Its tunnel connected: the next refresh tells Cloud its names.
+	servers = []cloudapi.RelayServer{{ID: "n-2", PublicKey: key, Hosts: []string{"photos.smiths.roost.test"}}}
+	if err := s.refreshRelay(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range f.Relayed {
+		if len(rel.Servers) != 1 || !slices.Equal(rel.Servers[0].Hosts, []string{"photos.smiths.roost.test"}) || !slices.Equal(rel.Hosts, hosts) {
+			t.Errorf("after the tunnel connected: %+v", rel)
+		}
+	}
+	if got := s.RelayServerAddrs(); got["n-2"] != "100.81.2.1/16" {
+		t.Errorf("addresses: %v", got)
+	}
+}
+
 // TestRelay: the relay's interface is made (its key) before Cloud is
 // asked, then dials every edge at the address Cloud gave; the same names
 // again change nothing; stopping tells Cloud and removes the interface.

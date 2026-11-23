@@ -115,6 +115,12 @@ type Service struct {
 	// the relay's WireGuard dials them: the lab applies again, so Caddy
 	// and the firewall know the new edges' relay addresses.
 	EdgesChanged func()
+	// RelayServers are the lab's other servers that serve public names
+	// themselves, each with its own tunnel to the relay (SPEC.md §10.5):
+	// sent with every relay request, so the edges pass each one's names to
+	// it. Nil: none. When Cloud gives them other addresses, the lab
+	// applies again (EdgesChanged), so each server's tunnel has its own.
+	RelayServers func(ctx context.Context) []cloudapi.RelayServer
 	// RelayPausedChanged is called when Cloud's answer says the lab's
 	// account paused public access at the relay's edges from Cloud's
 	// website (true), or lifted the pause there (false).
