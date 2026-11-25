@@ -94,8 +94,9 @@
 {{if or .EdgeServers .Edge .CanRelay .Relay}}
 <section class="card section" id="way-in">
   <h2>How people reach your public services</h2>
-  <p>A public service on a server with an address of its own on the internet is reached at that server. For services on servers
-    that can't be reached from the internet, such as this one at home, choose the way in:</p>
+  <p>A public service on a server with an address of its own on the internet is reached at that server, unless you choose
+    Roostack Cloud's relay below, which every public service will then come through. For services on servers that can't be
+    reached from the internet, such as this one at home, choose the way in:</p>
   {{if eq .Saved "edge"}}<p class="notice notice-ok" role="status">Saved. Public addresses will follow within a few minutes as DNS updates.</p>{{end}}
   {{if eq .Saved "relay-on"}}<p class="notice notice-ok" role="status">The relay is on again. Public addresses will point at it within a few minutes as DNS updates.</p>{{end}}
   {{if eq .Saved "relay-resumed"}}<p class="notice notice-ok" role="status">Public access through the relay is open again: visitors will come through within about 20 seconds.</p>{{end}}

@@ -90,8 +90,8 @@
       </form>
       <small>How visitors reach the services on {{$m.Name}}{{if not .Chosen}} (Roostack's choice for it){{end}}.
         Served by {{$m.Name}} itself, they'll come straight to it with its own certificates: its public services when it has
-        an address of its own on the internet or your lab's edge passes them on to it, and its private ones when it's on your
-        home network. The server that runs the lab will still pass them on for devices that go to it.</small>
+        an address of its own on the internet, your lab's edge passes them on to it, or Roostack Cloud's relay comes to it over a
+        tunnel of its own, and its private ones when it's on your home network. The server that runs the lab will still pass them on for devices that go to it.</small>
       {{if eq .Mode "direct"}}<p class="hint">{{if and .Public .Private}}{{$m.Name}} is serving its public and private services itself.
         {{- else if .Public}}{{$m.Name}} is serving its public services itself.
         {{- else if .Private}}{{$m.Name}} is serving its private services itself.{{end}} {{.Why}}</p>{{end}}
