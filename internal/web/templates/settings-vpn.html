@@ -58,12 +58,14 @@
     {{if .Devices}}<div class="table-wrap"><table class="list">
       <thead><tr><th>Device</th><th class="hide-phone">Person</th><th class="hide-phone">Reaches</th><th>Last connected</th><th><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>{{range .Devices}}<tr>
-        <td>{{.Name}}<small class="hint show-phone"> · {{.Person}}</small></td><td class="hide-phone">{{.Person}}</td><td class="hide-phone">{{.Reaches}}</td>
+        <td>{{.Name}}<small class="hint show-phone"> · {{.Person}}</small>{{if .OldDNS}} <span class="pill">Needs new settings</span>{{end}}</td><td class="hide-phone">{{.Person}}</td><td class="hide-phone">{{.Reaches}}</td>
         <td>{{if .Stale}}<span class="pill pill-warn">{{if .Never}}Never{{else}}{{.LastConnected}}{{end}}</span>{{else if .Never}}<span class="hint">Never</span>{{else}}{{.LastConnected}}{{end}}</td>
         <td>{{confirm (printf "/settings/vpn/devices/%d/remove" .ID) (printf "Remove %s, %s's device? It won't be able to connect any more." .Name .Person) "Remove" "quiet danger"}}</td>
       </tr>{{end}}</tbody>
     </table></div>
     <p class="hint">A device that hasn't connected for 90 days is marked: it may be lost or no longer used.</p>
+    {{if .OldDNS}}<p class="hint">A device that <strong>needs new settings</strong> was set up before the lab's DNS server changed, so it's still
+      using the one it had. Its person can choose <strong>Give it new settings</strong> on its page under Your account → VPN devices.</p>{{end}}
     {{else}}<p class="hint">Nobody has added a device yet.</p>{{end}}
     <details class="technical"><summary>Technical details</summary>
       <p>Interface <code>roostack-people</code> on {{.Way.Server}}, UDP 51822, with addresses in <code>100.96.128.0/17</code>, one for each device.

@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
@@ -59,6 +60,22 @@ type WireAssignment struct {
 type LabContext struct {
 	Domain string `json:"domain"`
 	Email  string `json:"email,omitempty"`
+	// Name is the lab's name (config.Lab), for an app's "Sign in with …"
+	// button (single sign-on).
+	Name string `json:"name,omitempty"`
+	// TestAddress: the domain is a test address (config.Lab), whose
+	// certificates come from Caddy's own authority, for a server serving
+	// directly.
+	TestAddress bool `json:"test_address,omitempty"`
+	// Direct are the servers serving their public routes themselves
+	// (config.Lab).
+	Direct []string `json:"direct,omitempty"`
+	// DirectHome are the servers serving their private routes at home too
+	// (config.Lab).
+	DirectHome []string `json:"direct_home,omitempty"`
+	// SignInServers: an app on another server reaches the sign-in page
+	// (config.Lab), for the controller.
+	SignInServers bool `json:"sign_in_servers,omitempty"`
 	// NoSharing is the Owner's CrowdSec opt-out (config.Public), for the
 	// server running Caddy.
 	NoSharing bool `json:"no_sharing,omitempty"`
@@ -91,6 +108,9 @@ type LabContext struct {
 	// Resolver, on a server whose own lookups use the lab's DNS server,
 	// is that server, as host:port (SPEC.md §6.5.2); "" elsewhere.
 	Resolver string `json:"resolver,omitempty"`
+	// DNS, on the server that runs Roostack's own DNS server (SPEC.md
+	// §6.5.3), is what it answers; nil elsewhere, where it stops.
+	DNS *labdns.Config `json:"dns,omitempty"`
 }
 
 // WireService is a service's instance and package files.

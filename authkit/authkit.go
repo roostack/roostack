@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
@@ -39,6 +40,47 @@ const (
 	maxMemory = 1024 * 1024 // KiB: 1 GiB
 )
 
+// Each password check holds argonMemory (64 MiB) while it runs, so many at
+// once could fill a small server's memory: at most four run together,
+// and one that can't start within busyWait fails with ErrBusy. Roostack
+// sizes it from the server's memory (SetMaxChecks).
+var (
+	checks   = make(chan struct{}, 4)
+	checksMu sync.Mutex
+)
+
+// busyWait is how long a password check waits for a turn.
+var busyWait = 5 * time.Second
+
+// ErrBusy means too many password checks were running to start another
+// in time: the caller asks the person to try again in a moment, never
+// counts it as a wrong password.
+var ErrBusy = errors.New("auth: too many password checks at once")
+
+// SetMaxChecks sets how many password checks may run at once (at least 1),
+// before any run.
+func SetMaxChecks(n int) {
+	checksMu.Lock()
+	defer checksMu.Unlock()
+	checks = make(chan struct{}, max(n, 1))
+}
+
+// argonTurn waits for a turn to run argon2id, returning the function that
+// gives it back, or ErrBusy after busyWait.
+func argonTurn() (func(), error) {
+	checksMu.Lock()
+	c := checks
+	checksMu.Unlock()
+	t := time.NewTimer(busyWait)
+	defer t.Stop()
+	select {
+	case c <- struct{}{}:
+		return func() { <-c }, nil
+	case <-t.C:
+		return nil, ErrBusy
+	}
+}
+
 // MinPasswordLength is the shortest password accepted.
 const MinPasswordLength = 12
 
@@ -56,7 +98,12 @@ func HashPassword(pw string) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
+	done, err := argonTurn()
+	if err != nil {
+		return "", err
+	}
 	key := argon2.IDKey([]byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	done()
 	b64 := base64.RawStdEncoding
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, argonMemory, argonTime, argonThreads, b64.EncodeToString(salt), b64.EncodeToString(key)), nil
@@ -64,19 +111,27 @@ func HashPassword(pw string) (string, error) {
 
 // noAccountHash is checked when a login names no account, so the answer
 // takes as long as a wrong password would and doesn't reveal which
-// usernames exist.
-var noAccountHash = sync.OnceValue(func() string {
-	h, _ := HashPassword("no such account")
-	return h
-})
+// usernames exist. It never needs to match, so it's written out with
+// today's settings, a random salt and a key of zeros, rather than made
+// with argon2: making it could fail while every check's turn is taken
+// (argonTurn), and an empty hash kept would answer at once from then on.
+var noAccountHash = func() string {
+	salt := make([]byte, saltLen)
+	rand.Read(salt)
+	b64 := base64.RawStdEncoding
+	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
+		argon2.Version, argonMemory, argonTime, argonThreads, b64.EncodeToString(salt), b64.EncodeToString(make([]byte, argonKeyLen)))
+}()
 
 // VerifyNoAccount does the work of a password check for a login that names
-// no account, and always fails.
-func VerifyNoAccount(pw string) {
-	VerifyPassword(noAccountHash(), pw)
+// no account, and always fails: with ErrBusy when VerifyPassword would.
+func VerifyNoAccount(pw string) error {
+	_, err := VerifyPassword(noAccountHash, pw)
+	return err
 }
 
-// VerifyPassword checks a password against a hash in constant time.
+// VerifyPassword checks a password against a hash in constant time, or
+// fails with ErrBusy when too many checks are running (argonTurn).
 func VerifyPassword(hash, pw string) (bool, error) {
 	parts := strings.Split(hash, "$")
 	if len(parts) != 6 || parts[1] != "argon2id" {
@@ -109,7 +164,12 @@ func VerifyPassword(hash, pw string) (bool, error) {
 	if len(salt) < 8 || len(want) < 16 || len(want) > 64 {
 		return false, errors.New("auth: hash salt or length out of range")
 	}
+	done, err := argonTurn()
+	if err != nil {
+		return false, err
+	}
 	got := argon2.IDKey([]byte(pw), salt, iter, mem, threads, uint32(len(want)))
+	done()
 	return subtle.ConstantTimeCompare(got, want) == 1, nil
 }
 
@@ -148,7 +208,7 @@ func (p Pepper) Hash(pw string) (string, error) { return HashPassword(p.mix(pw))
 func (p Pepper) Verify(hash, pw string) (bool, error) { return VerifyPassword(hash, p.mix(pw)) }
 
 // VerifyNoAccount is VerifyNoAccount with the pepper's work too.
-func (p Pepper) VerifyNoAccount(pw string) { VerifyNoAccount(p.mix(pw)) }
+func (p Pepper) VerifyNoAccount(pw string) error { return VerifyNoAccount(p.mix(pw)) }
 
 func (p Pepper) mix(pw string) string {
 	if len(p) == 0 {

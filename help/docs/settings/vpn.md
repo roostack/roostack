@@ -86,7 +86,9 @@ and remove the old one.
 away. Changing what it reaches gives it new settings to add again, since
 those are part of the settings on the device. **Give it new settings**
 does the same without changing anything else, for a device whose settings
-were lost, or when the VPN has moved to another server.
+were lost, when the VPN has moved to another server, or when the lab's DNS
+server has changed: **Settings → VPN** marks a device whose settings name
+another DNS server than the lab's now as **Needs new settings**.
 
 ## What a device reaches
 

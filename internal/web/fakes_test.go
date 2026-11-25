@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/kept"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/labrestore"
 	"roostack.cloud/roostack/internal/mail"
@@ -149,7 +150,11 @@ func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns 
 // fakeCatalog is the catalog and the installed services (ServiceCatalog).
 type fakeCatalog struct {
 	resolver manager.Resolver
-	portHost string
+	// dnsStatus is how Roostack's own DNS server is doing, and dnsSeen the
+	// check tokens it was asked for.
+	dnsStatus labdns.Status
+	dnsSeen   map[string]bool
+	portHost  string
 	// env are services' extra environment variables, and envValues the
 	// secret values last given (SetEnv).
 	env       map[string][]instance.EnvVar
@@ -432,6 +437,21 @@ func (f *fakeCatalog) SetPortExposure(_ context.Context, name, port string, publ
 func (f *fakeCatalog) PortHost(string) string { return f.portHost }
 
 func (f *fakeCatalog) Resolver(context.Context) manager.Resolver { return f.resolver }
+func (f *fakeCatalog) LabDNSStatus(context.Context) (labdns.Status, error) {
+	if !f.resolver.Own {
+		return labdns.Status{}, manager.ErrNoLabDNS
+	}
+	return f.dnsStatus, nil
+}
+func (f *fakeCatalog) LabDNSCheck(_ context.Context, token string) (bool, error) {
+	if !f.resolver.Own {
+		return false, manager.ErrNoLabDNS
+	}
+	return f.dnsSeen[token], nil
+}
+func (f *fakeCatalog) LabDNSInUse(context.Context) bool {
+	return f.resolver.Own && f.resolver.OwnServer != ""
+}
 func (f *fakeCatalog) SetResolver(_ context.Context, c config.Resolver) error {
 	f.resolver.Choice = c
 	return nil
@@ -455,6 +475,8 @@ type fakeServers struct {
 	linkAddrs  map[string]string
 	linkPath   string
 	linkFailed bool
+	// serve is how each server's public services are reached (SetServe).
+	serve map[string]string
 	// kept are the servers' kept copies; nil: Forgejo's old copy on
 	// n-9876543210.
 	kept []manager.KeptCopy
@@ -489,6 +511,24 @@ func (f *fakeServers) SetServerLocation(ctx context.Context, id, loc string) err
 	}
 	f.locations[manager.LocationKey+id] = loc
 	f.ApplyBecause("A server's location changed")
+	return nil
+}
+
+func (f *fakeServers) ServeChoiceOf(_ context.Context, id string) manager.ServeChoice {
+	if m, ok := f.serve[id]; ok {
+		return manager.ServeChoice{Mode: m, Chosen: true}
+	}
+	return manager.ServeChoice{Mode: config.ServeController}
+}
+
+func (f *fakeServers) SetServe(_ context.Context, id, mode string) error {
+	if mode != config.ServeDirect && mode != config.ServeController {
+		return usererr.New("Choose how visitors reach this server's public services.")
+	}
+	if f.serve == nil {
+		f.serve = map[string]string{}
+	}
+	f.serve[id] = mode
 	return nil
 }
 
@@ -1304,6 +1344,7 @@ type fakeNode struct {
 	// left is removed services' data on it (none when nil), and
 	// deletedLeft the names whose data was deleted.
 	cleanUp     *fakeCleanUp
+	labDNS      node.LabDNS
 	leftMu      sync.Mutex
 	left        []node.LeftService
 	deletedLeft []string
@@ -1337,6 +1378,9 @@ func (f *fakeCleanUp) RemoveImages(_ context.Context, ids []string) (node.Remove
 	}
 	return out, nil
 }
+
+// LabDNS is Roostack's own DNS server on it, when the test gives it one.
+func (f *fakeNode) LabDNS() node.LabDNS { return f.labDNS }
 
 // CleanUp is the server's images, when the test gives it some.
 func (f *fakeNode) CleanUp() node.CleanUp {
@@ -1826,7 +1870,6 @@ type fakeSetup struct {
 	restarted   bool
 	ssh         string
 	sshLogin    string
-	sshKeys     []agent.SSHKeyRequest
 	sshd        agent.SSHStatus
 	policy      string
 	clients     []netip.Addr
@@ -1871,14 +1914,6 @@ func (f *fakeSetup) UnblockSSH(_ context.Context, address string) error {
 }
 
 func (f *fakeSetup) SetSSHCommunity(context.Context, []string) error { return nil }
-
-func (f *fakeSetup) AddSSHKey(_ context.Context, r agent.SSHKeyRequest) error {
-	if r.Key == "not a key" {
-		return &usererr.Error{Msg: "That isn't an SSH public key."}
-	}
-	f.sshKeys = append(f.sshKeys, r)
-	return nil
-}
 
 func (f *fakeSetup) SetSSH(_ context.Context, c node.SSHChange) error {
 	if c.Choice == "off" && len(f.clients) > 0 && !c.Confirmed {

@@ -23,6 +23,7 @@ import (
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/state"
@@ -101,6 +102,8 @@ type Node interface {
 	Processor() Processor
 	// Photos migrates photos into its Immich (photos.go).
 	Photos() Photos
+	// LabDNS is Roostack's own DNS server there (labdns.go).
+	LabDNS() LabDNS
 }
 
 // Capability is one of n's capabilities, named by a method expression
@@ -229,6 +232,9 @@ type Local struct {
 	// Firewall applies the host firewall through roostack-agent after each
 	// apply. Nil leaves the firewall alone.
 	Firewall FirewallApplier
+	// DNSClient asks Roostack's own DNS server on this server (SPEC.md
+	// §6.5.3), on its socket.
+	DNSClient labdns.Client
 	// Resolver sets the DNS server this server's own lookups use, when
 	// the Owner chose the lab's (SPEC.md §6.5.2). Nil leaves it alone.
 	Resolver ResolverSetter
@@ -236,6 +242,8 @@ type Local struct {
 	// whether it has been since Roostack started.
 	resolverSet  string
 	resolverDone bool
+	// labDNSOn: Roostack's own DNS server runs here (labdns.go).
+	labDNSOn bool
 	// Units reads systemd unit states, for ServiceStates (optional).
 	Units UnitStatuser
 	// Launch runs commands as the roostack user outside Roostack's sandbox, for
@@ -347,10 +355,11 @@ type Local struct {
 	// (tests: a package's is at least a minute).
 	scheduledTimeout time.Duration
 
-	// followingBuild: a Caddy image build is being shown (build.go), and
-	// buildPoll how often its log is read (zero: build.go's buildPoll).
-	followingBuild bool
-	buildPoll      time.Duration
+	// followingImage: Caddy's image download is being shown
+	// (caddyimage.go), and imagePoll how often its log is read (zero:
+	// caddyimage.go's imagePoll).
+	followingImage bool
+	imagePoll      time.Duration
 	// installs are new services being installed, step by step (install.go);
 	// installsLoaded, once they've been read from State.
 	installs       map[string]*InstallProgress
@@ -504,7 +513,7 @@ func (n *Local) caddyNow(ctx context.Context) error {
 	a := n.assignment
 	n.mu.Unlock()
 	lab := n.lab(a)
-	if lab.IsNode() || n.Reconciler == nil {
+	if !lab.CaddyHere() || n.Reconciler == nil {
 		return nil // the controller's Caddy serves the lab's addresses
 	}
 	desired, err := state.Desired(lab, n.withInstallValues(ctx, a.Services), a.Proxied...)
@@ -650,17 +659,6 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	}
 	// Media libraries, and services' views of them, before services start.
 	n.applyLibraries(ctx, act, a, desired)
-	if a.Edge != nil && n.lab(a).IsNode() {
-		// Nodes have no Caddy of their own: the edge's is the system's.
-		edge, err := generate.Edge(n.lab(a), *a.Edge)
-		if err != nil {
-			return err
-		}
-		desired.System.Quadlets = append(desired.System.Quadlets, edge.Quadlets...)
-		desired.System.Caddyfile = edge.Caddyfile
-		desired.System.Dirs = append(desired.System.Dirs, edge.Dirs...)
-		desired.System.Units = append(desired.System.Units, edge.Units...)
-	}
 	r := *n.Reconciler
 	r.UserSecret = n.userSecret
 	// Changes to web addresses applied at once since this apply began
@@ -683,17 +681,25 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	} else {
 		r.Log = act
 	}
-	// Caddy's image builds in the background (for minutes the first time):
-	// show it, whether this apply starts it or it was already running when
-	// Roostack restarted (e.g. at the end of the setup wizard).
-	building := (!n.lab(a).IsNode() || a.Edge != nil) && (slices.Contains(plan.BuildUnits, CaddyBuildUnit) || n.caddyBuilding(ctx))
-	if building {
-		n.clearBuildLog(ctx, plan, n.lab(a).Paths.CaddyBuildLog())
+	// Caddy's image downloads in the background: show it, whether this
+	// apply starts it or it was already running when Roostack restarted
+	// (e.g. at the end of the setup wizard).
+	caddyHere := n.lab(a).CaddyHere()
+	downloading := caddyHere && (slices.Contains(plan.ImageUnits, CaddyImageUnit) || n.caddyDownloading(ctx))
+	if downloading {
+		n.clearImageLog(ctx, plan, n.lab(a).Paths.CaddyImageLog())
 	}
 	// New services are shown step by step while they install.
-	n.planInstalls(a.Services, desired, plan, building)
+	n.planInstalls(a.Services, desired, plan, downloading)
 	r.Progress = n.installEvent
 	if err := r.Apply(ctx, plan); err != nil {
+		// Caddy didn't start because its image didn't download: say so,
+		// rather than systemd's "a dependency job failed", which stays in
+		// the log.
+		if why := n.caddyImageFailed(ctx, n.lab(a).Paths.CaddyImageLog()); caddyHere && why != "" {
+			act.Printf("%v", err)
+			err = errors.New(why)
+		}
 		n.failInstalls(err)
 		return err
 	}
@@ -703,8 +709,8 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		act.Printf("Config file left as it is: %s", left)
 		n.Log.Warn("config file left as it is", "why", left)
 	}
-	if building {
-		n.followCaddyBuild(n.lab(a).Paths.CaddyBuildLog())
+	if downloading {
+		n.followCaddyImage(n.lab(a).Paths.CaddyImageLog())
 	}
 	// Created secrets live in Podman now; forget the typed-in values.
 	n.mu.Lock()
@@ -766,6 +772,9 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 			n.Log.Warn("setting this server's DNS server", "err", err)
 		}
 		n.resolverSet, n.resolverDone = want, true
+	}
+	if err := n.applyLabDNS(n.lab(a).Paths.LabDNSNames(), a.Lab.DNS, act.Printf); err != nil {
+		return fmt.Errorf("setting up Roostack's own DNS server: %w", err)
 	}
 	if a.Links != nil && n.Links != nil {
 		act.Step("Updating direct links to other servers")
@@ -854,9 +863,20 @@ func (n *Local) lab(a Assignment) config.Lab {
 	if a.Lab.Domain != "" {
 		lab.Domain, lab.Email = a.Lab.Domain, a.Lab.Email
 		lab.Public.NoSharing = a.Lab.NoSharing
+		if a.Lab.Name != "" {
+			lab.Name = a.Lab.Name
+		}
+		if a.Lab.TestAddress && lab.IsNode() {
+			lab.DNS.Provider = config.ProviderTestAddress
+		}
+	}
+	lab.Direct, lab.DirectHome, lab.SignInServers = a.Lab.Direct, a.Lab.DirectHome, a.Lab.SignInServers
+	if lab.IsNode() {
+		lab.Pass = a.Edge
 	}
 	lab.EdgeAddrs = a.Lab.EdgeAddrs
 	lab.HomeAddress = a.Lab.HomeAddress
+	lab.LabDNSHere = a.Lab.DNS != nil
 	lab.Monitoring.StatusPage = a.Lab.StatusPage
 	lab.Public.Pause = a.Lab.Pause
 	lab.Public.Refused = a.Lab.Refused

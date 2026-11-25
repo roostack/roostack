@@ -20,6 +20,7 @@ import (
 
 func TestRestoreFlow(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
+	h.confirmed(t) // asked again, and right (confirmIt): see TestStepUpActions
 	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
 	fr := &fakeRestores{
 		snaps: []backup.Snapshot{{ID: "9a6817f7aaaa", Short: "9a6817f7", Time: time.Now().Add(-time.Hour)},

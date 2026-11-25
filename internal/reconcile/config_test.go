@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
@@ -218,3 +220,31 @@ config_files:
 
 // secretOf is a secret setting's Podman name (node.SecretName).
 func secretOf(svc, key string) string { return "roostack-" + svc + "-" + key }
+
+// A config file the app controls can't hang or flood the apply: a named
+// pipe where it goes is refused at once, and so is a file over maxConfig
+// (the security review of 2026-11-19, M3).
+func TestConfigFileNotRegular(t *testing.T) {
+	dir := t.TempDir()
+	f := generate.ConfigFile{Dir: dir, Path: "app.conf", Block: true}
+	if err := syscall.Mkfifo(filepath.Join(dir, "app.conf"), 0o600); err != nil {
+		t.Skip("no named pipes here:", err)
+	}
+	done := make(chan bool, 1)
+	go func() { _, err := readConfig(f); done <- err != nil && !HasBlock(f) }()
+	select {
+	case ok := <-done:
+		if !ok {
+			t.Error("a named pipe was read as a config file")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("reading a named pipe hung")
+	}
+	big := generate.ConfigFile{Dir: dir, Path: "big.conf", Block: true}
+	if err := os.WriteFile(filepath.Join(dir, "big.conf"), make([]byte, maxConfig+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readConfig(big); err == nil || !strings.Contains(err.Error(), "larger than") {
+		t.Errorf("a file over the limit: %v", err)
+	}
+}

@@ -13,16 +13,12 @@ import (
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/errpage"
 	"roostack.cloud/roostack/internal/quadlet"
+	"roostack.cloud/roostack/internal/trust"
 )
 
-// CaddyImage is Roostack's Caddy build with DNS plugins, built on each
-// server from CaddyBuildDir by a Quadlet build unit (so a new install, or
-// an upgrade that changes the Containerfile, needs no manual step). The
-// Containerfile pins what it's built from; the local tag is the result.
-const CaddyImage = "localhost/roostack-caddy:latest"
-
-// CaddyBuildDir holds the Containerfile (build/caddy in the source,
-// installed by the package).
+// CaddyBuildDir holds the Containerfile CaddyImage is built from
+// (build/caddy in the source, installed by the package), so that anyone
+// can read and rebuild what's in it. Nothing builds it on a server.
 const CaddyBuildDir = "/usr/share/roostack/caddy"
 
 // MySQLInitDir holds the script MySQL and MariaDB containers run as
@@ -101,6 +97,12 @@ type SystemOptions struct {
 	// FirstHosts are each service's first address, by name, where the
 	// domain itself may go (DomainRedirect).
 	FirstHosts map[string]string
+	// DirectHosts, on a server other than the controller, are the names
+	// its own Caddy serves (Output.DirectHosts): while there are any, it
+	// runs Caddy and CrowdSec for them (SPEC.md §10.5). HomeHosts are those
+	// of its private routes, whose certificates come from DNS challenges
+	// through the controller.
+	DirectHosts, HomeHosts []string
 }
 
 // SystemWith is System with everything the services ask for.
@@ -113,9 +115,17 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 			return nil, err
 		}
 	}
-	if lab.IsNode() {
-		// Nodes have no Caddy: the controller's serves their routes.
+	// Other servers have no Caddy, as the controller's serves their
+	// routes, unless they serve their public ones directly.
+	direct := lab.IsNode()
+	if direct && len(opts.DirectHosts) == 0 && lab.Pass == nil {
 		return out, nil
+	}
+	var publicHosts []string
+	for _, h := range opts.DirectHosts {
+		if !slices.Contains(opts.HomeHosts, h) {
+			publicHosts = append(publicHosts, h)
+		}
 	}
 	if !lab.HasAddress() {
 		// No address yet: Caddy has nothing to serve, so it doesn't run
@@ -127,7 +137,7 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	u.Section("Unit").Add("Description", "Roostack: reverse proxy (Caddy)")
 	cs := u.Section("Container")
 	cs.Add("ContainerName", CaddyUnit)
-	cs.Add("Image", CaddyUnit+".build")
+	cs.Add("Image", CaddyUnit+".image")
 	addTimezone(cs, lab)
 	// Caddy has its own pasta network namespace, not a bridge network:
 	// pasta's port forwarding keeps each visitor's real IP, which the
@@ -148,9 +158,18 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	cs.Add("Volume", lab.Paths.CaddyDir()+":/etc/caddy:ro")
 	cs.Add("Volume", lab.Paths.CaddyDataDir()+":/data")
 	// DNS provider credentials, one Podman secret per field (internal/dns).
-	directive, fields, err := dnsConfig(lab)
-	if err != nil {
-		return nil, err
+	// A server serving directly has none: Let's Encrypt checks each name
+	// it serves through the name itself (SPEC.md §10.5).
+	var directive string
+	var fields []string
+	var err error
+	switch {
+	case !direct:
+		if directive, fields, err = dnsConfig(lab); err != nil {
+			return nil, err
+		}
+	case lab.TestAddress():
+		directive = "issuer internal"
 	}
 	for _, f := range fields {
 		cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", dns.SecretName(f), dns.EnvName(f)))
@@ -160,6 +179,9 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	// The previous address's provider, while it still works (SPEC.md
 	// §6.6): its certificate may need renewing meanwhile.
 	old := lab.Old(time.Now())
+	if direct {
+		old = nil
+	}
 	var oldDirective string
 	if old != nil {
 		var oldFields []string
@@ -192,13 +214,16 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	}
 	out.Quadlets = append(out.Quadlets, File{Name: CaddyUnit + ".container", Content: u.String()})
 
-	build, err := caddyBuild(lab)
+	image, err := caddyImage(lab)
 	if err != nil {
 		return nil, err
 	}
-	out.Quadlets = append(out.Quadlets, build)
+	out.Quadlets = append(out.Quadlets, image)
 
 	mc := caddy.MainConfig{
+		Hosts:         publicHosts,
+		Pass:          lab.Pass,
+		HomeHosts:     opts.HomeHosts,
 		Domain:        lab.Domain,
 		Email:         lab.Email,
 		DNSDirective:  directive,
@@ -213,17 +238,31 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 		PagesDevices: lab.Devices.Pages,
 		AllDevices:   lab.Devices.All,
 	}
+	if direct {
+		// Its services alone (caddy.MainConfig.Hosts).
+		mc.AdminUpstream, mc.AdminPublic, mc.StatusPage = "", false, false
+		mc.PrivateFrom = caddy.ThisServerOnly(lab.HostIP, CaddyHostLoopback)
+		mc.PagesDevices, mc.AllDevices = nil, nil
+		mc.HomeDNS = fmt.Sprintf("http://%s:%d", CaddyHostLoopback, config.ChallengePort)
+	}
 	for _, g := range lab.GlancesSites {
+		if direct {
+			break
+		}
 		mc.Glances = append(mc.Glances, caddy.GlancesSite{Host: g.Host, Upstream: g.Upstream,
 			Wall: caddy.Wall{Upstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, config.SignInPort), Service: g.Client}})
 	}
-	if lab.ServesDomain() {
+	if lab.ServesDomain() && !direct {
 		// The domain itself (SPEC.md §5.3).
 		mc.DomainItself = &caddy.DomainSite{Redirect: DomainRedirect(lab, opts.FirstHosts), Page: lab.Shows() == config.ShowPage, Public: lab.DomainPublic()}
 	}
-	if opts.SignIn {
+	if opts.SignIn && !direct {
 		mc.SignIn = &caddy.SignInSite{Host: lab.SignInHost(), Upstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, config.SignInPort),
-			Public: opts.SignInPublic, Containers: ContainerHostGateway}
+			Public: opts.SignInPublic, Containers: []string{ContainerHostGateway}}
+		if lab.SignInServers {
+			// Apps on the lab's other servers, over Roostack's network.
+			mc.SignIn.Containers = append(mc.SignIn.Containers, trust.ServersRange.String())
+		}
 	}
 	if old != nil {
 		mc.OldDomain, mc.OldDNSDirective = old.Domain, oldDirective
@@ -253,74 +292,27 @@ func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
 	return out, nil
 }
 
-// caddyBuild is the Quadlet that builds Roostack's Caddy image (with its
-// plugins) on the server.
-func caddyBuild(lab config.Lab) (File, error) {
+// caddyImage is the Quadlet that downloads Roostack's Caddy image
+// (CaddyImage); Caddy's container waits for it.
+func caddyImage(lab config.Lab) (File, error) {
 	var b quadlet.Unit
-	b.Section("Unit").Add("Description", "Roostack: build the reverse proxy image (Caddy with DNS plugins)")
-	bs := b.Section("Build")
-	bs.Add("ImageTag", CaddyImage)
-	bs.Add("File", CaddyBuildDir+"/Containerfile")
-	bs.Add("SetWorkingDirectory", "file")
-	// The first build compiles Caddy: minutes, not seconds.
+	b.Section("Unit").Add("Description", "Roostack: download the reverse proxy image (Caddy with its plugins)")
+	is := b.Section("Image")
+	is.Add("Image", CaddyImage)
 	bsvc := b.Section("Service")
-	bsvc.Add("TimeoutStartSec", "1800")
-	// Its output goes to a file the UI can show (config.Paths.CaddyBuildLog).
-	bsvc.Add("StandardOutput", "truncate:"+lab.Paths.CaddyBuildLog())
+	// Only when it isn't here: a pull asks the registry even for an image
+	// it has, which fails without the internet, and Caddy would then not
+	// start after a reboot (docs/ASSUMPTIONS.md A10). Skipped, the unit
+	// doesn't fail, and Caddy starts.
+	bsvc.Add("ExecCondition", `/bin/sh -c "! /usr/bin/podman image exists `+CaddyImage+`"`)
+	bsvc.Add("TimeoutStartSec", "900")
+	// Its output goes to a file the UI can show (config.Paths.CaddyImageLog).
+	bsvc.Add("StandardOutput", "truncate:"+lab.Paths.CaddyImageLog())
 	bsvc.Add("StandardError", "inherit")
 	if err := b.Validate(); err != nil {
 		return File{}, err
 	}
-	return File{Name: CaddyUnit + ".build", Content: b.String()}, nil
-}
-
-// Edge generates an edge's Caddy (SPEC.md §10.5), on a server that isn't
-// the controller (nodes have no Caddy otherwise): the same unit and image
-// as the controller's, publishing TCP 80 and 443 only (no HTTP/3: a PROXY
-// header can't come with it, docs/ASSUMPTIONS.md Q7), with no
-// certificates, DNS logins or sites of its own: just c, passed on to the
-// controller over Roostack's network. Like the controller's, it's on pasta,
-// which keeps visitors' addresses for the PROXY header.
-func Edge(lab config.Lab, c caddy.EdgeConfig) (*SystemOutput, error) {
-	conf, err := caddy.Edge(c)
-	if err != nil {
-		return nil, err
-	}
-	var u quadlet.Unit
-	u.Section("Unit").Add("Description", "Roostack: the lab's edge (Caddy, passing public visitors on)")
-	cs := u.Section("Container")
-	cs.Add("ContainerName", CaddyUnit)
-	cs.Add("Image", CaddyUnit+".build")
-	addTimezone(cs, lab)
-	cs.Add("Network", "pasta")
-	cs.Add("PublishPort", "80:80")
-	cs.Add("PublishPort", "443:443")
-	cs.Add("Volume", lab.Paths.CaddyDir()+":/etc/caddy:ro")
-	cs.Add("Volume", lab.Paths.CaddyDataDir()+":/data")
-	cs.Add("Label", "io.roostack.service=_system")
-	cs.Add("Label", "io.roostack.component=edge")
-	svc := u.Section("Service")
-	svc.Add("Slice", CoreSlice)
-	// The user manager gives its units 200; 100 is as low as it lets one
-	// go, so the kernel picks a service's container before Caddy.
-	svc.Add("OOMScoreAdjust", "100")
-	svc.Add("ExecReload", "/usr/bin/podman exec "+CaddyUnit+" caddy reload --config /etc/caddy/Caddyfile")
-	svc.Add("Restart", "always")
-	svc.Add("TimeoutStartSec", "900")
-	u.Section("Install").Add("WantedBy", "default.target")
-	if err := u.Validate(); err != nil {
-		return nil, err
-	}
-	build, err := caddyBuild(lab)
-	if err != nil {
-		return nil, err
-	}
-	return &SystemOutput{
-		Quadlets:  []File{{Name: CaddyUnit + ".container", Content: u.String()}, build},
-		Caddyfile: File{Name: "Caddyfile", Content: conf},
-		Dirs:      []string{lab.Paths.CaddyDataDir()},
-		Units:     []string{CaddyUnit + ".service"},
-	}, nil
+	return File{Name: CaddyUnit + ".image", Content: b.String()}, nil
 }
 
 // PrivateFrom is who reaches the lab's private addresses (SPEC.md §6.12):

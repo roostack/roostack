@@ -68,6 +68,7 @@ func (s *Server) Handler() http.Handler {
 	s.updateRoutes(handle)            // updatewire.go
 	s.settingsRoutes(handle)          // settingswire.go
 	s.hostRoutes(handle)              // hostwire.go
+	s.labDNSRoutes(handle)            // labdns.go
 	s.guestHostRoutes(handle, decode) // guesthost.go
 	s.mediaRoutes(handle, decode)     // media.go
 	s.importRoutes(handle)            // importwire.go

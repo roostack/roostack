@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/fsutil"
 )
 
@@ -59,6 +61,12 @@ const (
 	// listener of its own, so nothing reaching it can reach Roostack's own
 	// pages. Caddy reaches it like the UI.
 	SignInPort = 8482
+	// ChallengePort, on a server serving private routes directly at home,
+	// is where its Roostack takes its Caddy's DNS challenges on the host's
+	// loopback, as an acme-dns server, and passes them on to the
+	// controller (SPEC.md §10.5, "Serving directly"). Caddy reaches it like
+	// the sign-in listener.
+	ChallengePort = 8483
 )
 
 // Paths are the filesystem locations Roostack reads and writes.
@@ -107,6 +115,11 @@ func (p Paths) LabFile() string { return filepath.Join(p.StateDir, "lab.yaml") }
 
 // DatabaseFile is Roostack's SQLite database.
 func (p Paths) DatabaseFile() string { return filepath.Join(p.StateDir, "roostack.db") }
+
+// LabDNSNames is the names file for Roostack's own DNS server (SPEC.md
+// §6.5.3), on the server that runs it; roostack-dns.path starts the DNS
+// server while it's there (labdns.NamesFile, the default).
+func (p Paths) LabDNSNames() string { return filepath.Join(p.StateDir, "dns", "names.json") }
 
 // SetupTokenFile holds the first-run setup code (0600), deleted once the
 // Owner exists (docs/ASSUMPTIONS.md K5).
@@ -198,11 +211,11 @@ func (p Paths) CaddyLocalRoot() string {
 // CrowdSec reads (SPEC.md §6.11).
 func (p Paths) CaddyLogDir() string { return filepath.Join(p.StateDir, "caddy-logs") }
 
-// CaddyBuildLog is the output of the latest build of Roostack's Caddy
+// CaddyImageLog is the output of the latest download of Roostack's Caddy
 // image. The roostack user's units log to the system journal (it's a
-// system user), which Roostack can't read, so the build writes here and
-// the UI shows it while it runs.
-func (p Paths) CaddyBuildLog() string { return filepath.Join(p.StateDir, "caddy-build.log") }
+// system user), which Roostack can't read, so the download writes here
+// and the UI shows it while it runs.
+func (p Paths) CaddyImageLog() string { return filepath.Join(p.StateDir, "caddy-image.log") }
 
 // SetupCertFile and SetupKeyFile are the setup pages' self-signed
 // certificate and its key (0600), made at Roostack's first start and
@@ -266,6 +279,11 @@ type Public struct {
 	// (SPEC.md §10.5). Only Roostack Cloud's relay enforces it, at its
 	// edges, before visitors reach the lab.
 	Countries Countries `yaml:"countries,omitempty"`
+	// Serve is how visitors reach each server's public services, by the
+	// server's ID: ServeDirect (its own Caddy serves them) or
+	// ServeController (the controller's Caddy passes them on). A server
+	// with none takes ServeDefault (SPEC.md §10.5, "Serving directly").
+	Serve map[string]string `yaml:"serve,omitempty"`
 	// Pause is public access the Owner or an Admin paused for the whole
 	// lab, or for every service built with something (SPEC.md §6.16).
 	// One service's own pause is in its instance (PublicPause).
@@ -282,6 +300,22 @@ type Public struct {
 	// controller from Cloud's last answer for each assignment, and sent
 	// to every server, never saved.
 	Refused map[string]string `yaml:"-" json:"refused,omitempty"`
+}
+
+// How visitors reach a server's public services (Public.Serve).
+const (
+	ServeDirect     = "direct"
+	ServeController = "controller"
+)
+
+// ServeDefault is how a server with no choice of its own serves: directly
+// when it has a public address of its own (a cloud server), else through
+// the controller, as servers did before they could serve directly.
+func ServeDefault(hasPublicAddr bool) string {
+	if hasPublicAddr {
+		return ServeDirect
+	}
+	return ServeController
 }
 
 // RefusedChecking is a service in Public.Refused that waits for Roostack
@@ -566,11 +600,33 @@ type Lab struct {
 	// say who a visitor is (a PROXY header), and they count as outside.
 	// Set at run time from the lab's servers.
 	EdgeAddrs []string `yaml:"-"`
+	// Direct are the servers (by ID) whose own Caddy serves their public
+	// routes, worked out by the controller for each apply from Public.Serve
+	// and where each server can be reached (SPEC.md §10.5, "Serving
+	// directly"). Their private routes still go through the controller.
+	Direct []string `yaml:"-"`
+	// DirectHome are the servers (by ID) whose own Caddy also serves their
+	// private routes, being on the controller's home network, worked out
+	// with Direct (direct serving's phase 2).
+	DirectHome []string `yaml:"-"`
+	// Pass, on a server that's the lab's way in for servers that can't be
+	// reached directly, is what its Caddy passes on to other servers
+	// (SPEC.md §10.5, "Ways in"). From the assignment, never in lab.yaml.
+	Pass *caddy.EdgeConfig `yaml:"-"`
+	// SignInServers: an app on a server other than the controller swaps
+	// codes for tokens at the sign-in page itself (single sign-on, SPEC.md
+	// §5.2), over Roostack's network, so the controller's firewall and the
+	// sign-in page let the lab's servers in. Worked out by the controller.
+	SignInServers bool `yaml:"-"`
 	// HomeAddress is where the lab's names point for the home network's
 	// devices (the controller's home address), for a DNS server among
 	// the lab's services to answer them with (SPEC.md §6.5.2); "" on a
 	// lab on the internet. Set at run time by the controller.
 	HomeAddress string `yaml:"-"`
+	// LabDNSHere: Roostack's own DNS server runs on this server (SPEC.md
+	// §6.5.3), so the firewall sends the home network's and the VPN
+	// devices' port 53 to it. Set at run time from the assignment.
+	LabDNSHere bool `yaml:"-"`
 	// Devices are the lab's VPN devices as the controller works them out
 	// for each apply (SPEC.md §10.11): never in lab.yaml.
 	Devices Devices `yaml:"-"`
@@ -701,6 +757,21 @@ const TestAddressSuffix = ".localhost"
 // TestAddress reports whether the lab's address is a test address.
 func (l Lab) TestAddress() bool { return l.DNS.Provider == ProviderTestAddress }
 
+// ServesDirect reports whether server host's own Caddy serves its public
+// routes (Direct). The controller, "" or its own ID, always does.
+func (l Lab) ServesDirect(host string) bool { return host != "" && slices.Contains(l.Direct, host) }
+
+// ServesHome reports whether server host's own Caddy serves its private
+// routes too, on the home network (DirectHome).
+func (l Lab) ServesHome(host string) bool { return host != "" && slices.Contains(l.DirectHome, host) }
+
+// CaddyHere reports whether this server runs Caddy: the controller always,
+// another server while it serves some of its services directly, or passes
+// visitors on as the lab's way in (Pass).
+func (l Lab) CaddyHere() bool {
+	return !l.IsNode() || l.ServesDirect(l.NodeID) || l.ServesHome(l.NodeID) || l.Pass != nil
+}
+
 // LocalhostName reports whether name is localhost or a name under it.
 func LocalhostName(name string) bool {
 	name = strings.TrimSuffix(strings.ToLower(name), ".")
@@ -776,13 +847,23 @@ type Resolver struct {
 	Address string `yaml:"address,omitempty"`
 	// Servers are the lab's servers, by ID, whose own lookups use it too.
 	Servers []string `yaml:"servers,omitempty"`
+	// Server is the server at home that runs Roostack's own DNS server
+	// on a lab whose controller is in the cloud (SPEC.md §6.5.3), by ID;
+	// "" is the first at home by name.
+	Server string `yaml:"server,omitempty"`
+	// Fallback is the DNS server Roostack's own passes questions to when
+	// the server's network gives none it can use; "" is Quad9's.
+	Fallback string `yaml:"fallback,omitempty"`
 }
 
 // Which DNS server the lab uses (Resolver.Use).
 const (
 	// ResolverAuto: a DNS server among the lab's services (Pi-hole), once
-	// there is one, else the provider's.
+	// there is one, else Roostack's own.
 	ResolverAuto = "auto"
+	// ResolverRoostack: Roostack's own (SPEC.md §6.5.3), even with a DNS
+	// service installed.
+	ResolverRoostack = "roostack"
 	// ResolverProvider: whatever each device and server has already,
 	// usually the internet provider's, through the router.
 	ResolverProvider = "provider"
@@ -1043,6 +1124,11 @@ func (l Lab) Validate() error {
 	}
 	if err := l.DomainItself.Validate(); err != nil {
 		errs = append(errs, fmt.Errorf("domain_itself: %w", err))
+	}
+	for id, v := range l.Public.Serve {
+		if v != ServeDirect && v != ServeController {
+			errs = append(errs, fmt.Errorf("public.serve.%s must be %q or %q", id, ServeDirect, ServeController))
+		}
 	}
 	// A test address is only ever a name under .localhost, and such a
 	// name only ever a test address, so Caddy's own certificates can't

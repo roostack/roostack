@@ -32,6 +32,7 @@ import (
 
 func TestInstallFlow(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
+	h.confirmed(t) // asked again, and right (confirmIt): see TestStepUpActions
 
 	_, body := h.get("/services")
 	if !strings.Contains(body, `href="/catalog"`) || !strings.Contains(body, `href="/services/vaultwarden"`) {
@@ -245,6 +246,13 @@ func TestServicePortExposure(t *testing.T) {
 	fm.ports[0].Exposure = "public"
 	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "connect to <code>") || !strings.Contains(body, "UDP port 31116") {
 		t.Error("a public port doesn't say how it's reached from outside")
+	}
+	// Through an edge, visitors arrive from its address in the lab: the
+	// card says what that means (the security review of 2026-11-19, L3).
+	fm.edge = "vps-sydney"
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "connections come in through vps-sydney") ||
+		!strings.Contains(body, "will see each connection as coming from vps-sydney's address in the lab, not the visitor's") {
+		t.Error("a public port through an edge doesn't say whose address the app sees")
 	}
 }
 
@@ -1147,12 +1155,12 @@ func TestStorageOfferedByAnotherServer(t *testing.T) {
 func TestHomeShowsWhatAnApplyDoes(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	log := h.acts().Start(activity.Apply, "Applying changes")
-	log.Step("Starting roostack-caddy: building its image the first time (compiling: several minutes)")
-	if _, body := h.get("/"); !strings.Contains(body, "building its image the first time") {
+	log.Step("Starting Caddy: once its image has downloaded")
+	if _, body := h.get("/"); !strings.Contains(body, "once its image has downloaded") {
 		t.Error("the home page shows what the apply is doing")
 	}
 	log.Finish(nil)
-	if _, body := h.get("/partials/home"); strings.Contains(body, "building its image the first time") {
+	if _, body := h.get("/partials/home"); strings.Contains(body, "once its image has downloaded") {
 		t.Error("a finished apply isn't shown")
 	}
 }
@@ -1288,21 +1296,21 @@ func TestLivePartsSkipUnchanged(t *testing.T) {
 	}
 }
 
-// While Caddy's image builds (minutes the first time), the Services page
-// says so, with its log; once it's built, nothing is shown.
-func TestCaddyBuildShown(t *testing.T) {
+// While Caddy's image downloads, the Services page says so, with its log;
+// once it's here, nothing is shown.
+func TestCaddyImageShown(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	if _, body := h.get("/services"); strings.Contains(body, "<h2>Roostack's web proxy</h2>") {
-		t.Error("no build, no notice")
+		t.Error("no download, no notice")
 	}
-	log := h.acts().Start(activity.Build, "Building Roostack's web proxy")
-	log.Printf("STEP 1/2: FROM caddy-builder")
-	if _, body := h.get("/services"); !strings.Contains(body, "<h2>Roostack's web proxy</h2>") || !strings.Contains(body, "STEP 1/2") {
-		t.Error("a running build should be shown with its log")
+	log := h.acts().Start(activity.Build, "Downloading Roostack's web proxy")
+	log.Printf("Copying blob 1f3e done")
+	if _, body := h.get("/services"); !strings.Contains(body, "<h2>Roostack's web proxy</h2>") || !strings.Contains(body, "Copying blob") {
+		t.Error("a running download should be shown with its log")
 	}
 	log.Finish(nil)
 	if _, body := h.get("/services"); strings.Contains(body, "<h2>Roostack's web proxy</h2>") {
-		t.Error("a finished build isn't shown")
+		t.Error("a finished download isn't shown")
 	}
 }
 
@@ -1703,6 +1711,7 @@ func TestServicesAskedForOnlyWhereShown(t *testing.T) {
 // delete its data too.
 func TestRemovedServicesData(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
+	h.confirmed(t) // asked again, and right (confirmIt): see TestStepUpActions
 	ctx := context.Background()
 	if _, body := h.get("/services"); strings.Contains(body, "Removed, data kept") {
 		t.Error("the view is offered with nothing removed")

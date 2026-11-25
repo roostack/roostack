@@ -14,6 +14,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -536,7 +537,8 @@ func (n *Local) RevealSecret(ctx context.Context, name, key string) (string, err
 // ShownFiles reads the small files a service's package shows on its page
 // (pkgspec.Package.Shown), in its order: "" for one not made yet. Each is
 // read through an os.Root at its storage, so a link the app made can't
-// lead out of it, and at most pkgspec.MaxShown of it.
+// lead out of it, only if it's a regular file, and at most
+// pkgspec.MaxShown of it.
 func (n *Local) ShownFiles(ctx context.Context, name string) ([]string, error) {
 	sv, ok := n.service(name)
 	if !ok {
@@ -552,7 +554,8 @@ func (n *Local) ShownFiles(ctx context.Context, name string) ([]string, error) {
 		if err != nil {
 			continue // not made yet
 		}
-		f, err := root.Open(sh.Path)
+		// Not a pipe that would hang the page, nor a huge file.
+		f, _, err := fsutil.OpenRegularInRoot(root, sh.Path)
 		if err == nil {
 			b, _ := io.ReadAll(io.LimitReader(f, pkgspec.MaxShown))
 			f.Close()

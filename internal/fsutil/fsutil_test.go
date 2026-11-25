@@ -3,7 +3,10 @@ package fsutil
 import (
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // The mode asked for applies even over a file that had a looser one, and
@@ -117,5 +120,42 @@ func TestWithin(t *testing.T) {
 		if got := Within(c.path, c.dir); got != c.want {
 			t.Errorf("Within(%q, %q) = %v, want %v", c.path, c.dir, got, c.want)
 		}
+	}
+}
+
+// A file an app controls: a regular file is read, but a named pipe is
+// refused at once rather than hanging, and so is a file over the limit
+// (the security review of 2026-11-19, M3).
+func TestReadRegularInRoot(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "ok.conf"), []byte("a=1\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "big.conf"), []byte(strings.Repeat("x", 101)), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Mkfifo(filepath.Join(dir, "pipe.conf"), 0o600); err != nil {
+		t.Skip("no named pipes here:", err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	if b, info, err := ReadRegularInRoot(root, "ok.conf", 100); err != nil || string(b) != "a=1\n" || info.Mode().Perm() != 0o640 {
+		t.Errorf("a regular file: %q %v", b, err)
+	}
+	done := make(chan error, 1)
+	go func() { _, _, err := ReadRegularInRoot(root, "pipe.conf", 100); done <- err }()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "isn't a regular file") {
+			t.Errorf("a pipe: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("reading a named pipe hung")
+	}
+	if _, _, err := ReadRegularInRoot(root, "big.conf", 100); err == nil || !strings.Contains(err.Error(), "larger than 100 bytes") {
+		t.Errorf("a file over the limit: %v", err)
 	}
 }

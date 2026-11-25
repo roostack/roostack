@@ -125,11 +125,8 @@ func (f *fakeServerSettings) SetTimezone(_ context.Context, z string) (bool, err
 func (f *fakeServerSettings) SSHAccess(context.Context, bool) (node.SSHAccess, error) {
 	return node.SSHAccess{}, nil
 }
-func (f *fakeServerSettings) SetSSH(context.Context, node.SSHChange) error { return nil }
-func (f *fakeServerSettings) UnblockSSH(context.Context, string) error     { return nil }
-func (f *fakeServerSettings) AddSSHKey(context.Context, agent.SSHKeyRequest) error {
-	return nil
-}
+func (f *fakeServerSettings) SetSSH(context.Context, node.SSHChange) error    { return nil }
+func (f *fakeServerSettings) UnblockSSH(context.Context, string) error        { return nil }
 func (f *fakeServerSettings) SetSSHCommunity(context.Context, []string) error { return nil }
 func (f *fakeServerSettings) SetRestartPolicy(context.Context, string, int) error {
 	return nil

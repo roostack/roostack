@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/trust"
@@ -92,6 +93,17 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 			}
 		}
 	}
+	// Roostack's own DNS server (SPEC.md §6.5.3): port 53 for the home
+	// network and every VPN device, sent on to its port.
+	if lab.LabDNSHere {
+		for _, proto := range []string{"udp", "tcp"} {
+			fw.Allow = append(fw.Allow, agent.Rule{Port: labdns.Port, Proto: proto, For: trust.Home, Reason: "roostack dns", From: 53})
+			if len(lab.Devices.All) > 0 {
+				people.Rules = append(people.Rules, agent.DeviceRule{Port: labdns.Port, Proto: proto, Devices: lab.Devices.All,
+					Reason: "roostack dns", From: 53})
+			}
+		}
+	}
 	if len(lab.Devices.SSH) > 0 && fw.SSHFrom != agent.FromOff {
 		people.Rules = append(people.Rules, agent.DeviceRule{Port: 22, Proto: "tcp", Devices: lab.Devices.SSH, Reason: "ssh"})
 	}
@@ -130,6 +142,18 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 			if roles.Hub {
 				fw.JoinPort, fw.Members = labnet.Port, roles.Members
 			}
+			// Apps on the lab's other servers swap codes for tokens at
+			// the sign-in page (single sign-on, SPEC.md §5.2), and Caddy
+			// lets them in to it alone.
+			if lab.SignInServers {
+				fw.Allow = append(fw.Allow, agent.Rule{Port: 443, Proto: "tcp", For: trust.Servers,
+					Reason: "the sign-in page, for apps on the lab's other servers"})
+			}
+			// What the lab's other servers open to the controller alone
+			// (below) is for its Caddy alone: any other service here
+			// would leave from the controller's address too, and could
+			// skip Caddy or claim to be someone a wall let in.
+			fw.CaddyOnly = CaddyOnly
 		}
 	}
 	// The lab's edges reach Caddy on its edge listener only (SPEC.md
@@ -144,15 +168,20 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	// controller, which takes them from the edge, and sends on those of a
 	// service on another server, which takes them from the controller.
 	fw.PortForwards = roles.PortForwards
+	// Another server takes them from the controller, or straight from the
+	// edge when it serves directly over a link of its own with it.
 	if edgeHere := slices.Contains(fw.Edges, lab.OverlayAddr); len(fw.Edges) > 0 && !edgeHere {
-		from := trust.Edge
+		from := []trust.Class{trust.Edge}
 		if lab.IsNode() {
-			from = trust.Controller
+			from = []trust.Class{trust.Controller, trust.Edge}
 		}
 		for _, s := range services {
 			for _, hp := range s.HostPorts {
-				if hp.Exposure == pkgspec.ExposurePublic {
-					fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, For: from,
+				if hp.Exposure != pkgspec.ExposurePublic {
+					continue
+				}
+				for _, f := range from {
+					fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, For: f,
 						Reason: s.Service + " " + hp.Name})
 				}
 			}
@@ -164,11 +193,13 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	if c := Controller(lab); c.IsValid() {
 		fw.Controller = c.String()
 	}
-	// A node's web services are reached by the controller's Caddy.
+	// A node's web services are reached by the controller's Caddy alone:
+	// the lab's other servers going straight to them would skip its
+	// private routes, limits and pauses.
 	if lab.IsNode() {
 		for _, s := range services {
 			for _, p := range s.Ports {
-				fw.Allow = append(fw.Allow, agent.Rule{Port: p, Proto: "tcp", For: trust.Servers,
+				fw.Allow = append(fw.Allow, agent.Rule{Port: p, Proto: "tcp", For: trust.Controller,
 					Reason: s.Service + " web (via the controller)"})
 			}
 		}
@@ -209,6 +240,12 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	}
 	return fw, true
 }
+
+// CaddyOnly are the ports another server opens to the controller alone,
+// for its Caddy (Desired): every service's web port, a live view's
+// Glances, and SSH.
+var CaddyOnly = []agent.PortRange{{From: 22, To: 22}, {From: config.DefaultRoutePortMin, To: config.DefaultRoutePortMax},
+	{From: generate.GlancesPort, To: generate.GlancesPort}}
 
 // WithClosed is fw with public access closed completely, or not (SPEC.md
 // §6.16): Caddy's web ports for the home network only, and everyone else

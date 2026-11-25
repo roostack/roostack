@@ -191,6 +191,8 @@ type shareFields struct {
 	shareForm
 	ServerName, Example, Kept string
 	Media                     bool
+	// Servers, if any, are the only servers to choose from.
+	Servers []string
 }
 
 // sharePosted is the share a step's form sent, with no login for NFS.

@@ -30,15 +30,6 @@ func main() {
 		}
 		return
 	}
-	// Adding an SSH key and maybe an account, which the sandbox can't do
-	// either (agent.AddSSHKey): the request comes on standard input.
-	if len(os.Args) == 2 && os.Args[1] == agent.AddSSHKeyCommand {
-		if err := agent.AddSSHKey(os.Stdin); err != nil {
-			fmt.Fprintln(os.Stderr, "roostack-agent:", err)
-			os.Exit(1)
-		}
-		return
-	}
 	socket := flag.String("socket", agent.DefaultSocket, "Unix socket to listen on")
 	userName := flag.String("user", "roostack", "unprivileged user allowed to call the agent")
 	firewallFile := flag.String("firewall-file", agent.DefaultFirewallFile, "where the applied firewall is saved")
@@ -83,7 +74,10 @@ func run(log *slog.Logger, socket, userName, firewallFile string) error {
 	defer stop()
 	// SSH password guesses, counted as sshd logs them.
 	go agent.FollowSSHLog(ctx, log)
-	s := &agent.Server{Host: host, AllowedUIDs: []uint32{0, uint32(uid)}, Version: version, Log: log}
+	// The controller's Caddy, which alone of the roostack user's services
+	// reaches the lab's other servers' web ports.
+	go agent.WatchCaddy(ctx, int(uid), log)
+	s := &agent.Server{Host: host, AllowedUIDs: []uint32{0, uint32(uid)}, RoostackUID: int(uid), Version: version, Log: log}
 	log.Info("roostack-agent listening", "socket", socket, "user", userName, "version", version)
 	return s.Serve(ctx, socket, gid)
 }

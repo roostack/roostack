@@ -24,6 +24,7 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/editor"
 	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
@@ -165,6 +166,8 @@ type Server struct {
 	handoffs  expiring[string, *pagesHandoff]
 	confirmed expiring[string, string]
 	stepUps   stepUpFailures
+	// passwordTries counts wrong passwords for each username typed.
+	passwordTries passwordTries
 	// ceremonies are passkey challenges, keyed by their cookie's hash, and
 	// addConfirmed the sessions that have just confirmed it's them for
 	// adding a passkey (passkeys.go).
@@ -319,6 +322,11 @@ type ServiceCatalog interface {
 	// Resolver and SetResolver are the lab's DNS server (SPEC.md §6.5.2).
 	Resolver(ctx context.Context) manager.Resolver
 	SetResolver(ctx context.Context, choice config.Resolver) error
+	// Roostack's own DNS server: how it's doing, and Your account's check
+	// (SPEC.md §6.5.3).
+	LabDNSStatus(ctx context.Context) (labdns.Status, error)
+	LabDNSCheck(ctx context.Context, token string) (bool, error)
+	LabDNSInUse(ctx context.Context) bool
 	PortHost(name string) string
 	CurrentSettings(name string) (map[string]any, string, error)
 	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
@@ -361,6 +369,10 @@ type LabServers interface {
 	ServerLocation(ctx context.Context, id string) string
 	SetServerLocation(ctx context.Context, id, loc string) error
 	ServerPlace(ctx context.Context, from, host string) (atHome, away bool, unknown []string)
+	// How visitors reach each server's public services: its own Caddy or
+	// the controller's (SPEC.md §10.5, "Serving directly").
+	ServeChoiceOf(ctx context.Context, id string) manager.ServeChoice
+	SetServe(ctx context.Context, id, mode string) error
 }
 
 // BackupPlan is each server's backups (SPEC.md §6.9): the main one, its
@@ -636,7 +648,6 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /settings/people", s.requireOwner(s.usersPage))
 	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
 	mux.Handle("POST /settings/remote-access/unblock", s.requireWizard(s.sshUnblockSubmit))
-	mux.Handle("POST /settings/remote-access/key", s.requireOwner(s.sshKeySubmit))
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("POST /settings/domain/itself", s.requireOwner(s.domainItselfSubmit))
 	mux.Handle("GET /settings/vpn", s.requireOwner(s.settingsVPNPage))
@@ -660,6 +671,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	s.serverRoutes(mux)
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/link-address", s.requireOwner(s.linkAddressSubmit))
+	mux.Handle("POST /settings/servers/{server}/serve", s.requireOwner(s.serveSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/put-back", s.requireOwner(s.putBackKeptServerSubmit))

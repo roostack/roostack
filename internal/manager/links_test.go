@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/store/storetest"
@@ -365,6 +368,14 @@ func TestEdgeForwards(t *testing.T) {
 	if want := []agent.PortForward{{Port: 2222, Proto: "tcp", To: "100.96.0.2", FromEdge: true, Reason: "forgejo ssh"}}; !slices.Equal(c, want) {
 		t.Errorf("at the controller: %v", c)
 	}
+	// Its server serving directly over a link of its own with the edge:
+	// straight to it, and nothing at the controller (SPEC.md §10.5).
+	linked := m.Lab
+	linked.Direct = []string{"n-0000000002"}
+	e, c = m.edgeForwards(linked, services, infos, "n-0000000003")
+	if want := []agent.PortForward{{Port: 2222, Proto: "tcp", To: "100.96.0.2", Reason: "forgejo ssh"}}; !slices.Equal(e, want) || len(c) != 0 {
+		t.Errorf("serving directly through the edge: %v %v", e, c)
+	}
 	// On the controller, the edge sends it there and that's all.
 	s.Instance.Host = m.Lab.NodeID
 	if e, c := forwards(); len(e) != 1 || len(c) != 0 {
@@ -387,5 +398,185 @@ func TestEdgeForwards(t *testing.T) {
 	services = append(services, other)
 	if e, c := forwards(); len(e)+len(c) != 0 {
 		t.Errorf("taken at the edge: %v %v", e, c)
+	}
+}
+
+// TestServeDirect: a server with a public address serves its public
+// routes itself unless the Owner chose otherwise, and every server's
+// assignment names it, the way in's too (SPEC.md §10.5, "Serving
+// directly").
+func TestServeDirect(t *testing.T) {
+	m, home, vps, _ := setUpLinks(t)
+	ctx := context.Background()
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	m.Lab.Domain = "smith.family"
+	sent := func(f *movingServer) []string {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return f.last.Lab.Direct
+	}
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); c.Mode != config.ServeDirect || c.Chosen || !c.Public || c.Private {
+		t.Errorf("the cloud server by default: %+v", c)
+	}
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Mode != config.ServeController || c.Chosen {
+		t.Errorf("the home server by default: %+v", c)
+	}
+	m.Apply()
+	m.Wait()
+	if d := sent(home); !slices.Equal(d, []string{"n-0000000003"}) || !slices.Equal(sent(vps), d) || !slices.Equal(m.Direct(), d) {
+		t.Errorf("direct: home %v, vps %v, manager %v", d, sent(vps), m.Direct())
+	}
+	// The Owner's choice wins.
+	if err := m.SetServe(ctx, "n-0000000003", config.ServeController); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if d := sent(vps); len(d) != 0 || !m.ServeChoiceOf(ctx, "n-0000000003").Chosen {
+		t.Errorf("chosen through the controller: %v", d)
+	}
+	// A home server set to serve directly can't: it has no public address.
+	if err := m.SetServe(ctx, "n-0000000002", config.ServeDirect); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Public || c.Why == "" || len(sent(home)) != 0 {
+		t.Errorf("a home server set to direct: %+v, sent %v", c, sent(home))
+	}
+	// The way in serves its own public names directly too.
+	m.SetServe(ctx, "n-0000000003", config.ServeDirect)
+	m.SetEdge(ctx, "n-0000000003")
+	m.Wait()
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); !c.Public || !slices.Contains(sent(vps), "n-0000000003") {
+		t.Errorf("the way in itself: %+v, sent %v", c, sent(vps))
+	}
+	if err := m.SetServe(ctx, m.Lab.NodeID, config.ServeDirect); !errors.Is(err, ErrNotFound) {
+		t.Errorf("the controller itself: %v", err)
+	}
+	if err := m.SetServe(ctx, "n-0000000003", "sideways"); err == nil {
+		t.Error("an unknown mode")
+	}
+}
+
+// TestServeAtHome: a server set to serve directly, at home on the
+// controller's network, serves its private routes too; elsewhere, or with
+// records Roostack doesn't manage, it doesn't, and says why (SPEC.md
+// §10.5, "Serving directly").
+func TestServeAtHome(t *testing.T) {
+	m, home, _, kv := setUpLinks(t)
+	ctx := context.Background()
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	m.Lab.Domain, m.Lab.DNS.ManageRecords = "smith.family", true
+	was := homeAddrs
+	homeAddrs = func() []string { return []string{"192.168.1.5"} }
+	t.Cleanup(func() { homeAddrs = was })
+	if err := m.SetServe(ctx, "n-0000000002", config.ServeDirect); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Private || !strings.Contains(c.Why, "set Where to At home") {
+		t.Errorf("where it is unknown: %+v", c)
+	}
+	kv[LocationKey+"n-0000000002"] = LocationHome
+	home.home = []string{"10.0.0.7"}
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Private || !strings.Contains(c.Why, "same home network") {
+		t.Errorf("on another network: %+v", c)
+	}
+	home.home = []string{"192.168.1.5", "192.168.1.10"}
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); !c.Private || c.Public || !strings.Contains(c.Why, "public services will go through") {
+		t.Errorf("at home: %+v", c)
+	}
+	m.Apply()
+	m.Wait()
+	home.mu.Lock()
+	sent := home.last.Lab.DirectHome
+	home.mu.Unlock()
+	if !slices.Equal(sent, []string{"n-0000000002"}) || m.DirectHome()["n-0000000002"] != "192.168.1.10" {
+		t.Errorf("sent %v, addresses %v", sent, m.DirectHome())
+	}
+	m.mu.Lock()
+	m.saveLab(func(l *config.Lab) { l.DNS.ManageRecords = false })
+	m.mu.Unlock()
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Private || !strings.Contains(c.Why, "DNS records") {
+		t.Errorf("records not managed: %+v", c)
+	}
+}
+
+func TestHomeAddrIn(t *testing.T) {
+	for _, tc := range []struct {
+		addrs, own []string
+		want       string
+	}{
+		{[]string{"192.168.1.10"}, []string{"192.168.1.5"}, "192.168.1.10"},
+		{[]string{"10.0.2.15"}, []string{"10.0.2.15"}, ""},
+		{[]string{"192.168.2.10"}, []string{"192.168.1.5"}, ""},
+		{[]string{"fe80::1", "192.168.1.9"}, []string{"192.168.1.5"}, "192.168.1.9"},
+	} {
+		if got := homeAddrIn(tc.addrs, tc.own); got != tc.want {
+			t.Errorf("homeAddrIn(%v, %v) = %q, want %q", tc.addrs, tc.own, got, tc.want)
+		}
+	}
+}
+
+// TestServeThroughEdge: with a cloud server as the way in, a cloud server
+// still serves its public names itself, the way in too, and a home server
+// set to serve directly gets a link of its own with the way in, which
+// passes its names straight to it (SPEC.md §10.5, "Ways in").
+func TestServeThroughEdge(t *testing.T) {
+	m, home, vps, _ := setUpLinks(t)
+	ctx := context.Background()
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	m.Lab.Domain = "smith.family"
+	m.Registry = &fakeRegistry{peers: map[string]labnet.Peer{
+		"n-0000000002": {PublicKey: homeKey, Addr: "100.96.0.2"},
+		"n-0000000003": {PublicKey: vpsKey, Addr: "100.96.0.3", Seen: "203.0.113.7:43122"},
+		"n-0000000004": {PublicKey: "cloudKey", Addr: "100.96.0.4", Seen: "198.51.100.9:43122"},
+	}}
+	if err := m.SetEdge(ctx, "n-0000000003"); err != nil {
+		t.Fatal(err)
+	}
+	if c := m.ServeChoiceOf(ctx, "n-0000000004"); !c.Public {
+		t.Errorf("a cloud server with an edge: %+v", c)
+	}
+	if c := m.ServeChoiceOf(ctx, "n-0000000003"); !c.Public {
+		t.Errorf("the way in itself: %+v", c)
+	}
+	if err := m.SetServe(ctx, "n-0000000002", config.ServeDirect); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	l := m.linksFor(ctx, m.linkInfos(ctx), "n-0000000002")
+	if l == nil || len(l.Peers) != 1 || l.Peers[0].Endpoint != "203.0.113.7:51820" {
+		t.Fatalf("the home server's link to the edge: %+v", l)
+	}
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); !c.Public {
+		t.Errorf("a home server linked to the edge: %+v", c)
+	}
+	home.mu.Lock()
+	direct := home.last.Lab.Direct
+	home.mu.Unlock()
+	vps.mu.Lock()
+	edge := vps.last.Edge
+	vps.mu.Unlock()
+	if !slices.Contains(direct, "n-0000000002") || edge == nil {
+		t.Errorf("sent direct %v, edge %+v", direct, edge)
+	}
+	// Forgejo on the home server, public: the edge passes its name
+	// straight to the home server's Caddy.
+	services, err := state.LoadServices(m.Lab)
+	if err != nil || len(services) != 1 {
+		t.Fatal(services, err)
+	}
+	r := services[0].Instance.Routes["web"]
+	r.Exposure = pkgspec.ExposurePublic
+	services[0].Instance.Routes["web"], services[0].Instance.SettingUp = r, false
+	lab := m.labNow()
+	lab.Direct = direct
+	if got := m.edgeDirect(lab, services, m.linkInfos(ctx)); len(got["100.96.0.2:443"]) != 1 || len(got) != 1 {
+		t.Errorf("the edge's names for the home server: %v", got)
+	}
+	// The link didn't connect: through the controller, saying why.
+	m.Settings.SetSetting(ctx, linkFailedKey+pairKey("n-0000000002", "n-0000000003"), strconv.FormatInt(time.Now().Unix(), 10))
+	if c := m.ServeChoiceOf(ctx, "n-0000000002"); c.Public || !strings.Contains(c.Why, "UDP 51820") {
+		t.Errorf("a link that didn't connect: %+v", c)
 	}
 }

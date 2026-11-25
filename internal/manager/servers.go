@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/sleep"
@@ -307,7 +309,7 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	refused := m.cloudRefused(services)
 	m.refused.Store(&refused)
 	m.sendCloudPublic()
-	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked,
+	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, Name: m.labNow().Name, TestAddress: m.Lab.TestAddress(), NoSharing: pub.NoSharing || !pub.SharingAsked,
 		StatusPage: m.StatusPageOn(), Pause: pause, Refused: refused, DomainItself: m.labNow().DomainItself}
 	devices, people := m.vpnDevices(context.Background(), services)
 	lab.Devices = devices
@@ -319,6 +321,15 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		nodes = append(nodes, r)
 	}
 	infos := m.linkInfos(context.Background())
+	// The servers serving their public routes themselves (direct.go).
+	direct, directHome := m.directServers(context.Background(), infos)
+	m.direct.Store(&direct)
+	m.directHome.Store(&directHome)
+	lab.Direct, lab.DirectHome = direct, slices.Sorted(maps.Keys(directHome))
+	// Apps on other servers swapping codes for tokens at the sign-in page.
+	lab.SignInServers = slices.ContainsFunc(services, func(s state.Service) bool {
+		return s.Instance.HostOr(m.Lab.NodeID) != m.Lab.NodeID && generate.SSOReaches(m.Lab, s.Package, s.Instance)
+	})
 	// The edge passes public visitors on to the controller's Caddy, which
 	// believes it alone about who they are (SPEC.md §10.5).
 	// The lab's DNS server (SPEC.md §6.5.2): its names point at home for
@@ -328,11 +339,22 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		lab.HomeAddress = m.vpnHomeAddress()
 	}
 	resolver := m.resolverOf(m.labNow().Resolver, services, infos)
+	// Roostack's own DNS server, on the server running it (SPEC.md
+	// §6.5.3).
+	var labDNS *labdns.Config
+	// Not before first-run setup has chosen the firewall, which then
+	// keeps port 53 to the home network and the VPN.
+	if resolver.Own && resolver.OwnServer != "" && m.labNow().Firewall.SSH != "" {
+		names := m.withStatusPage()
+		names.GlancesSites = glancesSites
+		labDNS = labDNSConfig(names, services, lab.HomeAddress, m.homeNames(m.labNow()), resolver.Choice.Fallback)
+	}
 	edge, edgeAddrs := m.edgeFor(infos)
 	lab.EdgeAddrs = append(edgeAddrs, m.relayFor(services)...)
 	// It sends services' public ports on too.
 	paused := m.labNow()
 	paused.Public.Pause = pause
+	paused.Direct = direct
 	atEdge, atController := m.edgeForwards(paused, services, infos, edge)
 	for _, n := range nodes {
 		id := n.Identity().ID
@@ -341,6 +363,9 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		}
 		a := node.Assignment{Services: m.onNode(services, id), Lab: lab, Reason: reason, CaddyFirst: caddyFirst && n == m.Node}
 		a.Lab.Resolver = resolverFor(resolver, id)
+		if id == resolver.OwnServer {
+			a.Lab.DNS = labDNS
+		}
 		for _, s := range a.Services {
 			name := s.Name()
 			for k, v := range m.secrets[name] {
@@ -348,6 +373,18 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 					a.Secrets = map[string][]byte{}
 				}
 				a.Secrets[k] = v
+			}
+			// An OIDC app's client secret on another server: the
+			// controller's, which the sign-in page checks (sso.go).
+			if n != m.Node && s.Package.SSO != nil && s.Package.SSO.OIDC != nil && generate.SSOOn(m.Lab, s.Package, s.Instance) {
+				if v, err := m.clientSecret(context.Background(), name); err != nil {
+					m.Log.Error("single sign-on's client secret", "service", name, "err", err)
+				} else {
+					if a.Secrets == nil {
+						a.Secrets = map[string][]byte{}
+					}
+					a.Secrets[generate.SSOSecretName(name)] = v
+				}
 			}
 			if slices.Contains(m.setUp, name) {
 				a.SetUp = append(a.SetUp, name)
@@ -374,7 +411,9 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 			a.Links.PassesOn = devices.Elsewhere && id == m.VPNElsewhere()
 		}
 		if id == edge {
-			a.Edge, a.PortForwards = edgeConfig(m.withStatusPage(), services), atEdge
+			names := m.withStatusPage()
+			names.Direct, names.DirectHome, names.Public.Edge = lab.Direct, lab.DirectHome, edge
+			a.Edge, a.PortForwards = edgeConfig(names, services, m.edgeDirect(names, services, infos), ownNames(names, services, edge)), atEdge
 			if a.Links != nil && len(atEdge) > 0 {
 				// Roostack's network's interface forwards the answers.
 				a.Links.PassesOn = true
@@ -832,7 +871,7 @@ func (m *Manager) ServiceFiles(name string) (*ServiceFiles, error) {
 		f.CaddySite = nil
 		for _, r := range m.others() {
 			if r.Identity().ID == in.Host {
-				if proxy, err := generate.ProxySite(m.Lab, p, in, r.Address()); err == nil {
+				if proxy, err := generate.ProxySite(m.labDirect(), p, in, r.Address()); err == nil {
 					f.CaddySite = proxy.CaddySite
 				}
 			}

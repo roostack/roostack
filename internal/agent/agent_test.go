@@ -41,7 +41,6 @@ type fakeHost struct {
 	keysOnly   bool
 	unblocked  []string
 	community  []string
-	keys       []SSHKeyRequest
 	series     string
 	library    *Library
 	unmounted  string
@@ -150,11 +149,6 @@ func (f *fakeHost) UnblockSSH(address string) error {
 
 func (f *fakeHost) SetSSHCommunity(addrs []string) error {
 	f.community = addrs
-	return nil
-}
-
-func (f *fakeHost) AddSSHKey(r SSHKeyRequest) error {
-	f.keys = append(f.keys, r)
 	return nil
 }
 

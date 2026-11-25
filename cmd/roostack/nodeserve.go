@@ -17,11 +17,13 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/sleep"
+	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/web"
 )
 
@@ -77,6 +79,11 @@ func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent
 	go pullAssignments(ctx, lab, m, api, log)
 	// Offering storage for other labs: their requests go to the controller.
 	go serveGuestAPI(ctx, local, m, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, log)
+	// Its Caddy's walls, serving directly, ask the controller's sign-in
+	// page, and its DNS challenges, serving at home, are set by the
+	// controller.
+	go serveWallRelay(ctx, lab, m, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, log)
+	go serveChallengeRelay(ctx, lab, m, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, log)
 	// Renew this server's lab certificate before it expires.
 	labID := labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}
 	go labnet.KeepRenewed(ctx, labID, local.ID.ID, labnet.RenewFromController(labnet.ControllerURL(m), m.ControllerID, labID), log)
@@ -181,6 +188,84 @@ func serveGuestAPI(ctx context.Context, local *node.Local, m labnet.Membership, 
 		if !sleep.For(ctx, 10*time.Second) {
 			return
 		}
+	}
+}
+
+// serveWallRelay passes this server's Caddy's walls on to the controller's
+// sign-in page (SPEC.md §5.2, §10.5), on the sign-in listener's address,
+// where the controller's Caddy asks its own: the check for each request to
+// a walled service it serves directly, and the sign-in's hand-off on the
+// service's address. The controller answers only for this server's own
+// walled services. Its own Caddy alone reaches the listener, as Roostack's
+// pages' (docs/ASSUMPTIONS.md V1b).
+func serveWallRelay(ctx context.Context, lab config.Lab, m labnet.Membership, id labnet.Identity, log *slog.Logger) {
+	tlsConf, err := id.ClientTLS(m.ControllerID)
+	if err != nil {
+		log.Error("passing walled services' sign-ins on", "err", err)
+		return
+	}
+	target, _ := url.Parse(labnet.ControllerURL(m))
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetURL(target)
+			pr.Out.URL.Path = labnet.PathWall + pr.In.URL.Path
+			pr.Out.URL.RawPath = ""
+			pr.Out.Header.Set(labnet.WallHostHeader, pr.In.Host)
+			// Rewrite drops these, and the check needs the address asked
+			// about.
+			for _, h := range []string{"X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-For"} {
+				if v := pr.In.Header.Get(h); v != "" {
+					pr.Out.Header.Set(h, v)
+				}
+			}
+		},
+		Transport: &http.Transport{TLSClientConfig: tlsConf, ResponseHeaderTimeout: 10 * time.Second},
+	}
+	mux := http.NewServeMux()
+	mux.Handle("GET "+sso.PathCheck, proxy)
+	mux.Handle(caddy.WallCallbackPath+"/", proxy)
+	srv := &http.Server{Addr: fmt.Sprintf("%s:%d", lab.UIBind, config.SignInPort), Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		srv.Close()
+	}()
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Warn("passing walled services' sign-ins on", "err", err)
+	}
+}
+
+// serveChallengeRelay passes this server's Caddy's DNS challenges on to
+// the controller (SPEC.md §10.5, "Serving directly"), on its loopback at
+// config.ChallengePort: Caddy speaks acme-dns to it (an update naming the
+// certificate's name as its subdomain), and the controller sets the record
+// through the lab's DNS provider, for this server's own private names
+// alone. Its own Caddy alone reaches the listener, as Roostack's pages'.
+func serveChallengeRelay(ctx context.Context, lab config.Lab, m labnet.Membership, id labnet.Identity, log *slog.Logger) {
+	tlsConf, err := id.ClientTLS(m.ControllerID)
+	if err != nil {
+		log.Error("passing DNS challenges on", "err", err)
+		return
+	}
+	target, _ := url.Parse(labnet.ControllerURL(m))
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetURL(target)
+			pr.Out.URL.Path, pr.Out.URL.RawPath = labnet.PathChallenge, ""
+			// acme-dns's login is for the listener alone.
+			pr.Out.Header.Del("X-Api-User")
+			pr.Out.Header.Del("X-Api-Key")
+		},
+		Transport: &http.Transport{TLSClientConfig: tlsConf, ResponseHeaderTimeout: time.Minute},
+	}
+	mux := http.NewServeMux()
+	mux.Handle("POST /update", proxy)
+	srv := &http.Server{Addr: fmt.Sprintf("%s:%d", lab.UIBind, config.ChallengePort), Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		srv.Close()
+	}()
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Warn("passing DNS challenges on", "err", err)
 	}
 }
 

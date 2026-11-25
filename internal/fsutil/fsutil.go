@@ -1,13 +1,17 @@
 // Package fsutil writes files the one safe way: atomically, with the
-// permissions asked for, whatever was there before.
+// permissions asked for, whatever was there before. It also reads files
+// an app controls without letting the app hang or flood the reader.
 package fsutil
 
 import (
 	"bytes"
+	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // WriteFile writes data to path atomically: into a new temporary file in
@@ -84,4 +88,44 @@ func Within(path, dir string) bool {
 		return path != ".." && !strings.HasPrefix(path, "../")
 	}
 	return strings.HasPrefix(path, dir+"/")
+}
+
+// OpenRegularInRoot opens path inside root for reading, for a file an app
+// controls (its config file, a file its page shows): through the os.Root,
+// so no link leads out, and without blocking, refused unless it's a
+// regular file, so a named pipe can't hang the reader.
+func OpenRegularInRoot(root *os.Root, path string) (*os.File, fs.FileInfo, error) {
+	f, err := root.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, nil, err
+	}
+	if !info.Mode().IsRegular() {
+		f.Close()
+		return nil, nil, fmt.Errorf("%s isn't a regular file", path)
+	}
+	return f, info, nil
+}
+
+// ReadRegularInRoot reads a file as OpenRegularInRoot opens it, refused
+// when over max bytes so that a huge file isn't read into memory. It
+// returns the file's information too, from the same handle.
+func ReadRegularInRoot(root *os.Root, path string, max int64) ([]byte, fs.FileInfo, error) {
+	f, info, err := OpenRegularInRoot(root, path)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, max+1))
+	if err != nil {
+		return nil, nil, err
+	}
+	if int64(len(b)) > max {
+		return nil, nil, fmt.Errorf("%s is larger than %d bytes", path, max)
+	}
+	return b, info, nil
 }

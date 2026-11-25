@@ -94,6 +94,8 @@
 {{if or .EdgeServers .Edge .CanRelay .Relay}}
 <section class="card section" id="way-in">
   <h2>How people reach your public services</h2>
+  <p>A public service on a server with an address of its own on the internet is reached at that server. For services on servers
+    that can't be reached from the internet, such as this one at home, choose the way in:</p>
   {{if eq .Saved "edge"}}<p class="notice notice-ok" role="status">Saved. Public addresses will follow within a few minutes as DNS updates.</p>{{end}}
   {{if eq .Saved "relay-on"}}<p class="notice notice-ok" role="status">The relay is on again. Public addresses will point at it within a few minutes as DNS updates.</p>{{end}}
   {{if eq .Saved "relay-resumed"}}<p class="notice notice-ok" role="status">Public access through the relay is open again: visitors will come through within about 20 seconds.</p>{{end}}
@@ -130,7 +132,8 @@
       {{range .EdgeServers}}
       <label class="check"><input type="radio" name="edge" value="{{.ID}}" {{if and $.Edge (eq .ID $.Edge.ID)}}checked{{end}}>
         <span>Through {{.Name}}, a cloud server in this lab<small>No router changes, and your home's address will stay hidden: public addresses will point at
-          {{.Name}} (<code>{{.Address}}</code>), which passes visitors' connections on to this server still encrypted. It can't read them.</small></span></label>
+          {{.Name}} (<code>{{.Address}}</code>), which passes visitors' connections on to the server that runs each service, still encrypted. It can't
+          read them. Its own services are served by {{.Name}} itself as usual.</small></span></label>
       {{end}}
       {{if or .CanRelay .Relay}}
       <label class="check"><input type="radio" name="edge" value="cloud" {{if .Relay}}checked{{end}}>
@@ -143,10 +146,12 @@
   </form>
   <details>
     <summary>For technical users</summary>
-    <p>The cloud server's Caddy routes each connection on the name in its TLS handshake, using Caddy's layer-4 plugin, and passes it over
-      Roostack's WireGuard network to this server's port 443 with a PROXY protocol header saying who the visitor is. TLS ends here, with
-      this server's certificate. This server believes that header only from the cloud server's WireGuard address, and treats that address as
-      outside, so private paths stay private even if a header went missing. HTTP/3 (UDP) doesn't pass through: browsers use HTTP/2 instead.</p>
+    <p>The cloud server's Caddy looks at the name in each TLS handshake first, using Caddy's layer-4 plugin in front of its own TLS: names it
+      serves itself go to its own sites, and the rest go over Roostack's WireGuard network, with a PROXY protocol header saying who the visitor
+      is, to the server that serves them (over a link of their own where there is one, else this server, which passes them on). TLS ends on
+      that server, with its certificate. Servers believe that header only from the cloud server's WireGuard address, on a listener of its own
+      where every visitor counts as outside, so private paths stay private even if a header went missing. HTTP/3 (UDP) doesn't pass through:
+      browsers use HTTP/2 instead.</p>
   </details>
 </section>
 {{end}}

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -19,11 +20,13 @@ import (
 // a stolen session can't be used to guess the password.
 const maxStepUpFailures = 5
 
-// stepUpFailures counts wrong passwords or codes per user when showing
-// the recovery key.
+// stepUpFailures counts wrong passwords or codes per user when asked
+// again (stepUp), and keeps when each session's last confirmation stops
+// covering other actions (confirmIt).
 type stepUpFailures struct {
-	mu     sync.Mutex
-	byUser map[int64]int
+	mu        sync.Mutex
+	byUser    map[int64]int
+	confirmed map[string]time.Time
 }
 
 func (s *Server) recoveryKeyShowPage(w http.ResponseWriter, r *http.Request) {
@@ -59,11 +62,12 @@ func (s *Server) recoveryKeyShowSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 // stepUp checks it's the Owner, though logged in: one of their passkeys,
-// or their password and a fresh two-factor code (SPEC.md §6.9). Wrong
-// codes count against the account (checkCode), and maxStepUpFailures wrong
-// tries end the session. Each failure is audited under action. On failure
-// it has answered, with again (the page and an error) or by logging out,
-// and returns false.
+// or their password and a fresh two-factor code (SPEC.md §6.9), or the
+// password alone for an account without two-factor (an Admin's, removing
+// a service). Wrong codes count against the account (checkCode), and
+// maxStepUpFailures wrong tries end the session. Each failure is audited
+// under action. On failure it has answered, with again (the page and an
+// error) or by logging out, and returns false.
 func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, again func(status int, msg string)) bool {
 	u := currentUser(r)
 	if hasPasskeyAnswer(r) {
@@ -75,11 +79,15 @@ func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, a
 		return true
 	}
 	ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("password"))
+	if errors.Is(err, authkit.ErrBusy) {
+		again(http.StatusServiceUnavailable, busyMessage)
+		return false
+	}
 	if err != nil {
 		s.serverError(w, err)
 		return false
 	}
-	if ok {
+	if ok && u.TOTPSecret != "" {
 		// Wrong codes count against the account here as at login.
 		res, until, err := s.checkCode(r.Context(), u.ID, r.FormValue("code"))
 		if err != nil {
@@ -110,7 +118,11 @@ func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, a
 			return false
 		}
 		s.Store.Audit(r.Context(), u, action, "wrong password or code")
-		again(http.StatusBadRequest, "That password or code didn't work. Check your authenticator app and try again.")
+		msg := "That password or code didn't work. Check your authenticator app and try again."
+		if u.TOTPSecret == "" {
+			msg = "That password didn't work."
+		}
+		again(http.StatusBadRequest, msg)
 		return false
 	}
 	s.stepUps.mu.Lock()

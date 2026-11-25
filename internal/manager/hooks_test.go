@@ -466,8 +466,8 @@ func TestSSOHookFailsThenRetry(t *testing.T) {
 }
 
 // Installing with single sign-on ticked turns it on from the start (SPEC.md
-// §5.2), and its hook runs as when it's turned on later; on another
-// server, or for a lab without an address, the tick is ignored.
+// §5.2), and its hook runs as when it's turned on later, on any server;
+// for a lab without an address, the tick is ignored.
 func TestInstallWithSSO(t *testing.T) {
 	m, _, _, _ := newHookManager(t)
 	ctx := context.Background()
@@ -475,8 +475,8 @@ func TestInstallWithSSO(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !m.SSOAtInstall(p, "") || m.SSOAtInstall(p, "n-0000000099") {
-		t.Error("offered on another server, or not on this one")
+	if !m.SSOAtInstall(p, "") || !m.SSOAtInstall(p, "n-0000000099") {
+		t.Error("not offered here, or on another server")
 	}
 	req := forgejoRequest()
 	req.SSO = true

@@ -30,8 +30,8 @@ func startSignIn(ctx context.Context, lab config.Lab, st *store.Store, srv *web.
 		Issuer:  func() string { return "https://" + lab.SignInHost() },
 		Clients: conformanceClients(mgr.SSOClients),
 		// The app's secret is the Podman secret Roostack made for it on
-		// this server (only the controller's services have single sign-on
-		// for now).
+		// this server, which keeps one for every app with single sign-on,
+		// wherever it runs (manager.clientSecret).
 		ClientSecret: func(ctx context.Context, id string) ([]byte, error) {
 			if local.Secrets == nil {
 				return nil, errors.New("no secrets on this server")

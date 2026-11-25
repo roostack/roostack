@@ -459,6 +459,8 @@
           {{else if $.PortsRelayed}}Roostack Cloud's relay doesn't carry extra connections yet, so nobody outside your home can reach it until it does, or until you choose another way in on <a href="/settings/public#way-in">Public access</a>.
           {{else}}From {{if $.Internet}}anywhere{{else}}outside your home{{end}}, connect to <code>{{$.Host}}:{{.HostPort}}</code>{{if $.Internet}}. If this server's provider has a firewall, it has to allow {{$proto}} port {{.HostPort}} from anywhere.
           {{else if $.Edge}}. There's nothing to change on your router: connections come in through {{or $.Edge.Name $.Edge.ID}}, a cloud server in this lab, and its provider's firewall, if it has one, has to allow {{$proto}} port {{.HostPort}}.
+          {{$.Service.Title}} will see each connection as coming from {{or $.Edge.Name $.Edge.ID}}'s address in the lab, not the visitor's, so if it
+          trusts nearby addresses more, such as letting them in without a login, it will trust everyone on the internet.
           {{else}}, once your router forwards {{$proto}} port {{.HostPort}} to <code>{{or $.LANIP "this server"}}</code>.{{end}}{{end}}
         </p>{{end}}
       </div>

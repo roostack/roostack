@@ -125,3 +125,26 @@ func TestUnreachableServerSettings(t *testing.T) {
 		t.Errorf("its page once it's back: %d", code)
 	}
 }
+
+// The Owner chooses how visitors reach another server's public services
+// on its card (SPEC.md §10.5, "Serving directly").
+func TestServeChoice(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, Reachable: true},
+		{ID: "n-9876543210", Name: "vps", Reachable: true}}
+	_, body := h.get("/servers")
+	if strings.Count(body, "/serve\"") != 1 || !strings.Contains(body, "Served by vps itself") ||
+		!strings.Contains(body, "(Roostack's choice for it)") {
+		t.Errorf("the choice is on the other server's card only:\n%s", body)
+	}
+	if code, _ := h.post("/settings/servers/n-9876543210/serve", url.Values{"serve": {"sideways"}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("an unknown choice: %d", code)
+	}
+	h.post("/settings/servers/n-9876543210/serve", url.Values{"serve": {"direct"}}, h.srv.URL)
+	if fm.serve["n-9876543210"] != "direct" {
+		t.Errorf("saved %v", fm.serve)
+	}
+	if _, body := h.get("/servers"); !strings.Contains(body, `value="direct" checked`) || strings.Contains(body, "(Roostack's choice for it)") {
+		t.Error("the choice should show")
+	}
+}

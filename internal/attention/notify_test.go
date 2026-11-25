@@ -140,6 +140,12 @@ func TestSecurityEvents(t *testing.T) {
 		{store.AuditEntry{Action: AuditLocked, Username: "kim", Detail: "at login", At: at},
 			"Several wrong two-factor codes were entered for your account, so codes are locked for a while (5 October at 09:30, at login).",
 			"kim's two-factor codes were locked after several wrong codes (5 October at 09:30).", "kim"},
+		{store.AuditEntry{Action: AuditPasswordGuesses, Username: "kim", Detail: "50 times today, from 12 addresses", At: at},
+			"Someone has entered a wrong password for your account 50 times today, from 12 addresses (the last on " +
+				"5 October at 09:30). Roostack is slowing their tries down and won't lock you out, but make sure your password is long and used " +
+				"nowhere else, and turn on two-factor authentication if it isn't on.",
+			"Someone has entered a wrong password for kim's account 50 times today, from 12 addresses (the last on " +
+				"5 October at 09:30). Roostack is slowing their tries down and won't lock the account.", "kim"},
 		{store.AuditEntry{Action: "user role", Username: "sam", Detail: "kim → member", At: at}, "", "", ""},
 		{store.AuditEntry{Action: AuditGuestJoined, Username: "system", Detail: "Jones lab", At: at},
 			"", "Another lab started storing its backups here: Jones lab (5 October at 09:30).", ""},

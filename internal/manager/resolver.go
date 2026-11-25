@@ -45,6 +45,24 @@ type Resolver struct {
 	ServerAddr string
 	// Why says why there's none to use, if so.
 	Why string
+	// Own: Roostack's own DNS server is the one in use (SPEC.md §6.5.3).
+	// OwnServer is the server running it, by ID, and OwnServerName its
+	// name; "" while there's none it can run on (Why).
+	Own                      bool
+	OwnServer, OwnServerName string
+	// Homes are the servers at home that could run it on a lab whose
+	// controller is in the cloud, to choose from.
+	Homes []DNSHome
+	// Names are the names it answers itself, with their addresses.
+	Names map[string]string
+	// Addrs6 are its IPv6 home addresses, for a router's IPv6 DNS
+	// setting (on the controller; other servers don't report theirs).
+	Addrs6 []string
+}
+
+// DNSHome is a server at home that could run Roostack's own DNS server.
+type DNSHome struct {
+	ID, Name, Addr string
 }
 
 // DNSServices are the lab's services that answer DNS, by name. Stopped
@@ -68,9 +86,17 @@ func (m *Manager) Resolver(ctx context.Context) Resolver {
 		m.Log.Error("listing services for the lab's DNS server", "err", err)
 	}
 	m.mu.Lock()
-	choice := m.labNow().Resolver
+	now := m.labNow()
 	m.mu.Unlock()
-	return m.resolverOf(choice, services, m.linkInfos(ctx))
+	r := m.resolverOf(now.Resolver, services, m.linkInfos(ctx))
+	if r.Own && r.OwnServer != "" {
+		home := ""
+		if !m.Lab.OnInternet() {
+			home = m.vpnHomeAddress()
+		}
+		r.Names = labDNSConfig(m.withStatusPage(), services, home, m.homeNames(now), "").Names
+	}
+	return r
 }
 
 func (m *Manager) resolverOf(choice config.Resolver, services []state.Service, infos map[string]linkInfo) Resolver {
@@ -81,9 +107,11 @@ func (m *Manager) resolverOf(choice config.Resolver, services []state.Service, i
 	case config.ResolverAddress:
 		r.Addr, r.ServerAddr = choice.Address, net.JoinHostPort(choice.Address, "53")
 		return r
+	case config.ResolverRoostack:
+		return m.ownResolver(r, services, infos)
 	}
 	if len(r.Services) == 0 {
-		return r
+		return m.ownResolver(r, services, infos)
 	}
 	svc := r.Services[0]
 	r.Service = &svc
@@ -115,7 +143,7 @@ func (m *Manager) SetResolver(ctx context.Context, choice config.Resolver) error
 		return errors.New("manager: UpdateLab is not set")
 	}
 	switch choice.Use {
-	case "", config.ResolverAuto, config.ResolverProvider:
+	case "", config.ResolverAuto, config.ResolverProvider, config.ResolverRoostack:
 		choice.Address = ""
 	case config.ResolverAddress:
 		a, err := netip.ParseAddr(strings.TrimSpace(choice.Address))
@@ -134,6 +162,16 @@ func (m *Manager) SetResolver(ctx context.Context, choice config.Resolver) error
 		known[r.Identity().ID] = true
 	}
 	choice.Servers = slices.DeleteFunc(slices.Clone(choice.Servers), func(id string) bool { return !known[id] })
+	if !known[choice.Server] {
+		choice.Server = ""
+	}
+	if f := strings.TrimSpace(choice.Fallback); f != "" {
+		a, err := netip.ParseAddr(f)
+		if err != nil || !a.IsGlobalUnicast() || a.IsPrivate() {
+			return usererr.New("Enter a public DNS server's address for when the home network has none, such as 9.9.9.9.")
+		}
+		choice.Fallback = a.String()
+	}
 	slices.Sort(choice.Servers)
 	choice.Servers = slices.Compact(choice.Servers)
 	m.mu.Lock()
@@ -148,7 +186,9 @@ func (m *Manager) SetResolver(ctx context.Context, choice config.Resolver) error
 // resolverFor is the DNS server a server's own lookups use (host:port),
 // if it chose the lab's, else "".
 func resolverFor(r Resolver, id string) string {
-	if !slices.Contains(r.Choice.Servers, id) {
+	// Not the server running Roostack's own: it would pass its own
+	// lookups back to itself.
+	if !slices.Contains(r.Choice.Servers, id) || r.Own && id == r.OwnServer {
 		return ""
 	}
 	return r.ServerAddr

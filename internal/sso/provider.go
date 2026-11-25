@@ -195,7 +195,8 @@ type handoff struct {
 
 type cachedSecret struct {
 	value []byte
-	until time.Time
+	// read is when it was read; until is when it's read again anyway.
+	read, until time.Time
 }
 
 // seenEvery limits how often a sign-in's last use is saved.
@@ -766,24 +767,30 @@ func (p *Provider) authenticate(r *http.Request) (Client, bool) {
 		return c, true
 	}
 	// The secret may have changed since it was read (single sign-on turned
-	// off and on): read it again once.
+	// off and on): read it again, at most once every secretReread, so that
+	// wrong secrets sent over and over can't make Podman read it each time.
 	return c, p.secretMatches(r.Context(), id, secret, true)
 }
 
-// secretCache is how long an app's secret is kept in memory once read.
-const secretCache = 5 * time.Minute
+// secretCache is how long an app's secret is kept in memory once read;
+// secretReread is how soon a wrong secret may have it read again.
+const (
+	secretCache  = 5 * time.Minute
+	secretReread = time.Minute
+)
 
 func (p *Provider) secretMatches(ctx context.Context, id, secret string, fresh bool) bool {
 	p.mu.Lock()
 	cached, ok := p.secrets[id]
 	p.mu.Unlock()
-	if fresh || !ok || p.now().After(cached.until) {
+	now := p.now()
+	if !ok || now.After(cached.until) || fresh && now.Sub(cached.read) >= secretReread {
 		v, err := p.ClientSecret(ctx, id)
 		if err != nil {
 			p.Log.Error("reading an app's single sign-on secret", "service", id, "err", err)
 			return false
 		}
-		cached = cachedSecret{value: []byte(strings.TrimSpace(string(v))), until: p.now().Add(secretCache)}
+		cached = cachedSecret{value: []byte(strings.TrimSpace(string(v))), read: now, until: now.Add(secretCache)}
 		p.mu.Lock()
 		if p.secrets == nil {
 			p.secrets = map[string]cachedSecret{}

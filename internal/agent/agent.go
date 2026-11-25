@@ -130,13 +130,11 @@ type Host interface {
 	// SSHStatus reads what the SSH server does; SetSSHKeysOnly writes or
 	// removes Roostack's drop-in in its configuration (ssh.go);
 	// UnblockSSH lifts a block on a password guesser (sshblocks.go);
-	// AddSSHKey adds a public key to an account that can use sudo, making
-	// the account if it's new (sshkey.go); SetSSHCommunity keeps CrowdSec's
-	// community blocklist away from SSH (sshcommunity.go).
+	// SetSSHCommunity keeps CrowdSec's community blocklist away from SSH
+	// (sshcommunity.go).
 	SSHStatus() (SSHStatus, error)
 	SetSSHKeysOnly(on bool) error
 	UnblockSSH(address string) error
-	AddSSHKey(r SSHKeyRequest) error
 	SetSSHCommunity(addrs []string) error
 }
 
@@ -145,6 +143,9 @@ type Server struct {
 	Host Host
 	// AllowedUIDs may call the API (root and the roostack user).
 	AllowedUIDs []uint32
+	// RoostackUID is the roostack user's, whose services the controller's
+	// firewall keeps from the lab's other servers (Firewall.CaddyOnly).
+	RoostackUID int
 	Version     string
 	Log         *slog.Logger
 
@@ -180,7 +181,7 @@ func (s *Server) Handler() http.Handler {
 		if err := h.VPNForwardingOff(want); err != nil {
 			return err
 		}
-		fw.ForwardOwned = own
+		fw.ForwardOwned, fw.RoostackUID = own, s.RoostackUID
 		if err := h.ApplyFirewall(fw.Ruleset()); err != nil {
 			return err
 		}
@@ -267,7 +268,6 @@ func (s *Server) Handler() http.Handler {
 	handle("POST /v1/ssh/community", action(s, "set crowdsec's community blocklist at ssh", 8<<20, func(r CommunityRequest) error {
 		return h.SetSSHCommunity(r.Addresses)
 	}))
-	handle("POST /v1/ssh/key", action(s, "add ssh key", 16<<10, h.AddSSHKey))
 	return s.checkCaller(mux)
 }
 

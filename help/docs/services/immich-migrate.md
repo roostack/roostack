@@ -146,7 +146,11 @@ On Immich's page, the **Migrate photos** card:
 - **Who can migrate photos**: *Everyone who uses Immich* (with single
   sign-on on, those who can sign in to it), or *Owners and Admins*.
 - **Where they can migrate photos from**: USB drives they plug in, and
-  network shares with their own login.
+  network shares with their own login. Shares are off until you turn
+  them on, and then only on a NAS your lab already uses for a media
+  library or a location, which they'll choose from a list. Roostack
+  connects to a share as this server, so a NAS that trusts this server
+  would let them read what it shares with it.
 - **Memory for migrations**: half the server's memory (the default), or
   three quarters for a very large library ([Large libraries and
   memory](#memory)).

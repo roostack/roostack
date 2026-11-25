@@ -117,8 +117,12 @@ type Manager struct {
 	// records point at. Protected says whether CrowdSec is up: records only
 	// go public once it is (SPEC.md §6.11).
 	PublicHosts func() []string
-	Entry       public.Entry
-	Protected   func(ctx context.Context) bool
+	// Direct are the public addresses that servers serving directly serve
+	// themselves (SPEC.md §10.5), each with that server's public address,
+	// which its record points at instead of the entry's; nil means none.
+	Direct    func() map[string]string
+	Entry     public.Entry
+	Protected func(ctx context.Context) bool
 	// LinkWanted says someone chose link.<domain> as the address other
 	// servers and labs reach this one at: its record is kept pointing at
 	// the entry's address (link.go).
@@ -353,25 +357,15 @@ func (m *Manager) syncCurrent(ctx context.Context, lab config.Lab) Status {
 		return st
 	}
 
-	values := map[string]string{}
-	for k, v := range lab.DNS.Values {
-		values[k] = v
-	}
-	for _, f := range lab.DNS.Fields {
-		v, err := m.Secrets.Read(ctx, dns.SecretName(f))
-		if err != nil {
-			st.State, st.Message = StateError, "Couldn't read the DNS credentials: "+err.Error()
-			return st
-		}
-		values[f] = string(v)
-	}
-	zone := lab.DNS.Zone
-	if zone == "" {
-		var err error
-		if zone, err = p.Check(ctx, values, lab.Domain); err != nil {
-			st.State, st.Message = StateError, err.Error()
-			return st
-		}
+	values, zone, err := m.login(ctx, lab, p)
+	var cred *credentialsError
+	switch {
+	case errors.As(err, &cred):
+		st.State, st.Message = StateError, "Couldn't read the DNS credentials: "+cred.err.Error()
+		return st
+	case err != nil:
+		st.State, st.Message = StateError, err.Error()
+		return st
 	}
 	name := "*"
 	if rel := strings.TrimSuffix(lab.Domain, "."+zone); rel != lab.Domain {
@@ -381,7 +375,7 @@ func (m *Manager) syncCurrent(ctx context.Context, lab config.Lab) Status {
 		return st
 	}
 
-	err := m.ensure(ctx, p, values, zone, name, ip)
+	err = m.ensure(ctx, p, values, zone, name, ip)
 	bare := strings.TrimPrefix(strings.TrimPrefix(name, "*"), ".")
 	switch {
 	case err != nil:
@@ -412,6 +406,7 @@ func (m *Manager) syncCurrent(ctx context.Context, lab config.Lab) Status {
 	st = m.check(ctx, st)
 	if lab.OnInternet() {
 		st.Public, st.PublicIP = m.coveredByWildcard(ctx, st)
+		m.setDirect(ctx, p, values, zone, st.Public)
 	} else {
 		st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
 	}
@@ -419,6 +414,35 @@ func (m *Manager) syncCurrent(ctx context.Context, lab config.Lab) Status {
 	st = m.linkManaged(ctx, st, p, values, zone)
 	return st
 }
+
+// login is the DNS provider's credentials for lab (its fields' values,
+// from their Podman secrets) and the zone its domain is in.
+func (m *Manager) login(ctx context.Context, lab config.Lab, p *dns.Provider) (map[string]string, string, error) {
+	values := map[string]string{}
+	for k, v := range lab.DNS.Values {
+		values[k] = v
+	}
+	for _, f := range lab.DNS.Fields {
+		v, err := m.Secrets.Read(ctx, dns.SecretName(f))
+		if err != nil {
+			return nil, "", &credentialsError{err}
+		}
+		values[f] = string(v)
+	}
+	zone := lab.DNS.Zone
+	if zone == "" {
+		var err error
+		if zone, err = p.Check(ctx, values, lab.Domain); err != nil {
+			return nil, "", err
+		}
+	}
+	return values, zone, nil
+}
+
+// credentialsError is a DNS provider's credentials that couldn't be read.
+type credentialsError struct{ err error }
+
+func (e *credentialsError) Error() string { return "reading the DNS credentials: " + e.err.Error() }
 
 type conflictError struct{ record, current, want string }
 
@@ -590,8 +614,9 @@ func (m *Manager) releaseOwned(ctx context.Context, p *dns.Provider, values map[
 // the wildcard, the domain itself while it's served (SPEC.md §5.3), a
 // public address or link.<domain>.
 func (m *Manager) wantsA(lab config.Lab, host string, publicHosts []string) bool {
+	_, direct := m.direct()[host]
 	return host == "*."+lab.Domain || host == lab.Domain && lab.ServesDomain() ||
-		slices.Contains(publicHosts, host) || host == m.linkHost() && m.linkWanted()
+		slices.Contains(publicHosts, host) || direct || host == m.linkHost() && m.linkWanted()
 }
 
 // domainOf says which of domains a host is under ("" for none); where one

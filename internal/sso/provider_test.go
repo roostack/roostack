@@ -686,3 +686,35 @@ func TestAdminsOnly(t *testing.T) {
 		}
 	}
 }
+
+// Wrong secrets sent over and over don't make Roostack read the app's
+// secret from Podman each time (the security review of 2026-11-19, M2): at
+// most once a minute, which is also how soon a changed secret works.
+func TestSecretRereadLimited(t *testing.T) {
+	f := newFixture(t)
+	now := time.Now()
+	f.p.Now = func() time.Time { return now }
+	reads, current := 0, secret
+	f.p.ClientSecret = func(context.Context, string) ([]byte, error) { reads++; return []byte(current), nil }
+	send := func(s string) int {
+		form := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {"x"}, "client_id": {"mealie"}, "client_secret": {s}}
+		r := httptest.NewRequest(http.MethodPost, PathToken, strings.NewReader(form.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		f.p.Token(w, r)
+		return w.Code
+	}
+	for range 20 {
+		send("not the secret")
+	}
+	if reads != 1 {
+		t.Errorf("20 wrong secrets read it %d times", reads)
+	}
+	// Changed (single sign-on off and on): the new one works once a minute
+	// has passed since the last read.
+	current = "a new secret"
+	now = now.Add(secretReread)
+	if code := send("a new secret"); code == http.StatusUnauthorized || reads != 2 {
+		t.Errorf("the new secret: %d, read %d times", code, reads)
+	}
+}

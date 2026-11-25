@@ -349,15 +349,3 @@ type UnblockRequest struct {
 }
 
 func (r UnblockRequest) logAttrs() []any { return []any{"address", r.Address} }
-
-// SSHKeyRequest adds an SSH public key to an account that can use sudo
-// (POST /v1/ssh/key, sshkey.go): a new account, made with Password, or one
-// the server has already.
-type SSHKeyRequest struct {
-	Key      string `json:"key"`
-	User     string `json:"user"`
-	New      bool   `json:"new,omitempty"`
-	Password string `json:"password,omitempty"`
-}
-
-func (r SSHKeyRequest) logAttrs() []any { return []any{"user", r.User, "new", r.New} }

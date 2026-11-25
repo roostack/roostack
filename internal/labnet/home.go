@@ -65,3 +65,24 @@ func HomeNetworks() []netip.Prefix {
 	}
 	return out
 }
+
+// HomeAddresses6 are this server's IPv6 addresses on its home networks:
+// unique local addresses (fc00::/7), which a router's IPv6 DNS setting
+// can name and the firewall counts as home (trust.HomeRanges), for
+// Roostack's own DNS server (SPEC.md §6.5.3).
+func HomeAddresses6() []string {
+	ifaces, _ := net.Interfaces()
+	var out []string
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 || virtualIface(ifc.Name) {
+			continue
+		}
+		addrs, _ := ifc.Addrs()
+		for _, a := range addrs {
+			if ipn, ok := a.(*net.IPNet); ok && ipn.IP.To4() == nil && ipn.IP.IsPrivate() {
+				out = append(out, ipn.IP.String())
+			}
+		}
+	}
+	return out
+}

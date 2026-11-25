@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/mail"
@@ -77,5 +78,52 @@ func TestPhotoEmails(t *testing.T) {
 	ph.MigrationEnded(ctx, node.PhotoSummary{Service: "immich", Who: "sam", Run: &node.PhotoRun{Stopped: true}})
 	if got, want := to(), []string{"sam@example.com: Migrating photos into Family photos was stopped"}; !slices.Equal(got, want) {
 		t.Errorf("an Owner's stopped: %q, want %q", got, want)
+	}
+}
+
+// Members' shares (the security review of 2026-11-19, M4): off unless the
+// Owner allows them, and then only on a NAS the lab already uses; Owners
+// and Admins choose any.
+func TestPhotoShareSource(t *testing.T) {
+	m, _ := newManager(t)
+	ctx := context.Background()
+	p, err := m.Package("immich")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.KeepPackage(m.Lab.Paths, p.Name, p.Version); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&instance.Instance{Package: "immich", Version: p.Version}).Save(state.InstanceFile(m.Lab, "immich")); err != nil {
+		t.Fatal(err)
+	}
+	st := storetest.Open(t)
+	m.Settings, m.Libraries = &memKV{m: map[string]string{}}, st
+	if err := st.SetMediaLibrary(ctx, store.MediaLibrary{ServerID: m.Lab.NodeID, Name: "films", Title: "Films",
+		ShareType: "smb", ShareServer: "nas.home", SharePath: "films"}); err != nil {
+		t.Fatal(err)
+	}
+	ph := m.Photos()
+	share := func(server string) node.PhotoSource {
+		return node.PhotoSource{Kind: "share", Library: agent.Library{Share: &agent.Share{Type: "smb", Server: server, Path: "kim"}}}
+	}
+	if err := ph.CheckPhotoSource(ctx, "immich", share("nas.home"), false); err == nil || !strings.Contains(err.Error(), "Shares can't be used here") {
+		t.Errorf("a member's share, not allowed: %v", err)
+	}
+	if err := ph.CheckPhotoSource(ctx, "immich", share("evil.example"), true); err != nil {
+		t.Errorf("an Admin's share: %v", err)
+	}
+	// As SetPhotoSettings keeps them, without a server to tell the memory.
+	if err := store.PutJSON(ctx, m.Settings, photoSettingsKey("immich"), PhotoSettings{MemberShares: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got := ph.ShareServers(ctx); !slices.Equal(got, []string{"nas.home"}) {
+		t.Errorf("share servers %q", got)
+	}
+	if err := ph.CheckPhotoSource(ctx, "immich", share("nas.home"), false); err != nil {
+		t.Errorf("a member's share on the lab's NAS: %v", err)
+	}
+	if err := ph.CheckPhotoSource(ctx, "immich", share("evil.example"), false); err == nil || !strings.Contains(err.Error(), "servers listed") {
+		t.Errorf("a member's share elsewhere: %v", err)
 	}
 }

@@ -184,6 +184,14 @@ type Manager struct {
 	// assignment worked them out (cloudpublic.go), by ID, for the lab's
 	// public names (withStatusPage).
 	refused atomic.Pointer[map[string]string]
+	// ClientSecrets is the controller's own secrets, where it keeps the
+	// client secret of every app with single sign-on on, wherever it runs,
+	// for the sign-in page (sso.go); nil keeps none for other servers.
+	ClientSecrets SecretKeeper
+	// direct are the servers serving their public routes themselves as
+	// the last assignment worked them out (direct.go).
+	direct     atomic.Pointer[[]string]
+	directHome atomic.Pointer[map[string]string]
 
 	// registryWG is RegistryChanged's background updates still running
 	// (withdrawals.go), so Wait covers them too.

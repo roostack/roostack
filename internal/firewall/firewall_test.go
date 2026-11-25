@@ -5,11 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/trust"
 )
 
@@ -151,6 +153,13 @@ func TestCutsOffServers(t *testing.T) {
 	if fw, _ := Desired(lab, nil, Roles{}); fw.Controller != "100.96.0.1" || fw.Validate() != nil {
 		t.Errorf("a node's firewall lets in %q", fw.Controller)
 	}
+	// A node's web services: from the controller only, not every server
+	// in the lab.
+	fw, _ := Desired(lab, []*generate.Output{{Service: "immich", Ports: []int{20001}}}, Roles{})
+	rules := fw.Ruleset()
+	if !strings.Contains(rules, `ip saddr 100.96.0.1 tcp dport 20001 accept`) || strings.Contains(rules, `100.96.0.0/17 tcp dport 20001`) {
+		t.Errorf("a node's web port:\n%s", rules)
+	}
 }
 
 // TestDesiredSetupPort: the setup pages' port follows Roles.SetupPort,
@@ -272,11 +281,13 @@ func TestDesiredEdgePorts(t *testing.T) {
 	for _, c := range []struct {
 		name, role, addr string
 		roles            Roles
-		want             trust.Class
+		want             []trust.Class
 	}{
-		{"controller", "", "100.96.0.1", Roles{PortForwards: forwards}, trust.Edge},
-		{"server at home", config.RoleNode, "100.96.0.2", Roles{}, trust.Controller},
-		{"the edge", config.RoleNode, "100.96.0.3", Roles{}, ""},
+		{"controller", "", "100.96.0.1", Roles{PortForwards: forwards}, []trust.Class{trust.Edge}},
+		// From the controller, or straight from the edge when it serves
+		// directly over a link of its own with it.
+		{"server at home", config.RoleNode, "100.96.0.2", Roles{}, []trust.Class{trust.Controller, trust.Edge}},
+		{"the edge", config.RoleNode, "100.96.0.3", Roles{}, nil},
 	} {
 		lab.Role, lab.OverlayAddr = c.role, c.addr
 		fw, _ := Desired(lab, services, c.roles)
@@ -292,11 +303,117 @@ func TestDesiredEdgePorts(t *testing.T) {
 				t.Errorf("%s: a home-only port is sent on: %+v", c.name, r)
 			}
 		}
-		if want := []trust.Class{c.want}; c.want == "" && len(from) > 0 || c.want != "" && !slices.Equal(from, want) {
+		if !slices.Equal(from, c.want) {
 			t.Errorf("%s: 31116 for %v, want %v", c.name, from, c.want)
 		}
 		if !slices.Equal(fw.PortForwards, c.roles.PortForwards) {
 			t.Errorf("%s: forwards %v", c.name, fw.PortForwards)
 		}
+	}
+}
+
+// TestCaddyOnly: what another server opens to the controller alone is for
+// the controller's Caddy alone; nodes keep nothing from their services.
+func TestCaddyOnly(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.OverlayAddr = "100.96.0.1"
+	fw, _ := Desired(lab, nil, Roles{})
+	if !slices.Equal(fw.CaddyOnly, CaddyOnly) || fw.Validate() != nil {
+		t.Errorf("the controller's caddy_only = %v", fw.CaddyOnly)
+	}
+	// Every port a node opens to the controller alone is in it.
+	node := lab
+	node.Role, node.OverlayAddr, node.GlancesHere = config.RoleNode, "100.96.0.2", true
+	nfw, _ := Desired(node, []*generate.Output{{Service: "immich", Ports: []int{config.DefaultRoutePortMin, config.DefaultRoutePortMax}}}, Roles{})
+	if len(nfw.CaddyOnly) != 0 {
+		t.Errorf("a node's caddy_only = %v", nfw.CaddyOnly)
+	}
+	ports := []int{22}
+	for _, r := range nfw.Allow {
+		if r.For == trust.Controller {
+			ports = append(ports, r.Port)
+		}
+	}
+	for _, p := range ports {
+		if !slices.ContainsFunc(CaddyOnly, func(r agent.PortRange) bool { return r.From <= p && p <= r.To }) {
+			t.Errorf("port %d is the controller's alone on a node, but not Caddy's alone on the controller", p)
+		}
+	}
+	// A single server has no other servers to keep.
+	lab.OverlayAddr = ""
+	if fw, _ := Desired(lab, nil, Roles{}); len(fw.CaddyOnly) != 0 {
+		t.Errorf("a single server's caddy_only = %v", fw.CaddyOnly)
+	}
+}
+
+// TestCaddyUnit: the agent knows Caddy's cgroup by the unit's name.
+func TestCaddyUnit(t *testing.T) {
+	want := "user.slice/user-999.slice/user@999.service/" + generate.RoostackSlice + "/" + generate.CoreSlice + "/" + generate.CaddyUnit + ".service"
+	if agent.CaddyCgroup(999) != want {
+		t.Errorf("Caddy's cgroup %q, want %q", agent.CaddyCgroup(999), want)
+	}
+}
+
+// TestDirectPorts: a route its own Caddy serves, serving directly, stays
+// open to the controller, which passes it on too (SPEC.md §10.5).
+func TestDirectPorts(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.Role, lab.OverlayAddr, lab.Direct = config.RoleNode, "100.96.0.2", []string{"n-4a3b2faab3"}
+	fw, _ := Desired(lab, []*generate.Output{{Service: "immich", Ports: []int{20001, 20002}, DirectHosts: []string{"photos.smith.family"}}}, Roles{})
+	for _, p := range []int{20001, 20002} {
+		if !slices.ContainsFunc(fw.Allow, func(r agent.Rule) bool { return r.Port == p && r.For == trust.Controller }) {
+			t.Errorf("port %d for the controller: %+v", p, fw.Allow)
+		}
+	}
+}
+
+// TestSignInServers: apps on the lab's other servers reach the
+// controller's 443 for the sign-in page, only while there are any.
+func TestSignInServers(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.OverlayAddr = "100.96.0.1"
+	rule := func(r agent.Rule) bool { return r.Port == 443 && r.For == trust.Servers }
+	if fw, _ := Desired(lab, nil, Roles{}); slices.ContainsFunc(fw.Allow, rule) {
+		t.Error("443 open to the lab's servers with no app there")
+	}
+	lab.SignInServers = true
+	fw, _ := Desired(lab, nil, Roles{})
+	if !slices.ContainsFunc(fw.Allow, rule) || fw.Validate() != nil {
+		t.Errorf("443 for the sign-in page: %+v", fw.Allow)
+	}
+	if !strings.Contains(fw.Ruleset(), `iifname "roostack" ip saddr 100.96.0.0/17 tcp dport 443 accept`) {
+		t.Errorf("ruleset:\n%s", fw.Ruleset())
+	}
+}
+
+// TestDesiredLabDNS: where Roostack's own DNS server runs, port 53 is sent
+// on to it for the home network and every VPN device, and nowhere else
+// (SPEC.md §6.5.3).
+func TestDesiredLabDNS(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.Devices.All = []string{"100.96.128.2", "100.96.128.3"}
+	fw, _ := Desired(lab, nil, Roles{})
+	if slices.ContainsFunc(fw.Allow, func(r agent.Rule) bool { return r.From == 53 }) {
+		t.Errorf("port 53 without the DNS server here: %+v", fw.Allow)
+	}
+	lab.LabDNSHere = true
+	fw, _ = Desired(lab, nil, Roles{})
+	for _, proto := range []string{"udp", "tcp"} {
+		want := agent.Rule{Port: labdns.Port, Proto: proto, For: trust.Home, Reason: "roostack dns", From: 53}
+		if !slices.Contains(fw.Allow, want) {
+			t.Errorf("%s rule missing: %+v", proto, fw.Allow)
+		}
+		if fw.People == nil || !slices.ContainsFunc(fw.People.Rules, func(r agent.DeviceRule) bool {
+			return r.Port == labdns.Port && r.Proto == proto && r.From == 53 && slices.Equal(r.Devices, lab.Devices.All)
+		}) {
+			t.Errorf("%s rule for devices missing: %+v", proto, fw.People)
+		}
+	}
+	if err := fw.Validate(); err != nil {
+		t.Error(err)
 	}
 }

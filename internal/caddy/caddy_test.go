@@ -280,29 +280,30 @@ func TestCaddyAdapt(t *testing.T) {
 // TestEdge: the edge passes its public names through to the controller
 // with a PROXY header, redirects plain HTTP for them, and nothing else
 // (the config itself checked with Caddy: docs/ASSUMPTIONS.md Q11).
-func TestEdge(t *testing.T) {
-	out, err := Edge(EdgeConfig{Hosts: []string{"photos.smith.family", "vault.smith.family"}, Upstream: "100.96.0.1:443"})
+func TestWayInPass(t *testing.T) {
+	out, err := Main(MainConfig{Domain: "smith.family", Pass: &EdgeConfig{Hosts: []string{"photos.smith.family", "vault.smith.family"},
+		Upstream: "100.96.0.1:443"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"\tauto_https off\n",
-		"\t\t\t@public tls sni photos.smith.family vault.smith.family\n",
-		"\t\t\t\t\tproxy_protocol v2\n\t\t\t\t\tupstream 100.96.0.1:443\n",
+		"\tservers :443 {\n\t\tlistener_wrappers {\n\t\t\tlayer4 {\n",
+		"\t\t\t\t@passed tls sni photos.smith.family vault.smith.family\n",
+		"\t\t\t\t\t\tproxy_protocol v2\n\t\t\t\t\t\tupstream 100.96.0.1:443\n",
+		"\t\t\t}\n\t\t\ttls\n\t\t}\n",
 		"http://photos.smith.family, http://vault.smith.family {\n\tredir https://{host}{uri} 308\n}\n",
-		"http:// {\n\tabort\n}\n",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in\n%s", want, out)
 		}
 	}
 	// Nothing public yet: nothing passed on.
-	if out, _ := Edge(EdgeConfig{Upstream: "100.96.0.1:443"}); strings.Contains(out, "layer4") || strings.Contains(out, "redir") {
+	if out, _ := Main(MainConfig{Domain: "smith.family", Pass: &EdgeConfig{Upstream: "100.96.0.1:443"}}); strings.Contains(out, "layer4") || strings.Contains(out, "redir") {
 		t.Errorf("no names:\n%s", out)
 	}
 	for _, bad := range []EdgeConfig{{Hosts: []string{"a b"}, Upstream: "100.96.0.1:443"}, {Hosts: []string{"*.x"}, Upstream: "100.96.0.1:443"},
 		{Hosts: []string{"a.x"}, Upstream: "nowhere"}} {
-		if _, err := Edge(bad); err == nil {
+		if _, err := Main(MainConfig{Domain: "smith.family", Pass: &bad}); err == nil {
 			t.Errorf("accepted %+v", bad)
 		}
 	}
@@ -624,7 +625,7 @@ func TestWall(t *testing.T) {
 func TestSignInSite(t *testing.T) {
 	for _, public := range []bool{false, true} {
 		main, err := Main(MainConfig{Domain: "lab.example", DNSDirective: "dns cloudflare {env.CF}", AdminUpstream: "169.254.1.3:8480",
-			SignIn: &SignInSite{Host: "my.lab.example", Upstream: "169.254.1.3:8482", Public: public, Containers: "169.254.1.2"}})
+			SignIn: &SignInSite{Host: "my.lab.example", Upstream: "169.254.1.3:8482", Public: public, Containers: []string{"169.254.1.2"}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -633,6 +634,13 @@ func TestSignInSite(t *testing.T) {
 		}
 		if got := strings.Contains(main, "zone roostack-sign-in-login"); got != public {
 			t.Errorf("public %v: login limit %v", public, got)
+		}
+		// Apps' secrets are checked at /token: a limit of its own (the
+		// security review of 2026-11-19, M2).
+		_, token, _ := strings.Cut(main, "zone roostack-sign-in-token {")
+		token, _, _ = strings.Cut(token, "}\n\t\t\t}")
+		if got := strings.Contains(token, "path /token /token/*") && strings.Contains(token, "events 60"); got != public {
+			t.Errorf("public %v: token limit %v", public, got)
 		}
 		if got := strings.Contains(main, "abort @roostack-sign-in-external"); got == public {
 			t.Errorf("public %v: kept to home %v", public, got)
@@ -681,6 +689,80 @@ func TestRouteRejectsOddSpaces(t *testing.T) {
 			if _, err := Site("x", []Route{r}); err == nil {
 				t.Errorf("%q was let through: %+v", bad, r)
 			}
+		}
+	}
+}
+
+// A server serving directly: its public names share a site with Let's
+// Encrypt's own challenges, and each private name served at home has its
+// own with a DNS challenge through its Roostack (SPEC.md §10.5).
+func TestMainServedDirectly(t *testing.T) {
+	c := MainConfig{Domain: "smith.family", Hosts: []string{"git.smith.family"}, HomeHosts: []string{"wiki.smith.family"},
+		HomeDNS: "http://169.254.1.3:8483"}
+	out, err := Main(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"\ngit.smith.family {\n", "\nwiki.smith.family {\n", "dns acmedns {", `subdomain "wiki.smith.family"`,
+		`server_url "http://169.254.1.3:8483"`, "resolvers "} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Count(out, "dns acmedns") != 1 || strings.Contains(out, "*.smith.family") {
+		t.Errorf("only the private name has a DNS challenge, and no wildcard:\n%s", out)
+	}
+	for _, bad := range []MainConfig{
+		{Domain: "smith.family", HomeHosts: []string{"wiki.smith.family"}},
+		{Domain: "smith.family", Hosts: []string{"git.other.family"}},
+		{Domain: "smith.family", Hosts: []string{"git.smith.family"}, AdminUpstream: "169.254.1.3:8480"},
+	} {
+		if _, err := Main(bad); err == nil {
+			t.Errorf("accepted %+v", bad)
+		}
+	}
+	// On a test address, Caddy's own authority signs them all.
+	c.DNSDirective = "issuer internal"
+	if out, _ := Main(c); strings.Contains(out, "acmedns") || strings.Count(out, "issuer internal") != 2 {
+		t.Errorf("a test address:\n%s", out)
+	}
+}
+
+// A way in serves its own names, passes the names another server serves
+// itself straight to it, and the rest to the controller (SPEC.md §10.5).
+func TestEdgeDirect(t *testing.T) {
+	out, err := Main(MainConfig{Domain: "smith.family", Hosts: []string{"wiki.smith.family"}, Pass: &EdgeConfig{
+		Hosts: []string{"git.smith.family", "photos.smith.family"}, Upstream: "100.96.0.1:443",
+		Direct: map[string][]string{"100.96.0.2:443": {"photos.smith.family"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"@direct1 tls sni photos.smith.family", "upstream 100.96.0.2:443", "@passed tls sni git.smith.family",
+		"upstream 100.96.0.1:443", "\nwiki.smith.family {\n"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Index(out, "@direct1") > strings.Index(out, "@passed") || strings.Contains(out, "sni wiki") {
+		t.Errorf("a server's own names come first, and the way in's own aren't passed on:\n%s", out)
+	}
+	if _, err := Main(MainConfig{Domain: "smith.family", Pass: &EdgeConfig{Hosts: []string{"git.smith.family"}, Upstream: "100.96.0.1:443",
+		Direct: map[string][]string{"100.96.0.2:443": {"other.smith.family"}}}}); err == nil {
+		t.Error("a direct name that isn't public")
+	}
+}
+
+// A server serving directly behind the lab's edge serves its public
+// names on the edge listener too, believing only the edge's PROXY header.
+func TestMainDirectThroughEdge(t *testing.T) {
+	out, err := Main(MainConfig{Domain: "smith.family", Hosts: []string{"photos.smith.family"}, EdgeFrom: []string{"100.96.0.3/32"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"servers :8474", "allow 100.96.0.3/32", "\nphotos.smith.family {\n", "\nphotos.smith.family:8474 {\n",
+		"vars " + EdgeVar + " yes"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
 		}
 	}
 }

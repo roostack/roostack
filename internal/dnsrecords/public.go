@@ -40,6 +40,31 @@ func (m *Manager) publicHosts() []string {
 	return hosts
 }
 
+// recordHosts are the names that get records of their own: the public
+// addresses, and those a server serving directly serves, private ones at
+// home included, sorted.
+func (m *Manager) recordHosts() []string {
+	hosts := m.publicHosts()
+	for h := range m.direct() {
+		if !slices.Contains(hosts, h) {
+			hosts = append(hosts, h)
+		}
+	}
+	slices.Sort(hosts)
+	return hosts
+}
+
+// direct is Direct's answer, never nil.
+func (m *Manager) direct() map[string]string {
+	if m.Direct == nil {
+		return map[string]string{}
+	}
+	if d := m.Direct(); d != nil {
+		return d
+	}
+	return map[string]string{}
+}
+
 func (m *Manager) entryAddress(ctx context.Context) (string, error) {
 	if m.Entry == nil {
 		return "", errors.New("no way in for public visitors is set up")
@@ -50,7 +75,7 @@ func (m *Manager) entryAddress(ctx context.Context) (string, error) {
 // publicManual says which records to add by hand, when Roostack doesn't
 // manage them.
 func (m *Manager) publicManual(ctx context.Context) ([]PublicRecord, string) {
-	hosts := m.publicHosts()
+	hosts := m.recordHosts()
 	if len(hosts) == 0 {
 		return nil, ""
 	}
@@ -59,11 +84,16 @@ func (m *Manager) publicManual(ctx context.Context) ([]PublicRecord, string) {
 		return recs, relay.Name
 	}
 	addr, err := m.entryAddress(ctx)
+	direct := m.direct()
 	var recs []PublicRecord
 	for _, h := range hosts {
-		r := PublicRecord{Host: h, IP: addr, State: PublicManual,
-			Message: fmt.Sprintf("Add this record at your DNS provider: %s  A  %s", h, addr)}
-		if err != nil {
+		ip, own := direct[h]
+		if !own {
+			ip = addr
+		}
+		r := PublicRecord{Host: h, IP: ip, State: PublicManual,
+			Message: fmt.Sprintf("Add this record at your DNS provider: %s  A  %s", h, ip)}
+		if err != nil && !own {
 			r.State, r.Message = PublicError, err.Error()
 		}
 		recs = append(recs, r)
@@ -78,7 +108,8 @@ func (m *Manager) publicManual(ctx context.Context) ([]PublicRecord, string) {
 // delete, so there it points home like the wildcard. Records under the
 // lab's old address are old.go's.
 func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[string]string, zone, lanIP string) ([]PublicRecord, string) {
-	hosts := m.publicHosts()
+	hosts := m.recordHosts()
+	public := m.publicHosts()
 	relay, relayed := m.relayed()
 	old := m.oldDomain()
 	current := func(r Record) bool { return domainOf(r.Name, m.Lab.Domain, old) == m.Lab.Domain }
@@ -125,6 +156,7 @@ func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[st
 		addr, err = relay.Name, nil
 	}
 	protected := m.Protected == nil || m.Protected(ctx)
+	direct := m.direct()
 	var recs []PublicRecord
 	for _, h := range hosts {
 		r := PublicRecord{Host: h, IP: addr}
@@ -132,6 +164,20 @@ func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[st
 			r.Type = "CNAME"
 		}
 		name, inZone := zoneName(h, zone)
+		if ip, own := direct[h]; own {
+			// Served by its own server, at that server's address.
+			r.IP, r.Type = ip, ""
+			switch {
+			case !inZone:
+				r.State, r.Message = PublicError, fmt.Sprintf("%s isn't in the zone %s", h, zone)
+			case !protected && slices.Contains(public, h):
+				r.State, r.Message = PublicWaiting, "Waiting for CrowdSec, which protects public services, to start."
+			default:
+				r.State, r.Message = m.setPublic(ctx, p, values, zone, name, h, ip)
+			}
+			recs = append(recs, r)
+			continue
+		}
 		switch {
 		case relayed && inZone && name == "":
 			// The domain itself at the top of its zone, which can't be a
@@ -188,8 +234,35 @@ func (m *Manager) coveredByWildcard(ctx context.Context, st Status) ([]PublicRec
 	return recs, st.IP
 }
 
-// covered is one host's state when the wildcard covers it.
+// setDirect sets the records of recs' addresses that servers serving
+// directly serve themselves, on a lab on the internet, where the wildcard
+// points at the controller (SPEC.md §10.5).
+func (m *Manager) setDirect(ctx context.Context, p *dns.Provider, values map[string]string, zone string, recs []PublicRecord) {
+	direct := m.direct()
+	for i, r := range recs {
+		ip, own := direct[r.Host]
+		if !own {
+			continue
+		}
+		recs[i].IP = ip
+		if name, ok := zoneName(r.Host, zone); ok {
+			recs[i].State, recs[i].Message = m.setPublic(ctx, p, values, zone, name, r.Host, ip)
+		} else {
+			recs[i].State, recs[i].Message = PublicError, fmt.Sprintf("%s isn't in the zone %s", r.Host, zone)
+		}
+	}
+}
+
+// covered is one host's state when the wildcard covers it, or, for one a
+// server serving directly serves, its own record would.
 func (m *Manager) covered(ctx context.Context, st Status, h string) PublicRecord {
+	if ip, own := m.direct()[h]; own {
+		r := PublicRecord{Host: h, IP: ip, State: PublicManual, Message: fmt.Sprintf("Add this record at your DNS provider: %s  A  %s", h, ip)}
+		if got, _ := m.PublicLookup(ctx, h); slices.Contains(got, ip) {
+			r.State, r.Message = PublicOK, fmt.Sprintf("%s points at %s.", h, ip)
+		}
+		return r
+	}
 	r := PublicRecord{Host: h, IP: st.IP}
 	got, _ := m.PublicLookup(ctx, h)
 	switch {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
@@ -208,5 +209,44 @@ func TestSSOReachesWhileOff(t *testing.T) {
 		if out.SSOReach != tc.reach || hosts != tc.reach || out.SSO {
 			t.Errorf("%s: reach %v, AddHost %v, on %v", tc.pkg, out.SSOReach, hosts, out.SSO)
 		}
+	}
+}
+
+// TestSSOOnAnotherServer: an app on another server has single sign-on as
+// on the controller, reaching the sign-in page at the controller's address
+// on Roostack's network, with the client secret the controller hands over
+// rather than one made there (SPEC.md §5.2).
+func TestSSOOnAnotherServer(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("mealie"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := &instance.Instance{Package: "mealie", Version: p.Version, Updates: instance.UpdatesNotify, SSO: true,
+		Host: "n-4a3b2faab3", Routes: map[string]instance.RouteOverride{"web": {Port: 20060}}}
+	lab := testLab()
+	lab.Role, lab.OverlayAddr = config.RoleNode, "100.96.0.2"
+	out, err := Service(lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hosts := false
+	for _, f := range out.Quadlets {
+		hosts = hosts || strings.Contains(f.Content, "AddHost=my.lab.example.com:100.96.0.1")
+		if strings.Contains(f.Content, "host-gateway") {
+			t.Errorf("the sign-in page at the node itself:\n%s", f.Content)
+		}
+	}
+	if !out.SSO || !hosts {
+		t.Errorf("on %v, AddHost to the controller %v", out.SSO, hosts)
+	}
+	i := slices.IndexFunc(out.Secrets, func(s Secret) bool { return s.Name == SSOSecretName("mealie") })
+	if i < 0 || out.Secrets[i].Generate {
+		t.Errorf("the client secret: %+v", out.Secrets)
+	}
+	// On the controller, made there as before.
+	in.Host = ""
+	out, _ = Service(testLab(), p, in)
+	if i := slices.IndexFunc(out.Secrets, func(s Secret) bool { return s.Name == SSOSecretName("mealie") }); i < 0 || !out.Secrets[i].Generate {
+		t.Errorf("the controller's client secret: %+v", out.Secrets)
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/trust"
 	"roostack.cloud/roostack/internal/usererr"
 )
@@ -92,11 +93,11 @@ func pairKey(a, b string) string {
 // linkPairs are the pairs of servers (neither the controller, which every
 // server dials anyway) where one backs up to the other's disk.
 func (m *Manager) linkPairs(ctx context.Context) [][2]string {
-	if m.BackupStore == nil {
-		return nil
+	var targets, copies []store.BackupTarget
+	if m.BackupStore != nil {
+		targets, _ = m.BackupStore.BackupTargets(ctx)
+		copies, _ = m.BackupStore.BackupCopies(ctx)
 	}
-	targets, _ := m.BackupStore.BackupTargets(ctx)
-	copies, _ := m.BackupStore.BackupCopies(ctx)
 	seen := map[string]bool{}
 	var out [][2]string
 	for _, t := range append(targets, copies...) {
@@ -111,6 +112,15 @@ func (m *Manager) linkPairs(ctx context.Context) [][2]string {
 		if k := pairKey(from, store); !seen[k] {
 			seen[k] = true
 			out = append(out, [2]string{from, store})
+		}
+	}
+	// The lab's edge passes a server's public names straight to it when
+	// it serves them directly and has no public address of its own
+	// (SPEC.md §10.5, "Serving directly"): over a link of their own.
+	for _, id := range m.edgeLinked(ctx) {
+		if k := pairKey(id, m.labNow().Public.Edge); !seen[k] {
+			seen[k] = true
+			out = append(out, [2]string{id, m.labNow().Public.Edge})
 		}
 	}
 	return out
@@ -156,6 +166,12 @@ func (m *Manager) reachAt(ctx context.Context, infos map[string]linkInfo, from, 
 		return a
 	}
 	port := strconv.Itoa(agent.WireGuardPort)
+	// The lab's edge, at its public address.
+	if to == m.labNow().Public.Edge {
+		if a := edgeAddr(infos[to].Peer); a != "" {
+			return net.JoinHostPort(a, port)
+		}
+	}
 	locFrom, locTo := m.setting(ctx, LocationKey+from), m.setting(ctx, LocationKey+to)
 	if locFrom == LocationHome && locTo == LocationHome {
 		for _, a := range infos[to].Home {

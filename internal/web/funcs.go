@@ -11,6 +11,7 @@ import (
 
 	"roostack.cloud/roostack/internal/attention"
 	"roostack.cloud/roostack/internal/errpage"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/labrestore"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/monitor"
@@ -167,7 +168,8 @@ func templateFuncs() template.FuncMap {
 		// Media libraries (media.go).
 		"dialogFor": dialogFor,
 		// join lists strings with a separator, e.g. services reading a library.
-		"join": strings.Join,
+		"join":       strings.Join,
+		"labDNSPort": func() int { return labdns.Port },
 
 		// Migrating photos into Immich (photos.go, SPEC.md §8.5).
 		"kindTitle":   photoimport.KindTitle,

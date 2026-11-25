@@ -13,13 +13,14 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // Network defaults. The controller is the hub other servers dial (SPEC.md
 // §10.2: hub and spoke).
 var (
 	DefaultPrefix  = netip.MustParsePrefix("100.96.0.0/24")
-	ControllerAddr = netip.MustParseAddr("100.96.0.1")
+	ControllerAddr = trust.ControllerAddr
 )
 
 // Membership is this server's place in a lab with a network. A server

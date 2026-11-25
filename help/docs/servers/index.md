@@ -61,6 +61,58 @@ Roostack asks where each server is (**At home** or **Somewhere else**)
 because it can't tell for itself. It uses this for your backup plan: a
 backup on a server somewhere else counts as away from home.
 
+## How visitors reach a server's services
+
+The services on another server can be reached in two ways, which you choose
+on that server's card under **Servers**, in **Services**:
+
+- **Served by the server itself:** visitors go straight to it, with the
+  server's own certificates.
+  - Its **public** services, when it has an address of its own on the
+    internet, such as a cloud server: a busy service there won't send all
+    its visitors through your home's internet connection and back. It also
+    runs its own protection (CrowdSec), and Roostack will point their DNS
+    records at it. This is Roostack's choice for a cloud server.
+  - Its **public** services when it has no address of its own on the
+    internet, if your lab's way in is a cloud server
+    ([Through a cloud server](../services/public.md#through-a-cloud-server-without-touching-your-router)):
+    that cloud server will pass their visitors straight to it rather than
+    through the server that runs the lab. It needs to reach the cloud
+    server's WireGuard port, UDP 51820, which you may have to allow in that
+    server's firewall at its provider; until it can, the card says so and
+    its public services go through the server that runs the lab.
+  - Its **private** services, when it's on your home network, the same one
+    as the server that runs the lab: your devices at home reach it
+    directly. Set **Where** to **At home** on its card for this.
+- **Through the server that runs the lab:** visitors come to the server
+  that runs the lab, which passes them on. This is Roostack's choice for a
+  server at home.
+
+Either way, the server that runs the lab still passes on all of the
+server's services: for the lab's VPN devices, and for devices that look
+your lab's names up with your lab's own DNS server, Pi-hole, or AdGuard Home,
+which point them at it. That's also how your devices at home reach the
+parts of a public service on a cloud server that stay private
+([Parts that stay private](../services/public.md#parts-that-stay-private)).
+The card says which of the server's services it serves itself, and why not
+the others.
+
+??? note "For technical users"
+
+    Serving directly, the server runs Roostack's Caddy (`roostack-caddy`)
+    and CrowdSec for its own names alone. Its public names get Let's
+    Encrypt certificates from the HTTP or TLS challenge, so it holds no DNS
+    login. Each private name served at home gets its own site, with a DNS
+    challenge through Caddy's `acmedns` module, pointed at the server's own
+    Roostack on `127.0.0.1:8483`: that passes the update to the server that
+    runs the lab over the lab API (`/v1/challenge`), which sets
+    `_acme-challenge.<name>` through your DNS provider, for that server's
+    own names only, and removes it after ten minutes. A walled service's
+    checks go to the lab's sign-in page the same way (`/v1/wall`). Its
+    routes are published on its loopback and on its address on the lab's
+    network. The choice is `public.serve.<server ID>: direct | controller`
+    in `lab.yaml`.
+
 ## Backups between servers: direct links
 
 When a server backs up to another server's disk, Roostack links the two
@@ -101,7 +153,7 @@ service needs:
   each service's last update will be kept for a week and isn't listed.
 - **Data from removed services** and **kept copies**, which have their
   own lists (Services → Removed, data kept, and the server's card).
-- **Roostack's own** leftovers from building its web proxy.
+- **Roostack's own:** earlier versions of its web proxy's image, which nothing uses any more.
 
 **By itself**, which is on unless you turn it off, Roostack will delete
 old versions of services a week after nothing uses them, every night
@@ -135,9 +187,12 @@ Under **Rename or remove** on a server's card:
     The lab's network is WireGuard (interface `roostack`, UDP port 51820,
     addresses in `100.96.0.0/24`). Your servers aren't your home network:
     over it, a server reaches only what Roostack opens for servers (the
-    lab API, services' web ports for the lab's Caddy, backup stores, and an
-    edge's way in to Caddy), and SSH only from the server that runs the
-    lab. It never reaches Roostack's pages, private services, a service's
+    lab API, services' web ports for the lab's Caddy, backup stores, an
+    edge's way in to Caddy, and the sign-in page while an app on it uses
+    single sign-on), and SSH only from the server that runs the lab. On the
+    server that runs the lab, only Caddy, of what runs as the `roostack`
+    user, reaches the other servers' web ports, live views and SSH: its
+    services can't go round it. It never reaches Roostack's pages, private services, a service's
     home-only extra connections, or SSH from another server, so a cheap
     cloud server in the lab can't get at home what a laptop there could. Over it, each server serves the lab API
     on port 8471 with mutual TLS: the controller runs the lab's own

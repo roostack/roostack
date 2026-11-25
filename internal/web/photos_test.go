@@ -24,8 +24,10 @@ import (
 type fakePhotos struct {
 	settings  manager.PhotoSettings
 	locations []store.MediaLibrary
-	people    map[string]*node.PhotoState
-	drives    []manager.PhotoDrive
+	// shareServers are the NAS boxes the lab uses (ShareServers).
+	shareServers []string
+	people       map[string]*node.PhotoState
+	drives       []manager.PhotoDrive
 	// checked records each source checked, and whether as an Admin.
 	checked []bool
 	started []string
@@ -77,6 +79,7 @@ func (f *fakePhotos) PhotoDrives(_ context.Context, _ string, admin bool) ([]man
 	}
 	return out, nil
 }
+func (f *fakePhotos) ShareServers(context.Context) []string { return f.shareServers }
 func (f *fakePhotos) CheckPhotoSource(_ context.Context, _ string, src node.PhotoSource, admin bool) error {
 	f.checked = append(f.checked, admin)
 	if src.Kind == "folder" && !admin {
@@ -298,7 +301,7 @@ func TestPhotoCard(t *testing.T) {
 	if !strings.Contains(body, "Saved.") || f.settings.Memory != "most" || !strings.Contains(body, `name="memory" value="most" checked`) {
 		t.Errorf("saving the card: %q", f.settings.Memory)
 	}
-	if f.settings.OwnersOnly || f.settings.NoDrives || !f.settings.NoShares {
+	if f.settings.OwnersOnly || f.settings.NoDrives || f.settings.MemberShares {
 		t.Errorf("settings %+v", f.settings)
 	}
 	f.locations = []store.MediaLibrary{{Name: "takeouts", Title: "Family NAS › Takeouts", ShareType: "smb", ShareServer: "nas.home", PhotosFor: "immich"}}
@@ -352,9 +355,19 @@ func TestPhotosForMembers(t *testing.T) {
 	}
 	h.post("/immich-photos/immich/from", url.Values{"from": {"google"}}, h.srv.URL)
 	h.post("/immich-photos/immich/export", url.Values{}, h.srv.URL)
+	// Shares are off for members unless the Owner allows them, and then
+	// only on a NAS the lab uses already (the security review of
+	// 2026-11-19, M4).
+	if _, body = h.get("/immich-photos/immich"); strings.Contains(body, `name="share_server"`) {
+		t.Error("a member is offered shares the Owner hasn't allowed")
+	}
+	f.settings.MemberShares, f.shareServers = true, []string{"nas.home"}
 	_, body = h.get("/immich-photos/immich")
 	if !strings.Contains(body, "Your drive") || strings.Contains(body, "Folder on") || !strings.Contains(body, "Holds the lab&#39;s media") {
 		t.Errorf("step 3 for a member:\n%s", body)
+	}
+	if !strings.Contains(body, `<select name="share_server"><option>nas.home</option></select>`) || strings.Contains(body, `<input name="share_server"`) {
+		t.Error("a member types a share's server rather than choosing one the lab uses")
 	}
 	code, body = h.post("/immich-photos/immich/where", url.Values{"where": {"folder"}, "folder": {"/srv/x"}}, h.srv.URL)
 	if code != http.StatusBadRequest || !strings.Contains(html.UnescapeString(body), "Only Owners and Admins can choose a folder") || f.checked[len(f.checked)-1] {

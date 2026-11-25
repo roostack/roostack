@@ -11,10 +11,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/attention"
@@ -63,6 +66,7 @@ func serve(args []string) error {
 		return err
 	}
 	lab.Timezone = hosttime.Zone()
+	authkit.SetMaxChecks(passwordChecks(log))
 	// Restarting after a lab restore: its database replaces the new one.
 	if restored, err := labrestore.StartFromBackup(lab.Paths); err != nil {
 		return err
@@ -184,6 +188,9 @@ type controller struct {
 	crowdSecUp func(ctx context.Context) bool
 	hub        *labnet.Hub
 	guestHub   *labnet.GuestHub
+	// records is the lab's DNS records once wireDNS has made them (nil
+	// with none), for the DNS challenges of servers serving at home.
+	records atomic.Pointer[dnsrecords.Manager]
 }
 
 // run wires the controller, then serves the web UI until ctx ends. The
@@ -251,10 +258,11 @@ func (c *controller) wireManager() {
 			}
 			return out
 		},
-		UpdateLab: func(change func(*config.Lab)) error { return config.Update(labPath, change) },
-		Submit:    func(j maintenance.Job) { c.coord.Submit(j) },
-		Settings:  c.st,
-		People:    c.st,
+		UpdateLab:     func(change func(*config.Lab)) error { return config.Update(labPath, change) },
+		Submit:        func(j maintenance.Job) { c.coord.Submit(j) },
+		ClientSecrets: podman.NewSecrets(),
+		Settings:      c.st,
+		People:        c.st,
 		SyncNetwork: func(ctx context.Context) error {
 			if c.hub == nil || !c.hub.Enabled() {
 				return nil
@@ -627,11 +635,21 @@ func (c *controller) wireBackups() {
 	mgr.Drives = c.agent
 }
 
+// setChallenge sets a DNS challenge's record through the lab's DNS
+// records, for a server serving its private routes at home.
+func (c *controller) setChallenge(ctx context.Context, host, value string) error {
+	recs := c.records.Load()
+	if recs == nil {
+		return errors.New("this lab's DNS records aren't managed by Roostack")
+	}
+	return recs.SetChallenge(ctx, host, value)
+}
+
 // serveLabAPI serves the lab API to the lab's servers (controllerAPI), and
 // keeps this server's own lab certificate renewed.
 func (c *controller) serveLabAPI() {
 	stateDir := c.lab.Paths.StateDir
-	go labnet.Serve(c.ctx, stateDir, controllerAPI(c.hub, c.guestHub, c.mgr, c.storageKeys), c.log)
+	go labnet.Serve(c.ctx, stateDir, controllerAPI(c.hub, c.guestHub, c.mgr, c.storageKeys, c.srv.SignInHandler(), c.setChallenge), c.log)
 	go labnet.KeepRenewed(c.ctx, labnet.Identity{Dir: labnet.IdentityDir(stateDir)}, c.id.ID, c.hub.RenewSelf, c.log)
 }
 
@@ -818,7 +836,7 @@ func (c *controller) wireDNS() {
 			// Public addresses point at the lab's edge, if it has one
 			// (SPEC.md §10.5), else the home's public address (port
 			// forwarding), once CrowdSec is up.
-			PublicHosts: mgr.PublicHosts, Protected: c.crowdSecUp, DomainItself: mgr.DomainItself,
+			PublicHosts: mgr.PublicHosts, Direct: mgr.DirectAddrs, Protected: c.crowdSecUp, DomainItself: mgr.DomainItself,
 			Entry: public.Chosen{Home: public.PortForwarding{}, Edge: func(ctx context.Context) (public.Edge, bool) {
 				if mgr.RelayOn() && mgr.Relay.Edges != nil {
 					// Cloud points relayed names at its edges itself.
@@ -864,6 +882,7 @@ func (c *controller) wireDNS() {
 				}
 			},
 		}
+		c.records.Store(recs)
 		c.wiz.RemoveOldRecords = recs.RemoveOld
 		if records {
 			go recs.Run(c.ctx, 30*time.Minute)
@@ -937,4 +956,26 @@ func waitForNetwork(log *slog.Logger) string {
 		}
 		time.Sleep(time.Second)
 	}
+}
+
+// passwordChecks is how many password checks may run at once, each holding
+// 64 MiB (authkit.SetMaxChecks): one for each GiB of memory, from 2 to 4,
+// so that many sign-ins at once can't fill a small server's memory.
+func passwordChecks(log *slog.Logger) int {
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 2
+	}
+	for line := range strings.Lines(string(data)) {
+		if rest, ok := strings.CutPrefix(line, "MemTotal:"); ok {
+			kb, err := strconv.ParseInt(strings.TrimSuffix(strings.TrimSpace(rest), " kB"), 10, 64)
+			if err != nil {
+				break
+			}
+			n := min(max(int(kb>>20), 2), 4)
+			log.Info("password checks at once", "most", n)
+			return n
+		}
+	}
+	return 2
 }

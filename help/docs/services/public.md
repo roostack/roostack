@@ -53,28 +53,37 @@ public visitors can come in through it instead of your router. Choose it
 in **Settings → Public access**, under **How people reach your public
 services**. Then:
 
-- public addresses will point at the cloud server, so your home's address
-  will stay hidden;
-- the cloud server will pass each visitor's connection on to your lab over
-  the servers' own private network, **still encrypted**: it can't read
-  what's sent, and the certificate stays at home;
+- public addresses of services on servers that can't be reached from the
+  internet, such as yours at home, will point at the cloud server, so your
+  home's address will stay hidden;
+- the cloud server will pass each visitor's connection on to the server
+  that runs the service over the servers' own private network, **still
+  encrypted**: it can't read what's sent, and the certificate stays with
+  that server;
+- the cloud server's own public services, and those of any other server
+  with an address of its own, are reached at that server as usual;
 - your lab will still see who each visitor is, so CrowdSec, password
   limits, and the private parts of each service will work as before;
-- if its provider has a firewall, it has to allow TCP ports 80 and 443.
+- if its provider has a firewall, it has to allow TCP ports 80 and 443,
+  and UDP port 51820 for servers at home that serve their services
+  themselves (see [Servers](../servers/index.md#how-visitors-reach-a-servers-services)).
 
 ??? note "For technical users"
 
-    The cloud server runs Roostack's Caddy with the layer-4 plugin: it
-    reads the name in each TLS handshake, passes connections for public
-    names to the controller's port 443 over WireGuard with a PROXY protocol
-    (v2) header, and drops any other name. Plain HTTP for those names is
-    redirected. The controller's firewall sends the cloud server's
-    connections to a listener of Caddy's own (port 8474), which accepts the
-    PROXY header only from the cloud server's WireGuard address and counts
-    every visitor there as outside, whatever address the header claims, so
-    nothing through the cloud server can reach anything private. HTTP/3 (UDP) doesn't pass through the cloud server: browsers
-    use HTTP/2. For now one cloud server is the way in for every public
-    address.
+    The cloud server runs Roostack's ordinary Caddy, with the layer-4
+    plugin as a listener wrapper in front of its own TLS on 443: it reads
+    the name in each TLS handshake, serves its own names itself, and passes
+    connections for the lab's other public names over WireGuard with a
+    PROXY protocol (v2) header, to the server that serves them where the
+    two have a link of their own, else to the controller's port 443. Plain
+    HTTP for those names is redirected. The receiving server's firewall
+    sends the cloud server's connections to a listener of Caddy's own
+    (port 8474), which accepts the PROXY header only from the cloud
+    server's WireGuard address and counts every visitor there as outside,
+    whatever address the header claims, so nothing through the cloud
+    server can reach anything private. HTTP/3 (UDP) doesn't pass through
+    the cloud server: browsers use HTTP/2. For now one cloud server is the
+    way in for every such public address.
 
 ## Through Roostack Cloud's relay
 

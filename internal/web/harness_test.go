@@ -282,3 +282,16 @@ func (w testWriter) Write(b []byte) (int, error) {
 	w.t.Log(strings.TrimSpace(string(b)))
 	return len(b), nil
 }
+
+// confirmed has the harness browser's session confirmed, as if it had
+// just given the password and code again (confirmIt), for tests of what
+// comes after.
+func (h *harness) confirmed(t *testing.T) {
+	t.Helper()
+	h.server.stepUps.mu.Lock()
+	defer h.server.stepUps.mu.Unlock()
+	if h.server.stepUps.confirmed == nil {
+		h.server.stepUps.confirmed = map[string]time.Time{}
+	}
+	h.server.stepUps.confirmed[sessionHash(t, h)] = time.Now().Add(stepUpGrace)
+}

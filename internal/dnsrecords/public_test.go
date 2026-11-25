@@ -154,3 +154,34 @@ func TestRelayedRecords(t *testing.T) {
 		t.Errorf("by hand: %+v %+v", st.Public, st.Proof)
 	}
 }
+
+// A public address a server serves directly points at that server, not
+// the entry; at home and on a lab on the internet, by hand as well
+// (SPEC.md §10.5).
+func TestDirectRecords(t *testing.T) {
+	m, g := newManager(t, managed, []string{"192.168.1.20"}, []string{"192.168.1.20", "81.2.69.160", "203.0.113.7"})
+	m.PublicHosts = func() []string { return []string{"photos.lab.example.com", "git.lab.example.com"} }
+	m.Direct = func() map[string]string { return map[string]string{"git.lab.example.com": "203.0.113.7"} }
+	m.Entry = fakeEntry{ip: "81.2.69.160"}
+	m.Protected = func(context.Context) bool { return true }
+	st := m.Sync(context.Background())
+	if g.get("git.lab") != "203.0.113.7" || g.get("photos.lab") != "81.2.69.160" {
+		t.Errorf("at home: git %q, photos %q (%+v)", g.get("git.lab"), g.get("photos.lab"), st.Public)
+	}
+	m.Lab.DNS.ManageRecords = false
+	st = m.Sync(context.Background())
+	if !strings.Contains(st.Public[0].Message, "git.lab.example.com  A  203.0.113.7") {
+		t.Errorf("by hand: %+v", st.Public)
+	}
+
+	m, g = newManager(t, managed, []string{"172.105.165.39"}, []string{"172.105.165.39", "203.0.113.7"})
+	m.Lab.Network = config.NetworkInternet
+	m.LANIP = func() (string, error) { return "10.0.0.5", nil }
+	m.Entry = fakeEntry{ip: "172.105.165.39"}
+	m.PublicHosts = func() []string { return []string{"git.lab.example.com"} }
+	m.Direct = func() map[string]string { return map[string]string{"git.lab.example.com": "203.0.113.7"} }
+	st = m.Sync(context.Background())
+	if g.get("git.lab") != "203.0.113.7" || st.Public[0].IP != "203.0.113.7" {
+		t.Errorf("on the internet: record %q, %+v", g.get("git.lab"), st.Public)
+	}
+}

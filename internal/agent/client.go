@@ -331,12 +331,6 @@ func (c *Client) UnblockSSH(ctx context.Context, address string) error {
 	return c.call(ctx, http.MethodPost, "/v1/ssh/unblock", UnblockRequest{Address: address}, nil)
 }
 
-// AddSSHKey adds a public key to an account that can use sudo, making the
-// account if it's new.
-func (c *Client) AddSSHKey(ctx context.Context, r SSHKeyRequest) error {
-	return c.call(ctx, http.MethodPost, "/v1/ssh/key", r, nil)
-}
-
 // SetSSHKeysOnly turns SSH's keys-only settings on or off.
 func (c *Client) SetSSHKeysOnly(ctx context.Context, on bool) error {
 	return c.call(ctx, http.MethodPut, "/v1/ssh", SSHRequest{KeysOnly: on}, nil)

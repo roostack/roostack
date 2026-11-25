@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"html/template"
 	"io"
 	"net"
@@ -436,6 +437,10 @@ func (s *Server) signInConfirm(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("password"))
+		if errors.Is(err, authkit.ErrBusy) {
+			s.renderSignIn(w, r, http.StatusServiceUnavailable, s.confirmView(r, sess, trip, busyMessage))
+			return
+		}
 		if err != nil {
 			s.Log.Error("verify password", "user", u.Username, "err", err)
 		}

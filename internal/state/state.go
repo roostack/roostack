@@ -235,9 +235,19 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	// The sign-in page and Your account, my.<domain>, always (SPEC.md
 	// §5.3): public while a service using single sign-on is, or Roostack's
 	// own pages are, which sign in there too (SPEC.md §5.2).
-	sys, err := generate.SystemWith(lab, generate.SystemOptions{Public: public, SignIn: true,
+	opts := generate.SystemOptions{Public: public, SignIn: true,
 		SignInPublic: lab.PublicUI() || slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSOPublic }),
-		FirstHosts:   first})
+		FirstHosts:   first}
+	if lab.IsNode() {
+		// What its own Caddy serves, serving directly (SPEC.md §10.5).
+		for _, o := range d.Services {
+			opts.DirectHosts = append(opts.DirectHosts, o.DirectHosts...)
+			opts.HomeHosts = append(opts.HomeHosts, o.HomeHosts...)
+		}
+		slices.Sort(opts.DirectHosts)
+		slices.Sort(opts.HomeHosts)
+	}
+	sys, err := generate.SystemWith(lab, opts)
 	if err != nil {
 		return reconcile.Desired{}, errors.Join(append(errs, err)...)
 	}

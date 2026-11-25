@@ -49,7 +49,7 @@ func TestInstallProgress(t *testing.T) {
 		titles = append(titles, s.Title)
 	}
 	want := []string{"Downloading the database (Postgres)", "Starting the database (Postgres)", "Downloading Forgejo",
-		"Starting Forgejo", "Waiting for Roostack's web proxy to finish building (first time only; a few minutes)",
+		"Starting Forgejo", "Waiting for Roostack's web proxy to finish downloading",
 		"Finishing setup (create the administrator account)"}
 	if len(titles) != len(want) {
 		t.Fatalf("steps %q", titles)

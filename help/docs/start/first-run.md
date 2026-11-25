@@ -157,59 +157,60 @@ already off. Change any of this later in **Settings → Remote access**
 An SSH key is a pair of files on your own computer: a private key that
 never leaves it, and a public key you copy to the server.
 
-Once setup has finished, **Settings → Remote access** will guide you
-through it until Roostack has seen a key login: it shows how to make a
-key on your computer, then you paste the public key, and Roostack will add
-it to a new account (with a password you choose, for `sudo` and for the
-server's own screen) or to one the server has already that can use `sudo`.
-It will then show the `ssh` command to log in with, and tick it off when
-it sees you log in.
+Until Roostack has seen a key login, this step and **Settings → Remote
+access** have a **Set up an SSH key** button. It opens a guide in four
+steps:
 
-During setup, or to do it yourself, on your computer (macOS, Linux, or
-Windows' PowerShell):
+1. **Make a key on your computer**, if you don't have one. The guide
+   shows how on Windows, macOS, or Linux: `ssh-keygen -t ed25519`, then
+   showing or copying the public key (the file ending in `.pub`).
+2. **Paste your public key, and choose the account** you'll log in as:
+   one the server has already that can use `sudo`, or a new one.
+3. **Add it on the server.** The guide puts your key and the account into
+   the commands to run as `root` on the server: in the terminal you
+   installed Roostack from, or your provider's web console. If you're
+   logged in as another account, run `sudo -i` first. Your key isn't sent
+   to Roostack: the page only fills it into the commands.
+4. **Log in with it once**, with the `ssh` command the guide shows. It
+   shouldn't ask for the account's password (it may ask for the key's
+   passphrase). Roostack is watching for that login and will tick it off
+   by itself.
 
-1. **Make a key**, if you don't have one (press Enter to accept where it
-   goes, and choose a passphrase):
+For an account called `you`, the commands look like this, with your own
+key in place of `ssh-ed25519 AAAA… you@laptop`:
 
-    ```bash
-    ssh-keygen -t ed25519
-    ```
+```bash
+useradd --create-home --groups sudo --shell /bin/bash you
+passwd you
+mkdir -p -m 700 ~you/.ssh
+echo 'ssh-ed25519 AAAA… you@laptop' >> ~you/.ssh/authorized_keys
+chown -R you: ~you/.ssh
+chmod 600 ~you/.ssh/authorized_keys
+```
 
-2. **Copy it to the server**, using your account's name and the server's
-   address (while it still takes passwords):
+The first two lines make the account, so leave them out for one the
+server has already. `passwd` will ask for the account's password twice.
+You'll need it for `sudo`, and for logging in at the server's own screen
+or your provider's web console, but SSH won't take it once it's keys
+only.
 
-    ```bash
-    ssh-copy-id you@192.168.1.20
-    ```
+While SSH still takes passwords, you can instead copy the key from your
+computer (macOS or Linux) with `ssh-copy-id you@192.168.1.20`, using the
+account's name and the server's address.
 
-    No `ssh-copy-id` (Windows)? Show the public key with
-    `type $env:USERPROFILE\.ssh\id_ed25519.pub`, then on the server add
-    that line to `~/.ssh/authorized_keys`.
-
-3. **Log in with it** once: `ssh you@192.168.1.20` shouldn't ask for the
-   server's password (it may ask for the key's passphrase). Then choose
-   **check again** on the Remote access page.
+The account must be able to use `sudo`, since `root` can't log in with
+keys only.
 
 ??? note "For technical users"
 
-    The guide's request goes to `roostack-agent`, which checks the key (one
-    public key, no options) and, since its sandbox can't change accounts,
-    runs a short systemd job (`roostack-ssh-key`) that makes a new account
-    with `useradd --create-home --groups sudo --shell /bin/bash`, sets its
-    password with `chpasswd`, and appends the key to
-    `~/.ssh/authorized_keys` (folder 700, file 600, owned by the account).
-    It never adds a key to `root`.
-
-The account must be able to use `sudo`, since `root` can't log in with
-keys only. On a cloud server where you only log in as `root`, make an
-account first, give it `sudo` and your key, then log in as it:
-
-```bash
-adduser you
-usermod -aG sudo you
-install -d -m 700 -o you -g you /home/you/.ssh
-install -m 600 -o you -g you ~/.ssh/authorized_keys /home/you/.ssh/
-```
+    Roostack doesn't add keys or make accounts itself: `roostack-agent`,
+    the part of Roostack that runs as root, has no way to, so nothing
+    running as the `roostack` user (a service that's been taken over, say)
+    can give itself a way in as root. The page builds the commands in your
+    browser, and accepts only one public-key line with no quote, backslash,
+    or control character in its comment, since the key goes inside single
+    quotes in a root shell. Roostack sees the login in sshd's own log
+    (`journalctl _UID=0 _EXE=/usr/lib/openssh/sshd-session`).
 
 ## 5. Your lab's address
 

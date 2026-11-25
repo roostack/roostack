@@ -1,8 +1,10 @@
 package manager
 
 import (
-	"cmp"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"errors"
 	"slices"
 	"time"
 
@@ -19,7 +21,7 @@ import (
 // SSOAvailable says whether a service can have single sign-on, and if not,
 // why, in a sentence for its page ("" if it can).
 func (m *Manager) SSOAvailable(name string) (bool, string) {
-	p, in, err := m.installedService(name)
+	p, _, err := m.installedService(name)
 	if err != nil {
 		return false, ""
 	}
@@ -28,8 +30,6 @@ func (m *Manager) SSOAvailable(name string) (bool, string) {
 		return false, ""
 	case !m.Lab.HasAddress():
 		return false, "Single sign-on needs your lab's address first: the sign-in page is at my.<your address>."
-	case in.HostOr(m.Lab.NodeID) != m.Lab.NodeID:
-		return false, "Single sign-on works for services on this server (the lab's main one) for now. Move " + p.Title + " here to use it."
 	}
 	return true, ""
 }
@@ -38,20 +38,17 @@ func (m *Manager) SSOAvailable(name string) (bool, string) {
 // single sign-on on from the start: SSOAvailable's rules, before there's
 // a service to ask about.
 func (m *Manager) ssoAtInstall(p *pkgspec.Package, host string) bool {
-	return p.SSO != nil && m.Lab.HasAddress() && cmp.Or(host, m.Lab.NodeID) == m.Lab.NodeID
+	return p.SSO != nil && m.Lab.HasAddress()
 }
 
 // ssoRequiredProblem says why a package requiring single sign-on can't run
 // on host, in a sentence for the form or the move page ("" if it can, or
 // if its package doesn't require it): nobody could sign in to it there.
 func (m *Manager) ssoRequiredProblem(p *pkgspec.Package, host string) string {
-	switch {
-	case !p.RequiresSSO() || m.ssoAtInstall(p, host):
+	if !p.RequiresSSO() || m.ssoAtInstall(p, host) {
 		return ""
-	case !m.Lab.HasAddress():
-		return p.Title + " has no sign-in of its own, so it needs your lab's sign-in page, and that needs your lab's address first."
 	}
-	return p.Title + " has no sign-in of its own, so it needs your lab's sign-in page, which works for services on this server (the lab's main one) for now. Run it here."
+	return p.Title + " has no sign-in of its own, so it needs your lab's sign-in page, and that needs your lab's address first."
 }
 
 // SSOAtInstall says whether installing p on host (empty: this server) may
@@ -137,7 +134,7 @@ func (m *Manager) SSOClients() []sso.Client {
 	clients := []sso.Client{}
 	for _, s := range services {
 		p, in := s.Package, s.Instance
-		if !generate.SSOOn(m.Lab, p, in) || in.Waiting || (in.HostOr(m.Lab.NodeID) != m.Lab.NodeID) {
+		if !generate.SSOOn(m.Lab, p, in) || in.Waiting {
 			continue
 		}
 		route := p.SSORoute()
@@ -185,4 +182,31 @@ func titleOf(p *pkgspec.Package, title string) string {
 		return title
 	}
 	return p.Title
+}
+
+// SecretKeeper reads and makes the controller's own Podman secrets.
+type SecretKeeper interface {
+	Read(ctx context.Context, name string) ([]byte, error)
+	Replace(ctx context.Context, name string, value []byte) error
+}
+
+// clientSecret is an OIDC app's client secret for its server, when it
+// runs on another one (SPEC.md §5.2): the controller makes it the first
+// time and keeps it as a Podman secret of the same name, which the
+// sign-in page checks the app's requests against, as for its own apps.
+func (m *Manager) clientSecret(ctx context.Context, service string) ([]byte, error) {
+	if m.ClientSecrets == nil {
+		return nil, errors.New("no secrets on the controller")
+	}
+	name := generate.SSOSecretName(service)
+	if v, err := m.ClientSecrets.Read(ctx, name); err == nil && len(v) > 0 {
+		return v, nil
+	}
+	buf := make([]byte, 32)
+	rand.Read(buf) // never fails (Go 1.24)
+	v := []byte(base64.RawURLEncoding.EncodeToString(buf))
+	if err := m.ClientSecrets.Replace(ctx, name, v); err != nil {
+		return nil, err
+	}
+	return v, nil
 }

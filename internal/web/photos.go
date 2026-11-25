@@ -44,6 +44,8 @@ type PhotoMigrations interface {
 	RemovePhotoLocation(ctx context.Context, service, name string) error
 	PhotoDrives(ctx context.Context, service string, admin bool) ([]manager.PhotoDrive, error)
 	CheckPhotoSource(ctx context.Context, service string, src node.PhotoSource, admin bool) error
+	// ShareServers are the NAS boxes others may choose a share on.
+	ShareServers(ctx context.Context) []string
 	// MigrationStarted tells the Owners when someone else starts one.
 	MigrationStarted(ctx context.Context, service string, u *store.User)
 }
@@ -117,6 +119,9 @@ type photoSourceForm struct {
 	// Which choices this person has: drives, a folder on the server,
 	// shares, locations.
 	CanDrive, CanFolder, CanShare, CanLocation bool
+	// ShareServers are the servers others may choose a share on (only
+	// those, for them).
+	ShareServers []string
 	shareForm
 }
 
@@ -387,7 +392,12 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 	f := &pg.Source
 	q := r.URL.Query()
 	set := s.Photos.PhotoSettings(ctx, ps.Name)
-	f.CanDrive, f.CanShare, f.CanFolder = pg.Admin || !set.NoDrives, pg.Admin || !set.NoShares, pg.Admin
+	f.CanDrive, f.CanFolder = pg.Admin || !set.NoDrives, pg.Admin
+	// Others choose a share's server from those the lab uses already.
+	if !pg.Admin && set.MemberShares {
+		f.ShareServers = s.Photos.ShareServers(ctx)
+	}
+	f.CanShare = pg.Admin || len(f.ShareServers) > 0
 	f.Locations = s.Photos.PhotoLocations(ctx, ps.Name)
 	f.CanLocation = len(f.Locations) > 0
 	src := pg.V.Source
@@ -506,7 +516,7 @@ func (s *Server) photoSource(r *http.Request, pg *photoPage, ps manager.PhotoSer
 // ShareFields are the share's fields, for share-fields.
 func (f photoSourceForm) ShareFields() shareFields {
 	return shareFields{shareForm: f.shareForm, ServerName: cmp.Or(f.ServerName, "the server"), Example: "photos or /volume1/photos",
-		Kept: ", until the migration is done."}
+		Kept: ", until the migration is done.", Servers: f.ShareServers}
 }
 
 // LocationHref opens a folder in the location chosen.
@@ -770,7 +780,7 @@ func (s *Server) photoSettingsSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	set := manager.PhotoSettings{OwnersOnly: r.FormValue("who") == "admins", NoDrives: r.FormValue("drives") != "on",
-		NoShares: r.FormValue("shares") != "on", Memory: r.FormValue("memory")}
+		MemberShares: r.FormValue("shares") == "on", Memory: r.FormValue("memory")}
 	if _, ok := photoimport.MemoryShares[set.Memory]; !ok {
 		set.Memory = photoimport.MemoryHalf
 	}

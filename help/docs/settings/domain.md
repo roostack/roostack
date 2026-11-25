@@ -203,15 +203,19 @@ will leave it alone and offer **Take over this record…**.
 
 ## DNS for your devices
 
-A DNS server finds the address of each name a device looks up, and one
-such as [Pi-hole](https://pi-hole.net) or [AdGuard
-Home](https://adguard.com/adguard-home/overview.html), both in the
-catalog, can leave out ads and trackers while it does. Under **DNS for your devices** on **Settings → Where it is and
-DNS**, choose which one the lab uses:
+A DNS server finds the address of each name a device looks up. Under
+**DNS for your devices** on **Settings → Where it is and DNS**, choose
+which one the lab uses:
 
+- **Roostack's own** (recommended): it sends your devices straight to the
+  server that runs each service, and passes every other name on to your
+  usual DNS. See [Roostack's own DNS server](#roostacks-own-dns-server).
 - **A DNS server among your services** (the default): once you install
-  one, such as Pi-hole or AdGuard Home, Roostack will use it by itself (the
-  first by name, if you install both on different servers). The card says which
+  one, such as [Pi-hole](https://pi-hole.net) or [AdGuard
+  Home](https://adguard.com/adguard-home/overview.html), both in the
+  catalog, Roostack will use it by itself (the first by name, if you install
+  both on different servers), and it can leave out ads and trackers too.
+  Until you install one, Roostack's own is answering. The card says which
   one, and its address.
 - **Each device's own**: usually your internet provider's, through your
   router. Roostack will leave them alone.
@@ -232,8 +236,12 @@ down.
 
 Tick a server under **Servers that use it too** to have its own lookups
 use it as well. That's only worth it for a server whose own lookups should
-leave out ads too. It will ask the lab's DNS server first, and keep its own
-for when that one doesn't answer.
+leave out ads too, or reach the lab's services directly. It will ask the
+lab's DNS server first, and keep its own for when that one doesn't answer.
+It will also trust that DNS server for every name it looks up, including
+the time servers it sets its clock from, so tick a server only if you
+trust the DNS server as much as the server itself. The server running
+Roostack's own DNS server can't be ticked, since it would ask itself.
 
 ??? note "For technical users"
 
@@ -247,6 +255,83 @@ for when that one doesn't answer.
     AdGuard Home's from a block list Roostack writes,
     `work/userfilters/roostack.txt` in its data (`$dnsrewrite` rules),
     which its install hook adds, and which it reads again at each start.
+
+## Roostack's own DNS server
+
+Roostack's own DNS server answers each of your lab's names with the home
+address of the server that runs it, and passes every other name on to the
+DNS servers your home network already gives out, usually your router's.
+Devices that use it reach your services straight from home, public ones
+too, rather than through your router's way back in, and keep reaching
+them while the internet is down. It answers only the home network and the
+lab's VPN devices.
+
+It runs on the lab's controller while that's at home. When the
+controller is on the internet, it runs on a server at home, which you can
+choose on the card (the first by name, unless you choose).
+
+### Setting up your router
+
+Every device at home will use it once your router gives it out:
+
+1. Open your router's settings page. Its address is often printed on the
+   router, such as `192.168.1.1`.
+2. Find the settings for the home network, often called **LAN** or
+   **DHCP**. Don't change the router's own DNS, which is often under
+   **Internet** or **WAN**.
+3. Set the first DNS server to the address the card shows, such as
+   `192.168.1.10`, and the second to a public one, such as `9.9.9.9`.
+4. Save. Your devices will use it once they reconnect: turn Wi-Fi off and
+   on, or wait a day.
+
+The second server is there for when the lab's is off. Some devices ask
+both, or whichever answers first, which is fine: the public one sends
+them to the same places, apart from parts of services kept to home on a
+server on the internet, which open only through the lab's DNS.
+
+If your router also gives out a DNS server for IPv6, set that to the
+lab's IPv6 address too, or turn it off: phones often prefer it, and would
+never ask the lab's.
+
+Some routers, often those from internet providers, don't let you change
+this. Then set the DNS server on each device instead, or use the
+[lab's VPN](vpn.md), which sets it by itself.
+
+Your server's home address mustn't change, so reserve it in your router
+(often called a DHCP reservation or static lease), as your lab's address
+already needs.
+
+### Is this device using it?
+
+**Your services** on Your account says whether the device you're using
+asks the lab's DNS, and how to set it up if not.
+
+??? note "For technical users"
+
+    It's `roostack-dns.service`, the same binary as Roostack
+    (`roostack dns`), running as the `roostack` user with no access to
+    Roostack's state or secrets. Roostack writes the names it answers to
+    `/var/lib/roostack/dns/names.json` on the server that runs it, and
+    `roostack-dns.path` starts the service while that file is there; on
+    other servers Roostack deletes it, and the service stops. It listens on
+    port 5055, UDP and TCP, and the firewall sends port 53 from the home
+    network and the lab's VPN devices to it. Its log is `journalctl -u
+    roostack-dns`.
+
+    It answers `A` questions for the lab's names with a TTL of 60
+    seconds, `AAAA` and `HTTPS` questions for them with nothing, and
+    `use-application-dns.net` with NXDOMAIN, which keeps Firefox on the
+    network's DNS. Every other question goes, as it came, to the
+    nameservers in `/run/systemd/resolve/resolv.conf` (else
+    `/etc/resolv.conf`), leaving out the server's own addresses and any that
+    sends a test question back to it. With none left, it asks `9.9.9.9`, or
+    the address you choose on the card. It refuses anyone outside the home
+    network and the VPN's range. The home addresses that asked in the last
+    week are counted in `/var/lib/roostack-dns/clients.json`.
+
+    The check on Your account loads a picture from `check-<random>.<domain>`,
+    a name nobody has asked for before, and asks the DNS server whether it
+    was asked for it.
 
 ## Changing the address
 

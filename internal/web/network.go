@@ -81,7 +81,8 @@ func (s *Server) resolverSubmit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	choice := config.Resolver{Use: r.FormValue("use"), Address: r.FormValue("address"), Servers: r.Form["server"]}
+	choice := config.Resolver{Use: r.FormValue("use"), Address: r.FormValue("address"), Servers: r.Form["server"],
+		Server: r.FormValue("dns_server"), Fallback: r.FormValue("fallback")}
 	if err := s.Manager.SetResolver(r.Context(), choice); err != nil {
 		if msg, ok := usererr.Message(err); ok {
 			http.Error(w, msg, http.StatusBadRequest)
@@ -90,7 +91,8 @@ func (s *Server) resolverSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	detail := map[string]string{config.ResolverProvider: "each device's own", config.ResolverAddress: "the one at " + choice.Address}[choice.Use]
+	detail := map[string]string{config.ResolverProvider: "each device's own", config.ResolverAddress: "the one at " + choice.Address,
+		config.ResolverRoostack: "Roostack's own"}[choice.Use]
 	if detail == "" {
 		detail = "automatic"
 	}

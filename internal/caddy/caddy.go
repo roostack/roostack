@@ -12,6 +12,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"net/netip"
 	"slices"
 	"strings"
@@ -104,9 +105,12 @@ type Route struct {
 	// itself, which Caddy won't check (pkgspec.Route.SelfSigned).
 	SelfSigned bool
 	// On a public route (SPEC.md §6.11): PrivatePaths (and everything
-	// under them) stay home-only, and LoginPaths get a strict rate limit.
+	// under them) stay home-only, LoginPaths get a strict rate limit, and
+	// TokenPaths a moderate one (apps swapping codes for tokens, which
+	// costs the server more than a page).
 	PrivatePaths []string
 	LoginPaths   []string
+	TokenPaths   []string
 	// UploadPaths (and everything under them) are where the service
 	// serves uploaded files: anything there but InlineTypes becomes a
 	// download (SPEC.md §8.1, "Uploaded files as downloads"). A "*" in
@@ -175,6 +179,10 @@ const SignInSubdomain = "my"
 // for the password again (SPEC.md §5.3).
 var SignInLoginPaths = []string{"/sign-in", "/account/password", "/account/two-factor"}
 
+// SignInTokenPaths get the moderate rate limit when the sign-in page is
+// public: an app's secret is checked there (sso.PathToken).
+var SignInTokenPaths = []string{"/token"}
+
 // CheckPattern is the only path on a public address that reaches
 // Roostack: a check link with its token, nothing else (internal/public).
 const CheckPattern = `^/\.well-known/roostack-check/[0-9a-f]{32}$`
@@ -187,6 +195,8 @@ const (
 	RateLimitWindow      = "10s"
 	LoginRateLimitEvents = 10
 	LoginRateLimitWindow = "1m"
+	TokenRateLimitEvents = 60
+	TokenRateLimitWindow = "1m"
 )
 
 // CrowdSecAPIKeyEnv is the environment variable holding the bouncer's
@@ -332,6 +342,10 @@ func publicRoute(b *strings.Builder, r Route) {
 	if len(r.LoginPaths) > 0 {
 		fmt.Fprintf(b, "\t\t\tzone %s-login {\n\t\t\t\tmatch {\n\t\t\t\t\tpath %s\n\t\t\t\t}\n", r.ID, pathPatterns(r.LoginPaths))
 		fmt.Fprintf(b, "\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", LoginRateLimitEvents, LoginRateLimitWindow)
+	}
+	if len(r.TokenPaths) > 0 {
+		fmt.Fprintf(b, "\t\t\tzone %s-token {\n\t\t\t\tmatch {\n\t\t\t\t\tpath %s\n\t\t\t\t}\n", r.ID, pathPatterns(r.TokenPaths))
+		fmt.Fprintf(b, "\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", TokenRateLimitEvents, TokenRateLimitWindow)
 	}
 	fmt.Fprintf(b, "\t\t\tzone %s {\n\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", r.ID, RateLimitEvents, RateLimitWindow)
 	b.WriteString("\t\t}\n")
@@ -511,7 +525,7 @@ func (r Route) validate() error {
 			return fmt.Errorf("caddy route %s: invalid characters in %q", f.name, f.val)
 		}
 	}
-	for _, p := range append(slices.Clone(r.PrivatePaths), r.LoginPaths...) {
+	for _, p := range slices.Concat(r.PrivatePaths, r.LoginPaths, r.TokenPaths) {
 		if !strings.HasPrefix(p, "/") || unsafe(p, "*") {
 			return fmt.Errorf("caddy route %s: invalid path %q", r.ID, p)
 		}
@@ -542,6 +556,23 @@ func (r Route) validate() error {
 type MainConfig struct {
 	Domain string
 	Email  string
+	// Hosts, on a server serving directly (SPEC.md §10.5), are the names
+	// it serves: its site names them rather than the wildcard, each with
+	// its own certificate from Let's Encrypt's own challenges (no DNS
+	// login on the server), and has none of Roostack's own pages.
+	// DNSDirective is then empty, or Caddy's own authority on a test
+	// address.
+	Hosts []string
+	// HomeHosts, on a server serving directly at home, are the names of
+	// its private routes, which nobody outside reaches: each gets its own
+	// site, with a certificate from a DNS challenge that the server's
+	// Roostack passes on to the controller at HomeDNS, as an acme-dns
+	// server (or Caddy's own authority on a test address).
+	HomeHosts []string
+	HomeDNS   string
+	// Pass, on a server that's one of the lab's ways in, is what it
+	// passes on to other servers (SPEC.md §10.5, "Ways in").
+	Pass *EdgeConfig
 	// DNSDirective (with CertResolvers) is the tls "dns ..." directive for the DNS-01 challenge
 	// (from internal/dns); it may span several lines.
 	DNSDirective string
@@ -616,10 +647,11 @@ const DomainPageDir = "/etc/caddy/domain"
 type SignInSite struct {
 	Host, Upstream string
 	Public         bool
-	// Containers is where this server's containers come from, as Caddy
-	// sees them (generate.ContainerHostGateway): OIDC apps swap codes for
-	// tokens here themselves, so a private sign-in page lets them in too.
-	Containers string
+	// Containers are where apps' containers come from, as Caddy sees them:
+	// this server's (generate.ContainerHostGateway), and the lab's other
+	// servers' when apps run there. OIDC apps swap codes for tokens here
+	// themselves, so a private sign-in page lets them in too.
+	Containers []string
 }
 
 // GlancesSite is a server's live view at Host, served from Upstream
@@ -662,8 +694,26 @@ var AdminLoginPaths = []string{"/login", "/backups/recovery-key", "/account/pass
 
 // Main renders the main Caddyfile.
 func Main(c MainConfig) (string, error) {
-	if strings.TrimSpace(c.DNSDirective) == "" {
+	direct := len(c.Hosts)+len(c.HomeHosts) > 0 || c.Pass != nil
+	if c.Pass != nil {
+		if err := c.Pass.check(); err != nil {
+			return "", err
+		}
+	}
+	if strings.TrimSpace(c.DNSDirective) == "" && !direct {
 		return "", errors.New("caddy: no DNS provider configured")
+	}
+	if len(c.HomeHosts) > 0 && strings.TrimSpace(c.DNSDirective) == "" && (c.HomeDNS == "" || unsafe(c.HomeDNS, "")) {
+		return "", errors.New("caddy: no DNS challenge for the private names")
+	}
+	if direct && (c.AdminUpstream != "" || c.SignIn != nil || c.DomainItself != nil || len(c.Glances) > 0 ||
+		c.StatusPage || c.OldDomain != "") {
+		return "", errors.New("caddy: a server serving directly serves its services alone")
+	}
+	for _, h := range append(slices.Clone(c.Hosts), c.HomeHosts...) {
+		if h == "" || unsafe(h, "") || !strings.HasSuffix(h, "."+c.Domain) {
+			return "", fmt.Errorf("caddy: invalid host %q", h)
+		}
 	}
 	if c.Domain == "" || unsafe(c.Domain+c.Email+c.CrowdSecAPI+c.AppSecURL+c.AccessLog, "") {
 		return "", fmt.Errorf("caddy: invalid domain, email, CrowdSec address or log file")
@@ -688,6 +738,9 @@ func Main(c MainConfig) (string, error) {
 		// (checked with Caddy, docs/ASSUMPTIONS.md Q3, Q11, Q12).
 		fmt.Fprintf(&b, "\tservers :%d {\n\t\tlistener_wrappers {\n\t\t\tproxy_protocol {\n\t\t\t\tallow %s\n"+
 			"\t\t\t\tfallback_policy reject\n\t\t\t}\n\t\t\ttls\n\t\t}\n\t}\n", EdgePort, strings.Join(c.EdgeFrom, " "))
+	}
+	if c.Pass != nil {
+		c.Pass.passWrapper(&b)
 	}
 	if c.CrowdSecAPI != "" {
 		// Caddy keeps serving while CrowdSec's API is unreachable, and
@@ -714,6 +767,37 @@ func Main(c MainConfig) (string, error) {
 	if c.OldDomain != "" && (unsafe(c.OldDomain, "") || strings.TrimSpace(c.OldDNSDirective) == "") {
 		return "", fmt.Errorf("caddy: invalid old address %q", c.OldDomain)
 	}
+	if direct {
+		// A server serving directly: its public names in one site, with
+		// certificates from Let's Encrypt's own challenges, and each of
+		// its private names in one of its own.
+		if len(c.Hosts) > 0 {
+			if err := site(&b, c, c.Domain, c.DNSDirective, "", false); err != nil {
+				return "", err
+			}
+			// The lab's edge passes its public names straight to it.
+			if len(c.EdgeFrom) > 0 {
+				if err := site(&b, c, c.Domain, c.DNSDirective, "", true); err != nil {
+					return "", err
+				}
+			}
+		}
+		for _, h := range c.HomeHosts {
+			one := c
+			one.Hosts = []string{h}
+			directive := c.DNSDirective
+			if strings.TrimSpace(directive) == "" {
+				directive = homeChallenge(h, c.HomeDNS)
+			}
+			if err := site(&b, one, c.Domain, directive, "", false); err != nil {
+				return "", err
+			}
+		}
+		if c.Pass != nil {
+			c.Pass.passRedirects(&b)
+		}
+		return b.String(), nil
+	}
 	// The sites again on the edge listener, if there are edges.
 	for _, edge := range []bool{false, true} {
 		if edge && len(c.EdgeFrom) == 0 {
@@ -732,6 +816,13 @@ func Main(c MainConfig) (string, error) {
 		}
 	}
 	return b.String(), nil
+}
+
+// homeChallenge is the DNS challenge for a private name a server at home
+// serves: acme-dns's, at server, which takes the name as its subdomain.
+// Only the server's own Caddy reaches server, so the login is a fixed one.
+func homeChallenge(host, server string) string {
+	return fmt.Sprintf("dns acmedns {\n\tusername \"roostack\"\n\tpassword \"roostack\"\n\tsubdomain %q\n\tserver_url %q\n}", host, server)
 }
 
 // site writes one wildcard site block for domain, with Roostack's pages
@@ -756,25 +847,34 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge 
 		port = fmt.Sprintf(":%d", EdgePort)
 		fmt.Fprintf(b, "# Visitors through the lab's edges: never private (SPEC.md §10.5).\n")
 	}
-	if bare != nil {
+	switch {
+	case len(c.Hosts) > 0:
+		hosts := slices.Clone(c.Hosts)
+		for i := range hosts {
+			hosts[i] += port
+		}
+		fmt.Fprintf(b, "# This server's own services (SPEC.md §10.5, \"Serving directly\").\n%s {\n", strings.Join(hosts, ", "))
+	case bare != nil:
 		fmt.Fprintf(b, "*.%s%s, %s%s {\n", domain, port, domain, port)
-	} else {
+	default:
 		fmt.Fprintf(b, "*.%s%s {\n", domain, port)
 	}
 	if edge {
 		fmt.Fprintf(b, "\tvars %s yes\n", EdgeVar)
 	}
-	b.WriteString("\ttls {\n")
-	for _, line := range strings.Split(strings.TrimSpace(directive), "\n") {
-		fmt.Fprintf(b, "\t\t%s\n", line)
+	if strings.TrimSpace(directive) != "" {
+		b.WriteString("\ttls {\n")
+		for _, line := range strings.Split(strings.TrimSpace(directive), "\n") {
+			fmt.Fprintf(b, "\t\t%s\n", line)
+		}
+		// Resolvers are for checking a DNS challenge: a directive without
+		// one (lab.yaml's dns.directive, e.g. "issuer internal" on a test
+		// lab) can't have them.
+		if strings.Contains(directive, "dns ") {
+			fmt.Fprintf(b, "\t\tresolvers %s\n", CertResolvers)
+		}
+		b.WriteString("\t}\n")
 	}
-	// Resolvers are for checking a DNS challenge: a directive without one
-	// (lab.yaml's dns.directive, e.g. "issuer internal" on a test lab)
-	// can't have them.
-	if strings.Contains(directive, "dns ") {
-		fmt.Fprintf(b, "\t\tresolvers %s\n", CertResolvers)
-	}
-	b.WriteString("\t}\n")
 	if c.AccessLog != "" {
 		fmt.Fprintf(b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
 	}
@@ -800,16 +900,16 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string, edge 
 		// The sign-in page for services (SPEC.md §5.2): reached through
 		// an edge only when it's public, like a service.
 		from := WithDevices(cmp.Or(c.PrivateFrom, PrivateRanges), c.AllDevices)
-		if s.Containers != "" {
-			if err := checkPrefixes([]string{s.Containers}); err != nil {
+		if len(s.Containers) > 0 {
+			if err := checkPrefixes(s.Containers); err != nil {
 				return fmt.Errorf("caddy: sign-in page: %w", err)
 			}
-			from += " " + s.Containers
+			from += " " + strings.Join(s.Containers, " ")
 		}
 		route := Route{ID: "roostack-sign-in", Title: "Sign-in", Host: s.Host, Upstream: s.Upstream,
 			Private: !s.Public, PrivateFrom: from, PrivateExcept: c.EdgeFrom}
 		if s.Public {
-			route.LoginPaths = SignInLoginPaths
+			route.LoginPaths, route.TokenPaths = SignInLoginPaths, SignInTokenPaths
 			route.WAF = c.AppSecURL != ""
 		}
 		signIn, err := Site("roostack-sign-in", []Route{route})
@@ -914,47 +1014,93 @@ func checkPrefixes(list []string) error {
 	return nil
 }
 
-// EdgeConfig is a lab's edge (SPEC.md §10.5): a cloud server passing
-// visitors' connections for the lab's public names to the server whose
-// Caddy serves them, without decrypting them.
+// EdgeConfig is what a way in passes on (SPEC.md §10.5, "Ways in"): a
+// server visitors reach from the internet passes their connections for the
+// lab's public names it doesn't serve itself to the server whose Caddy
+// does, by the name in the TLS handshake, without decrypting them.
 type EdgeConfig struct {
 	// Hosts are the public names it passes on.
 	Hosts []string
 	// Upstream is where (host:port on Roostack's network): the
 	// controller's Caddy.
 	Upstream string
+	// Direct are the names other servers serve themselves, by the
+	// upstream each goes to instead (their Caddy, over a link of their
+	// own with this server; SPEC.md §10.5, "Serving directly"). Each is
+	// in Hosts too.
+	Direct map[string][]string
 }
 
-// Edge renders an edge's Caddyfile: Caddy's layer-4 plugin passes TLS
-// connections for Hosts through to Upstream by the name in the handshake,
-// with a PROXY header carrying the visitor's address; other names get
-// nothing. Plain HTTP for Hosts is redirected to HTTPS. No certificates:
-// they stay with the server that serves the names.
-func Edge(c EdgeConfig) (string, error) {
+// check validates c.
+func (c EdgeConfig) check() error {
 	if _, err := netip.ParseAddrPort(c.Upstream); err != nil {
-		return "", fmt.Errorf("caddy: edge upstream %q: %w", c.Upstream, err)
+		return fmt.Errorf("caddy: way in upstream %q: %w", c.Upstream, err)
 	}
 	for _, h := range c.Hosts {
 		if h == "" || unsafe(h, ",*/:") {
-			return "", fmt.Errorf("caddy: invalid public name %q", h)
+			return fmt.Errorf("caddy: invalid public name %q", h)
 		}
 	}
-	var b strings.Builder
-	b.WriteString("# Generated by Roostack: this server is the lab's edge. Do not edit: changes will be overwritten.\n")
-	b.WriteString("{\n\tauto_https off\n")
-	if len(c.Hosts) > 0 {
-		fmt.Fprintf(&b, "\tlayer4 {\n\t\t:443 {\n\t\t\t@public tls sni %s\n", strings.Join(c.Hosts, " "))
-		fmt.Fprintf(&b, "\t\t\troute @public {\n\t\t\t\tproxy {\n\t\t\t\t\tproxy_protocol v2\n\t\t\t\t\tupstream %s\n"+
-			"\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n", c.Upstream)
-	}
-	b.WriteString("}\n")
-	if len(c.Hosts) > 0 {
-		var hs []string
-		for _, h := range c.Hosts {
-			hs = append(hs, "http://"+h)
+	for _, up := range slices.Sorted(maps.Keys(c.Direct)) {
+		if _, err := netip.ParseAddrPort(up); err != nil {
+			return fmt.Errorf("caddy: way in upstream %q: %w", up, err)
 		}
-		fmt.Fprintf(&b, "\n%s {\n\tredir https://{host}{uri} 308\n}\n", strings.Join(hs, ", "))
+		for _, h := range c.Direct[up] {
+			if !slices.Contains(c.Hosts, h) {
+				return fmt.Errorf("caddy: %q isn't one of the public names", h)
+			}
+		}
 	}
-	b.WriteString("\n# Any other name: nothing.\nhttp:// {\n\tabort\n}\n")
-	return b.String(), nil
+	return nil
+}
+
+// passWrapper writes the global options' server on 443 for a way in:
+// Caddy's layer-4 plugin, in front of its own TLS, passes connections for
+// c's names on with a PROXY header carrying the visitor's address, names
+// another server serves itself straight to it; every other connection
+// goes on to this server's own TLS and sites.
+func (c EdgeConfig) passWrapper(b *strings.Builder) {
+	if len(c.Hosts) == 0 {
+		return
+	}
+	direct := map[string]bool{}
+	for _, hosts := range c.Direct {
+		for _, h := range hosts {
+			direct[h] = true
+		}
+	}
+	route := func(name string, hosts []string, upstream string) {
+		fmt.Fprintf(b, "\t\t\t\t@%s tls sni %s\n", name, strings.Join(hosts, " "))
+		fmt.Fprintf(b, "\t\t\t\troute @%s {\n\t\t\t\t\tproxy {\n\t\t\t\t\t\tproxy_protocol v2\n\t\t\t\t\t\tupstream %s\n"+
+			"\t\t\t\t\t}\n\t\t\t\t}\n", name, upstream)
+	}
+	b.WriteString("\tservers :443 {\n\t\tlistener_wrappers {\n\t\t\tlayer4 {\n")
+	for i, up := range slices.Sorted(maps.Keys(c.Direct)) {
+		if len(c.Direct[up]) > 0 {
+			route(fmt.Sprintf("direct%d", i+1), c.Direct[up], up)
+		}
+	}
+	var rest []string
+	for _, h := range c.Hosts {
+		if !direct[h] {
+			rest = append(rest, h)
+		}
+	}
+	if len(rest) > 0 {
+		route("passed", rest, c.Upstream)
+	}
+	b.WriteString("\t\t\t}\n\t\t\ttls\n\t\t}\n\t}\n")
+}
+
+// passRedirects sends plain HTTP for c's names to HTTPS, which comes back
+// to this server and is passed on.
+func (c EdgeConfig) passRedirects(b *strings.Builder) {
+	if len(c.Hosts) == 0 {
+		return
+	}
+	var hs []string
+	for _, h := range c.Hosts {
+		hs = append(hs, "http://"+h)
+	}
+	fmt.Fprintf(b, "\n# Names passed on to the servers that serve them: to HTTPS first.\n%s {\n\tredir https://{host}{uri} 308\n}\n", strings.Join(hs, ", "))
 }

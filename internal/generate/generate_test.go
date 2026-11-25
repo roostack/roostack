@@ -863,28 +863,27 @@ func TestRoostAcAddress(t *testing.T) {
 	}
 }
 
-// TestEdge: an edge server gets Roostack's Caddy (built the same way) with
+// TestEdge: an edge server gets Roostack's Caddy (the same image) with
 // only TCP 80 and 443, no certificates or DNS logins, and the edge config.
 func TestEdge(t *testing.T) {
 	lab := testLab()
-	lab.Role = config.RoleNode
-	out, err := Edge(lab, caddy.EdgeConfig{Hosts: []string{"photos.lab.example.com"}, Upstream: "100.96.0.1:443"})
+	lab.Role, lab.Pass = config.RoleNode, &caddy.EdgeConfig{Hosts: []string{"photos.lab.example.com"}, Upstream: "100.96.0.1:443"}
+	out, err := SystemWith(lab, SystemOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Quadlets) != 2 || out.Quadlets[0].Name != CaddyUnit+".container" || out.Quadlets[1].Name != CaddyUnit+".build" {
+	if len(out.Quadlets) != 2 || out.Quadlets[0].Name != CaddyUnit+".container" || out.Quadlets[1].Name != CaddyUnit+".image" {
 		t.Fatalf("quadlets: %+v", out.Quadlets)
 	}
 	c := out.Quadlets[0].Content
-	for _, want := range []string{"PublishPort=80:80\n", "PublishPort=443:443\n", "Network=pasta\n", "Image=" + CaddyUnit + ".build\n"} {
+	for _, want := range []string{"PublishPort=80:80\n", "PublishPort=443:443\n", "Image=" + CaddyUnit + ".image\n"} {
 		if !strings.Contains(c, want) {
 			t.Errorf("missing %q in\n%s", want, c)
 		}
 	}
-	for _, not := range []string{"/udp", "Secret=", "map-host-loopback"} {
-		if strings.Contains(c, not) {
-			t.Errorf("has %q:\n%s", not, c)
-		}
+	// It decrypts nothing, so it has no DNS login and no CrowdSec.
+	if strings.Contains(c, "Secret=") || slices.Contains(out.Units, CrowdSecUnit+".service") {
+		t.Errorf("a way in passing visitors on alone:\n%s", c)
 	}
 	if !strings.Contains(out.Caddyfile.Content, "tls sni photos.lab.example.com") || len(out.Secrets) != 0 {
 		t.Errorf("caddyfile:\n%s", out.Caddyfile.Content)
@@ -1443,5 +1442,110 @@ ports:
 	lab.Domain = ""
 	if h := PortHost(lab, p, &instance.Instance{Package: "relay"}); h != "" {
 		t.Errorf("no address: %q", h)
+	}
+}
+
+// TestServedDirectly: a server serving directly serves its public routes
+// with its own Caddy, published on loopback too, and its private routes at
+// home; the controller's Caddy still passes every route on (SPEC.md §10.5).
+func TestServedDirectly(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.Host = "n-4a3b2faab3"
+	in.Routes["web"] = instance.RouteOverride{Subdomain: "passwords", Port: 20001, Exposure: pkgspec.ExposurePublic}
+	node := testLab()
+	node.Role, node.OverlayAddr, node.NodeID, node.Direct = config.RoleNode, "100.96.0.2", "n-4a3b2faab3", []string{"n-4a3b2faab3"}
+	unitOf := func(out *Output) string {
+		for _, f := range out.Quadlets {
+			if strings.Contains(f.Content, "PublishPort=") {
+				return f.Content
+			}
+		}
+		return ""
+	}
+
+	out, err := Service(node, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.CaddySite == nil || !strings.Contains(out.CaddySite.Content, "@vaultwarden-web host passwords.") ||
+		!strings.Contains(out.CaddySite.Content, "reverse_proxy "+CaddyHostLoopback+":20001") {
+		t.Fatalf("the node's own site: %+v", out.CaddySite)
+	}
+	if strings.Contains(out.CaddySite.Content, "roostack-check") {
+		t.Errorf("a check link to a UI the node hasn't got:\n%s", out.CaddySite.Content)
+	}
+	if !slices.Equal(out.DirectHosts, []string{"passwords.lab.example.com"}) || len(out.HomeHosts) != 0 {
+		t.Errorf("direct hosts %v, at home %v", out.DirectHosts, out.HomeHosts)
+	}
+	if u := unitOf(out); !strings.Contains(u, "PublishPort=127.0.0.1:20001:") || !strings.Contains(u, "PublishPort=100.96.0.2:20001:") {
+		t.Errorf("a direct route is on loopback, and for the controller:\n%s", u)
+	}
+	sys, err := SystemWith(node, SystemOptions{Public: true, DirectHosts: out.DirectHosts})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sys.Caddyfile.Content, "passwords.lab.example.com {") || strings.Contains(sys.Caddyfile.Content, "*.lab.example.com") ||
+		strings.Contains(sys.Caddyfile.Content, "dns ") || strings.Contains(sys.Caddyfile.Content, "roost.lab.example.com") {
+		t.Errorf("the node's Caddyfile:\n%s", sys.Caddyfile.Content)
+	}
+	if !slices.Contains(sys.Units, CrowdSecUnit+".service") || slices.ContainsFunc(sys.Secrets, func(s Secret) bool { return strings.Contains(s.Name, "dns") }) {
+		t.Errorf("the node runs CrowdSec and holds no DNS login: units %v, secrets %+v", sys.Units, sys.Secrets)
+	}
+
+	// The controller still passes it on, for devices whose DNS points
+	// them at it.
+	ctrl := testLab()
+	ctrl.Direct = node.Direct
+	proxy, err := ProxySite(ctrl, p, in, "100.96.0.2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proxy.CaddySite == nil || !strings.Contains(proxy.CaddySite.Content, "reverse_proxy 100.96.0.2:20001") {
+		t.Errorf("the controller passes on a route the node serves: %+v", proxy.CaddySite)
+	}
+
+	// Private, on a cloud server: through the controller alone.
+	in.Routes["web"] = instance.RouteOverride{Subdomain: "passwords", Port: 20001, Exposure: pkgspec.ExposurePrivate}
+	if out, err = Service(node, p, in); err != nil || out.CaddySite != nil || len(out.DirectHosts) != 0 {
+		t.Errorf("a private route on a cloud server: %+v %v", out, err)
+	}
+	if u := unitOf(out); !strings.Contains(u, "PublishPort=100.96.0.2:20001:") || strings.Contains(u, "127.0.0.1:20001") {
+		t.Errorf("a private route is on the node's network address alone:\n%s", u)
+	}
+	// At home: its own Caddy serves it too, for the home network, with a
+	// DNS challenge through the controller.
+	node.Direct, node.DirectHome = nil, []string{"n-4a3b2faab3"}
+	if out, err = Service(node, p, in); err != nil || out.CaddySite == nil || !slices.Equal(out.HomeHosts, []string{"passwords.lab.example.com"}) {
+		t.Fatalf("a private route at home: %+v %v", out, err)
+	}
+	if !strings.Contains(out.CaddySite.Content, "remote_ip "+caddy.PrivateRanges) && !strings.Contains(out.CaddySite.Content, "private_ranges") {
+		t.Errorf("a private route at home is for the home network:\n%s", out.CaddySite.Content)
+	}
+	if u := unitOf(out); !strings.Contains(u, "PublishPort=127.0.0.1:20001:") || !strings.Contains(u, "PublishPort=100.96.0.2:20001:") {
+		t.Errorf("a private route at home is on both:\n%s", u)
+	}
+	node.Domain, node.DNS = "smith.family", config.DNS{Provider: "cloudflare"}
+	in.Routes["web"] = instance.RouteOverride{Subdomain: "passwords", Port: 20001, Exposure: pkgspec.ExposurePrivate}
+	out, _ = Service(node, p, in)
+	sys, err = SystemWith(node, SystemOptions{DirectHosts: out.DirectHosts, HomeHosts: out.HomeHosts})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sys.Caddyfile.Content, "passwords.smith.family {") || !strings.Contains(sys.Caddyfile.Content, "dns acmedns {") ||
+		!strings.Contains(sys.Caddyfile.Content, `subdomain "passwords.smith.family"`) ||
+		!strings.Contains(sys.Caddyfile.Content, `server_url "http://`+CaddyHostLoopback+`:8483"`) {
+		t.Errorf("the node's Caddyfile at home:\n%s", sys.Caddyfile.Content)
+	}
+	// Not set to serve directly: everything goes through the controller.
+	node.DirectHome = nil
+	if out, err = Service(node, p, in); err != nil || out.CaddySite != nil || len(out.DirectHosts) != 0 {
+		t.Errorf("a node not serving directly: %+v %v", out, err)
 	}
 }

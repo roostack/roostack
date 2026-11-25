@@ -40,10 +40,6 @@ type Settings interface {
 	// UnblockSSH lets an address that guessed too many passwords reach SSH
 	// again at once (SSHAccess.SSHD.Blocked).
 	UnblockSSH(ctx context.Context, address string) error
-	// AddSSHKey adds a public key to an account that can use sudo, making
-	// the account if it's new (agent.SSHKeyRequest); what's wrong with the
-	// request is a usererr.
-	AddSSHKey(ctx context.Context, r agent.SSHKeyRequest) error
 	// SetSSHCommunity keeps CrowdSec's community blocklist (addresses and
 	// ranges) away from SSH, replacing the list sent before; the
 	// controller sends it while its CrowdSec has one (SPEC.md §6.10 item 3).
@@ -141,7 +137,6 @@ type SSHServer interface {
 	SSHStatus(ctx context.Context) (agent.SSHStatus, error)
 	SetSSHKeysOnly(ctx context.Context, on bool) error
 	UnblockSSH(ctx context.Context, address string) error
-	AddSSHKey(ctx context.Context, r agent.SSHKeyRequest) error
 	SetSSHCommunity(ctx context.Context, addrs []string) error
 }
 
@@ -348,24 +343,6 @@ func (h *HostSettings) SetSSHCommunity(ctx context.Context, addrs []string) erro
 		return nil // nothing to keep them away from
 	}
 	return h.SSHServer.SetSSHCommunity(ctx, addrs)
-}
-
-func (h *HostSettings) AddSSHKey(ctx context.Context, r agent.SSHKeyRequest) error {
-	if h.SSHServer == nil {
-		return usererr.New("This server has no SSH server.")
-	}
-	if err := r.Check(); err != nil {
-		return &usererr.Error{Msg: err.Error()}
-	}
-	err := h.SSHServer.AddSSHKey(ctx, r)
-	h.mu.Lock()
-	h.sshAt = time.Time{} // the account may be new
-	h.sshGen++
-	h.mu.Unlock()
-	if err != nil {
-		return usererr.New("Roostack couldn't add the key: %s", err)
-	}
-	return nil
 }
 
 func (h *HostSettings) RestartPolicy(_ context.Context) (string, int, error) {

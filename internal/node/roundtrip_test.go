@@ -21,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/kept"
+	"roostack.cloud/roostack/internal/labdns"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/store"
@@ -113,7 +114,6 @@ var (
 	rtLibrary  = agent.Library{Name: "Films", Drive: "1", Sub: "films"}
 	rtShare    = agent.Share{Type: "smb", Server: "nas", Path: "media", Username: "mum"}
 	rtWG       = agent.WireGuard{Interface: agent.GuestsInterface, Address: "100.103.66.1/24", ListenPort: 51821}
-	rtKey      = agent.SSHKeyRequest{Key: "ssh-ed25519 AAAA", User: "tyris", New: true, Password: "a long password"}
 	rtCopy     = BackupCopy{Name: "backup-2", Title: "Backup 2", Repository: "s3:x"}
 	rtDest     = BackupDestination{Repository: "rest:y", KeyHint: "k1"}
 	rtSetup    = &importer.Setup{From: importer.FromCompose, Project: "immich"}
@@ -183,6 +183,19 @@ func (f rtNode) Linked() Linked       { return f }
 func (f rtNode) GuestHost() GuestHost { return f }
 func (f rtNode) Processor() Processor { return f }
 func (f rtNode) Photos() Photos       { return nil }
+func (f rtNode) LabDNS() LabDNS       { return f }
+
+// LabDNS.
+var rtDNSStatus = labdns.Status{Upstreams: []string{"192.168.1.1"}, Devices: 3, Since: time.Unix(1700000000, 0).UTC()}
+
+func (f rtNode) LabDNSStatus(context.Context) (labdns.Status, error) {
+	f.rec("LabDNSStatus")
+	return rtDNSStatus, nil
+}
+func (f rtNode) LabDNSSeen(_ context.Context, name string) (bool, error) {
+	f.rec("LabDNSSeen", name)
+	return true, nil
+}
 
 // Processor, Linked.
 func (f rtNode) Arch() string { f.rec("Arch"); return "arm64" }
@@ -427,10 +440,6 @@ func (f rtSettings) SetSSH(_ context.Context, c SSHChange) error {
 
 func (f rtSettings) UnblockSSH(_ context.Context, address string) error {
 	f.rec("Settings.UnblockSSH", address)
-	return nil
-}
-func (f rtSettings) AddSSHKey(_ context.Context, r agent.SSHKeyRequest) error {
-	f.rec("Settings.AddSSHKey", r)
 	return nil
 }
 
@@ -693,8 +702,6 @@ func TestRoundTrip(t *testing.T) {
 			[]rtCall{call("Settings.UnblockSSH", "2001:db8:1:2::/64")}, nil},
 		{"Settings.SetSSHCommunity", func() (any, error) { return nil, settings.SetSSHCommunity(ctx, rtCommunity) },
 			[]rtCall{call("Settings.SetSSHCommunity", rtCommunity)}, nil},
-		{"Settings.AddSSHKey", func() (any, error) { return nil, settings.AddSSHKey(ctx, rtKey) },
-			[]rtCall{call("Settings.AddSSHKey", rtKey)}, nil},
 		{"Settings.PromoteBackupCopy", func() (any, error) { return nil, settings.PromoteBackupCopy(ctx, "backup-3", rtCopy) },
 			[]rtCall{call("Settings.PromoteBackupCopy", "backup-3", rtCopy)}, nil},
 		{"Settings.SetBackupCopies", func() (any, error) { return nil, settings.SetBackupCopies(ctx, []BackupCopy{rtCopy}) },
@@ -773,6 +780,8 @@ func TestRoundTrip(t *testing.T) {
 		{"DiskSpaces", func() (any, error) { return r.DiskSpaces(ctx) }, []rtCall{call("DiskSpaces")}, rtDisks},
 		{"MemoryInfo", func() (any, error) { return r.MemoryInfo(ctx) }, []rtCall{call("MemoryInfo")}, rtMemory},
 		{"Usage", func() (any, error) { return r.Usage(ctx) }, []rtCall{call("Usage")}, rtUsage},
+		{"LabDNSStatus", func() (any, error) { return r.LabDNSStatus(ctx) }, []rtCall{call("LabDNSStatus")}, rtDNSStatus},
+		{"LabDNSSeen", func() (any, error) { return r.LabDNSSeen(ctx, "check-ab.lab.example.com") }, []rtCall{call("LabDNSSeen", "check-ab.lab.example.com")}, true},
 		{"LeftDataDirs", func() (any, error) { return r.LeftDataDirs(ctx, "immich") }, []rtCall{call("LeftDataDirs", "immich")}, []string{"/srv/old"}},
 		{"LeftServices", func() (any, error) { return r.LeftServices(ctx) }, []rtCall{call("LeftServices")}, rtLeft},
 		{"CleanUpReport", func() (any, error) { return r.CleanUpReport(ctx) }, []rtCall{call("CleanUpReport")}, rtCleanUp},
@@ -860,7 +869,7 @@ func TestRoundTrip(t *testing.T) {
 	local := map[string]bool{"Identity": true, "Address": true, "Close": true, "Pending": true, "SetUpWaiting": true, "DataDirs": true,
 		"Backups": true, "Restores": true, "Updates": true, "Settings": true, "Media": true, "Imports": true,
 		"Mover": true, "Updater": true, "Disks": true, "Memory": true, "LeftData": true, "CleanUp": true, "History": true,
-		"Linked": true, "GuestHost": true, "Processor": true, "Photos": true,
+		"Linked": true, "GuestHost": true, "Processor": true, "Photos": true, "LabDNS": true,
 		// From the server's status, as Linked's are.
 		"VPNStatus": true, "Vitals": true}
 	for prefix, v := range map[string]any{"": r, "Backups.": remoteBackups{}, "Restores.": remoteRestores{},
@@ -898,6 +907,7 @@ func (bareNode) History() History     { return nil }
 func (bareNode) Linked() Linked       { return nil }
 func (bareNode) GuestHost() GuestHost { return nil }
 func (bareNode) Processor() Processor { return nil }
+func (bareNode) LabDNS() LabDNS       { return nil }
 func (bareNode) Photos() Photos       { return nil }
 
 // A server without a capability answers "not found" to each of its
@@ -948,7 +958,6 @@ func TestRoundTripWithout(t *testing.T) {
 		"Settings.SSHAccess":             func() error { _, err := settings.SSHAccess(ctx, true); return err },
 		"Settings.SetSSH":                func() error { return settings.SetSSH(ctx, SSHChange{}) },
 		"Settings.UnblockSSH":            func() error { return settings.UnblockSSH(ctx, "203.0.113.9") },
-		"Settings.AddSSHKey":             func() error { return settings.AddSSHKey(ctx, agent.SSHKeyRequest{}) },
 		"Settings.PromoteBackupCopy":     func() error { return settings.PromoteBackupCopy(ctx, "b", BackupCopy{}) },
 		"Settings.SetBackupCopies":       func() error { return settings.SetBackupCopies(ctx, nil) },
 		"Settings.SetBackupDestination":  func() error { return settings.SetBackupDestination(ctx, BackupDestination{}) },
@@ -976,6 +985,7 @@ func TestRoundTripWithout(t *testing.T) {
 		"DiskSpaces":     func() error { _, err := r.DiskSpaces(ctx); return err },
 		"MemoryInfo":     func() error { _, err := r.MemoryInfo(ctx); return err },
 		"Usage":          func() error { _, err := r.Usage(ctx); return err },
+		"LabDNSStatus":   func() error { _, err := r.LabDNSStatus(ctx); return err },
 		"LeftDataDirs":   func() error { _, err := r.LeftDataDirs(ctx, "immich"); return err },
 		"DeleteLeftData": func() error { return r.DeleteLeftData(ctx, "immich") },
 		"CleanUpReport":  func() error { _, err := r.CleanUpReport(ctx); return err },
