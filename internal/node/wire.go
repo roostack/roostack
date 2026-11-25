@@ -49,6 +49,8 @@ type WireAssignment struct {
 	// People is the lab's VPN's interface, on the server devices connect
 	// to (SPEC.md §10.11).
 	People *agent.WireGuard `json:"people,omitempty"`
+	// Relay is its own tunnel to Roostack Cloud's relay (SPEC.md §10.5).
+	Relay *agent.WireGuard `json:"relay,omitempty"`
 	// Glances, when set, has it run Glances listening there (SPEC.md
 	// §6.15.1).
 	Glances string `json:"glances,omitempty"`
@@ -133,7 +135,7 @@ type WireProxied struct {
 func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error) {
 	w := WireAssignment{Version: version, Lab: a.Lab,
 		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage, Guests: a.Guests, GuestAddr: a.GuestAddr, Links: a.Links, Edge: a.Edge,
-		PortForwards: a.PortForwards, Libraries: a.Libraries, People: a.People, Glances: a.Glances, Reason: a.Reason}
+		PortForwards: a.PortForwards, Libraries: a.Libraries, People: a.People, Relay: a.Relay, Glances: a.Glances, Reason: a.Reason}
 	enc := func(s state.Service) (WireService, error) {
 		in, err := s.Instance.Marshal()
 		if err != nil {
@@ -165,7 +167,7 @@ func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error)
 // Decode turns a wire assignment back into one, checking every file.
 func Decode(w WireAssignment) (Assignment, error) {
 	a := Assignment{Lab: w.Lab, Secrets: w.Secrets, SetUp: w.SetUp, Storage: w.Storage, Guests: w.Guests, GuestAddr: w.GuestAddr,
-		Links: w.Links, Edge: w.Edge, PortForwards: w.PortForwards, Libraries: w.Libraries, People: w.People, Glances: w.Glances, Reason: w.Reason}
+		Links: w.Links, Edge: w.Edge, PortForwards: w.PortForwards, Libraries: w.Libraries, People: w.People, Relay: w.Relay, Glances: w.Glances, Reason: w.Reason}
 	dec := func(ws WireService) (state.Service, error) {
 		p, err := pkgspec.Parse(ws.Package)
 		if err != nil {
@@ -242,6 +244,10 @@ type WireStatus struct {
 	// VPN is the lab's VPN's interface there, when devices connect to it
 	// (SPEC.md §10.11): its key, and when each device last connected.
 	VPN *agent.WireGuardStatus `json:"vpn,omitempty"`
+	// Relay is its own tunnel to Roostack Cloud's relay, when it has one
+	// (SPEC.md §10.5): its key, which the controller tells Cloud, and when
+	// each edge last connected.
+	Relay *agent.WireGuardStatus `json:"relay,omitempty"`
 	// Vitals is its latest reading of how it's doing (SPEC.md §6.15.1).
 	Vitals *Vitals `json:"vitals,omitempty"`
 }

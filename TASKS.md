@@ -54,6 +54,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Each public address choosing its own way in (SPEC §10.5: a route's `entry`), after the whole-lab version
   - [ ] HTTP/3 through an edge, if Caddy gains a way to learn a QUIC visitor's address (ASSUMPTIONS Q7)
   - [ ] Try the report, names on hold and **Turn the relay on** with a lab against Cloud's test environment, once both sides are deployed there
+  - [ ] Try a server's own tunnel to the relay on VMs against a Cloud with an edge (SPEC §10.5, "Ways in", 2026-11-24): a server's names reaching it straight from the edge while joining goes through the controller, its web ports closed to the internet, a real certificate by TLS-ALPN through the relay, its card's three states
   - [ ] A full restore from Roostack Cloud onto a fresh VM, of a lab made for it (no real DNS records), including a big service's data taking longer than an hour
   - [ ] Each other provider's CNAME, TXT and delete against a real account (ASSUMPTIONS M7; Cloudflare's CNAME and TXT seen)
   - [ ] Countries per service (Cloud's DESIGN §5 says the Owner's settings are per service), once the lab-wide setting has been used
@@ -405,6 +406,7 @@ Waited for the code-quality review to finish (the maintainer, 2026-10-22); the m
 - [x] The core: each server's processors, memory, swap, network, temperatures, and each service's share every minute, kept like the checks, with charts on Monitoring and alerts as problems (2026-11-12)
 - [x] Glances for a live view: its official image, pinned and updated with Roostack, turned on for a server by an Owner or Admin, at its own address behind the sign-in page for Owners and Admins (2026-11-14)
 - [x] Check Glances on a node on a VM: listening only on its address on Roostack's network, its firewall letting only the controller in, served by the controller's Caddy behind the sign-in page, and all of it gone when turned off (2026-11-15)
+- [ ] Each server's traffic, in and out and between servers (the maintainer, 2026-11-24, with the relay passing each name to the server that serves it): counted on each server's own interfaces (its uplink, Roostack's network, `roostack-relay`), so it covers traffic that never touches Roostack Cloud, shown with the server's other readings
 
 ## Single sign-on: what's next (SPEC §5.2)
 

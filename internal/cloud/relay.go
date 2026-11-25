@@ -35,6 +35,25 @@ type relayState struct {
 	// Closed: the lab's public access is closed completely, so every
 	// request asks the edges to close too (RelayRequest.Pause, PauseRelay).
 	Closed bool `json:"closed,omitempty"`
+	// Servers are the lab's other servers' tunnels as last asked for
+	// (RelayRequest.Servers); Cloud's answer has their addresses.
+	Servers []cloudapi.RelayServer `json:"servers,omitempty"`
+}
+
+// sameServers says whether the servers' tunnels asked for are those
+// last asked for.
+func (st *relayState) sameServers(servers []cloudapi.RelayServer) bool {
+	return st != nil && slices.EqualFunc(st.Servers, servers, func(a, b cloudapi.RelayServer) bool {
+		return a.ID == b.ID && a.PublicKey == b.PublicKey && slices.Equal(a.Hosts, b.Hosts)
+	})
+}
+
+// relayServers are the servers' tunnels to ask for now (RelayServers).
+func (s *Service) relayServers(ctx context.Context) []cloudapi.RelayServer {
+	if s.RelayServers == nil {
+		return nil
+	}
+	return s.RelayServers(ctx)
 }
 
 // same says whether a relay asked for is the one there is.
@@ -73,7 +92,8 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 	if !linked {
 		return errors.New("the lab isn't linked to Roostack Cloud")
 	}
-	if cur.same(hosts, c, tz, domain) {
+	servers := s.relayServers(ctx)
+	if cur.same(hosts, c, tz, domain) && cur.sameServers(servers) {
 		return nil
 	}
 	addr := placeholderAddr
@@ -87,14 +107,14 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 	closed := cur != nil && cur.Closed
 	var relay cloudapi.Relay
 	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, cloudapi.RelayRequest{PublicKey: pub, Hosts: hosts, Countries: c, TimeZone: tz, Domain: domain,
-		Pause: closed}, &relay); err != nil {
+		Pause: closed, Servers: servers}, &relay); err != nil {
 		return err
 	}
 	a, err := netip.ParseAddr(relay.Addr)
 	if err != nil || !agent.RelayRange.Contains(a) || len(relay.Edges) == 0 {
 		return errors.New("Roostack Cloud's answer had no relay address or edges")
 	}
-	st := &relayState{Hosts: hosts, Countries: c, TimeZone: tz, Domain: domain, Relay: relay, Closed: closed}
+	st := &relayState{Hosts: hosts, Countries: c, TimeZone: tz, Domain: domain, Relay: relay, Closed: closed, Servers: servers}
 	if _, err := s.WireGuard.ApplyWireGuard(ctx, s.relayInterface(fmt.Sprintf("%s/%d", relay.Addr, relay.Prefix), st)); err != nil {
 		return fmt.Errorf("connecting to Roostack Cloud's edges: %w", err)
 	}
@@ -104,7 +124,11 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 	err = s.save()
 	s.mu.Unlock()
 	s.publicChanged(publicChanged)
-	if cur != nil && !slices.Equal(cur.Relay.Edges, relay.Edges) {
+	var before []cloudapi.RelayServerAddr
+	if cur != nil {
+		before = cur.Relay.Servers
+	}
+	if cur != nil && !slices.Equal(cur.Relay.Edges, relay.Edges) || !slices.Equal(before, relay.Servers) {
 		s.edgesChanged()
 	}
 	var paused time.Time
@@ -184,7 +208,7 @@ func (s *Service) askRelayAgain(ctx context.Context, done string, ask func(*clou
 		return fmt.Errorf("setting up the relay's network: %w", err)
 	}
 	req := cloudapi.RelayRequest{PublicKey: pub, Hosts: cur.Hosts, Countries: cur.Countries, TimeZone: cur.TimeZone, Domain: cur.Domain,
-		Pause: cur.Closed}
+		Pause: cur.Closed, Servers: cur.Servers}
 	ask(&req)
 	var relay cloudapi.Relay
 	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, req, &relay); err != nil {
@@ -394,8 +418,33 @@ func (s *Service) RefreshRelay(ctx context.Context, every time.Duration) {
 	}
 }
 
-// refreshRelay asks Cloud how the relay stands once.
+// refreshRelay asks Cloud how the relay stands once. When the servers'
+// tunnels to ask for have changed (a server's key is known, or its tunnel
+// has connected), it asks for the relay again with them instead, as last
+// asked for otherwise.
 func (s *Service) refreshRelay(ctx context.Context) error {
+	s.mu.Lock()
+	cur := s.st.Relay
+	var again bool
+	var hosts []string
+	var countries config.Countries
+	var tz, domain string
+	if s.st.Linked && cur != nil {
+		hosts, tz, domain = cur.Hosts, cur.TimeZone, cur.Domain
+		countries = config.Countries{Allow: cur.Countries.Allow, Block: cur.Countries.Block, OpenUntil: cur.Countries.OpenUntil}
+	}
+	s.mu.Unlock()
+	if cur != nil && s.RelayServers != nil {
+		again = !cur.sameServers(s.relayServers(ctx))
+	}
+	if again {
+		return s.Relay(ctx, hosts, countries, tz, domain)
+	}
+	return s.refreshRelayOnce(ctx)
+}
+
+// refreshRelayOnce asks Cloud how the relay stands, keeping its answer.
+func (s *Service) refreshRelayOnce(ctx context.Context) error {
 	s.relayMu.Lock()
 	defer s.relayMu.Unlock()
 	s.mu.Lock()
@@ -415,7 +464,7 @@ func (s *Service) refreshRelay(ctx context.Context) error {
 		s.mu.Unlock()
 		return nil
 	}
-	cur.Relay.Domain, cur.Relay.Name = relay.Domain, relay.Name
+	cur.Relay.Domain, cur.Relay.Name, cur.Relay.Servers = relay.Domain, relay.Name, relay.Servers
 	paused := cur.Relay.Paused
 	cur.Relay.TurnedOff, cur.Relay.Suspended, cur.Relay.Paused = relay.TurnedOff, relay.Suspended, relay.Paused
 	publicChanged := s.setNames(relay.Names)
@@ -465,4 +514,41 @@ func (s *Service) RelayEdges() []cloudapi.RelayEdge {
 		return nil
 	}
 	return slices.Clone(s.st.Relay.Relay.Edges)
+}
+
+// RelayServerAddrs are the relay addresses Cloud gave the lab's other
+// servers' tunnels, by server ID, with the relay network's prefix length
+// (none when not relayed).
+func (s *Service) RelayServerAddrs() map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.serverAddrs()
+}
+
+// serverAddrs is RelayServerAddrs; callers hold s.mu.
+func (s *Service) serverAddrs() map[string]string {
+	out := map[string]string{}
+	if s.st.Relay == nil {
+		return out
+	}
+	for _, sv := range s.st.Relay.Relay.Servers {
+		if a, err := netip.ParseAddr(sv.Addr); err == nil && agent.RelayRange.Contains(a) {
+			out[sv.ID] = fmt.Sprintf("%s/%d", sv.Addr, s.st.Relay.Relay.Prefix)
+		}
+	}
+	return out
+}
+
+// ServerTunnel is server id's own tunnel to the relay (SPEC.md §10.5):
+// the address Cloud gave it and every edge as a peer, as the controller's
+// own; before Cloud has given it one, a placeholder address and no peers,
+// so the server makes its key, which the next relay request carries.
+func (s *Service) ServerTunnel(id string) agent.WireGuard {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	addr, ok := s.serverAddrs()[id]
+	if !ok {
+		return agent.WireGuard{Interface: agent.RelayInterface, Address: placeholderAddr}
+	}
+	return s.relayInterface(addr, s.st.Relay)
 }

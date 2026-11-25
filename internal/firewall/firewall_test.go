@@ -222,6 +222,44 @@ func TestDesiredClosed(t *testing.T) {
 	}
 }
 
+// A server whose public names come in through Roostack Cloud's relay
+// over its own tunnel (SPEC.md §10.5): Caddy's web ports for the home
+// network only, also after public access is closed and opened again; a
+// public package port stays open, as the relay doesn't carry it. The
+// controller's own firewall doesn't take it.
+func TestDesiredRelayed(t *testing.T) {
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.Role = config.RoleNode
+	pub := agent.Rule{Port: 2222, Proto: "tcp", For: trust.Anyone, Reason: "forgejo ssh"}
+	services := []*generate.Output{{Service: "forgejo", HostPorts: []generate.HostPort{{Name: "ssh", Port: 2222, Protocol: "tcp", Exposure: "public"}}}}
+	if !lab.IsNode() {
+		t.Fatal("the lab isn't a server's")
+	}
+	fw, _ := Desired(lab, services, Roles{Relayed: true})
+	web := func(fw agent.Firewall) []trust.Class {
+		var out []trust.Class
+		for _, r := range fw.Allow {
+			if r.Port == 80 || r.Port == 443 {
+				out = append(out, r.For)
+			}
+		}
+		return out
+	}
+	if !fw.Relayed || fw.Closed || !slices.Contains(fw.Allow, pub) || len(web(fw)) == 0 || fw.Validate() != nil {
+		t.Fatalf("relayed: %+v", fw)
+	}
+	for _, c := range web(WithClosed(WithClosed(fw, true), false)) {
+		if c != trust.Home {
+			t.Errorf("a web port for %s while relayed: %v", c, web(fw))
+		}
+	}
+	lab.Role = config.Default().Role
+	if fw, _ := Desired(lab, services, Roles{Relayed: true}); fw.Relayed || slices.Contains(web(fw), trust.Home) {
+		t.Errorf("the controller: %+v", fw.Allow)
+	}
+}
+
 // The lab's VPN (SPEC.md §10.11): a home-only port for the devices whose
 // person may use its service, SSH for those ticked unless it's Nobody,
 // and on the server they connect to, its port and where their traffic

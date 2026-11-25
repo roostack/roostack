@@ -6,6 +6,7 @@ import (
 	"maps"
 	"net/netip"
 	"slices"
+	"strings"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
@@ -41,7 +42,11 @@ func (m *Manager) ServeChoiceOf(ctx context.Context, id string) ServeChoice {
 	m.mu.Lock()
 	lab := m.labNow()
 	m.mu.Unlock()
-	return m.serveChoice(ctx, lab, infos, id)
+	c := m.serveChoice(ctx, lab, infos, id)
+	if why := m.RelayNote(ctx, id); c.Public && why != "" {
+		c.Why = strings.TrimSpace(why + " " + c.Why)
+	}
+	return c
 }
 
 func (m *Manager) serveChoice(ctx context.Context, lab config.Lab, infos map[string]linkInfo, id string) ServeChoice {
@@ -87,12 +92,15 @@ func serveMode(lab config.Lab, id, addr string) string {
 // public routes, in a sentence, or "" if it can: a server with a public
 // address of its own does, and with the lab's edge as the way in, so does
 // one the edge has a link of their own to (edgeLinked), which passes its
-// names straight to it. Through Roostack Cloud, every public name goes
-// through the controller.
+// names straight to it. Through Roostack Cloud's relay, any server does,
+// over a tunnel of its own (relayservers.go); with a roost.ac name and no
+// relay, every public name goes through the controller.
 func directProblem(lab config.Lab, id, addr string, edgeLinked bool) string {
 	switch {
 	case !lab.HasAddress():
 		return "Your lab has no address yet, so there's nothing to serve."
+	case lab.Public.Relay:
+		return ""
 	case lab.Public.Edge != "" && addr == "" && !edgeLinked:
 		return "Your lab's edge can't reach it directly yet, so its public services will go through the server that runs the lab. It reaches the edge's WireGuard port, UDP 51820, which may need allowing in the edge's firewall at its provider."
 	case lab.Public.Edge != "" && addr == "":
@@ -301,7 +309,8 @@ func (m *Manager) directNames(lab config.Lab) (all, atHome map[string]string) {
 				switch {
 				case slices.Contains(proxy.HomeHosts, h):
 					all[h], atHome[h] = home[host], home[host]
-				case addr != "":
+				case addr != "" && !lab.Public.Relay:
+					// Through the relay, public names point at its edges.
 					all[h] = addr
 				}
 			}

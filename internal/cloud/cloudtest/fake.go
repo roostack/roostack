@@ -917,6 +917,9 @@ func (f *Fake) relay(id string, req cloudapi.RelayRequest) cloudapi.Relay {
 	if f.RelayEdges != nil {
 		r.Edges = f.RelayEdges
 	}
+	for i, sv := range req.Servers {
+		r.Servers = append(r.Servers, cloudapi.RelayServerAddr{ID: sv.ID, Addr: fmt.Sprintf("100.81.2.%d", i+1)})
+	}
 	if req.Domain != "" {
 		r.Domain = &cloudapi.RelayDomain{Domain: req.Domain, ProofName: "_roostack." + req.Domain, ProofValue: "roostack-proof=test",
 			Verified: f.DomainVerified}

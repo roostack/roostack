@@ -425,6 +425,12 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		if id == vpnServer {
 			a.People = people
 		}
+		// Its own tunnel to Roostack Cloud's relay, serving directly
+		// (relayservers.go).
+		if n != m.Node && slices.Contains(relayTunnelServers(paused.Public.Relay && m.Relay.Tunnel != nil, direct), id) {
+			wg := m.Relay.Tunnel(id)
+			a.Relay = &wg
+		}
 		a.Glances = glancesBinds[id]
 		n.Apply(a)
 	}

@@ -62,6 +62,9 @@ var recordedFields = map[string]bool{
 	// RelayCountries, RelayBans.
 	"public_key": true, "hosts": true, "countries": true, "allow": true, "block": true,
 	"open_until": true, "time_zone": true, "domain": true, "turn_on": true, "resume": true, "pause": true, "bans": true,
+	// RelayRequest's servers: each server's ID in the lab and its
+	// tunnel's WireGuard public key (public_key, above), and its names.
+	"servers": true, "id": true,
 	// StorageRequest.
 	"purpose": true,
 	// RecoveryIdentity, RestoreChallengeRequest, RestoreProof and

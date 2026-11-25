@@ -329,6 +329,10 @@ type Relay struct {
 	// Edges are its edges' relay addresses (for Caddy) and public IPv4
 	// addresses (for DNS), when it's on.
 	Edges func() (relayAddrs, public []string)
+	// Tunnel is a server's own tunnel to the relay, for its assignment
+	// (relayservers.go): the address Cloud gave it and the edges, or a
+	// placeholder until then. Nil: servers have none.
+	Tunnel func(server string) agent.WireGuard
 }
 
 // RelayOn says whether public visitors come in through Roostack Cloud's

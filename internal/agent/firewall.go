@@ -47,6 +47,13 @@ type Firewall struct {
 	// included, are refused at once (a reset) rather than left to time
 	// out, so nothing from the internet reaches Caddy.
 	Closed bool `json:"closed,omitempty"`
+	// Relayed: this server's public names come in through Roostack
+	// Cloud's relay, over its own tunnel (SPEC.md §10.5), so Caddy's web
+	// ports take connections from the home network only, and nobody can
+	// reach its sites at its public address and get past the relay's
+	// countries, bans, and pauses. The relay's edges arrive on their own
+	// interface, which this doesn't change.
+	Relayed bool `json:"relayed,omitempty"`
 	// SetupPort, while first-run setup lasts, is the setup pages' HTTPS
 	// port, open to the home network only (SPEC.md §6.3.2). 0 once setup
 	// is done.

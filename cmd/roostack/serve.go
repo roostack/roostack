@@ -406,12 +406,15 @@ func (c *controller) wireCloud() error {
 				relay, pub = append(relay, e.Addr), append(pub, e.PublicIPv4)
 			}
 			return relay, pub
-		}}
+		}, Tunnel: link.ServerTunnel}
+		// Servers serving their public names themselves have tunnels of
+		// their own, which Cloud is told of with each relay request.
+		link.RelayServers = mgr.RelayServers
 		// How the relay stands (the own domain's proof, its edges), every
 		// 5 minutes; changed edges (one rebuilt) reach Caddy and the
 		// firewall with an apply.
 		link.EdgesChanged = func() {
-			mgr.ApplyBecause("Roostack Cloud's relay changed its edges: changing how public visitors reach the lab")
+			mgr.ApplyBecause("Roostack Cloud's relay changed its edges or its servers' tunnels: changing how public visitors reach the lab")
 		}
 		// A pause at the relay's edges placed or lifted on Roostack
 		// Cloud's website (SPEC.md §6.16) is recorded, so the Owners will

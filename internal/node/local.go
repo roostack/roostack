@@ -160,6 +160,13 @@ type Assignment struct {
 	// interface (agent.PeopleInterface) with every device as a peer
 	// (SPEC.md §10.11); nil elsewhere, where it's removed if it was here.
 	People *agent.WireGuard
+	// Relay, on a server that serves public names itself while the lab
+	// comes in through Roostack Cloud's relay, is its own tunnel to the
+	// relay's edges (agent.RelayInterface; SPEC.md §10.5): its key is made
+	// here, and before Cloud has given it an address it has a placeholder
+	// and no peers. Nil elsewhere, where it's stopped if it was here. Not
+	// on the controller, whose tunnel Roostack Cloud's link keeps.
+	Relay *agent.WireGuard
 	// Glances, when set, is where this server's Glances listens, for its
 	// live view (SPEC.md §6.15.1); "" for none.
 	Glances string
@@ -432,7 +439,7 @@ func (n *Local) Apply(a Assignment) {
 	old := n.assignment.Services
 	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage, Links: a.Links,
 		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge, PortForwards: a.PortForwards,
-		Libraries: a.Libraries, People: a.People, Glances: a.Glances}
+		Libraries: a.Libraries, People: a.People, Relay: a.Relay, Glances: a.Glances}
 	if n.State != nil {
 		// A service taken off this server forgets its setup progress, and
 		// stops any setup still running: its hooks would keep retrying
@@ -736,9 +743,12 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 
 	// The firewall follows the services, e.g. a package port just turned on.
 	roles := firewall.Roles{Store: a.Storage != nil, ProxyPorts: a.ProxyPorts, GuestAddr: a.GuestAddr, Guests: a.Guests,
-		LinksListen: a.Links != nil && a.Links.Listen, VPN: a.People != nil, PortForwards: a.PortForwards}
+		LinksListen: a.Links != nil && a.Links.Listen, VPN: a.People != nil, PortForwards: a.PortForwards, Relayed: a.Relay != nil}
 	if err := n.applyPeople(ctx, act, a.People); err != nil {
 		return fmt.Errorf("setting up the lab's VPN: %w", err)
+	}
+	if err := n.applyRelay(ctx, act, a.Relay, n.lab(a).IsNode()); err != nil {
+		return fmt.Errorf("setting up this server's tunnel to Roostack Cloud's relay: %w", err)
 	}
 	n.mu.Lock()
 	servers := n.labServers
