@@ -441,9 +441,10 @@ func (n *Local) Apply(a Assignment) {
 		n.userSecrets[k] = v
 	}
 	old := n.assignment.Services
-	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage, Links: a.Links,
-		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge, PortForwards: a.PortForwards,
-		Libraries: a.Libraries, People: a.People, Relay: a.Relay, Glances: a.Glances}
+	// All of it but what's for this apply alone, so that a field added
+	// later can't be left out (the tunnels were, at first).
+	n.assignment = a
+	n.assignment.Secrets, n.assignment.SetUp, n.assignment.Reason, n.assignment.CaddyFirst = nil, nil, "", false
 	if n.State != nil {
 		// A service taken off this server forgets its setup progress, and
 		// stops any setup still running: its hooks would keep retrying

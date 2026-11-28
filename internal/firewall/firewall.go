@@ -174,10 +174,19 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	// The lab's edge sends public ports on (SPEC.md §10.5): to the
 	// controller, which takes them from the edge, and sends on those of a
 	// service on another server, which takes them from the controller.
-	fw.PortForwards = roles.PortForwards
 	if a, err := netip.ParseAddr(lab.OverlayAddr); err == nil && agent.OverlayRange.Contains(a) {
 		for _, r := range roles.Tunnels {
 			fw.Tunnels = append(fw.Tunnels, agent.Tunnel{Local: lab.OverlayAddr, Remote: r})
+		}
+	}
+	// One that keeps addresses with no tunnel to where it goes (before
+	// this server has the lab's address, say) leaves with this server's
+	// address as before, rather than the whole firewall being refused.
+	fw.PortForwards = slices.Clone(roles.PortForwards)
+	for i, p := range fw.PortForwards {
+		fromEdge := slices.ContainsFunc(fw.Edges, func(e string) bool { return slices.Contains(roles.Tunnels, e) })
+		if p.Keep && (len(fw.Tunnels) == 0 || !slices.Contains(roles.Tunnels, p.To) || p.FromEdge && !fromEdge) {
+			fw.PortForwards[i].Keep = false
 		}
 	}
 	// A port that keeps visitors' addresses comes through a tunnel from

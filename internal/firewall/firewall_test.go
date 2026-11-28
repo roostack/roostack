@@ -381,10 +381,20 @@ func TestDesiredKeptPorts(t *testing.T) {
 	if want := []string{"31116/udp controller"}; !slices.Equal(kept, want) {
 		t.Errorf("kept: %v", kept)
 	}
+	// A port that keeps addresses with no tunnel to where it goes leaves
+	// with this server's address, rather than the firewall being refused.
+	fwds := []agent.PortForward{{Port: 31116, Proto: "udp", To: "100.96.0.1", FromEdge: true, Keep: true, Reason: "rustdesk id-udp"}}
+	if fw, _ := Desired(lab, services, Roles{Tunnels: []string{"100.96.0.1"}, PortForwards: fwds}); fw.PortForwards[0].Keep || fw.Validate() != nil {
+		t.Errorf("kept from the edge with no tunnel from it: %+v %v", fw.PortForwards, fw.Validate())
+	}
+	if !fwds[0].Keep {
+		t.Error("the roles' forwards were changed")
+	}
 	// Before the lab has a network: no tunnels.
 	lab.OverlayAddr = ""
-	if fw, _ := Desired(lab, services, Roles{Tunnels: []string{"100.96.0.1"}}); len(fw.Tunnels) != 0 {
-		t.Errorf("tunnels without an address: %v", fw.Tunnels)
+	if fw, _ := Desired(lab, services, Roles{Tunnels: []string{"100.96.0.1"}, PortForwards: fwds}); len(fw.Tunnels) != 0 ||
+		fw.PortForwards[0].Keep || fw.Validate() != nil {
+		t.Errorf("without an address: %v %+v", fw.Tunnels, fw.PortForwards)
 	}
 }
 
