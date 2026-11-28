@@ -771,6 +771,10 @@ type PortStatus struct {
 	// Outside is the well-known port devices use, which the server's
 	// firewall sends to its port (pkgspec.Port.OutsidePort), or 0.
 	Outside int
+	// KeepsAddresses: the port's container sees each client's own
+	// address (pkgspec.Container.ClientAddresses); otherwise every
+	// connection reaches it from Podman's address on its server.
+	KeepsAddresses bool
 	generate.PortContext
 }
 
@@ -784,7 +788,9 @@ func (m *Manager) Ports(name string) ([]PortStatus, error) {
 	var ports []PortStatus
 	for _, pn := range slices.Sorted(maps.Keys(p.Ports)) {
 		pp := p.Ports[pn]
-		ports = append(ports, PortStatus{Name: pn, Title: pp.Title, Description: pp.Description, Outside: pp.OutsidePort, PortContext: resolved[pn]})
+		c := p.Containers[pp.Container]
+		ports = append(ports, PortStatus{Name: pn, Title: pp.Title, Description: pp.Description, Outside: pp.OutsidePort,
+			KeepsAddresses: c != nil && c.ClientAddresses, PortContext: resolved[pn]})
 	}
 	return ports, nil
 }

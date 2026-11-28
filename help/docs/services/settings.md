@@ -389,16 +389,19 @@ one: see [Move a service](../servers/move.md).
     publishes the container's port on the server's port (1024 or above) and
     opens it in the firewall for your home network (LAN ranges), or for
     anyone once the Owner chooses (`ports.<name>.exposure: public` in the
-    service's file). Through a cloud server in the lab, its firewall sends
+    service's file). The port is published on the service's own Podman
+    network, whose port forwarding (`rootlessport`) gives every connection
+    Podman's address on the server (in `10.89.0.0/16`) rather than the
+    visitor's, unless the container has `client_addresses: true` and keeps
+    each client's own. Through a cloud server in the lab, its firewall sends
     the port on over WireGuard to the controller, which sends it on to the
     server that runs the service, each with its own address there (nftables
-    DNAT and masquerade). So the app sees each connection as coming from a
-    lab address in `100.96.0.0/17`, not the visitor's: an app that trusts
-    nearby or private addresses more, such as letting them in without a
-    login, will trust everyone on the internet, and one that blocks an
-    address after wrong passwords will block every visitor at once.
-    CrowdSec and Roostack's rate limits only see web addresses, not extra
-    connections.
+    DNAT and masquerade), so even a container that keeps addresses sees a
+    lab address in `100.96.0.0/17`. Either way, an app that trusts nearby or
+    private addresses more, such as letting them in without a login, will
+    trust everyone on the internet, and one that blocks an address after
+    wrong passwords will block every visitor at once. CrowdSec and
+    Roostack's rate limits only see web addresses, not extra connections.
 
     **Actions** are package `action` hooks, run with `podman exec` in the
     service's container. Their inputs reach the command only as

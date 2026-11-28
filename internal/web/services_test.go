@@ -244,15 +244,27 @@ func TestServicePortExposure(t *testing.T) {
 		t.Errorf("calls: %s", got)
 	}
 	fm.ports[0].Exposure = "public"
-	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "connect to <code>") || !strings.Contains(body, "UDP port 31116") {
-		t.Error("a public port doesn't say how it's reached from outside")
+	// On a bridge network, every connection reaches the app from Podman's
+	// address, edge or not: the card says what that means (the security
+	// review of 2026-11-19, L3).
+	const podmans = "will see every connection as coming from the same private address on its server rather than the visitor's"
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "connect to <code>") || !strings.Contains(body, "UDP port 31116") ||
+		!strings.Contains(body, podmans) {
+		t.Error("a public port doesn't say how it's reached from outside, or whose address the app sees")
 	}
-	// Through an edge, visitors arrive from its address in the lab: the
-	// card says what that means (the security review of 2026-11-19, L3).
+	fm.ports[0].KeepsAddresses = true
+	if _, body := h.get("/services/vaultwarden"); strings.Contains(body, podmans) || strings.Contains(body, "not the visitor's") {
+		t.Error("a port whose container keeps addresses says the app won't see the visitor's")
+	}
+	// Through an edge, visitors arrive from its address in the lab.
 	fm.edge = "vps-sydney"
 	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "connections come in through vps-sydney") ||
 		!strings.Contains(body, "will see each connection as coming from vps-sydney's address in the lab, not the visitor's") {
 		t.Error("a public port through an edge doesn't say whose address the app sees")
+	}
+	fm.ports[0].KeepsAddresses = false
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, podmans) || strings.Contains(body, "vps-sydney's address") {
+		t.Error("through an edge, a bridge network's port doesn't say whose address the app sees")
 	}
 }
 
