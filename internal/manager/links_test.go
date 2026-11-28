@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -398,6 +399,58 @@ func TestEdgeForwards(t *testing.T) {
 	services = append(services, other)
 	if e, c := forwards(); len(e)+len(c) != 0 {
 		t.Errorf("taken at the edge: %v %v", e, c)
+	}
+}
+
+// TestKeptForwards: a public port whose container sees clients' own
+// addresses is sent on keeping visitors' addresses, through tunnels: the
+// edge's to where it sends it, the controller's to the edge and the server
+// it sends it on to, and that server's back (SPEC.md §10.5).
+func TestKeptForwards(t *testing.T) {
+	m, _, _, _ := setUpLinks(t)
+	services, err := state.LoadServices(m.Lab)
+	if err != nil || len(services) != 1 {
+		t.Fatal(services, err)
+	}
+	on := true
+	infos := m.linkInfos(context.Background())
+	s := services[0] // Forgejo, on n-…02
+	s.Instance.SettingUp = false
+	s.Instance.Ports = map[string]instance.PortOverride{"ssh": {Enabled: &on, Exposure: "public"}}
+	pkg := *s.Package
+	pkg.Containers = maps.Clone(pkg.Containers)
+	app := *pkg.Containers["app"]
+	app.ClientAddresses = true
+	pkg.Containers["app"] = &app
+	services[0].Package = &pkg
+
+	e, c := m.edgeForwards(m.Lab, services, infos, "n-0000000003")
+	if len(e) != 1 || !e[0].Keep || len(c) != 1 || !c[0].Keep {
+		t.Fatalf("not kept: %v %v", e, c)
+	}
+	got := m.forwardTunnels(infos, "n-0000000003", e, c)
+	want := map[string][]string{
+		"n-0000000003": {"100.96.0.1"},
+		m.Lab.NodeID:   {"100.96.0.3", "100.96.0.2"},
+		"n-0000000002": {"100.96.0.1"},
+	}
+	if !maps.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("through the controller: %v", got)
+	}
+	// Straight to its server over their link: the edge and that server.
+	linked := m.Lab
+	linked.Direct = []string{"n-0000000002"}
+	e, c = m.edgeForwards(linked, services, infos, "n-0000000003")
+	got = m.forwardTunnels(infos, "n-0000000003", e, c)
+	want = map[string][]string{"n-0000000003": {"100.96.0.2"}, "n-0000000002": {"100.96.0.3"}}
+	if !maps.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("over their link: %v", got)
+	}
+	// A container on its service's network: as before, no tunnels.
+	app.ClientAddresses = false
+	e, c = m.edgeForwards(m.Lab, services, infos, "n-0000000003")
+	if got := m.forwardTunnels(infos, "n-0000000003", e, c); len(got) != 0 || e[0].Keep {
+		t.Errorf("not keeping addresses: %v %v", got, e)
 	}
 }
 

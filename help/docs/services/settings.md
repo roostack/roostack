@@ -393,15 +393,23 @@ one: see [Move a service](../servers/move.md).
     network, whose port forwarding (`rootlessport`) gives every connection
     Podman's address on the server (in `10.89.0.0/16`) rather than the
     visitor's, unless the container has `client_addresses: true` and keeps
-    each client's own. Through a cloud server in the lab, its firewall sends
-    the port on over WireGuard to the controller, which sends it on to the
-    server that runs the service, each with its own address there (nftables
-    DNAT and masquerade), so even a container that keeps addresses sees a
-    lab address in `100.96.0.0/17`. Either way, an app that trusts nearby or
-    private addresses more, such as letting them in without a login, will
-    trust everyone on the internet, and one that blocks an address after
-    wrong passwords will block every visitor at once. CrowdSec and
-    Roostack's rate limits only see web addresses, not extra connections.
+    each client's own. Then an app that trusts nearby or private addresses
+    more, such as letting them in without a login, will trust everyone on
+    the internet, and one that blocks an address after wrong passwords will
+    block every visitor at once.
+
+    Through a cloud server in the lab, its firewall sends the port on over
+    WireGuard to the controller, which sends it on to the server that runs
+    the service (nftables DNAT), or straight to that server over a link of
+    their own. For a container that keeps clients' addresses, each hop
+    sends it through an IP-in-IP tunnel inside WireGuard (`roostack-t<n>`
+    interfaces) without changing the visitor's address, so the app sees
+    the visitor's own: connections that came through a tunnel are marked
+    with its number, and a routing table of the same number sends their
+    answers back through it (`ip rule show pref 5200`). Other ports leave
+    each hop with that server's address (masquerade), since Podman would
+    hide the visitor's anyway. CrowdSec and Roostack's rate limits only see
+    web addresses, not extra connections.
 
     **Actions** are package `action` hooks, run with `podman exec` in the
     service's container. Their inputs reach the command only as

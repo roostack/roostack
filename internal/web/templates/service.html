@@ -462,8 +462,6 @@
           {{else}}, once your router forwards {{$proto}} port {{.HostPort}} to <code>{{or $.LANIP "this server"}}</code>.{{end}}
           {{/* Whose address the app sees (the security review of 2026-11-19, L3). */}}
           {{if not .KeepsAddresses}}{{$.Service.Title}} will see every connection as coming from the same private address on its server rather than the visitor's, so if it
-          trusts nearby addresses more, such as letting them in without a login, it will trust everyone on the internet.
-          {{else if $.Edge}}{{$.Service.Title}} will see each connection as coming from {{or $.Edge.Name $.Edge.ID}}'s address in the lab, not the visitor's, so if it
           trusts nearby addresses more, such as letting them in without a login, it will trust everyone on the internet.{{end}}{{end}}
         </p>{{end}}
       </div>

@@ -51,6 +51,9 @@ type Host interface {
 	// ApplyFirewall checks and loads an nftables ruleset, and saves it so it
 	// is re-applied when the agent starts (firewall.go).
 	ApplyFirewall(ruleset string) error
+	// ApplyTunnels makes the server's tunnels for public ports that keep
+	// visitors' addresses, and their routing (tunnels.go).
+	ApplyTunnels(t []Tunnel) error
 	// VPNForwardingPlan says which interfaces the lab's VPN needs
 	// forwarding on, and which of those the agent turns on itself
 	// (vpnForwardingPlan); VPNForwardingOn turns them on, and
@@ -182,6 +185,9 @@ func (s *Server) Handler() http.Handler {
 			return err
 		}
 		fw.ForwardOwned, fw.RoostackUID = own, s.RoostackUID
+		if err := h.ApplyTunnels(fw.Tunnels); err != nil {
+			return err
+		}
 		if err := h.ApplyFirewall(fw.Ruleset()); err != nil {
 			return err
 		}

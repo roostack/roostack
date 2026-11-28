@@ -53,6 +53,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] When a server the hub dials gets a new address, follow it (today: re-join it)
   - [ ] Each public address choosing its own way in (SPEC §10.5: a route's `entry`), after the whole-lab version
   - [ ] HTTP/3 through an edge, if Caddy gains a way to learn a QUIC visitor's address (ASSUMPTIONS Q7)
+  - [x] Public ports keep visitors' addresses through the edge and the controller, for containers with `client_addresses` (2026-11-28, SPEC §10.5, ASSUMPTIONS Q15)
+  - [ ] Public ports on a service's own network keeping visitors' addresses: Podman's pasta port forwarder (`rootless_port_forwarder = "pasta"`) once Debian's Podman has it
+  - [ ] RustDesk's package: `client_addresses` on hbbs and hbbr, so they see visitors' addresses (roostack-services)
   - [ ] Try the report, names on hold and **Turn the relay on** with a lab against Cloud's test environment, once both sides are deployed there
   - [ ] Try a server's own tunnel to the relay on VMs against a Cloud with an edge (SPEC §10.5, "Ways in", 2026-11-24): a server's names reaching it straight from the edge while joining goes through the controller, its web ports closed to the internet, a real certificate by TLS-ALPN through the relay, its card's three states
   - [ ] A full restore from Roostack Cloud onto a fresh VM, of a lab made for it (no real DNS records), including a big service's data taking longer than an hour

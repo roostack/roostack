@@ -185,19 +185,66 @@ func (m *Manager) edgeForwards(lab config.Lab, services []state.Service, infos m
 				continue
 			}
 			taken[key(pc.HostPort, pc.Protocol)] = s.Name()
+			// A container that sees clients' own addresses gets visitors'
+			// too, through tunnels (agent.Tunnel); for one on its
+			// service's network, Podman's port forwarding would hide them
+			// anyway, and its answers to UDP wouldn't find the way back.
+			c := s.Package.Containers[s.Package.Ports[name].Container]
+			keep := c != nil && c.ClientAddresses
 			if linked {
-				atEdge = append(atEdge, agent.PortForward{Port: pc.HostPort, Proto: pc.Protocol, To: to, Reason: reason})
+				atEdge = append(atEdge, agent.PortForward{Port: pc.HostPort, Proto: pc.Protocol, To: to, Keep: keep, Reason: reason})
 				continue
 			}
 			atEdge = append(atEdge, agent.PortForward{Port: pc.HostPort, Proto: pc.Protocol,
-				To: labnet.ControllerAddr.String(), Reason: reason})
+				To: labnet.ControllerAddr.String(), Keep: keep, Reason: reason})
 			if host != m.Lab.NodeID {
 				atController = append(atController, agent.PortForward{Port: pc.HostPort, Proto: pc.Protocol, To: to,
-					FromEdge: true, Reason: reason})
+					FromEdge: true, Keep: keep, Reason: reason})
 			}
 		}
 	}
 	return atEdge, atController
+}
+
+// forwardTunnels are the tunnels each server needs (by ID, the other
+// servers' addresses on Roostack's network) for the public ports that
+// keep visitors' addresses: the edge to where it sends them, the
+// controller to the edge and to the servers it sends them on to, and each
+// of those back to where they come from (SPEC.md §10.5).
+func (m *Manager) forwardTunnels(infos map[string]linkInfo, edge string, atEdge, atController []agent.PortForward) map[string][]string {
+	controller := labnet.ControllerAddr.String()
+	idOf := func(addr string) string {
+		if addr == controller {
+			return m.Lab.NodeID
+		}
+		for id, info := range infos {
+			if info.Addr == addr {
+				return id
+			}
+		}
+		return ""
+	}
+	out := map[string][]string{}
+	add := func(id, remote string) {
+		if id != "" && remote != "" && !slices.Contains(out[id], remote) {
+			out[id] = append(out[id], remote)
+		}
+	}
+	edgeAddr := infos[edge].Addr
+	for _, f := range atEdge {
+		if f.Keep {
+			add(edge, f.To)
+			add(idOf(f.To), edgeAddr)
+		}
+	}
+	for _, f := range atController {
+		if f.Keep {
+			add(m.Lab.NodeID, edgeAddr)
+			add(m.Lab.NodeID, f.To)
+			add(idOf(f.To), controller)
+		}
+	}
+	return out
 }
 
 // edgeConfig is the edge's Caddy config: the lab's public names (with

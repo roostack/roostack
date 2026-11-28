@@ -70,7 +70,8 @@ type Firewall struct {
 	// §10.5): on the lab's edge, from the internet to the controller; on
 	// the controller, from the edge on to the server at home that runs
 	// the service. They leave with this server's address there, so the
-	// answers come back through it.
+	// answers come back through it, unless they keep visitors' addresses
+	// (PortForward.Keep) and go through a tunnel.
 	PortForwards []PortForward `json:"port_forwards,omitempty"`
 	// ForwardOwned are the interfaces the agent turns forwarding on for,
 	// for the lab's VPN or PortForwards, where it was off
@@ -87,6 +88,11 @@ type Firewall struct {
 	// keeps in the caddy set (caddyset.go). Roostack itself, in
 	// system.slice, and other users aren't affected.
 	CaddyOnly []PortRange `json:"caddy_only,omitempty"`
+	// Tunnels are this server's links to others for public ports that
+	// keep visitors' addresses (PortForward.Keep, Rule.Kept): on the
+	// lab's edge to where it sends them, on the controller to the edge and
+	// the servers it sends them on to, and on those from where they come.
+	Tunnels []Tunnel `json:"tunnels,omitempty"`
 	// RoostackUID is the roostack user's, for CaddyOnly: the agent sets
 	// it; a request can't.
 	RoostackUID int `json:"-"`
@@ -161,8 +167,13 @@ type PortForward struct {
 	To string `json:"to"`
 	// FromEdge: from the lab's edges (Firewall.Edges), on Roostack's
 	// network; otherwise from the internet, on any other interface.
-	FromEdge bool   `json:"from_edge,omitempty"`
-	Reason   string `json:"reason"`
+	FromEdge bool `json:"from_edge,omitempty"`
+	// Keep: sent through the tunnel to To (Firewall.Tunnels), keeping the
+	// visitor's address, rather than leaving with this server's; from the
+	// edges, it arrives through a tunnel from one. For a container that
+	// sees clients' own addresses (pkgspec.Container.ClientAddresses).
+	Keep   bool   `json:"keep,omitempty"`
+	Reason string `json:"reason"`
 }
 
 // forwardsFromOutside reports whether connections from the internet are
@@ -191,6 +202,10 @@ type Rule struct {
 	Source string `json:"source,omitempty"`
 	// Reason is shown in the generated file, e.g. "caddy https".
 	Reason string `json:"reason"`
+	// Kept: a public port from the edges or the controller that keeps
+	// visitors' addresses, so it arrives through a tunnel from them
+	// (Firewall.Tunnels) rather than over Roostack's network.
+	Kept bool `json:"kept,omitempty"`
 	// From is a well-known port (one of OutsidePorts) sent on to Port, for
 	// the same people: DNS's 53 for a service's container, which can't
 	// listen below 1024 (SPEC.md §8.1, "Well-known ports"). 0: none.
@@ -241,7 +256,7 @@ func (f Firewall) Validate() error {
 	}
 	if f.Unchosen {
 		if f.SSHFrom != "" || len(f.Allow) > 0 || len(f.Forward) > 0 || len(f.Edges) > 0 || f.JoinPort != 0 ||
-			len(f.Members) > 0 || f.Controller != "" || f.People != nil || len(f.CaddyOnly) > 0 {
+			len(f.Members) > 0 || f.Controller != "" || f.People != nil || len(f.CaddyOnly) > 0 || len(f.Tunnels) > 0 {
 			errs = append(errs, errors.New("unchosen: only setup_port may be set"))
 		}
 		return errors.Join(errs...)
@@ -323,6 +338,7 @@ func (f Firewall) Validate() error {
 			errs = append(errs, fmt.Errorf("caddy_only[%d]: invalid ports %d to %d", i, r.From, r.To))
 		}
 	}
+	errs = append(errs, f.validateTunnels()...)
 	return errors.Join(errs...)
 }
 
@@ -478,7 +494,10 @@ func (f Firewall) Ruleset() string {
 	// on Roostack's interfaces.
 	for _, p := range f.PortForwards {
 		from := `iifname != "roostack*" fib daddr type local `
-		if p.FromEdge {
+		switch {
+		case p.FromEdge && p.Keep:
+			from = fmt.Sprintf("iifname %s ", f.tunnelsFrom(f.Edges...))
+		case p.FromEdge:
 			from = fmt.Sprintf("iifname %q ip saddr { %s } ", WireGuardInterface, strings.Join(f.Edges, ", "))
 		}
 		fmt.Fprintf(&b, "\t\t# %s: sent on to %s\n", p.Reason, p.To)
@@ -499,6 +518,7 @@ func (f Firewall) Ruleset() string {
 	}
 	fmt.Fprintf(&b, "\t\tiifname %q tcp dport %d %s\n", RelayInterface, EdgePort, edgeVerdict)
 	fmt.Fprintf(&b, "\t\tiifname %q drop\n", RelayInterface)
+	f.keptRules(&b)
 	if len(f.Edges) > 0 {
 		fmt.Fprintf(&b, "\t\tiifname %q ip saddr { %s } tcp dport %d %s\n", WireGuardInterface,
 			strings.Join(f.Edges, ", "), EdgePort, edgeVerdict)
@@ -590,6 +610,7 @@ func (f Firewall) Ruleset() string {
 	if f.JoinPort != 0 {
 		fmt.Fprintf(&b, "\t\t%sdrop\n", f.notMember())
 	}
+	f.keptForwards(&b)
 	f.peopleForward(&b)
 	fmt.Fprintf(&b, "\t\tiifname %q oifname %q ct state established,related accept\n", WireGuardInterface, WireGuardInterface)
 	for _, r := range f.Forward {
@@ -598,6 +619,9 @@ func (f Firewall) Ruleset() string {
 			trust.ServersRange, r.Port)
 	}
 	for _, p := range f.PortForwards {
+		if p.Keep {
+			continue // keptForwards
+		}
 		fmt.Fprintf(&b, "\t\t# %s: sent on to %s, and its answers\n", p.Reason, p.To)
 		fmt.Fprintf(&b, "\t\toifname %q ip daddr %s %s dport %d ct status dnat accept\n", WireGuardInterface, p.To, p.Proto, p.Port)
 		fmt.Fprintf(&b, "\t\tiifname %q ip saddr %s %s sport %d ct status dnat accept\n", WireGuardInterface, p.To, p.Proto, p.Port)
@@ -617,6 +641,7 @@ func (f Firewall) Ruleset() string {
 		fmt.Fprintf(&b, "\t\tiifname { %s } drop\n", set)
 	}
 	b.WriteString("\t}\n")
+	f.tunnelMarks(&b)
 	f.output(&b)
 	f.postrouting(&b)
 	b.WriteString("}\n")
@@ -705,10 +730,13 @@ func (f Firewall) peopleForward(b *strings.Builder) {
 // postrouting gives what goes on from this server its address: the VPN's
 // devices whose traffic goes on, so the home network's devices and the
 // internet answer them through it, and the public ports it sends on to
-// another server (PortForwards), whose answers come back through it.
+// another server (PortForwards), whose answers come back through it;
+// not those that keep visitors' addresses (PortForward.Keep), whose
+// answers come back through their tunnel.
 func (f Firewall) postrouting(b *strings.Builder) {
 	p := f.People
-	if !p.ForwardsTraffic() && len(f.PortForwards) == 0 {
+	masq := slices.DeleteFunc(slices.Clone(f.PortForwards), func(pf PortForward) bool { return pf.Keep })
+	if !p.ForwardsTraffic() && len(masq) == 0 {
 		return
 	}
 	b.WriteString("\n\tchain postrouting {\n")
@@ -721,7 +749,7 @@ func (f Firewall) postrouting(b *strings.Builder) {
 		fmt.Fprintf(b, "\t\tiifname %q oifname != { %q, %q } ip saddr %s masquerade\n", from, PeopleInterface,
 			WireGuardInterface, trust.DevicesRange)
 	}
-	for _, pf := range f.PortForwards {
+	for _, pf := range masq {
 		fmt.Fprintf(b, "\t\toifname %q ip daddr %s %s dport %d ct status dnat masquerade\n", WireGuardInterface, pf.To, pf.Proto, pf.Port)
 	}
 	b.WriteString("\t}\n")
@@ -778,14 +806,14 @@ func (f Firewall) servers(b *strings.Builder) {
 	}
 	// What only the controller reaches, such as a live view's Glances.
 	for _, r := range f.Allow {
-		if r.For == trust.Controller && f.Controller != "" {
+		if r.For == trust.Controller && f.Controller != "" && !r.Kept {
 			fmt.Fprintf(b, "\t\t# %s\n", r.Reason)
 			fmt.Fprintf(b, "\t\tiifname %q ip saddr %s %s dport %d accept\n", WireGuardInterface, f.Controller, r.Proto, r.Port)
 		}
 	}
 	// Public ports the lab's edges send on (PortForwards).
 	for _, r := range f.Allow {
-		if r.For == trust.Edge && len(f.Edges) > 0 {
+		if r.For == trust.Edge && len(f.Edges) > 0 && !r.Kept {
 			fmt.Fprintf(b, "\t\t# %s, sent on by the lab's edge\n", r.Reason)
 			fmt.Fprintf(b, "\t\tiifname %q ip saddr { %s } %s dport %d accept\n", WireGuardInterface, strings.Join(f.Edges, ", "), r.Proto, r.Port)
 		}
@@ -887,6 +915,10 @@ func (h LinuxHost) ApplyFirewall(ruleset string) error {
 func (h LinuxHost) RestoreFirewall() error {
 	if _, err := os.Stat(h.FirewallFile); errors.Is(err, os.ErrNotExist) {
 		return nil
+	}
+	// The tunnels its rules name first (they match by name either way).
+	if err := h.restoreTunnels(); err != nil {
+		return fmt.Errorf("making tunnels again: %w", err)
 	}
 	if out, err := exec.Command("nft", "-f", h.FirewallFile).CombinedOutput(); err != nil {
 		return fmt.Errorf("nft restore: %w: %s", err, out)

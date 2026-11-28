@@ -53,6 +53,9 @@ type Roles struct {
 	// PortForwards are the public ports this server sends on to another,
 	// on the lab's edge and the controller (SPEC.md §10.5).
 	PortForwards []agent.PortForward
+	// Tunnels are the servers this one has a tunnel to, for public ports
+	// that keep visitors' addresses (agent.Tunnel).
+	Tunnels []string
 }
 
 // Desired returns the firewall for the lab: web traffic (Caddy decides
@@ -172,6 +175,20 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 	// controller, which takes them from the edge, and sends on those of a
 	// service on another server, which takes them from the controller.
 	fw.PortForwards = roles.PortForwards
+	if a, err := netip.ParseAddr(lab.OverlayAddr); err == nil && agent.OverlayRange.Contains(a) {
+		for _, r := range roles.Tunnels {
+			fw.Tunnels = append(fw.Tunnels, agent.Tunnel{Local: lab.OverlayAddr, Remote: r})
+		}
+	}
+	// A port that keeps visitors' addresses comes through a tunnel from
+	// where it's sent, where there's one.
+	tunnelFrom := func(c trust.Class) bool {
+		from := []string{Controller(lab).String()}
+		if c == trust.Edge {
+			from = fw.Edges
+		}
+		return slices.ContainsFunc(from, func(a string) bool { return slices.Contains(roles.Tunnels, a) })
+	}
 	// Another server takes them from the controller, or straight from the
 	// edge when it serves directly over a link of its own with it.
 	if edgeHere := slices.Contains(fw.Edges, lab.OverlayAddr); len(fw.Edges) > 0 && !edgeHere {
@@ -186,7 +203,7 @@ func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent
 				}
 				for _, f := range from {
 					fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, For: f,
-						Reason: s.Service + " " + hp.Name})
+						Reason: s.Service + " " + hp.Name, Kept: hp.Keeps && tunnelFrom(f)})
 				}
 			}
 		}

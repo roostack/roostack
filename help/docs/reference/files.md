@@ -103,6 +103,7 @@ changes only these:
 | Path | What it is |
 |---|---|
 | `/etc/roostack/firewall.nft` | The firewall (nftables), loaded again at start |
+| `/etc/roostack/tunnels.json` | The tunnels to the lab's other servers for public ports that keep visitors' addresses (`roostack-t<n>` interfaces, with their routing rules at preference 5200 and tables), made again at start |
 | `/etc/roostack/ssh-unblocked.json` | When you unblocked each address that guessed too many SSH passwords, for a day, so it isn't blocked again for the same ones |
 | `/etc/sysctl.d/60-roostack.conf` | Lets containers use ports 80 and 443 |
 | `/etc/ssh/sshd_config.d/10-roostack.conf` | SSH with keys only: no passwords, no root logins, while **Remote access** says so |

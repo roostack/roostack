@@ -256,11 +256,11 @@ func TestServicePortExposure(t *testing.T) {
 	if _, body := h.get("/services/vaultwarden"); strings.Contains(body, podmans) || strings.Contains(body, "not the visitor's") {
 		t.Error("a port whose container keeps addresses says the app won't see the visitor's")
 	}
-	// Through an edge, visitors arrive from its address in the lab.
+	// Through an edge, visitors keep their addresses (SPEC.md §10.5).
 	fm.edge = "vps-sydney"
 	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "connections come in through vps-sydney") ||
-		!strings.Contains(body, "will see each connection as coming from vps-sydney's address in the lab, not the visitor's") {
-		t.Error("a public port through an edge doesn't say whose address the app sees")
+		strings.Contains(body, "not the visitor's") {
+		t.Error("a port that keeps addresses through an edge says the app won't see the visitor's")
 	}
 	fm.ports[0].KeepsAddresses = false
 	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, podmans) || strings.Contains(body, "vps-sydney's address") {

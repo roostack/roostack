@@ -524,6 +524,121 @@ func TestPortForwards(t *testing.T) {
 	}
 }
 
+// keptLab is a lab whose edge (100.96.0.3) sends public ports that keep
+// visitors' addresses to the controller (100.96.0.1), which takes one and
+// sends another on to a server at home (100.96.0.2), through tunnels.
+func keptLab() (edge, controller, node Firewall) {
+	edge = DefaultFirewall()
+	edge.Tunnels = []Tunnel{{Local: "100.96.0.3", Remote: "100.96.0.1"}}
+	edge.PortForwards = []PortForward{
+		{Port: 31116, Proto: "udp", To: "100.96.0.1", Keep: true, Reason: "rustdesk id-udp"},
+		{Port: 31117, Proto: "tcp", To: "100.96.0.1", Keep: true, Reason: "rustdesk relay"},
+		{Port: 2222, Proto: "tcp", To: "100.96.0.1", Reason: "forgejo ssh"},
+	}
+	controller = DefaultFirewall()
+	controller.Edges = []string{"100.96.0.3"}
+	controller.Tunnels = []Tunnel{{Local: "100.96.0.1", Remote: "100.96.0.3"}, {Local: "100.96.0.1", Remote: "100.96.0.2"}}
+	controller.PortForwards = []PortForward{{Port: 31117, Proto: "tcp", To: "100.96.0.2", FromEdge: true, Keep: true, Reason: "rustdesk relay"}}
+	controller.Allow = append(controller.Allow,
+		Rule{Port: 31116, Proto: "udp", For: trust.Edge, Kept: true, Reason: "rustdesk id-udp"},
+		Rule{Port: 2222, Proto: "tcp", For: trust.Edge, Reason: "forgejo ssh"})
+	node = DefaultFirewall()
+	node.Edges = []string{"100.96.0.3"}
+	node.Controller = "100.96.0.1"
+	node.Tunnels = []Tunnel{{Local: "100.96.0.2", Remote: "100.96.0.1"}}
+	node.Allow = append(node.Allow, Rule{Port: 31117, Proto: "tcp", For: trust.Controller, Kept: true, Reason: "rustdesk relay"})
+	return edge, controller, node
+}
+
+// TestKeptPortForwards: public ports that keep visitors' addresses go
+// through tunnels without masquerading, their connections are marked by
+// the tunnel they came through, and nothing else passes a tunnel (SPEC.md
+// §10.5, docs/ASSUMPTIONS.md Q15).
+func TestKeptPortForwards(t *testing.T) {
+	edge, controller, node := keptLab()
+	for name, fw := range map[string]Firewall{"edge": edge, "controller": controller, "node": node} {
+		if err := fw.Validate(); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	if got := (Tunnel{Local: "100.96.0.3", Remote: "100.96.0.1"}); got.Name() != "roostack-t1" || got.Mark() != 0x52000001 {
+		t.Errorf("tunnel to 100.96.0.1: %s %#x", got.Name(), got.Mark())
+	}
+	if got := (Tunnel{Local: "100.96.0.1", Remote: "100.96.127.254"}); got.Name() != "roostack-t7ffe" || len(got.Name()) > 15 {
+		t.Errorf("the last server's tunnel: %s", got.Name())
+	}
+
+	check := func(name, rs string, want, not []string) {
+		t.Helper()
+		for _, w := range want {
+			if !strings.Contains(rs, w) {
+				t.Errorf("%s: missing %q:\n%s", name, w, rs)
+			}
+		}
+		for _, n := range not {
+			if strings.Contains(rs, n) {
+				t.Errorf("%s: has %q:\n%s", name, n, rs)
+			}
+		}
+	}
+	rs := edge.Ruleset()
+	check("edge", rs, []string{
+		`iifname != "roostack*" fib daddr type local udp dport 31116 dnat ip to 100.96.0.1`,
+		`iifname "roostack" ip saddr 100.96.0.1 ip protocol 4 accept`,
+		`oifname "roostack-t1" ip daddr 100.96.0.1 udp dport 31116 ct status dnat accept`,
+		`iifname "roostack-t1" ip saddr 100.96.0.1 tcp sport 31117 ct status dnat accept`,
+		`ct direction original ct status dnat meta mark set ip daddr . meta l4proto . th dport map { 100.96.0.1 . udp . 31116 : 0x52000001, 100.96.0.1 . tcp . 31117 : 0x52000001 }`,
+		`ct direction reply ct mark and 0xffff8000 == 0x52000000 meta mark set ct mark`,
+		"type route hook output priority mangle;",
+		// The port that doesn't keep addresses is as it was.
+		`oifname "roostack" ip daddr 100.96.0.1 tcp dport 2222 ct status dnat masquerade`,
+	}, []string{"udp dport 31116 ct status dnat masquerade", "tcp dport 31117 ct status dnat masquerade"})
+	// Accepted before tunnels' traffic is dropped.
+	if strings.Index(rs, `oifname "roostack-t1" ip daddr`) > strings.Index(rs, `oifname "roostack-t*" drop`) {
+		t.Errorf("edge: the forward is dropped first:\n%s", rs)
+	}
+
+	rs = controller.Ruleset()
+	check("controller", rs, []string{
+		`iifname { "roostack-t3" } tcp dport 31117 dnat ip to 100.96.0.2`,
+		`iifname { "roostack-t3" } udp dport 31116 accept`,
+		`oifname "roostack-t2" ip daddr 100.96.0.2 tcp dport 31117 ct status dnat accept`,
+		`iifname "roostack-t*" ct state new ct mark set iifname map { "roostack-t3" : 0x52000003, "roostack-t2" : 0x52000002 }`,
+		`map { 100.96.0.2 . tcp . 31117 : 0x52000002 }`,
+		`iifname "roostack" ip saddr { 100.96.0.3 } tcp dport 2222 accept`,
+	}, []string{"masquerade", `ip saddr { 100.96.0.3 } udp dport 31116 accept`})
+	// A tunnel's traffic is never home, whatever its source says: it's
+	// settled before the home network's rules.
+	in := rs[strings.Index(rs, "chain input"):]
+	if strings.Index(in, `iifname "roostack-t*" drop`) > strings.Index(in, "@lan4") {
+		t.Errorf("controller: a tunnel's traffic reaches the home network's rules:\n%s", rs)
+	}
+
+	rs = node.Ruleset()
+	check("node", rs, []string{
+		`iifname { "roostack-t1" } tcp dport 31117 accept`,
+		`iifname "roostack-t*" ct state new ct mark set iifname map { "roostack-t1" : 0x52000001 }`,
+	}, []string{"dnat", `ip saddr 100.96.0.1 tcp dport 31117 accept`})
+
+	edge.Tunnels = nil
+	controller.Tunnels = controller.Tunnels[1:]
+	node.Allow[len(node.Allow)-1].For = trust.Anyone
+	for _, bad := range []Firewall{
+		edge,       // a kept port with no tunnel to where it goes
+		controller, // nor from the edge
+		node,       // kept, for anyone
+		{SSHFrom: FromLAN, Tunnels: []Tunnel{{Local: "100.96.0.1", Remote: "203.0.113.1"}}},
+		{SSHFrom: FromLAN, Tunnels: []Tunnel{{Local: "100.96.0.1", Remote: "100.96.0.1"}}},
+		{SSHFrom: FromLAN, Tunnels: []Tunnel{{Local: "100.96.0.1", Remote: "100.96.0.2"}, {Local: "100.96.0.3", Remote: "100.96.0.4"}}},
+		{SSHFrom: FromLAN, Tunnels: []Tunnel{{Local: "100.96.0.1", Remote: "100.96.0.2"}, {Local: "100.96.0.1", Remote: "100.96.0.2"}}},
+		{Unchosen: true, Tunnels: []Tunnel{{Local: "100.96.0.1", Remote: "100.96.0.2"}}},
+	} {
+		if bad.Validate() == nil {
+			t.Errorf("accepted %+v", bad)
+		}
+	}
+}
+
 // TestCaddyOnlyFirewall: on the controller, the roostack user's services
 // other than Caddy are refused the lab's other servers' web ports, live
 // views and SSH; Roostack itself and other users aren't affected.

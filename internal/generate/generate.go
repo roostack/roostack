@@ -212,6 +212,10 @@ type HostPort struct {
 	// Outside is the well-known port the firewall sends to Port
 	// (pkgspec.Port.OutsidePort), or 0.
 	Outside int
+	// Keeps: its container sees clients' own addresses
+	// (pkgspec.Container.ClientAddresses), so a public port sent on to
+	// it keeps visitors' addresses (agent.PortForward.Keep).
+	Keeps bool
 }
 
 // BackupPlan says what to back up for a service (SPEC.md §6.9).
@@ -480,7 +484,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 			exposure = pkgspec.ExposurePrivate
 		}
 		g.out.HostPorts = append(g.out.HostPorts, HostPort{Name: pn, Title: pp.Title, Port: pc.HostPort,
-			Protocol: pc.Protocol, Exposure: exposure, Outside: pp.OutsidePort})
+			Protocol: pc.Protocol, Exposure: exposure, Outside: pp.OutsidePort, Keeps: c.ClientAddresses})
 	}
 	env, err := g.ssoEnv(name, c.Env)
 	if err != nil {

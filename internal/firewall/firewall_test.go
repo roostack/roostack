@@ -1,6 +1,7 @@
 package firewall
 
 import (
+	"fmt"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -347,6 +348,43 @@ func TestDesiredEdgePorts(t *testing.T) {
 		if !slices.Equal(fw.PortForwards, c.roles.PortForwards) {
 			t.Errorf("%s: forwards %v", c.name, fw.PortForwards)
 		}
+	}
+}
+
+// TestDesiredKeptPorts: a public port whose container sees clients' own
+// addresses comes through a tunnel from where it's sent, where this server
+// has one; others stay over Roostack's network (SPEC.md §10.5).
+func TestDesiredKeptPorts(t *testing.T) {
+	services := []*generate.Output{{Service: "rustdesk", HostPorts: []generate.HostPort{
+		{Name: "id", Port: 31116, Protocol: "udp", Exposure: "public", Keeps: true},
+		{Name: "ssh", Port: 2222, Protocol: "tcp", Exposure: "public"}}}}
+	lab := config.Default()
+	lab.Firewall.SSH = config.SSHFromLAN
+	lab.EdgeAddrs = []string{"100.96.0.3/32"}
+	lab.Role, lab.OverlayAddr = config.RoleNode, "100.96.0.2"
+	fw, _ := Desired(lab, services, Roles{Tunnels: []string{"100.96.0.1"}})
+	if err := fw.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if want := []agent.Tunnel{{Local: "100.96.0.2", Remote: "100.96.0.1"}}; !slices.Equal(fw.Tunnels, want) {
+		t.Errorf("tunnels: %v", fw.Tunnels)
+	}
+	var kept []string
+	for _, r := range fw.Allow {
+		if r.Kept {
+			kept = append(kept, fmt.Sprintf("%d/%s %s", r.Port, r.Proto, r.For))
+		}
+	}
+	// From the controller, through its tunnel; from the edge (no tunnel
+	// to it here) and the port whose container doesn't keep addresses,
+	// over Roostack's network.
+	if want := []string{"31116/udp controller"}; !slices.Equal(kept, want) {
+		t.Errorf("kept: %v", kept)
+	}
+	// Before the lab has a network: no tunnels.
+	lab.OverlayAddr = ""
+	if fw, _ := Desired(lab, services, Roles{Tunnels: []string{"100.96.0.1"}}); len(fw.Tunnels) != 0 {
+		t.Errorf("tunnels without an address: %v", fw.Tunnels)
 	}
 }
 

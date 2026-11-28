@@ -356,6 +356,7 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 	paused.Public.Pause = pause
 	paused.Direct = direct
 	atEdge, atController := m.edgeForwards(paused, services, infos, edge)
+	tunnels := m.forwardTunnels(infos, edge, atEdge, atController)
 	for _, n := range nodes {
 		id := n.Identity().ID
 		if n == m.Node {
@@ -422,6 +423,7 @@ func (m *Manager) startApply(reason string, caddyFirst bool) {
 		if n == m.Node {
 			a.PortForwards = atController
 		}
+		a.Tunnels = tunnels[id]
 		if id == vpnServer {
 			a.People = people
 		}

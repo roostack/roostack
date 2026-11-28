@@ -153,6 +153,10 @@ type Assignment struct {
 	// another (SPEC.md §10.5): on the edge, to the controller; on the
 	// controller, from the edge to the server that runs the service.
 	PortForwards []agent.PortForward
+	// Tunnels are the other servers' addresses on Roostack's network this
+	// one has a tunnel to, for public ports that keep visitors' addresses
+	// (agent.Tunnel).
+	Tunnels []string
 	// Libraries are this server's media libraries (SPEC.md §8.1, "Media
 	// libraries"): mounted, and the rest unmounted, by its agent.
 	Libraries []agent.Library
@@ -743,7 +747,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 
 	// The firewall follows the services, e.g. a package port just turned on.
 	roles := firewall.Roles{Store: a.Storage != nil, ProxyPorts: a.ProxyPorts, GuestAddr: a.GuestAddr, Guests: a.Guests,
-		LinksListen: a.Links != nil && a.Links.Listen, VPN: a.People != nil, PortForwards: a.PortForwards, Relayed: a.Relay != nil}
+		LinksListen: a.Links != nil && a.Links.Listen, VPN: a.People != nil, PortForwards: a.PortForwards, Tunnels: a.Tunnels, Relayed: a.Relay != nil}
 	if err := n.applyPeople(ctx, act, a.People); err != nil {
 		return fmt.Errorf("setting up the lab's VPN: %w", err)
 	}
