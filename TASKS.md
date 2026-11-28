@@ -17,7 +17,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] **Publish Caddy's image on GHCR** (the maintainer, 2026-11-07; built 2026-11-22, SPEC §6.5): the Caddy image workflow builds it for amd64 and arm64 (cross-compiled) and prints it by digest, committed in `internal/generate/caddyimage.go`; the release checks it's published from this Containerfile; servers download it through a Quadlet `.image` unit, with no fallback. An upgraded lab's build file is removed.
   - [ ] **Run the Caddy image workflow for the first time** (the maintainer: it needs the branch on GitHub), commit the digest, and make the `roostack-caddy` package public (docs/RELEASING.md). Until then releases refuse, and development builds need `CADDY_DEV_IMAGE`.
   - [ ] Check whether the image builds reproducibly (`--timestamp`, and Go's checksum database for the modules), so that anyone could rebuild it and compare digests as `verify-release` does for the packages.
-  - [ ] Labs pin Caddy 2.11.4 and Cloud's edge 2.11.7: check whether labs should move up before the first published image
+  - [x] Labs move up to Caddy 2.11.9 (2026-11-28), for 2.11.5's and 2.11.8's fixes; Cloud's edge is on 2.11.7
 - [ ] 🟡 **1.8 roostack-agent:** socket API with peer-credential checks; port sysctl; nftables firewall (ruleset checked with `nft -c`)
 - [ ] 🟡 **1.9 Web UI skeleton**
   - [ ] Mark untested catalog packages (Immich) before release (not needed while in development). 2026-10-18: Forgejo and Immich work end to end on arm64 (ASSUMPTIONS R7), so neither needs the mark there; Immich hasn't run on amd64 yet
