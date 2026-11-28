@@ -470,8 +470,18 @@ func (p *Package) validateContainer(v *validator, name string, c *Container) {
 	}
 	validateMemory(v, at+".memory", c.Memory)
 	if c.ClientAddresses {
-		if len(p.Containers) > 1 {
-			v.addf("%s.client_addresses: only a package with one container can have it", at)
+		// On a network of its own, it reaches no other container by
+		// name and none reaches it, so it may neither depend on one nor
+		// be depended on.
+		for _, dep := range c.DependsOn {
+			if strings.HasPrefix(dep, "containers.") {
+				v.addf("%s.client_addresses: the container couldn't reach %s", at, dep)
+			}
+		}
+		for _, other := range slices.Sorted(maps.Keys(p.Containers)) {
+			if other != name && slices.Contains(p.Containers[other].DependsOn, "containers."+name) {
+				v.addf("%s.client_addresses: containers.%s couldn't reach it", at, other)
+			}
 		}
 		for _, db := range slices.Sorted(maps.Keys(p.Databases)) {
 			if p.Databases[db].Type != DBSQLite {

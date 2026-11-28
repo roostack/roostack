@@ -82,7 +82,15 @@ title: App
 version: "1"
 containers:
   web: { image: x, client_addresses: true }
-  worker: { image: x }`, "containers.web.client_addresses: only a package with one container can have it"},
+  worker: { image: x, depends_on: [containers.web] }`, "containers.web.client_addresses: containers.worker couldn't reach it"},
+		{"client addresses depending on another container", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+containers:
+  web: { image: x, client_addresses: true, depends_on: [containers.worker] }
+  worker: { image: x }`, "containers.web.client_addresses: the container couldn't reach containers.worker"},
 		{"url for a mysql database", `
 schema: roostack/v1alpha1
 name: app

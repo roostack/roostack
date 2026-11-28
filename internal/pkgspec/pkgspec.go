@@ -266,8 +266,10 @@ type Container struct {
 	// ClientAddresses runs the container on a network of its own, as
 	// Caddy is, so it sees each client's real address rather than
 	// Podman's (SPEC.md §6.5): for a DNS server's per-client limits and
-	// logs. Only a package with one container and no database server
-	// can have it, since nothing else could reach the container by name.
+	// logs, or a public port's visitors. Only a container in a package
+	// with no database server can have it, and only if it doesn't depend
+	// on another container nor another on it, since it reaches no other
+	// container by name and none reaches it.
 	ClientAddresses bool    `yaml:"client_addresses"`
 	Quadlet         Quadlet `yaml:"quadlet"`
 }

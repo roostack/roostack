@@ -202,9 +202,10 @@ routes:
     included: Roostack will escape them for systemd.
     `client_addresses: true` runs the container on a network of its own,
     so it sees each device's own address rather than Podman's, such as for
-    a DNS server's per-device limits and logs. Only a package with one
-    container and no database server can have it, since nothing else
-    could reach the container by name.
+    a DNS server's per-device limits and logs, or for a public port's
+    visitors. A container can have it only in a package with no database
+    server, and only if it doesn't depend on another container nor another
+    on it, since it can't reach the others by name and they can't reach it.
 
 `storage`
 :   Folders the service owns. `title` says what one holds, in a few words
